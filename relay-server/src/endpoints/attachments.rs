@@ -13,7 +13,7 @@ use crate::utils::MultipartItems;
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let event_id = tryf!(request
         .match_info()
         .get("event_id")

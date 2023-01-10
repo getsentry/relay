@@ -1,21 +1,68 @@
+use std::borrow::Cow;
+
 use relay_common::SpanStatus;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
+use super::TransactionNameRule;
+
 /// Rejects transactions based on required fields.
 #[derive(Default)]
-pub struct TransactionsProcessor {
+pub struct TransactionsProcessor<'r> {
     normalize_names: bool,
+    tx_name_rules: &'r [TransactionNameRule],
 }
 
-impl TransactionsProcessor {
-    pub fn new(normalize_names: bool) -> Self {
-        Self { normalize_names }
+impl<'r> TransactionsProcessor<'r> {
+    pub fn new(normalize_names: bool, tx_name_rules: &'r [TransactionNameRule]) -> Self {
+        Self {
+            normalize_names,
+            tx_name_rules,
+        }
+    }
+
+    /// Applies the rule if any found to the transaction name.
+    ///
+    /// It find the first rule matching the criteria:
+    /// - source matchining the one provided in the rule sorce
+    /// - rule hasn't epired yet
+    /// - glob pattern matches the transaction name
+    ///
+    /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
+    /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
+    pub fn apply_transaction_rename_rule(
+        &self,
+        transaction: &mut Annotated<String>,
+        info: &mut std::option::Option<TransactionInfo>,
+    ) -> ProcessingResult {
+        if let Some(info) = info.as_mut() {
+            transaction.apply(|transaction, meta| {
+                let result = self.tx_name_rules.iter().find_map(|rule| {
+                    rule.match_and_apply(Cow::Borrowed(transaction), info)
+                        .map(|applied_result| (rule.pattern.pattern(), applied_result))
+                });
+
+                if let Some((rule, result)) = result {
+                    if *transaction != result {
+                        meta.set_original_value(Some(transaction.clone()));
+                        // add also the rule which was applied to the transaction name
+                        meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                        *transaction = result;
+                        info.source
+                            .value_mut()
+                            .replace(TransactionSource::Sanitized);
+                    }
+                }
+
+                Ok(())
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -66,11 +113,7 @@ pub fn validate_timestamps(
     }
 }
 
-pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
-
+fn validate_transaction(event: &mut Event) -> ProcessingResult {
     validate_timestamps(event)?;
 
     let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
@@ -248,7 +291,7 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
     })
 }
 
-impl Processor for TransactionsProcessor {
+impl Processor for TransactionsProcessor<'_> {
     fn process_event(
         &mut self,
         event: &mut Event,
@@ -270,6 +313,12 @@ impl Processor for TransactionsProcessor {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
+        // Apply the rule if any found
+        self.apply_transaction_rename_rule(
+            &mut event.transaction,
+            event.transaction_info.value_mut(),
+        )?;
+
         // Normalize transaction names for URLs transaction sources only.
         if event.get_transaction_source() == &TransactionSource::Url && self.normalize_names {
             normalize_transaction_name(&mut event.transaction)?;
@@ -280,7 +329,13 @@ impl Processor for TransactionsProcessor {
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
-            if span.value().is_none() {
+            if let Some(span) = span.value_mut() {
+                if span.timestamp.value().is_none() {
+                    // event timestamp guaranteed to be `Some` due to validate_transaction call
+                    span.timestamp.set_value(event.timestamp.value().cloned());
+                    span.status = Annotated::new(SpanStatus::DeadlineExceeded);
+                }
+            } else {
                 return Err(ProcessingAction::InvalidTransaction(
                     "spans must be valid in transaction event",
                 ));
@@ -344,9 +399,12 @@ impl Processor for TransactionsProcessor {
 
 #[cfg(test)]
 mod tests {
+
     use chrono::offset::TimeZone;
-    use chrono::Utc;
+    use chrono::{Duration, Utc};
     use similar_asserts::assert_eq;
+
+    use relay_common::Glob;
 
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
@@ -418,6 +476,42 @@ mod tests {
             Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events"
             ))
+        );
+    }
+
+    #[test]
+    fn test_replace_missing_timestamp() {
+        let span = Span {
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 1, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            ..Default::default()
+        };
+
+        let mut event = new_test_event().0.unwrap();
+        event.spans = Annotated::new(vec![Annotated::new(span)]);
+
+        TransactionsProcessor::default()
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            event.spans.value().unwrap()[0].value().unwrap().timestamp,
+            event.timestamp
+        );
+
+        assert_eq!(
+            event.spans.value().unwrap()[0]
+                .value()
+                .unwrap()
+                .status
+                .value()
+                .unwrap(),
+            &SpanStatus::DeadlineExceeded
         );
     }
 
@@ -771,45 +865,6 @@ mod tests {
             ),
             Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_span_with_missing_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
-            spans: Annotated::new(vec![Annotated::new(Span {
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing timestamp"
             ))
         );
     }
@@ -1360,7 +1415,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(true),
+            &mut TransactionsProcessor::new(true, &[]),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1415,6 +1470,319 @@ mod tests {
         "###);
     }
 
+    #[test]
+    fn test_transaction_name_rename_with_rules() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+
+        let rule1 = TransactionNameRule {
+            pattern: Glob::builder("/foo/*/user/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+        let rule2 = TransactionNameRule {
+            pattern: Glob::builder("/foo/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule3 = TransactionNameRule {
+            pattern: Glob::builder("/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+        let mut rules = vec![rule1, rule2, rule3];
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(false, &rules),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+         {
+           "type": "transaction",
+           "transaction": "/foo/*/user/*/0/",
+           "transaction_info": {
+             "source": "sanitized"
+           },
+           "modules": {
+             "rack": "1.2.3"
+           },
+           "timestamp": 1619420400.0,
+           "start_timestamp": 1619420341.0,
+           "contexts": {
+             "trace": {
+               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+               "span_id": "fa90fdead5f74053",
+               "op": "rails.request",
+               "status": "ok",
+               "type": "trace"
+             }
+           },
+           "sdk": {
+             "name": "sentry.ruby"
+           },
+           "spans": [],
+           "_meta": {
+             "transaction": {
+               "": {
+                 "rem": [
+                   [
+                     "/foo/*/user/*/**",
+                     "s"
+                   ]
+                 ],
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
+               }
+             }
+           }
+         }
+         "###);
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        // Make the first rule expire, the second rule must be applied.
+        rules[0].expiry = Utc::now() - Duration::hours(1);
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(false, &rules),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+         {
+           "type": "transaction",
+           "transaction": "/foo/*/user/123/0/",
+           "transaction_info": {
+             "source": "sanitized"
+           },
+           "modules": {
+             "rack": "1.2.3"
+           },
+           "timestamp": 1619420400.0,
+           "start_timestamp": 1619420341.0,
+           "contexts": {
+             "trace": {
+               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+               "span_id": "fa90fdead5f74053",
+               "op": "rails.request",
+               "status": "ok",
+               "type": "trace"
+             }
+           },
+           "sdk": {
+             "name": "sentry.ruby"
+           },
+           "spans": [],
+           "_meta": {
+             "transaction": {
+               "": {
+                 "rem": [
+                   [
+                     "/foo/*/**",
+                     "s"
+                   ]
+                 ],
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
+               }
+             }
+           }
+         }
+         "###);
+    }
+
+    #[test]
+    fn test_transaction_name_unsupported_source() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "foobar"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        let rule1 = TransactionNameRule {
+            pattern: Glob::new("/foo/*/**"),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule2 = TransactionNameRule {
+            pattern: Glob::new("/*/**"),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+        let rules = vec![rule1, rule2];
+
+        // This must not normalize transaction name, since it's disabled.
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(false, &rules),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+          "transaction_info": {
+            "source": "foobar"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": []
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_transaction_name_rename_end_slash() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+
+        let rule = TransactionNameRule {
+            pattern: Glob::builder("/foo/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(false, &[rule]),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+         {
+           "type": "transaction",
+           "transaction": "/foo/*/user",
+           "transaction_info": {
+             "source": "sanitized"
+           },
+           "modules": {
+             "rack": "1.2.3"
+           },
+           "timestamp": 1619420400.0,
+           "start_timestamp": 1619420341.0,
+           "contexts": {
+             "trace": {
+               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+               "span_id": "fa90fdead5f74053",
+               "op": "rails.request",
+               "status": "ok",
+               "type": "trace"
+             }
+           },
+           "sdk": {
+             "name": "sentry.ruby"
+           },
+           "spans": [],
+           "_meta": {
+             "transaction": {
+               "": {
+                 "rem": [
+                   [
+                     "/foo/*/**",
+                     "s"
+                   ]
+                 ],
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user"
+               }
+             }
+           }
+         }
+         "###);
+    }
+
     macro_rules! transaction_name_test {
         ($name:ident, $input:literal, $output:literal) => {
             #[test]
@@ -1446,7 +1814,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(true),
+                    &mut TransactionsProcessor::new(true, &[]),
                     ProcessingState::root(),
                 )
                 .unwrap();

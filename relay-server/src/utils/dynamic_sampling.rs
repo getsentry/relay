@@ -1,5 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
+use chrono::{DateTime, Utc};
 use std::net::IpAddr;
 
 use relay_common::{ProjectKey, Uuid};
@@ -56,6 +57,7 @@ fn get_trace_sampling_rule(
     sampling_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     ip_addr: Option<IpAddr>,
+    now: DateTime<Utc>,
 ) -> Result<Option<SamplingSpec>, SamplingResult> {
     let dsc = or_ok_none!(dsc);
 
@@ -66,10 +68,10 @@ fn get_trace_sampling_rule(
     let sampling_config = or_ok_none!(&sampling_project_state.config.dynamic_sampling);
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
-    let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr));
+    let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr, now));
     let sample_rate = match sampling_config.mode {
-        SamplingMode::Received => rule.sample_rate,
-        SamplingMode::Total => dsc.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Received => rule.get_sample_rate(now),
+        SamplingMode::Total => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
         SamplingMode::Unsupported => {
             if processing_enabled {
                 relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
@@ -91,6 +93,7 @@ fn get_event_sampling_rule(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
+    now: DateTime<Utc>,
 ) -> Result<Option<SamplingSpec>, SamplingResult> {
     let event = or_ok_none!(event);
     let event_id = or_ok_none!(event.id.value());
@@ -98,10 +101,10 @@ fn get_event_sampling_rule(
     let sampling_config = or_ok_none!(&project_state.config.dynamic_sampling);
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
-    let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr));
+    let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr, now));
     let sample_rate = match (dsc, sampling_config.mode) {
-        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.sample_rate),
-        _ => rule.sample_rate,
+        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
+        _ => rule.get_sample_rate(now),
     };
 
     Ok(Some(SamplingSpec {
@@ -122,17 +125,32 @@ pub fn should_keep_event(
     sampling_project_state: Option<&ProjectState>,
     processing_enabled: bool,
 ) -> SamplingResult {
-    let matching_trace_rule =
-        match get_trace_sampling_rule(processing_enabled, sampling_project_state, dsc, ip_addr) {
-            Ok(spec) => spec,
-            Err(sampling_result) => return sampling_result,
-        };
+    // For consistency reasons we take a snapshot in time and use that time across all code that
+    // requires it.
+    let now = Utc::now();
 
-    let matching_event_rule =
-        match get_event_sampling_rule(processing_enabled, project_state, dsc, event, ip_addr) {
-            Ok(spec) => spec,
-            Err(sampling_result) => return sampling_result,
-        };
+    let matching_trace_rule = match get_trace_sampling_rule(
+        processing_enabled,
+        sampling_project_state,
+        dsc,
+        ip_addr,
+        now,
+    ) {
+        Ok(spec) => spec,
+        Err(sampling_result) => return sampling_result,
+    };
+
+    let matching_event_rule = match get_event_sampling_rule(
+        processing_enabled,
+        project_state,
+        dsc,
+        event,
+        ip_addr,
+        now,
+    ) {
+        Ok(spec) => spec,
+        Err(sampling_result) => return sampling_result,
+    };
 
     // NOTE: Event rules take precedence over trace rules. If the event rule has a lower sample rate
     // than the trace rule, this means that traces will be incomplete.
@@ -165,12 +183,18 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
 
+    use bytes::Bytes;
+    use chrono::DateTime;
+
+    use chrono::Duration as DateDuration;
     use relay_common::EventType;
     use relay_general::protocol::EventId;
     use relay_general::types::Annotated;
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule};
+    use relay_sampling::{
+        DecayingFunction, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig,
+        SamplingRule, TimeRange,
+    };
 
     use crate::envelope::Item;
 
@@ -187,13 +211,32 @@ mod tests {
         rule_type: RuleType,
         mode: SamplingMode,
     ) -> ProjectState {
+        state_with_decaying_rule(
+            sample_rate,
+            rule_type,
+            mode,
+            DecayingFunction::Constant,
+            None,
+            None,
+        )
+    }
+
+    fn state_with_decaying_rule(
+        sample_rate: Option<f64>,
+        rule_type: RuleType,
+        mode: SamplingMode,
+        decaying_fn: DecayingFunction,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+    ) -> ProjectState {
         let rules = match sample_rate {
             Some(sample_rate) => vec![SamplingRule {
                 condition: RuleCondition::all(),
                 sample_rate,
                 ty: rule_type,
                 id: RuleId(1),
-                time_range: Default::default(),
+                time_range: TimeRange { start, end },
+                decaying_fn,
             }],
             None => Vec::new(),
         };
@@ -219,20 +262,23 @@ mod tests {
     }
 
     /// ugly hack to build an envelope with an optional trace context
-    fn new_envelope(with_trace_context: bool) -> Envelope {
+    fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box<Envelope> {
+        let transaction_name = transaction_name.into();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42";
         let event_id = EventId::new();
 
-        let raw_event = if with_trace_context {
+        let raw_event = if with_dsc {
             format!(
-                "{{\"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
+                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
+                transaction_name,
                 event_id.0.to_simple(),
                 dsn,
                 serde_json::to_string(&create_sampling_context(None)).unwrap(),
             )
         } else {
             format!(
-                "{{\"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
+                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
+                transaction_name,
                 event_id.0.to_simple(),
                 dsn,
             )
@@ -252,6 +298,205 @@ mod tests {
         envelope.add_item(item3);
 
         envelope
+    }
+
+    fn prepare_and_get_sampling_rule(
+        client_sample_rate: f64,
+        event_type: EventType,
+        project_state: &ProjectState,
+        now: DateTime<Utc>,
+    ) -> Result<Option<SamplingSpec>, SamplingResult> {
+        let sampling_context = create_sampling_context(Some(client_sample_rate));
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            ..Event::default()
+        };
+
+        get_event_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            project_state,
+            Some(&sampling_context),
+            Some(&event),
+            None, // ip address not needed for uniform rule
+            now,
+        )
+    }
+
+    fn state_with_rule_and_condition(
+        sample_rate: Option<f64>,
+        rule_type: RuleType,
+        mode: SamplingMode,
+        condition: RuleCondition,
+    ) -> ProjectState {
+        let rules = match sample_rate {
+            Some(sample_rate) => vec![SamplingRule {
+                condition,
+                sample_rate,
+                ty: rule_type,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            None => Vec::new(),
+        };
+
+        state_with_config(SamplingConfig {
+            rules,
+            mode,
+            next_id: None,
+        })
+    }
+
+    fn samplingresult_from_rules_and_proccessing_flag(
+        rules: Vec<SamplingRule>,
+        processing_enabled: bool,
+    ) -> SamplingResult {
+        let event_state = state_with_config(SamplingConfig {
+            rules,
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+
+        let some_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        let some_envelope = new_envelope(true, "testing");
+
+        should_keep_event(
+            some_envelope.dsc(),
+            Some(&some_event),
+            None,
+            &event_state,
+            None,
+            processing_enabled,
+        )
+    }
+
+    /// Checks that events aren't dropped if they contain an unsupported rule,
+    /// checks the cases with and without the process_enabled flag
+    #[test]
+    fn test_bad_dynamic_rules() {
+        // adds a rule which should always match (meaning the event will be dropped)
+        let mut rules = vec![SamplingRule {
+            condition: RuleCondition::all(),
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }];
+
+        // ensures the event is indeed dropped with and without processing enabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), true);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        rules.push(SamplingRule {
+            condition: RuleCondition::Unsupported,
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        });
+
+        // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Keep));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules, true);
+        assert!(matches!(res, SamplingResult::Drop(_))); // should also log an error
+    }
+
+    #[test]
+    fn test_trace_rules_applied_after_event_rules() {
+        // a transaction rule that drops everything
+        let event_state = state_with_rule_and_condition(
+            Some(0.0),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::Eq(EqCondition {
+                name: "event.transaction".to_owned(),
+                value: "healthcheck".into(),
+                options: Default::default(),
+            }),
+        );
+
+        // a trace rule that keeps everything
+        let trace_state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::Received);
+
+        let healthcheck_envelope = new_envelope(true, "healthcheck");
+        let other_envelope = new_envelope(true, "test1");
+
+        let healthcheck_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("healthcheck".to_owned()),
+            ..Event::default()
+        };
+
+        let other_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("test1".to_owned()),
+            ..Event::default()
+        };
+
+        // if it matches the transaction rule, the transaction should be dropped
+        let should_drop = should_keep_event(
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
+            None,
+            &event_state,
+            Some(&trace_state),
+            false,
+        );
+
+        // if it doesn't match the transaction rule, the transaction shouldn't be dropped
+        let should_keep = should_keep_event(
+            other_envelope.dsc(),
+            Some(&other_event),
+            None,
+            &event_state,
+            Some(&trace_state),
+            false,
+        );
+
+        let now = Utc::now();
+
+        // matching event should return an event rule
+        assert!(get_event_sampling_rule(
+            false,
+            &event_state,
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
+            None,
+            now
+        )
+        .unwrap()
+        .is_some());
+
+        // non-matching event should not return an event rule
+        assert!(get_event_sampling_rule(
+            false,
+            &event_state,
+            other_envelope.dsc(),
+            Some(&other_event),
+            None,
+            now
+        )
+        .unwrap()
+        .is_none());
+
+        assert!(matches!(should_keep, SamplingResult::Keep));
+        assert!(matches!(should_drop, SamplingResult::Drop(_)));
     }
 
     #[test]
@@ -284,7 +529,7 @@ mod tests {
     #[test]
     fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
         let result = should_keep_event(
@@ -302,7 +547,7 @@ mod tests {
     /// Should keep transaction when no trace context is present
     fn test_should_keep_transaction_no_trace() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(false);
+        let envelope = new_envelope(false, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
@@ -324,7 +569,7 @@ mod tests {
     /// transaction
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
@@ -384,7 +629,7 @@ mod tests {
         let sampling_config = serde_json::from_value(sampling_config).unwrap();
         let project_state = state_with_config(sampling_config);
 
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
 
         let event = Event {
             id: Annotated::new(EventId::new()),
@@ -414,6 +659,7 @@ mod tests {
             Some(&project_state),
             Some(&sampling_context),
             None,
+            Utc::now(),
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.1);
@@ -428,6 +674,7 @@ mod tests {
             Some(&project_state),
             Some(&sampling_context),
             None,
+            Utc::now(),
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
@@ -437,8 +684,13 @@ mod tests {
     fn test_trace_rule_unsupported() {
         let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
         let sampling_context = create_sampling_context(Some(0.5));
-        let spec =
-            get_trace_sampling_rule(true, Some(&project_state), Some(&sampling_context), None);
+        let spec = get_trace_sampling_rule(
+            true,
+            Some(&project_state),
+            Some(&sampling_context),
+            None,
+            Utc::now(),
+        );
 
         assert!(matches!(spec, Err(SamplingResult::Keep)));
     }
@@ -460,6 +712,7 @@ mod tests {
             Some(&sampling_context),
             Some(&event),
             None, // ip address not needed for uniform rule
+            Utc::now(),
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.1);
@@ -481,8 +734,258 @@ mod tests {
             Some(&sampling_context),
             Some(&event),
             None, // ip address not needed for uniform rule
+            Utc::now(),
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            Some(now - DateDuration::days(1)),
+            Some(now + DateDuration::days(1)),
+        );
+
+        let sample_rate =
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate;
+        let expected_sample_rate = 0.44999999999999996;
+
+        // Workaround against floating point precision differences.
+        // https://rust-lang.github.io/rust-clippy/master/#float_cmp
+        assert!((sample_rate - expected_sample_rate).abs() < f64::EPSILON)
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_open_time_range_and_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            Some(now - DateDuration::days(1)),
+            None,
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            None,
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_no_time_range_and_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            None,
+            None,
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_now_equal_start_and_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            Some(now),
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_now_equal_end_and_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            Some(now - DateDuration::days(1)),
+            Some(now),
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_base_less_then_decayed_and_linear_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.3),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.7,
+            },
+            Some(now - DateDuration::days(1)),
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.6),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now - DateDuration::days(1)),
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.6
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_open_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now - DateDuration::days(1)),
+            None,
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_no_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_inverse_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.6),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now + DateDuration::days(1)),
+            Some(now - DateDuration::days(1)),
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
     }
 }

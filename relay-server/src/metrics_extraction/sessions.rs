@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
-use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
+use relay_general::protocol::{
+    AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
+};
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
@@ -10,7 +12,8 @@ use super::utils::with_tag;
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 /// Current version of metrics extraction.
-const EXTRACT_VERSION: u16 = 1;
+const EXTRACT_VERSION: u16 = 2;
+const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -40,6 +43,10 @@ impl SessionMetricsConfig {
         !self.is_enabled()
     }
 
+    pub fn should_extract_abnormal_mechanism(&self) -> bool {
+        self.version >= EXTRACT_ABNORMAL_MECHANISM_VERSION
+    }
+
     /// Returns `true` if the session should be dropped after extracting metrics.
     pub fn should_drop(&self) -> bool {
         self.drop
@@ -63,6 +70,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     session: &T,
     client: Option<&str>,
     target: &mut Vec<Metric>,
+    extract_abnormal_mechanism: bool,
 ) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
@@ -152,13 +160,22 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+            let mut tags_for_abnormal_session =
+                with_tag(&tags, "session.status", SessionStatus::Abnormal);
+            if extract_abnormal_mechanism && session.abnormal_mechanism() != AbnormalMechanism::None
+            {
+                tags_for_abnormal_session.insert(
+                    "abnormal_mechanism".to_owned(),
+                    session.abnormal_mechanism().to_string(),
+                );
+            }
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
-                with_tag(&tags, "session.status", SessionStatus::Abnormal),
+                tags_for_abnormal_session,
             ));
         }
     }
@@ -202,7 +219,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{SessionAggregates, SessionUpdate};
+    use relay_general::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
     use relay_metrics::MetricValue;
 
     use super::*;
@@ -250,7 +267,13 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, Some(client), &mut metrics);
+        extract_session_metrics(
+            &session.attributes,
+            &session,
+            Some(client),
+            &mut metrics,
+            true,
+        );
 
         assert_eq!(metrics.len(), 2);
 
@@ -288,7 +311,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
         // A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         assert_eq!(metrics.len(), 1);
@@ -327,7 +350,7 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update.attributes, &update, None, &mut metrics);
+            extract_session_metrics(&update.attributes, &update, None, &mut metrics, true);
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -348,7 +371,53 @@ mod tests {
 
     #[test]
     fn test_extract_session_metrics_fatal() {
-        for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
+        let session = SessionUpdate::parse(
+            r#"{
+                "init": false,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123",
+                "status": "crashed"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
+
+        assert_eq!(metrics.len(), 4);
+
+        assert_eq!(metrics[0].name, "s:sessions/error@none");
+        assert_eq!(metrics[1].name, "s:sessions/user@none");
+        assert_eq!(metrics[1].tags["session.status"], "errored");
+
+        let session_metric = &metrics[2];
+        assert_eq!(session_metric.timestamp, started());
+        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert_eq!(session_metric.tags["session.status"], "crashed");
+
+        let user_metric = &metrics[3];
+        assert_eq!(user_metric.timestamp, started());
+        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "crashed");
+    }
+
+    #[test]
+    fn test_extract_session_metrics_abnormal() {
+        for (abnormal_mechanism, expected_tag_value) in [
+            (None, None),
+            (Some(AbnormalMechanism::None), None),
+            (
+                Some(AbnormalMechanism::AnrForeground),
+                Some("anr_foreground"),
+            ),
+        ] {
             let mut session = SessionUpdate::parse(
                 r#"{
                     "init": false,
@@ -356,16 +425,20 @@ mod tests {
                     "attrs": {
                         "release": "1.0.0"
                     },
-                    "did": "user123"
+                    "did": "user123",
+                    "status": "abnormal"
                 }"#
                 .as_bytes(),
             )
             .unwrap();
-            session.status = *status;
+
+            if let Some(mechanism) = abnormal_mechanism {
+                session.abnormal_mechanism = mechanism;
+            }
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+            extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
             assert_eq!(metrics.len(), 4);
 
@@ -377,13 +450,28 @@ mod tests {
             assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "c:sessions/session@none");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
-            assert_eq!(session_metric.tags["session.status"], status.to_string());
+            assert_eq!(session_metric.tags["session.status"], "abnormal");
+
+            let session_metric_tag_keys: Vec<String> =
+                session_metric.tags.keys().cloned().collect();
+            assert_eq!(session_metric_tag_keys, ["release", "session.status"]);
 
             let user_metric = &metrics[3];
             assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
-            assert_eq!(user_metric.tags["session.status"], status.to_string());
+            assert_eq!(user_metric.tags["session.status"], "abnormal");
+
+            let user_metric_tag_keys: Vec<String> = user_metric.tags.keys().cloned().collect();
+            if let Some(value) = expected_tag_value {
+                assert_eq!(
+                    user_metric_tag_keys,
+                    ["abnormal_mechanism", "release", "session.status"]
+                );
+                assert_eq!(user_metric.tags["abnormal_mechanism"], value);
+            } else {
+                assert_eq!(user_metric_tag_keys, ["release", "session.status"]);
+            }
         }
     }
 
@@ -406,7 +494,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
         assert_eq!(metrics.len(), 2); // duration and user ID
 
@@ -454,7 +542,13 @@ mod tests {
         .unwrap();
 
         for aggregate in &session.aggregates {
-            extract_session_metrics(&session.attributes, aggregate, Some(client), &mut metrics);
+            extract_session_metrics(
+                &session.attributes,
+                aggregate,
+                Some(client),
+                &mut metrics,
+                true,
+            );
         }
 
         insta::assert_debug_snapshot!(metrics, @r###"

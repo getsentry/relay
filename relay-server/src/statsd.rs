@@ -344,6 +344,10 @@ pub enum RelayCounters {
     ///
     /// This represents requests that have successfully passed rate limits and filters, and have
     /// been sent to the upstream.
+    ///
+    /// This metric is tagged with:
+    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
+    ///    there was an error or bug.
     EnvelopeAccepted,
     /// Number of envelopes rejected in the current time slot.
     ///
@@ -351,6 +355,10 @@ pub enum RelayCounters {
     /// processing (including filtered events, invalid payloads, and rate limits).
     ///
     /// To check the rejection reason, check `events.outcomes`, instead.
+    ///
+    /// This metric is tagged with:
+    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
+    ///    there was an error or bug.
     EnvelopeRejected,
     /// Number of outcomes and reasons for rejected Envelopes.
     ///

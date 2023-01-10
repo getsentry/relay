@@ -3,6 +3,7 @@ import time
 import uuid
 
 from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
@@ -199,3 +200,46 @@ def test_attachments_quotas(
         relay.send_attachments(42, event_id, attachments)
     assert excinfo.value.response.status_code == 429
     # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+
+
+def test_view_hierarchy_processing(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    relay = relay_with_processing()
+    mini_sentry.add_full_project_config(project_id)
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json={"rendering_system": "compose", "windows": []}),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    (payload, chunk) = attachments_consumer.get_attachment_chunk()
+    attachment = attachments_consumer.get_individual_attachment()
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "attachment_type": "event.view_hierarchy",
+            "chunks": 1,
+            "content_type": "application/json",
+            "id": chunk["id"],
+            "name": "Unnamed Attachment",
+            "size": len(payload),
+            "rate_limited": False,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    outcomes_consumer.assert_empty()

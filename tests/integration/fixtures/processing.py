@@ -358,7 +358,7 @@ class AttachmentsConsumer(EventsConsumer):
 
 
 class ReplayRecordingsConsumer(EventsConsumer):
-    def get_replay_chunk(self):
+    def get_chunked_replay_chunk(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
@@ -367,13 +367,22 @@ class ReplayRecordingsConsumer(EventsConsumer):
         assert v["type"] == "replay_recording_chunk", v["type"]
         return v["payload"], v
 
-    def get_individual_replay(self):
+    def get_chunked_replay(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert v["type"] == "replay_recording", v["type"]
+        return v
+
+    def get_not_chunked_replay(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert v["type"] == "replay_recording_not_chunked", v["type"]
         return v
 
 

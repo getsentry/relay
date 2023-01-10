@@ -1,0 +1,18 @@
+name: "Changelog"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  build:
+    name: Changelogs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            const changelog = require('./.github/actions/changelog/index.js')
+            await changelog({github, context, core})

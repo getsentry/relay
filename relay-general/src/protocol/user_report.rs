@@ -1,6 +1,7 @@
+use crate::protocol::utils::null_to_default;
 use crate::protocol::EventId;
 
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.
 ///
@@ -28,13 +29,4 @@ pub struct UserReport {
     /// Comments supplied by the user.
     #[serde(default, deserialize_with = "null_to_default")]
     pub comments: String,
-}
-
-fn null_to_default<'de, D, V>(deserializer: D) -> Result<V, D::Error>
-where
-    D: Deserializer<'de>,
-    V: Default + DeserializeOwned,
-{
-    let opt = Option::deserialize(deserializer)?;
-    Ok(opt.unwrap_or_default())
 }

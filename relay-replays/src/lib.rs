@@ -62,6 +62,8 @@ struct ReplayInput {
     #[serde(rename = "type")]
     ty: String,
     replay_id: String,
+    #[serde(default)]
+    replay_type: Option<String>,
     event_id: String,
     segment_id: u16,
     timestamp: f64,
@@ -123,9 +125,9 @@ fn get_version(
     let mut version = major.clone()?;
 
     if let Some(minor) = minor {
-        write!(version, ".{}", minor).ok();
+        write!(version, ".{minor}").ok();
         if let Some(patch) = patch {
-            write!(version, ".{}", patch).ok();
+            write!(version, ".{patch}").ok();
         }
     }
 

@@ -2,8 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ProfileError {
-    #[error("invalid json in profile")]
-    InvalidJson(#[source] serde_json::Error),
+    #[error(transparent)]
+    InvalidJson(#[from] serde_json::Error),
     #[error("invalid base64 value")]
     InvalidBase64Value,
     #[error("invalid sampled profile")]
@@ -20,4 +20,10 @@ pub enum ProfileError {
     InvalidTransactionMetadata,
     #[error("missing profile metadata")]
     MissingProfileMetadata,
+    #[error("malformed stacks")]
+    MalformedStacks,
+    #[error("malformed samples")]
+    MalformedSamples,
+    #[error("exceed size limit")]
+    ExceedSizeLimit,
 }
