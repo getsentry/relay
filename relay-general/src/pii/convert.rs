@@ -19,6 +19,14 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
+// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
+// compatibility with Python.
+static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
+    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
+        .parse()
+        .unwrap()
+});
+
 pub fn to_pii_config(
     datascrubbing_config: &DataScrubbingConfig,
 ) -> Result<Option<PiiConfig>, PiiConfigError> {
@@ -31,6 +39,10 @@ pub fn to_pii_config(
     }
 
     if datascrubbing_config.scrub_ip_addresses {
+        // legacy(?) scrubs all fields that are known to have IPs regardless of actual content
+        applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
+
+        // checks actual contents of all fields and scrubs where there is an IP address
         let wildcard = SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard]);
         applications.insert(wildcard, vec!["@ip:replace".to_owned()]);
     }
@@ -212,6 +224,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter"
             ],
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
+            ],
             "**": [
               "@ip:replace"
             ]
@@ -236,6 +251,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter"
+            ],
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
             "**": [
               "@ip:replace"
@@ -271,6 +289,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "strip-fields"
+            ],
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
             "**": [
               "@ip:replace"
@@ -310,6 +331,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
               "@common:filter"
             ],
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
+            ],
             "**": [
               "@ip:replace"
             ]
@@ -334,6 +358,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
+            ],
             "**": [
               "@ip:replace"
             ]
@@ -429,8 +456,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(
             serde_json::json!({
                 "user": {
-                    "username": "73.133.27.120",
-                    "ip_address": "73.133.27.120",
+                    "username": "73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "should be stripped despite lacking ip address",
                     "data": sensitive_vars()
                 },
                 "breadcrumbs": {
@@ -438,13 +465,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                         {
                             "message": "73.133.27.120",
                             "data": {
-                                "test_data": "73.133.27.120"
+                                "test_data": "73.133.27.120" // test deep wildcard stripping
                                 }
                         },
                     ],
                 },
                 "sdk": {
-                    "client_ip": "127.0.0.1"
+                    "client_ip": "should also be stripped"
                 }
             })
             .into(),
@@ -1224,6 +1251,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "strip-fields"
+            ],
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
             "**": [
               "@ip:replace"
