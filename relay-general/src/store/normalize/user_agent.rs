@@ -49,6 +49,12 @@ pub fn normalize_user_agent_generic(
         }
     }
 
+    // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
+    // instead of `contexts.os`. This is then preferred by the UI to show alongside device and
+    // browser context.
+    //
+    // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
+    // want to index (derive tags from) the SDK-sent context.
     let os_context_key = match platform.as_str() {
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
