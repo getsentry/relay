@@ -27,9 +27,6 @@ pub enum MeasurementUnit {
     #[serde(alias = "hz")]
     Hertz,
     Byte,
-    Bool,
-    MemoryPressureEnum,
-    ThermalStateEnum,
     Percent,
 }
 
