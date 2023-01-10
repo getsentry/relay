@@ -239,7 +239,7 @@ impl ExtractedMetrics {
             // project_without_tracing         -> metrics goes to self
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
-            let sampling_project_key = get_sampling_key(&envelope).unwrap_or(project_key);
+            let sampling_project_key = get_sampling_key(envelope).unwrap_or(project_key);
             let project_cache = ProjectCache::from_registry();
             project_cache.send(InsertMetrics::new(
                 sampling_project_key,
