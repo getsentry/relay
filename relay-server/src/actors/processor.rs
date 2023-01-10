@@ -1038,7 +1038,10 @@ impl EnvelopeProcessorService {
                             true
                         }
                         Err(e) => {
-                            relay_log::error!("failed to serialize replay: {}", e);
+                            relay_log::error!(
+                                "replay-event: failed to serialize replay with message {}",
+                                e
+                            );
                             false
                         }
                     },
@@ -1098,7 +1101,10 @@ impl EnvelopeProcessorService {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         Err(e) => {
-                            relay_log::warn!("failed to parse replay event: {}", e);
+                            relay_log::warn!(
+                                "replay-recording-event: failed to parse with message {}",
+                                e
+                            );
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
