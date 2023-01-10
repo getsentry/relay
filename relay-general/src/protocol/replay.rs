@@ -327,9 +327,9 @@ impl Replay {
 
 #[cfg(test)]
 mod tests {
-    use crate::pii::{PiiConfig, PiiProcessor};
+    use crate::pii::{DataScrubbingConfig, PiiProcessor};
+    use crate::processor::process_value;
     use crate::processor::ProcessingState;
-    use crate::processor::{process_value, SelectorSpec};
     use crate::protocol::{
         BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
         Tags,
@@ -337,7 +337,6 @@ mod tests {
     use crate::testutils::get_value;
     use crate::types::Annotated;
     use chrono::{TimeZone, Utc};
-    use std::collections::BTreeMap;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
@@ -518,16 +517,17 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_from_annotated_replay() {
-        let mut pii_config = PiiConfig::default();
-        pii_config.applications =
-            BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
+        let scrub_config = simple_enabled_config();
+        let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         let payload = include_str!("../../tests/fixtures/replays/replay.json");
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_eq!(get_value!(replay.user.ip_address!).as_str(), "[ip]");
+        // Ip-address was removed.
+        let ip_address = get_value!(replay.user.ip_address);
+        assert!(ip_address.is_none());
 
         let maybe_credit_card = replay
             .value()
@@ -538,5 +538,13 @@ mod tests {
             .get("credit-card");
 
         assert_eq!(maybe_credit_card, Some("[creditcard]"));
+    }
+
+    fn simple_enabled_config() -> DataScrubbingConfig {
+        let mut scrub_config = DataScrubbingConfig::default();
+        scrub_config.scrub_data = true;
+        scrub_config.scrub_defaults = true;
+        scrub_config.scrub_ip_addresses = true;
+        scrub_config
     }
 }
