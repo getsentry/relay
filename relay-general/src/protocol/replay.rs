@@ -264,7 +264,7 @@ impl Replay {
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
-        let user_agent = match user_agent::get_user_agent_generic(&self.request) {
+        let user_agent = match user_agent::get_user_agent(&self.request) {
             Some(ua) => ua,
             None => match default_user_agent {
                 Some(dua) => dua,

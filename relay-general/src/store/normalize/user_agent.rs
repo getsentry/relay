@@ -8,10 +8,10 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_user_agent_generic, parse_device, parse_os, parse_user_agent};
+use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
 
 pub fn normalize_user_agent(event: &mut Event) {
-    let user_agent = match get_user_agent_generic(&event.request) {
+    let user_agent = match get_user_agent(&event.request) {
         Some(ua) => ua,
         None => return,
     };
