@@ -16,7 +16,7 @@ use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
-use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{MetricUnit, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::pii::PiiConfigError;
@@ -30,7 +30,7 @@ use relay_general::protocol::{
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace, MetricValue};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
@@ -48,7 +48,8 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
+    FormDataIter, SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -213,6 +214,40 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
+struct ExtractedMetrics {
+    /// Metrics associated with the project that the transaction belongs to.
+    project_metrics: Vec<Metric>,
+    /// Metrics associated with the sampling project (a.k.a. root or head project)
+    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
+    sampling_metrics: Vec<Metric>,
+}
+
+impl ExtractedMetrics {
+    fn send_metrics(self, envelope: &Envelope) {
+        let project_key = envelope.meta().public_key();
+
+        if !self.project_metrics.is_empty() {
+            let project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(project_key, self.project_metrics));
+        }
+
+        if !self.sampling_metrics.is_empty() {
+            // If no sampling project state is available, we associate the sampling
+            // metrics with the current project.
+            //
+            // project_without_tracing         -> metrics goes to self
+            // dependent_project_with_tracing  -> metrics goes to root
+            // root_project_with_tracing       -> metrics goes to root == self
+            let sampling_project_key = get_sampling_key(&envelope).unwrap_or(project_key);
+            let project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(
+                sampling_project_key,
+                self.sampling_metrics,
+            ));
+        }
+    }
+}
+
 /// A state container for envelope processing.
 #[derive(Debug)]
 struct ProcessEnvelopeState {
@@ -248,10 +283,14 @@ struct ProcessEnvelopeState {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    extracted_metrics: Vec<Metric>,
+    extracted_metrics: ExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
+
+    /// Metrics extracted from items in the envelope which should be associated with the sampling project
+    /// TODO: better docs
+    sampling_metrics: Vec<Metric>,
 
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
@@ -1907,7 +1946,8 @@ impl EnvelopeProcessorService {
                         extraction_config,
                         &project_config.metric_conditional_tagging,
                         event,
-                        &mut state.extracted_metrics,
+                        &mut state.extracted_metrics.project_metrics,
+                        &mut state.extracted_metrics.sampling_metrics,
                     );
                 }
             );
@@ -2161,7 +2201,7 @@ impl EnvelopeProcessorService {
                         state.envelope_context.update(&state.envelope);
 
                         let envelope_response = if state.envelope.is_empty() {
-                            if state.extracted_metrics.is_empty() {
+                            if state.extracted_metrics.project_metrics.is_empty() {
                                 // Individual rate limits have already been issued
                                 state.envelope_context.reject(Outcome::RateLimited(None));
                             } else {
@@ -2172,11 +2212,7 @@ impl EnvelopeProcessorService {
                             Some((state.envelope, state.envelope_context))
                         };
 
-                        if !state.extracted_metrics.is_empty() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
+                        state.extracted_metrics.send_metrics(&state.envelope);
 
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,
@@ -2187,10 +2223,8 @@ impl EnvelopeProcessorService {
                             state.envelope_context.reject(outcome);
                         }
 
-                        if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
+                        if err.should_keep_metrics() {
+                            state.extracted_metrics.send_metrics(&state.envelope);
                         }
 
                         Err(err)

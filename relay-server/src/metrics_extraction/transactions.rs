@@ -376,13 +376,20 @@ pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
-    target: &mut Vec<Metric>,
+    project_metrics: &mut Vec<Metric>,
+    sampling_metrics: &mut Vec<Metric>,
 ) -> Result<bool, ExtractMetricsError> {
-    let before_len = target.len();
+    let before_len = project_metrics.len();
 
-    extract_transaction_metrics_inner(aggregator_config, config, event, target)?;
+    extract_transaction_metrics_inner(
+        aggregator_config,
+        config,
+        event,
+        project_metrics,
+        sampling_metrics,
+    )?;
 
-    let added_slice = &mut target[before_len..];
+    let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
     Ok(!added_slice.is_empty())
 }
@@ -391,7 +398,8 @@ fn extract_transaction_metrics_inner(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     event: &Event,
-    metrics: &mut Vec<Metric>, // output parameter
+    metrics: &mut Vec<Metric>,          // output parameter
+    sampling_metrics: &mut Vec<Metric>, // output parmater
 ) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
@@ -497,6 +505,16 @@ fn extract_transaction_metrics_inner(
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags_with_satisfaction.clone(),
+    ));
+
+    // Count the transaction towards the root
+    sampling_metrics.push(Metric::new_mri(
+        METRIC_NAMESPACE,
+        "count_per_root_project",
+        MetricUnit::None,
+        MetricValue::Counter(1.0),
+        timestamp,
+        BTreeMap::new(),
     ));
 
     // User
