@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey, RetryBackoff};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -531,6 +531,8 @@ enum GetOrFetch<'a> {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
+    backoff: RetryBackoff,
+    next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
@@ -546,6 +548,8 @@ impl Project {
     /// Creates a new `Project`.
     pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
             config,
@@ -660,15 +664,24 @@ impl Project {
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
-        // If there is a running request and we do not need to upgrade it to no_cache, skip
+        // If there is a running request and we do not need to upgrade it to no_cache, or if the
+        // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
-        let should_fetch =
-            !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache);
+        let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
+            && self
+                .next_fetch_attempt
+                .map(|next_attempt_at| next_attempt_at <= Instant::now())
+                .unwrap_or(true);
+
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
         if should_fetch {
             channel.no_cache(no_cache);
-            relay_log::debug!("project {} state requested", self.project_key);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
         }
 
@@ -803,7 +816,7 @@ impl Project {
 
     /// Enqueues an envelope for validation.
     ///
-    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// If the project state is up to date, the message will be immediately sent to the next stage.
     /// Otherwise, this queues the envelope and flushes it when the project has been updated.
     ///
     /// This method will trigger an update of the project state internally if the state is stale or
@@ -853,6 +866,14 @@ impl Project {
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
     pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
+        // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
+        if state.invalid() {
+            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
+        } else {
+            self.next_fetch_attempt = None;
+            self.backoff.reset();
+        }
+
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -1092,11 +1113,26 @@ mod tests {
 
         // The project ID must be set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_some());
+
+        // This tests that we actually initiate the backoff and the backoff mechanism works:
+        // * first call to `update_state` with invalid ProjectState starts the backoff, but since
+        //   it's the first attemt, we get Duration of 0.
+        // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
+        //   like ~ 1s
+        // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
+        //   we should never fetch
+        // * without backoff it would just panic, not able to call the ProjectCache actor
+        let channel = StateChannel::new();
+        project.state_channel = Some(channel);
+        project.update_state(Arc::new(ProjectState::err()), false);
+        project.fetch_state(false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {

@@ -14,6 +14,7 @@
 - Support transaction naming rules. ([#1695](https://github.com/getsentry/relay/pull/1695))
 - Add PII scrubbing to URLs captured by replay recordings ([#1730](https://github.com/getsentry/relay/pull/1730))
 - Add more measurement units for profiling. ([#1732](https://github.com/getsentry/relay/pull/1732))
+- Add backoff mechanism for fetching projects from the project cache. ([#1726](https://github.com/getsentry/relay/pull/1726))
 
 ## 22.12.0
 
