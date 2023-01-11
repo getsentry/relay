@@ -935,11 +935,13 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    # Expect exactly 3 metrics (transaction.duration, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 3)
+    # Expect exactly 4 metrics:
+    # (transaction.duration, transactions.count_per_root_project, 1 builtin, 1 custom)
+    metrics = metrics_by_name(metrics_consumer, 4)
 
     assert metrics.keys() == {
         "d:transactions/duration@millisecond",
+        "c:transactions/count_per_root_project@none",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
     }
