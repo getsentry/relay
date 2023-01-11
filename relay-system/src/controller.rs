@@ -4,6 +4,7 @@ use std::time::Duration;
 use actix::actors::signal;
 use actix::fut;
 use actix::prelude::*;
+use actix::SystemRunner;
 use futures01::future;
 use futures01::prelude::*;
 use once_cell::sync::OnceCell;
@@ -82,7 +83,7 @@ impl ShutdownHandle {
 /// }
 ///
 ///
-/// Controller::run(|| -> Result<(), ()> {
+/// Controller::run(tokio::runtime::Runtime::new().unwrap().handle(), System::new("my-actix-system"), || -> Result<(), ()> {
 ///     MyActor.start();
 ///     # System::current().stop();
 ///     Ok(())
@@ -101,22 +102,29 @@ impl Controller {
         SystemService::from_registry()
     }
 
-    /// Starts an actix system and runs the `factory` to start actors.
+    /// Runs the `factory` to start actors.
+    ///
+    /// The function accepts the old tokio 0.x [`actix::SystemRunner`] and the reference to
+    /// [`tokio::runtime::Handle`] from the new tokio 1.x runtime, which we enter before the
+    /// factory is run, to make sure that two systems, old and new one, are available.
     ///
     /// The factory may be used to start actors in the actix system before it runs. If the factory
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
     /// the system blocks the current thread until a shutdown signal is sent to the server and all
     /// actors have completed a graceful shutdown.
-    pub fn run<F, R, E>(factory: F) -> Result<(), E>
+    pub fn run<F, R, E>(
+        handle: &tokio::runtime::Handle,
+        sys: SystemRunner,
+        factory: F,
+    ) -> Result<(), E>
     where
-        F: FnOnce() -> Result<R, E>,
+        F: FnOnce() -> Result<R, E> + 'static,
+        F: Sync + Send,
     {
-        let sys = System::new("relay");
-
         compat::init();
 
-        // Run the factory and exit early if an error happens. The return value of the factory is
-        // discarded for convenience, to allow shorthand notations.
+        // While starting http server ensure that the new tokio 1.x system is available.
+        let _guard = handle.enter();
         factory()?;
 
         // Ensure that the controller starts if no actor has started it yet. It will register with
@@ -128,7 +136,6 @@ impl Controller {
         // until a signal arrives or `Controller::stop` is called.
         relay_log::info!("relay server starting");
         sys.run();
-        relay_log::info!("relay shutdown complete");
 
         Ok(())
     }
