@@ -643,23 +643,21 @@ def test_transaction_metrics(
     }
 
     assert metrics[
-               "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-           ] == {
-               **common,
-               "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-               "type": "d",
-               "value": [9.910106, 9.910106],
-           }
-    assert metrics[
-               "c:transactions/count_per_root_project@none"
-           ] == {
-               "timestamp": int(timestamp.timestamp()),
-               "org_id": 1,
-               "project_id": 42,
-               "name": "c:transactions/count_per_root_project@none",
-               "type": "c",
-               "value": 2.0,
-           }
+        "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
+    ] == {
+        **common,
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+        "type": "d",
+        "value": [9.910106, 9.910106],
+    }
+    assert metrics["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 42,
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 2.0,
+    }
 
 
 @pytest.mark.parametrize(
@@ -772,7 +770,10 @@ def test_transaction_metrics_extraction_processing_relays(
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
-        assert metric_count_per_project["name"] == "c:transactions/count_per_root_project@none"
+        assert (
+            metric_count_per_project["name"]
+            == "c:transactions/count_per_root_project@none"
+        )
         assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
