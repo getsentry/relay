@@ -878,20 +878,21 @@ impl Project {
             return;
         }
 
+        // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
+        if state.invalid() {
+            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
+        } else {
+            self.next_fetch_attempt = None;
+            self.backoff.reset();
+        }
+
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
             //This also sets the next fetch attempt time.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => {
-                state = old;
-                self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
-            }
+            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
             // And also reset the backoff at this point.
-            _ => {
-                self.state = Some(state.clone());
-                self.backoff.reset();
-                self.next_fetch_attempt = None;
-            }
+            _ => self.state = Some(state.clone()),
         }
 
         // Flush all queued `ValidateEnvelope` messages
