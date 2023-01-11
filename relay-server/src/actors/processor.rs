@@ -2329,7 +2329,7 @@ mod tests {
 
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
-    type proc_session_args = (
+    type ProcessSessionArguments = (
         Item,
         DateTime<Utc>,
         Option<&'static str>,
@@ -2341,7 +2341,7 @@ mod tests {
     use super::*;
 
     // helper function that gives valid arguments to the process_session method
-    fn args_process_session() -> proc_session_args {
+    fn args_process_session() -> ProcessSessionArguments {
         let mut item = Item::new(ItemType::Event);
 
         let session = r#"{
@@ -2385,7 +2385,7 @@ mod tests {
     fn test_keep_item() {
         let proc = create_test_processor(Default::default());
 
-        let test_keep = |mut args: proc_session_args| -> bool {
+        let test_keep = |mut args: ProcessSessionArguments| -> bool {
             proc.process_session(
                 &mut args.0,
                 args.1,
