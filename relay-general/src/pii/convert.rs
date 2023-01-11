@@ -42,8 +42,7 @@ pub fn to_pii_config(
         applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
 
         // checks actual contents of all fields and scrubs where there is an IP address
-        let wildcard = SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard]);
-        applications.insert(wildcard, vec!["@ip:replace".to_owned()]);
+        applied_rules.push("@ip:replace".to_owned());
     }
 
     if datascrubbing_config.scrub_data {
@@ -221,13 +220,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
@@ -249,13 +246,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
@@ -287,13 +282,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
+              "@ip:replace",
               "strip-fields"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
@@ -328,13 +321,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
@@ -357,11 +348,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+              "@ip:replace"
+            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
@@ -1249,13 +1240,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "applications": {
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
+              "@ip:replace",
               "strip-fields"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
-            ],
-            "**": [
-              "@ip:replace"
             ]
           }
         }
