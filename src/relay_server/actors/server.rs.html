@@ -36,66 +36,42 @@
 <span id="35">35</span>
 <span id="36">36</span>
 <span id="37">37</span>
-<span id="38">38</span>
-<span id="39">39</span>
-<span id="40">40</span>
-<span id="41">41</span>
-<span id="42">42</span>
-<span id="43">43</span>
-<span id="44">44</span>
-<span id="45">45</span>
-<span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
-<span id="49">49</span>
-</pre><pre class="rust"><code><span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::server::StopServer;
-<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
-
-<span class="kw">use </span>relay_config::Config;
+</pre><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Controller, Shutdown};
+<span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
 
-<span class="kw">use </span><span class="kw">crate</span>::service;
+<span class="kw">use </span><span class="kw">crate</span>::service::HttpServer;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
-<span class="kw">pub struct </span>Server {
-    http_server: Recipient&lt;StopServer&gt;,
+<span class="kw">pub struct </span>ServerService {
+    http_server: HttpServer,
 }
 
-<span class="kw">impl </span>Server {
-    <span class="kw">pub fn </span>start(config: Config) -&gt; anyhow::Result&lt;Addr&lt;<span class="self">Self</span>&gt;&gt; {
+<span class="kw">impl </span>ServerService {
+    <span class="kw">pub fn </span>start(config: Config) -&gt; anyhow::Result&lt;()&gt; {
         <span class="macro">metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
-        <span class="kw">let </span>http_server = service::start(config)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(Server { http_server }.start())
+        <span class="kw">let </span>http_server = HttpServer::start(config)<span class="question-mark">?</span>;
+        <span class="self">Self </span>{ http_server }.start();
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">impl </span>Actor <span class="kw">for </span>Server {
-    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
+<span class="kw">impl </span>Service <span class="kw">for </span>ServerService {
+    <span class="kw">type </span>Interface = ();
 
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        Controller::subscribe(context.address());
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;Shutdown&gt; <span class="kw">for </span>Server {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseFuture&lt;(), ()&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>graceful = message.timeout.is_some();
-
-        <span class="comment">// We assume graceful shutdown if we&#39;re given a timeout. The actix-web http server is
-        // configured with the same timeout, so it will match. Unfortunately, we have to drop any
-        // errors  and replace them with the generic `TimeoutError`.
-        </span><span class="kw">let </span>future = <span class="self">self
-            </span>.http_server
-            .send(StopServer { graceful })
-            .map_err(|<span class="kw">_</span>| ())
-            .and_then(|result| result.map_err(|<span class="kw">_</span>| ()));
-
-        Box::new(future)
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    Shutdown { timeout } = shutdown.notified() =&gt; {
+                       <span class="self">self</span>.http_server.shutdown(timeout.is_some());
+                    },
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+                }
+            }
+        });
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

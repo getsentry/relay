@@ -47,12 +47,15 @@
 <span id="46">46</span>
 <span id="47">47</span>
 <span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Defines all actors of the relay.
 //!
 //! Actors require an actix system to run, see [`relay_system`] and particularly
 //! [`Controller`](relay_system::Controller) for more information.
 //!
-//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web
+//! The web server is wrapped by the [`ServerService`](server::ServerService) actor. It starts the actix http web
 //! server and relays the graceful shutdown signal. Internally, it creates several other actors
 //! comprising the service state:
 //!
@@ -74,7 +77,10 @@
 //! use relay_server::controller::Controller;
 //! use relay_server::server::Server;
 //!
-//! Controller::run(|| Server::start())
+//! let rt = tokio::runtime::Runtime::new().unwrap();
+//! let sys = actix::System::new(&quot;my-system&quot;);
+//!
+//! Controller::run(rt.handle(), sys, || Server::start())
 //!     .expect(&quot;failed to start relay&quot;);
 //! ```
 </span><span class="kw">pub mod </span>envelopes;
@@ -96,4 +102,4 @@
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">pub mod </span>store;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

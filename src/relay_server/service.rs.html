@@ -348,12 +348,37 @@
 <span id="347">347</span>
 <span id="348">348</span>
 <span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix_web::server::StopServer;
 <span class="kw">use </span>actix_web::{server, App};
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>futures01::Future;
 <span class="kw">use </span>listenfd::ListenFd;
 <span class="kw">use </span>once_cell::race::OnceBox;
 
@@ -670,32 +695,53 @@
     }
 }
 
-<span class="doccomment">/// Given a relay config spawns the server together with all actors and lets them run forever.
-///
-/// Effectively this boots the server.
-</span><span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;Recipient&lt;server::StopServer&gt;&gt; {
-    <span class="kw">let </span>config = Arc::new(config);
+<span class="doccomment">/// Keeps the address to the running http servers and helps with start/stop handling.
+</span><span class="kw">pub struct </span>HttpServer(Recipient&lt;StopServer&gt;);
 
-    Controller::from_registry().do_send(Configure {
-        shutdown_timeout: config.shutdown_timeout(),
-    });
+<span class="kw">impl </span>HttpServer {
+    <span class="doccomment">/// Given a relay config spawns the server together with all actors and lets them run forever.
+    ///
+    /// Effectively this boots the server.
+    </span><span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>config = Arc::new(config);
 
-    <span class="kw">let </span>state = ServiceState::start(config.clone())<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>server = server::new(<span class="kw">move </span>|| make_app(state.clone()));
-    server = server
-        .workers(config.cpu_concurrency())
-        .shutdown_timeout(config.shutdown_timeout().as_secs() <span class="kw">as </span>u16)
-        .keep_alive(config.keepalive_timeout().as_secs() <span class="kw">as </span>usize)
-        .maxconn(config.max_connections())
-        .maxconnrate(config.max_connection_rate())
-        .backlog(config.max_pending_connections())
-        .disable_signals();
+        Controller::from_registry().do_send(Configure {
+            shutdown_timeout: config.shutdown_timeout(),
+        });
 
-    server = listen(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
-    server = listen_ssl(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+        <span class="kw">let </span>state = ServiceState::start(config.clone())<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>server = server::new(<span class="kw">move </span>|| make_app(state.clone()));
+        server = server
+            .workers(config.cpu_concurrency())
+            .shutdown_timeout(config.shutdown_timeout().as_secs() <span class="kw">as </span>u16)
+            .keep_alive(config.keepalive_timeout().as_secs() <span class="kw">as </span>usize)
+            .maxconn(config.max_connections())
+            .maxconnrate(config.max_connection_rate())
+            .backlog(config.max_pending_connections())
+            .disable_signals();
 
-    dump_listen_infos(<span class="kw-2">&amp;</span>server);
-    <span class="prelude-val">Ok</span>(server.start().recipient())
+        server = listen(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+        server = listen_ssl(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+
+        dump_listen_infos(<span class="kw-2">&amp;</span>server);
+        <span class="kw">let </span>recipient = server.start().recipient();
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(recipient))
+    }
+
+    <span class="doccomment">/// Triggers the shutdown process by sending [`actix_web::server::StopServer`] to the running http server.
+    </span><span class="kw">pub fn </span>shutdown(<span class="kw-2">&amp;</span><span class="self">self</span>, graceful: bool) {
+        <span class="kw">let </span><span class="self">Self</span>(recipient) = <span class="self">self</span>;
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;Shutting down HTTP server&quot;</span>);
+        recipient.send(StopServer { graceful }).wait().ok();
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>HttpServer {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_tuple(<span class="string">&quot;HttpServer&quot;</span>)
+            .field(<span class="kw-2">&amp;</span><span class="string">&quot;actix::Recipient&lt;actix_web::server::StopServer&gt;&quot;</span>)
+            .finish()
+    }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

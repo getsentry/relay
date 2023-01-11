@@ -303,12 +303,20 @@
 <span id="302">302</span>
 <span id="303">303</span>
 <span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>actix::actors::signal;
 <span class="kw">use </span>actix::fut;
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix::SystemRunner;
 <span class="kw">use </span>futures01::future;
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -387,7 +395,7 @@
 /// }
 ///
 ///
-/// Controller::run(|| -&gt; Result&lt;(), ()&gt; {
+/// Controller::run(tokio::runtime::Runtime::new().unwrap().handle(), System::new(&quot;my-actix-system&quot;), || -&gt; Result&lt;(), ()&gt; {
 ///     MyActor.start();
 ///     # System::current().stop();
 ///     Ok(())
@@ -406,23 +414,30 @@
         SystemService::from_registry()
     }
 
-    <span class="doccomment">/// Starts an actix system and runs the `factory` to start actors.
+    <span class="doccomment">/// Runs the `factory` to start actors.
+    ///
+    /// The function accepts the old tokio 0.x [`actix::SystemRunner`] and the reference to
+    /// [`tokio::runtime::Handle`] from the new tokio 1.x runtime, which we enter before the
+    /// factory is run, to make sure that two systems, old and new one, are available.
     ///
     /// The factory may be used to start actors in the actix system before it runs. If the factory
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
     /// the system blocks the current thread until a shutdown signal is sent to the server and all
     /// actors have completed a graceful shutdown.
-    </span><span class="kw">pub fn </span>run&lt;F, R, E&gt;(factory: F) -&gt; <span class="prelude-ty">Result</span>&lt;(), E&gt;
+    </span><span class="kw">pub fn </span>run&lt;F, R, E&gt;(
+        handle: <span class="kw-2">&amp;</span>tokio::runtime::Handle,
+        sys: SystemRunner,
+        factory: F,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), E&gt;
     <span class="kw">where
-        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;R, E&gt;,
+        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;R, E&gt; + <span class="lifetime">&#39;static</span>,
+        F: Sync + Send,
     {
-        <span class="kw">let </span>sys = System::new(<span class="string">&quot;relay&quot;</span>);
-
         compat::init();
 
-        <span class="comment">// Run the factory and exit early if an error happens. The return value of the factory is
-        // discarded for convenience, to allow shorthand notations.
-        </span>factory()<span class="question-mark">?</span>;
+        <span class="comment">// While starting http server ensure that the new tokio 1.x system is available.
+        </span><span class="kw">let </span>_guard = handle.enter();
+        factory()<span class="question-mark">?</span>;
 
         <span class="comment">// Ensure that the controller starts if no actor has started it yet. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
@@ -433,7 +448,6 @@
         // until a signal arrives or `Controller::stop` is called.
         </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
         sys.run();
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -608,4 +622,4 @@
     <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ()&gt;;
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>
