@@ -234,6 +234,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         event.level = Annotated::new(Level::Warning)
     }
 
+    if let Some(crash_type) = runtime_props.crash_type.take() {
+        let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+        tags.push(Annotated::new(TagEntry::from_pair((
+            Annotated::new("crash_type".to_string()),
+            Annotated::new(crash_type),
+        ))));
+    }
+
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
     runtime_props.modules.take();
 

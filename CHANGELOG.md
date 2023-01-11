@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add Unreal crash type as an event tag ([#1744](https://github.com/getsentry/relay/pull/1744))
 - Add error and sample rate fields to the replay event parser. ([#1745](https://github.com/getsentry/relay/pull/1745))
 
 ## 23.1.0
