@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,7 +17,9 @@ use relay_common::{ProjectKey, RetryBackoff};
 use relay_config::Config;
 use relay_log::LogError;
 use relay_statsd::metric;
-use relay_system::{compat, AsyncResponse, FromMessage, Interface, Sender, Service};
+use relay_system::{
+    compat, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+};
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError};
@@ -71,25 +73,33 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition inforamtion.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    sender: Sender<Arc<ProjectState>>,
+    sender: BroadcastChannel<Arc<ProjectState>>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
 }
 
 impl ProjectStateChannel {
-    pub fn new(sender: Sender<Arc<ProjectState>>, timeout: Duration) -> Self {
+    pub fn new(
+        sender: BroadcastSender<Arc<ProjectState>>,
+        timeout: Duration,
+        no_cache: bool,
+    ) -> Self {
         let now = Instant::now();
         Self {
-            sender,
+            no_cache,
+            sender: sender.into_channel(),
             deadline: now + timeout,
-            no_cache: false,
             attempts: 0,
         }
     }
 
     pub fn no_cache(&mut self) {
         self.no_cache = true;
+    }
+
+    pub fn attach(&mut self, sender: BroadcastSender<Arc<ProjectState>>) {
+        self.sender.attach(sender)
     }
 
     pub fn send(self, state: ProjectState) {
@@ -106,12 +116,6 @@ enum UpstreamProjectSourceState {
     /// Checks for backoff status and makes sure to schedule the another fetch if
     /// possible.
     CheckAndSchedule,
-    /// Checks if the channel already exists in the queue or add it otherwise.
-    HandleChannel {
-        sender: Sender<Arc<ProjectState>>,
-        project_key: ProjectKey,
-        no_cache: bool,
-    },
     /// Resets the current backoff period.
     ResetBackoff,
     /// Schedules the new fetch for project states.
@@ -120,13 +124,17 @@ enum UpstreamProjectSourceState {
 
 /// This is the [`UpstreamProjectSourceService`] interface.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, Sender<Arc<ProjectState>>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = AsyncResponse<Arc<ProjectState>>;
-    fn from_message(message: FetchProjectState, sender: Sender<Arc<ProjectState>>) -> Self {
+    type Response = BroadcastResponse<Arc<ProjectState>>;
+
+    fn from_message(
+        message: FetchProjectState,
+        sender: BroadcastSender<Arc<ProjectState>>,
+    ) -> Self {
         Self(message, sender)
     }
 }
@@ -368,18 +376,33 @@ impl UpstreamProjectSourceService {
             },
             sender,
         ) = message;
+        let query_timeout = self.config.query_timeout();
 
+        // If there is already channel for the requested project key, we attach to it,
+        // otherwise create a new one.
+        match self.state_channels.entry(project_key) {
+            Entry::Vacant(entry) => {
+                entry.insert(ProjectStateChannel::new(sender, query_timeout, no_cache));
+            }
+            Entry::Occupied(mut entry) => {
+                let channel = entry.get_mut();
+                channel.attach(sender);
+                // Ensure upstream skips caches if one of the recipients requests an uncached response. This
+                // operation is additive across requests.
+                if no_cache {
+                    channel.no_cache();
+                }
+            }
+        };
+
+        // Check is we can schedule the fetch right away.
         if self
             .state_tx
-            .send(UpstreamProjectSourceState::HandleChannel {
-                sender,
-                project_key,
-                no_cache,
-            })
+            .send(UpstreamProjectSourceState::CheckAndSchedule)
             .is_err()
         {
             relay_log::error!(
-                "Unable to send the internal UpstreamProjectSourceState::HandleChannel message"
+                "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
             );
         }
     }
@@ -407,34 +430,6 @@ impl UpstreamProjectSourceService {
                 );
                         }
                     }
-                }
-            }
-            UpstreamProjectSourceState::HandleChannel {
-                sender,
-                project_key,
-                no_cache,
-            } => {
-                let query_timeout = self.config.query_timeout();
-                let channel = self
-                    .state_channels
-                    .entry(project_key)
-                    .or_insert_with(|| ProjectStateChannel::new(sender, query_timeout));
-
-                // Ensure upstream skips caches if one of the recipients requests an uncached response. This
-                // operation is additive across requests.
-                if no_cache {
-                    channel.no_cache();
-                }
-
-                // Check is we can schedule the fetch right away.
-                if self
-                    .state_tx
-                    .send(UpstreamProjectSourceState::CheckAndSchedule)
-                    .is_err()
-                {
-                    relay_log::error!(
-                "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
-            );
                 }
             }
             UpstreamProjectSourceState::ResetBackoff => self.backoff.reset(),
