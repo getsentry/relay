@@ -44,6 +44,8 @@
 <span id="44">44</span>
 <span id="45">45</span>
 <span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
@@ -66,12 +68,14 @@
 }
 
 <span class="attribute">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
 </span><span class="kw">pub enum </span>MeasurementUnit {
     <span class="attribute">#[serde(alias = <span class="string">&quot;ns&quot;</span>)]
     </span>Nanosecond,
     <span class="attribute">#[serde(alias = <span class="string">&quot;hz&quot;</span>)]
     </span>Hertz,
+    Byte,
+    Percent,
 }
 
 <span class="attribute">#[cfg(test)]
