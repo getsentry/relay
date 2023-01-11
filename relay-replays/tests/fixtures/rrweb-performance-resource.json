@@ -1,0 +1,19 @@
+[
+    {
+        "type": 5,
+        "timestamp": 1665063926.263,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.link",
+                "description": "https://sentry.io?credit-card=4111-1111-1111-1111",
+                "startTimestamp": 1665063926.263,
+                "endTimestamp": 1665063926.386,
+                "data": {
+                    "size": 31872,
+                    "encodedBodySize": 31356
+                }
+            }
+        }
+    }
+]

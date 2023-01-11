@@ -125,8 +125,7 @@ mod tests {
             assert_ne!(
                 filter_result,
                 Ok(()),
-                "Failed to filter web crawler with user agent '{}'",
-                banned_user_agent
+                "Failed to filter web crawler with user agent '{banned_user_agent}'"
             );
         }
     }
@@ -149,8 +148,7 @@ mod tests {
             assert_eq!(
                 filter_result,
                 Ok(()),
-                "Failed benign user agent '{}'",
-                user_agent
+                "Failed benign user agent '{user_agent}'"
             );
         }
     }

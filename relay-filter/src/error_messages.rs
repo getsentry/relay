@@ -32,7 +32,7 @@ pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
                     let message = match (ty, value) {
                         ("", value) => Cow::Borrowed(value),
                         (ty, "") => Cow::Borrowed(ty),
-                        (ty, value) => Cow::Owned(format!("{}: {}", ty, value)),
+                        (ty, value) => Cow::Owned(format!("{ty}: {value}")),
                     };
                     if patterns.is_match(message.as_ref()) {
                         return true;
@@ -148,8 +148,8 @@ mod tests {
                 println!(
                     "------------------------------------------------------------------------"
                 );
-                println!("Config: {:?}", config);
-                println!("Case: {:?}", case);
+                println!("Config: {config:?}");
+                println!("Case: {case:?}");
 
                 let (exc_type, exc_value, logentry_formatted, should_ingest) = case;
                 let event = Event {

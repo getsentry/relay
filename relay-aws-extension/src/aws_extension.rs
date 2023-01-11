@@ -150,7 +150,7 @@ pub struct AwsExtension {
 impl AwsExtension {
     /// Creates a new `AwsExtension` instance.
     pub fn new(aws_runtime_api: &str) -> Result<Self, AwsExtensionError> {
-        let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api)
+        let base_url = format!("http://{aws_runtime_api}/2020-01-01/extension")
             .parse()
             .map_err(|_| AwsExtensionError(()))?;
 

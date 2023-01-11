@@ -57,9 +57,9 @@ impl<'a> fmt::Display for ValueDescription<'a> {
         match *self.0 {
             Value::Bool(true) => f.pad("true"),
             Value::Bool(false) => f.pad("false"),
-            Value::I64(val) => write!(f, "integer {}", val),
-            Value::U64(val) => write!(f, "integer {}", val),
-            Value::F64(val) => write!(f, "float {}", val),
+            Value::I64(val) => write!(f, "integer {val}"),
+            Value::U64(val) => write!(f, "integer {val}"),
+            Value::F64(val) => write!(f, "float {val}"),
             Value::String(ref val) => f.pad(val),
             Value::Array(_) => f.pad("an array"),
             Value::Object(_) => f.pad("an object"),

@@ -3,7 +3,7 @@
 //! Actors require an actix system to run, see [`relay_system`] and particularly
 //! [`Controller`](relay_system::Controller) for more information.
 //!
-//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web
+//! The web server is wrapped by the [`ServerService`](server::ServerService) actor. It starts the actix http web
 //! server and relays the graceful shutdown signal. Internally, it creates several other actors
 //! comprising the service state:
 //!
@@ -25,7 +25,10 @@
 //! use relay_server::controller::Controller;
 //! use relay_server::server::Server;
 //!
-//! Controller::run(|| Server::start())
+//! let rt = tokio::runtime::Runtime::new().unwrap();
+//! let sys = actix::System::new("my-system");
+//!
+//! Controller::run(rt.handle(), sys, || Server::start())
 //!     .expect("failed to start relay");
 //! ```
 pub mod envelopes;
