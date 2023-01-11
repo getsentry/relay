@@ -217,7 +217,7 @@ pub struct Replay {
     /// Custom tags for this event.
     ///
     /// A map or list of tags for this event. Each tag must be less than 200 characters.
-    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    #[metastructure(skip_serialization = "empty", pii = "true")]
     pub tags: Annotated<Tags>,
 
     /// Static value. Should always be "replay_event".
@@ -537,7 +537,7 @@ mod tests {
             .unwrap()
             .get("credit-card");
 
-        assert_eq!(maybe_credit_card, Some("[creditcard]"));
+        assert_eq!(maybe_credit_card, Some("[Filtered]"));
     }
 
     fn simple_enabled_config() -> DataScrubbingConfig {
