@@ -614,7 +614,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 4)
+    metrics = metrics_by_name(metrics_consumer, 5)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -643,13 +643,23 @@ def test_transaction_metrics(
     }
 
     assert metrics[
-        "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-    ] == {
-        **common,
-        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-        "type": "d",
-        "value": [9.910106, 9.910106],
-    }
+               "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
+           ] == {
+               **common,
+               "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+               "type": "d",
+               "value": [9.910106, 9.910106],
+           }
+    assert metrics[
+               "c:transactions/count_per_root_project@none"
+           ] == {
+               "timestamp": int(timestamp.timestamp()),
+               "org_id": 1,
+               "project_id": 42,
+               "name": "c:transactions/count_per_root_project@none",
+               "type": "c",
+               "value": 2.0,
+           }
 
 
 @pytest.mark.parametrize(
@@ -689,7 +699,7 @@ def test_transaction_metrics_extraction_external_relays(
     tx_item = envelope.items[0]
 
     if expect_extracted_header:
-        assert tx_item.headers["metrics_extracted"] == True
+        assert tx_item.headers["metrics_extracted"] is True
     else:
         assert "metrics_extracted" not in tx_item.headers
 
@@ -702,12 +712,14 @@ def test_transaction_metrics_extraction_external_relays(
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
         assert len(metrics_envelope.items) == 1
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(m_item_body) == 1
+        assert len(m_item_body) == 2
         assert m_item_body[0]["name"] == "d:transactions/duration@millisecond"
         assert (
             m_item_body[0]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
+        assert m_item_body[1]["name"] == "c:transactions/count_per_root_project@none"
+        assert m_item_body[1]["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
 
@@ -752,12 +764,16 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metric = metrics_consumer.get_metric(timeout=3)
-        assert metric["name"] == "d:transactions/duration@millisecond"
+        metrics = metrics_by_name(metrics_consumer, 2, timeout=3)
+        metric_duration = metrics["d:transactions/duration@millisecond"]
+        assert metric_duration["name"] == "d:transactions/duration@millisecond"
         assert (
-            metric["tags"]["transaction"]
+            metric_duration["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
+        metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
+        assert metric_count_per_project["name"] == "c:transactions/count_per_root_project@none"
+        assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
 
