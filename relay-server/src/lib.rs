@@ -296,5 +296,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     // Properly shutdown the new tokio runtime.
     runtime.shutdown_timeout(shutdown_timeout);
+    relay_log::info!("relay shutdown complete");
+
     Ok(())
 }

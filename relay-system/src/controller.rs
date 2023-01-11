@@ -136,7 +136,6 @@ impl Controller {
         // until a signal arrives or `Controller::stop` is called.
         relay_log::info!("relay server starting");
         sys.run();
-        relay_log::info!("relay shutdown complete");
 
         Ok(())
     }
