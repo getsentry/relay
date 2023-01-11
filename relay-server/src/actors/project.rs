@@ -1115,11 +1115,13 @@ mod tests {
 
         // The project ID must be set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_some());
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
