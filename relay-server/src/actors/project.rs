@@ -888,10 +888,8 @@ impl Project {
 
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
-            //This also sets the next fetch attempt time.
             ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
-            // And also reset the backoff at this point.
             _ => self.state = Some(state.clone()),
         }
 
