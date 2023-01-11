@@ -2196,19 +2196,19 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.envelope_context.update(&state.envelope);
 
+                        let has_metrics = state.extracted_metrics.project_metrics.is_empty();
+
+                        state.extracted_metrics.send_metrics(&state.envelope);
+
                         let envelope_response = if state.envelope.is_empty() {
-                            if state.extracted_metrics.project_metrics.is_empty() {
+                            if !has_metrics {
                                 // Individual rate limits have already been issued
                                 state.envelope_context.reject(Outcome::RateLimited(None));
                             } else {
                                 state.envelope_context.accept();
                             }
-                            state.extracted_metrics.send_metrics(&state.envelope);
-
                             None
                         } else {
-                            state.extracted_metrics.send_metrics(&state.envelope);
-
                             Some((state.envelope, state.envelope_context))
                         };
 
