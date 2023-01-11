@@ -43,10 +43,12 @@ pub struct GetProjectStates {
 ///
 /// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
 /// so is undefined.
-#[derive(Debug, Deserialize, Serialize, Default)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
+    #[serde(default)]
     pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    #[serde(default)]
     pub pending: Vec<ProjectKey>,
 }
 
