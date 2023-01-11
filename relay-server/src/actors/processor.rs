@@ -2329,7 +2329,107 @@ mod tests {
 
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
+    type proc_session_args = (
+        Item,
+        DateTime<Utc>,
+        Option<&'static str>,
+        Option<net::IpAddr>,
+        SessionMetricsConfig,
+        ClockDriftProcessor,
+        Vec<Metric>,
+    );
     use super::*;
+
+    // helper function that gives valid arguments to the process_session method
+    fn args_process_session() -> proc_session_args {
+        let mut item = Item::new(ItemType::Event);
+
+        let session = r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#;
+
+        item.set_payload(ContentType::Json, session);
+        let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
+
+        (
+            item,
+            received,
+            None,
+            None,
+            serde_json::from_str(
+                "
+        {
+            \"version\": 0,
+            \"drop\": true
+        }",
+            )
+            .unwrap(),
+            ClockDriftProcessor::new(None, received),
+            vec![],
+        )
+    }
+
+    /// Checks all conditions that should make the process_session method reject an item
+    #[test]
+    fn test_keep_item() {
+        let proc = create_test_processor(Default::default());
+
+        let test_keep = |mut args: proc_session_args| -> bool {
+            proc.process_session(
+                &mut args.0,
+                args.1,
+                args.2,
+                args.3,
+                args.4,
+                &args.5,
+                &mut args.6,
+            )
+        };
+
+        let should_keep = args_process_session();
+        assert!(test_keep(should_keep));
+
+        let mut invalid_json = args_process_session();
+        invalid_json
+            .0
+            .set_payload(ContentType::Json, "this isnt valid json");
+        assert!(!test_keep(invalid_json));
+
+        // item should be rejected if the sequence is equal to u64::MAX
+        let mut sequence_overflow = args_process_session();
+        sequence_overflow.0.set_payload(
+            ContentType::Json,
+            r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "seq": 18446744073709551615,
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#,
+        );
+        assert!(!test_keep(sequence_overflow));
+
+        let mut invalid_timestamp = args_process_session();
+        invalid_timestamp.1 = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
+        assert!(!test_keep(invalid_timestamp));
+
+        let mut extracted_metrics = args_process_session();
+        extracted_metrics.0.set_metrics_extracted(true);
+        assert!(!test_keep(extracted_metrics));
+    }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();
