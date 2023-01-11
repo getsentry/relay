@@ -19,8 +19,7 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
-// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
-// compatibility with Python.
+/// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
     "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
         .parse()
