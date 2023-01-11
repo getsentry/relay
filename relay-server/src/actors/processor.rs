@@ -2357,7 +2357,10 @@ mod tests {
         }"#;
 
         item.set_payload(ContentType::Json, session);
-        let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
+        let received =
+            DateTime::parse_from_str("2021 Apr 26 08:00:00.000 +0000", "%Y %b %d %H:%M:%S%.3f %z")
+                .unwrap()
+                .into();
 
         (
             item,
@@ -2423,7 +2426,10 @@ mod tests {
         assert!(!test_keep(sequence_overflow));
 
         let mut invalid_timestamp = args_process_session();
-        invalid_timestamp.1 = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
+        invalid_timestamp.1 =
+            DateTime::parse_from_str("2021 May 13 08:00:00.000 +0000", "%Y %b %d %H:%M:%S%.3f %z")
+                .unwrap()
+                .into();
         assert!(!test_keep(invalid_timestamp));
 
         let mut extracted_metrics = args_process_session();
