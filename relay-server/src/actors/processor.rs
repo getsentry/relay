@@ -24,7 +24,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionUpdate, Timestamp, UserReport, Values,
+    SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -584,6 +584,7 @@ impl EnvelopeProcessorService {
         let mut changed = false;
         let payload = item.payload();
 
+        // sessionupdate::parse is already tested
         let mut session = match SessionUpdate::parse(&payload) {
             Ok(session) => session,
             Err(error) => {
@@ -595,7 +596,7 @@ impl EnvelopeProcessorService {
         if session.sequence == u64::MAX {
             relay_log::trace!("skipping session due to sequence overflow");
             return false;
-        }
+        };
 
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to session");
@@ -634,8 +635,15 @@ impl EnvelopeProcessorService {
             }
         }
 
+        if self.config.processing_enabled() && matches!(session.status, SessionStatus::Unknown(_)) {
+            return false;
+        }
+
         // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled() && !item.metrics_extracted() {
+        if metrics_config.is_enabled()
+            && !item.metrics_extracted()
+            && !matches!(session.status, SessionStatus::Unknown(_))
+        {
             extract_session_metrics(
                 &session.attributes,
                 &session,
