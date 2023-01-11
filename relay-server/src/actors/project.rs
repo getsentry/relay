@@ -866,6 +866,14 @@ impl Project {
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
     pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
+        // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
+        if state.invalid() {
+            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
+        } else {
+            self.next_fetch_attempt = None;
+            self.backoff.reset();
+        }
+
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -876,14 +884,6 @@ impl Project {
         if channel.no_cache && !no_cache {
             self.state_channel = Some(channel);
             return;
-        }
-
-        // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
-        if state.invalid() {
-            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
-        } else {
-            self.next_fetch_attempt = None;
-            self.backoff.reset();
         }
 
         match self.expiry_state() {
@@ -1122,6 +1122,19 @@ mod tests {
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_some());
+
+        // This tests that we actually initiate the backoff and the backoff mechanism works:
+        // * first call to `update_state` with invalid ProjectState starts the backoff, but since
+        //   it's the first attemt, we get Duration of 0.
+        // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
+        //   like ~ 1s
+        // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
+        //   we should never fetch
+        // * without backoff it would just panic, not able to call the ProjectCache actor
+        let channel = StateChannel::new();
+        project.state_channel = Some(channel);
+        project.update_state(Arc::new(ProjectState::err()), false);
+        project.fetch_state(false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
