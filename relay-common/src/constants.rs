@@ -305,6 +305,9 @@ pub enum SpanStatus {
     ///
     /// Prefer PermissionDenied if a user is logged in.
     Unauthenticated = 16,
+
+    /// Other code for forward compatibility
+    Other(u8),
 }
 
 /// Error parsing a `SpanStatus`.
@@ -368,6 +371,7 @@ impl fmt::Display for SpanStatus {
             SpanStatus::Aborted => write!(f, "aborted"),
             SpanStatus::OutOfRange => write!(f, "out_of_range"),
             SpanStatus::DataLoss => write!(f, "data_loss"),
+            SpanStatus::Other(code) => write!(f, "Unknown status code: {}", code),
         }
     }
 }
