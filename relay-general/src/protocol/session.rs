@@ -375,7 +375,6 @@ impl SessionAggregates {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
 
     use similar_asserts::assert_eq;
 
@@ -383,7 +382,6 @@ mod tests {
 
     #[test]
     fn test_sessionstatus_unknown() {
-        let unknown = SessionStatus::from_str("invalid status").unwrap();
         let unknown: SessionStatus = serde_json::from_str("invalid status").unwrap();
         if let SessionStatus::Unknown(inner) = unknown {
             assert_eq!(inner, "invalid status".to_owned());
@@ -442,6 +440,7 @@ mod tests {
         parsed.sequence = 4711;
 
         assert_eq!(update, parsed);
+        assert_eq!(output, serde_json::to_string_pretty(&update).unwrap());
     }
 
     #[test]
