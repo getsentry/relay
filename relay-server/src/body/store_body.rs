@@ -73,7 +73,7 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, PayloadE
     // TODO: Switch to a streaming decoder
     // see https://github.com/alicemaz/rust-base64/pull/56
     let binary_body = BASE64
-        .decode(&body.as_ref())
+        .decode(body.as_ref())
         .map_err(|e| io::Error::new(ErrorKind::InvalidInput, e))?;
     if binary_body.starts_with(b"{") {
         return Ok(binary_body.into());
