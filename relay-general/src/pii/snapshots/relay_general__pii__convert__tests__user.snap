@@ -88,10 +88,17 @@ expression: data
         "": {
           "rem": [
             [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ],
+            [
               "@anything:remove",
               "x"
             ]
-          ]
+          ],
+          "len": 13
         }
       },
       "username": {
