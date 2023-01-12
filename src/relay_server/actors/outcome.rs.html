@@ -927,6 +927,10 @@
 <span id="926">926</span>
 <span id="927">927</span>
 <span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1287,6 +1291,8 @@
 
     <span class="doccomment">/// (Relay) We failed to parse the replay so we discard it.
     </span>InvalidReplayEvent,
+    InvalidReplayEventNoPayload,
+    InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
 
     <span class="doccomment">/// (Relay) Profiling related discard reasons
@@ -1329,6 +1335,8 @@
             DiscardReason::TransactionSampled =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
             DiscardReason::EmptyEnvelope =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
             DiscardReason::InvalidReplayEvent =&gt; <span class="string">&quot;invalid_replay&quot;</span>,
+            DiscardReason::InvalidReplayEventNoPayload =&gt; <span class="string">&quot;invalid_replay_no_payload&quot;</span>,
+            DiscardReason::InvalidReplayEventPii =&gt; <span class="string">&quot;invalid_replay_pii_scrubber_failed&quot;</span>,
             DiscardReason::InvalidReplayRecordingEvent =&gt; <span class="string">&quot;invalid_replay_recording&quot;</span>,
             DiscardReason::Profiling(reason) =&gt; reason,
         }

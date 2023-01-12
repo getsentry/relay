@@ -957,6 +957,17 @@
 <span id="956">956</span>
 <span id="957">957</span>
 <span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::mem;
 
@@ -970,7 +981,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 <span class="doccomment">/// A processor that performs PII stripping.
@@ -1119,6 +1130,17 @@
             user.id = mem::take(<span class="kw-2">&amp;mut </span>user.ip_address).map_value(|ip| ip.into_inner().into());
         }
 
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="comment">// Replay PII processor entry point.
+    </span><span class="kw">fn </span>process_replay(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        replay: <span class="kw-2">&amp;mut </span>Replay,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        replay.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 }

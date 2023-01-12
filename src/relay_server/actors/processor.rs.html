@@ -2901,10 +2901,97 @@
 <span id="2900">2900</span>
 <span id="2901">2901</span>
 <span id="2902">2902</span>
-</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<span id="2903">2903</span>
+<span id="2904">2904</span>
+<span id="2905">2905</span>
+<span id="2906">2906</span>
+<span id="2907">2907</span>
+<span id="2908">2908</span>
+<span id="2909">2909</span>
+<span id="2910">2910</span>
+<span id="2911">2911</span>
+<span id="2912">2912</span>
+<span id="2913">2913</span>
+<span id="2914">2914</span>
+<span id="2915">2915</span>
+<span id="2916">2916</span>
+<span id="2917">2917</span>
+<span id="2918">2918</span>
+<span id="2919">2919</span>
+<span id="2920">2920</span>
+<span id="2921">2921</span>
+<span id="2922">2922</span>
+<span id="2923">2923</span>
+<span id="2924">2924</span>
+<span id="2925">2925</span>
+<span id="2926">2926</span>
+<span id="2927">2927</span>
+<span id="2928">2928</span>
+<span id="2929">2929</span>
+<span id="2930">2930</span>
+<span id="2931">2931</span>
+<span id="2932">2932</span>
+<span id="2933">2933</span>
+<span id="2934">2934</span>
+<span id="2935">2935</span>
+<span id="2936">2936</span>
+<span id="2937">2937</span>
+<span id="2938">2938</span>
+<span id="2939">2939</span>
+<span id="2940">2940</span>
+<span id="2941">2941</span>
+<span id="2942">2942</span>
+<span id="2943">2943</span>
+<span id="2944">2944</span>
+<span id="2945">2945</span>
+<span id="2946">2946</span>
+<span id="2947">2947</span>
+<span id="2948">2948</span>
+<span id="2949">2949</span>
+<span id="2950">2950</span>
+<span id="2951">2951</span>
+<span id="2952">2952</span>
+<span id="2953">2953</span>
+<span id="2954">2954</span>
+<span id="2955">2955</span>
+<span id="2956">2956</span>
+<span id="2957">2957</span>
+<span id="2958">2958</span>
+<span id="2959">2959</span>
+<span id="2960">2960</span>
+<span id="2961">2961</span>
+<span id="2962">2962</span>
+<span id="2963">2963</span>
+<span id="2964">2964</span>
+<span id="2965">2965</span>
+<span id="2966">2966</span>
+<span id="2967">2967</span>
+<span id="2968">2968</span>
+<span id="2969">2969</span>
+<span id="2970">2970</span>
+<span id="2971">2971</span>
+<span id="2972">2972</span>
+<span id="2973">2973</span>
+<span id="2974">2974</span>
+<span id="2975">2975</span>
+<span id="2976">2976</span>
+<span id="2977">2977</span>
+<span id="2978">2978</span>
+<span id="2979">2979</span>
+<span id="2980">2980</span>
+<span id="2981">2981</span>
+<span id="2982">2982</span>
+<span id="2983">2983</span>
+<span id="2984">2984</span>
+<span id="2985">2985</span>
+<span id="2986">2986</span>
+<span id="2987">2987</span>
+</pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net;
+<span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>NetIPAddr;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
@@ -2926,8 +3013,8 @@
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::{
     <span class="self">self</span>, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
 <span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 <span class="kw">use </span>relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -2941,7 +3028,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::{Feature, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project::{Feature, ProjectConfig, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -3915,8 +4002,9 @@
     </span><span class="kw">fn </span>process_replays(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="kw">let </span>replays_enabled = state.project_state.has_feature(Feature::Replays);
         <span class="kw">let </span>context = <span class="kw-2">&amp;</span>state.envelope_context;
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
-        <span class="kw">let </span>client_addr = envelope.meta().client_addr();
+        <span class="kw">let </span>meta = state.envelope.meta().clone();
+        <span class="kw">let </span>client_addr = meta.client_addr();
+        <span class="kw">let </span>user_agent = meta.user_agent();
 
         state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
@@ -3924,20 +4012,62 @@
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                <span class="kw">let </span>parsed_replay =
-                    relay_replays::normalize_replay_event(<span class="kw-2">&amp;</span>item.payload(), client_addr);
-                <span class="kw">match </span>parsed_replay {
-                    <span class="prelude-val">Ok</span>(replay) =&gt; {
-                        item.set_payload(ContentType::Json, <span class="kw-2">&amp;</span>replay[..]);
-                        <span class="bool-val">true
-                    </span>}
-                    <span class="prelude-val">Err</span>(error) =&gt; {
-                        <span class="macro">relay_log::warn!</span>(<span class="string">&quot;failed to parse replay event: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
-                        context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                            DataCategory::Replay,
-                            <span class="number">1</span>,
-                        );
+                <span class="kw">let </span>result = <span class="self">self</span>.process_replay_event(
+                    <span class="kw-2">&amp;</span>item.payload(),
+                    <span class="kw-2">&amp;</span>state.project_state.config,
+                    client_addr,
+                    user_agent,
+                );
+
+                <span class="kw">match </span>result {
+                    <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
+                        <span class="prelude-val">Ok</span>(json) =&gt; {
+                            item.set_payload(ContentType::Json, json.as_bytes());
+                            <span class="bool-val">true
+                        </span>}
+                        <span class="prelude-val">Err</span>(e) =&gt; {
+                            <span class="macro">relay_log::error!</span>(
+                                <span class="string">&quot;replay-event: failed to serialize replay with message {}&quot;</span>,
+                                e
+                            );
+                            <span class="bool-val">false
+                        </span>}
+                    },
+                    <span class="prelude-val">Err</span>(e) =&gt; {
+                        <span class="kw">match </span>e {
+                            ReplayError::NoContent =&gt; {
+                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: no data found&quot;</span>);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
+                                    DataCategory::Replay,
+                                    <span class="number">1</span>,
+                                );
+                            }
+                            ReplayError::CouldNotScrub(e) =&gt; {
+                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: PII scrub failure {}&quot;</span>, e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
+                                    DataCategory::Replay,
+                                    <span class="number">1</span>,
+                                );
+                            }
+                            ReplayError::CouldNotParse(e) =&gt; {
+                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e.to_string());
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    <span class="number">1</span>,
+                                );
+                            }
+                            ReplayError::InvalidPayload(e) =&gt; {
+                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    <span class="number">1</span>,
+                                );
+                            }
+                        }
                         <span class="bool-val">false
                     </span>}
                 }
@@ -3959,7 +4089,10 @@
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         <span class="prelude-val">Err</span>(e) =&gt; {
-                            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;failed to parse replay event: {}&quot;</span>, e);
+                            <span class="macro">relay_log::warn!</span>(
+                                <span class="string">&quot;replay-recording-event: failed to parse with message {}&quot;</span>,
+                                e
+                            );
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
@@ -3975,6 +4108,43 @@
             }
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
+    }
+
+    <span class="doccomment">/// Validates, normalizes, and scrubs PII from a replay event.
+    </span><span class="kw">fn </span>process_replay_event(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        payload: <span class="kw-2">&amp;</span>Bytes,
+        config: <span class="kw-2">&amp;</span>ProjectConfig,
+        client_ip: <span class="prelude-ty">Option</span>&lt;NetIPAddr&gt;,
+        user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Replay&gt;, ReplayError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>replay =
+            Annotated::&lt;Replay&gt;::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(replay_value) = replay.value_mut() {
+            replay_value.validate()<span class="question-mark">?</span>;
+            replay_value.normalize(client_ip, user_agent);
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ReplayError::NoContent);
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = config.pii_config {
+            <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
+            process_value(<span class="kw-2">&amp;mut </span>replay, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">let </span>pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = pii_config {
+            <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
+            process_value(<span class="kw-2">&amp;mut </span>replay, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))<span class="question-mark">?</span>;
+        }
+
+        <span class="prelude-val">Ok</span>(replay)
     }
 
     <span class="doccomment">/// Creates and initializes the processing state.

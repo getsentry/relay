@@ -79,6 +79,7 @@
 <span id="78">78</span>
 <span id="79">79</span>
 <span id="80">80</span>
+<span id="81">81</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility functions for working with user agents.
 //!
 //! NOTICE:
@@ -90,7 +91,8 @@
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>uaparser::{Parser, UserAgentParser};
 
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, Headers};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Headers, Request};
+<span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
 
 <span class="attribute">#[doc(inline)]
 </span><span class="kw">pub use </span>uaparser::{Device, UserAgent, OS};
@@ -129,12 +131,12 @@
     Lazy::force(<span class="kw-2">&amp;</span>UA_PARSER);
 }
 
-<span class="doccomment">/// Returns the user agent string from an `event`.
+<span class="doccomment">/// Returns the user agent string from a `Request`.
 ///
 /// Returns `Some` if the event&#39;s request interface contains a `user-agent` header. Returns `None`
 /// otherwise.
-</span><span class="kw">pub fn </span>get_user_agent(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span>request = event.request.value()<span class="question-mark">?</span>;
+</span><span class="kw">pub fn </span>get_user_agent(request: <span class="kw-2">&amp;</span>Annotated&lt;Request&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">let </span>request = request.value()<span class="question-mark">?</span>;
     <span class="kw">let </span>headers = request.headers.value()<span class="question-mark">?</span>;
     get_user_agent_from_headers(headers)
 }

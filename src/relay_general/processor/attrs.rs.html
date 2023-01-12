@@ -847,6 +847,8 @@
 <span id="846">846</span>
 <span id="847">847</span>
 <span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::RangeInclusive;
@@ -885,6 +887,7 @@
     <span class="comment">// Roots
     </span>Event,
     Attachments,
+    Replay,
 
     <span class="comment">// Protocol types
     </span>Exception,
@@ -924,6 +927,7 @@
     ValueType::Object =&gt; <span class="string">&quot;object&quot;</span>,
     ValueType::Event =&gt; <span class="string">&quot;event&quot;</span>,
     ValueType::Attachments =&gt; <span class="string">&quot;attachments&quot;</span>,
+    ValueType::Replay =&gt; <span class="string">&quot;replay&quot;</span>,
     ValueType::Exception =&gt; <span class="string">&quot;error&quot; </span>| <span class="string">&quot;exception&quot;</span>,
     ValueType::Stacktrace =&gt; <span class="string">&quot;stack&quot; </span>| <span class="string">&quot;stacktrace&quot;</span>,
     ValueType::Frame =&gt; <span class="string">&quot;frame&quot;</span>,

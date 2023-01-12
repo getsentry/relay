@@ -433,7 +433,7 @@
 
 <span class="doccomment">/// Checks if the event originates from legacy browsers.
 </span><span class="kw">pub fn </span>matches(event: <span class="kw-2">&amp;</span>Event, browsers: <span class="kw-2">&amp;</span>BTreeSet&lt;LegacyBrowser&gt;) -&gt; bool {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent_string) = user_agent::get_user_agent(event) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent_string) = user_agent::get_user_agent(<span class="kw-2">&amp;</span>event.request) {
         <span class="kw">let </span>user_agent = user_agent::parse_user_agent(user_agent_string);
 
         <span class="comment">// remap IE Mobile to IE (sentry python, filter compatibility)

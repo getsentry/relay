@@ -150,6 +150,7 @@
 <span id="149">149</span>
 <span id="150">150</span>
 <span id="151">151</span>
+<span id="152">152</span>
 </pre><pre class="rust"><code><span class="comment">// This module only defines traits, every parameter is used by definition
 </span><span class="attribute">#![allow(unused_variables)]
 
@@ -224,6 +225,7 @@
     <span class="macro">process_method!</span>(process_timestamp, <span class="kw">crate</span>::protocol::Timestamp);
 
     <span class="macro">process_method!</span>(process_event, <span class="kw">crate</span>::protocol::Event);
+    <span class="macro">process_method!</span>(process_replay, <span class="kw">crate</span>::protocol::Replay);
     <span class="macro">process_method!</span>(process_exception, <span class="kw">crate</span>::protocol::Exception);
     <span class="macro">process_method!</span>(process_raw_stacktrace, <span class="kw">crate</span>::protocol::RawStacktrace);
     <span class="macro">process_method!</span>(process_stacktrace, <span class="kw">crate</span>::protocol::Stacktrace);
