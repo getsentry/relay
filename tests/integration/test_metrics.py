@@ -366,19 +366,6 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "d:sessions/duration@second",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                    "session.status": "exited",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "d",
-                "value": [1947.49],
-            },
-            {
                 "name": "s:sessions/user@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
