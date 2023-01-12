@@ -1402,6 +1402,16 @@
 <span id="1401">1401</span>
 <span id="1402">1402</span>
 <span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1413,20 +1423,19 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
-<span class="comment">// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
-// compatibility with Python.
-</span><span class="kw">static </span>KNOWN_IP_FIELDS: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
-    <span class="string">&quot;($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)&quot;
-        </span>.parse()
-        .unwrap()
-});
-
 <span class="doccomment">/// Fields that the legacy data scrubber cannot strip.
 ///
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 </span><span class="kw">static </span>DATASCRUBBER_IGNORE: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
     <span class="string">&quot;(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value)&quot;
+        </span>.parse()
+        .unwrap()
+});
+
+<span class="doccomment">/// Fields that are known to contain IPs. Used for legacy IP scrubbing.
+</span><span class="kw">static </span>KNOWN_IP_FIELDS: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
+    <span class="string">&quot;($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)&quot;
         </span>.parse()
         .unwrap()
 });
@@ -1443,7 +1452,11 @@
     }
 
     <span class="kw">if </span>datascrubbing_config.scrub_ip_addresses {
-        applications.insert(KNOWN_IP_FIELDS.clone(), <span class="macro">vec!</span>[<span class="string">&quot;@anything:remove&quot;</span>.to_owned()]);
+        <span class="comment">// legacy(?) scrubs all fields that are known to have IPs regardless of actual content
+        </span>applications.insert(KNOWN_IP_FIELDS.clone(), <span class="macro">vec!</span>[<span class="string">&quot;@anything:remove&quot;</span>.to_owned()]);
+
+        <span class="comment">// checks actual contents of all fields and scrubs where there is an IP address
+        </span>applied_rules.push(<span class="string">&quot;@ip:replace&quot;</span>.to_owned());
     }
 
     <span class="kw">if </span>datascrubbing_config.scrub_data {
@@ -1621,7 +1634,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           &quot;applications&quot;: {
             &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
-              &quot;@common:filter&quot;
+              &quot;@common:filter&quot;,
+              &quot;@ip:replace&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
               &quot;@anything:remove&quot;
@@ -1646,7 +1660,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           &quot;applications&quot;: {
             &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
-              &quot;@common:filter&quot;
+              &quot;@common:filter&quot;,
+              &quot;@ip:replace&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
               &quot;@anything:remove&quot;
@@ -1681,6 +1696,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           &quot;applications&quot;: {
             &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
+              &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -1719,7 +1735,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           &quot;applications&quot;: {
             &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
-              &quot;@common:filter&quot;
+              &quot;@common:filter&quot;,
+              &quot;@ip:replace&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
               &quot;@anything:remove&quot;
@@ -1745,6 +1762,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+              &quot;@ip:replace&quot;
+            ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
               &quot;@anything:remove&quot;
             ]
@@ -1814,23 +1834,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_sdk_client_ip_stripped() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;sdk&quot;</span>: {
-                    <span class="string">&quot;client_ip&quot;</span>: <span class="string">&quot;127.0.0.1&quot;
-                </span>}
-            })
-            .into(),
-        );
-
-        <span class="kw">let </span>pii_config = simple_enabled_pii_config();
-        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
-        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(data);
-    }
-
-    <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_user() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
@@ -1849,15 +1852,31 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="macro">assert_annotated_snapshot!</span>(data);
     }
 
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_user_ip_stripped() {
+    <span class="doccomment">/// Checks that any fields containing an IP-address is scrubbed.
+    /// Even if it doesn&#39;t make sense for there to be an IP-address
+    /// such as in the username field.
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_ip_stripped() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;user&quot;</span>: {
-                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;secret&quot;</span>,
-                    <span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
+                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>, <span class="comment">// should be stripped despite not being &quot;known ip field&quot;
+                    </span><span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;should be stripped despite lacking ip address&quot;</span>,
                     <span class="string">&quot;data&quot;</span>: sensitive_vars()
-                }
+                },
+                <span class="string">&quot;breadcrumbs&quot;</span>: {
+                    <span class="string">&quot;values&quot;</span>: [
+                        {
+                            <span class="string">&quot;message&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
+                            <span class="string">&quot;data&quot;</span>: {
+                                <span class="string">&quot;test_data&quot;</span>: <span class="string">&quot;73.133.27.120&quot; </span><span class="comment">// test deep wildcard stripping
+                                </span>}
+                        },
+                    ],
+                },
+                <span class="string">&quot;sdk&quot;</span>: {
+                    <span class="string">&quot;client_ip&quot;</span>: <span class="string">&quot;should also be stripped&quot;
+                </span>}
             })
             .into(),
         );
@@ -2635,6 +2654,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           &quot;applications&quot;: {
             &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
+              &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
