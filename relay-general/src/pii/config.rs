@@ -150,6 +150,8 @@ pub enum RuleType {
     Multiple(MultipleRule),
     /// Applies another rule.  Works like a single multiple.
     Alias(AliasRule),
+    /// unknown ruletype for forward compatibility
+    Unknown(String),
 }
 
 /// A single rule configuration.
