@@ -2986,6 +2986,8 @@
 <span id="2985">2985</span>
 <span id="2986">2986</span>
 <span id="2987">2987</span>
+<span id="2988">2988</span>
+<span id="2989">2989</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4082,7 +4084,9 @@
                     // allocations.
                     </span><span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
                     <span class="kw">let </span>parsed_recording =
-                        relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload(), limit);
+                        <span class="macro">metric!</span>(timer(RelayTimers::ReplayRecordingProcessing), {
+                            relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload(), limit)
+                        });
 
                     <span class="kw">match </span>parsed_recording {
                         <span class="prelude-val">Ok</span>(recording) =&gt; {

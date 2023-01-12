@@ -534,6 +534,10 @@
 <span id="533">533</span>
 <span id="534">534</span>
 <span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -834,6 +838,9 @@
 
     <span class="doccomment">/// Time in milliseconds spent on converting a transaction event into a metric.
     </span>TransactionMetricsExtraction,
+
+    <span class="doccomment">/// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
+    </span>ReplayRecordingProcessing,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -864,6 +871,7 @@
             RelayTimers::TimestampDelay =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
             RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
             RelayTimers::TransactionMetricsExtraction =&gt; <span class="string">&quot;metrics.extraction.transactions&quot;</span>,
+            RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">&quot;replay.recording.process&quot;</span>,
         }
     }
 }
