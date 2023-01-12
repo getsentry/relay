@@ -64,7 +64,6 @@ pipelines:
                           timeout: 1800
                           elastic_profile_id: relay
                           tasks:
-                              # TODO: create-sentry-release and self-service secrets
                               - script: |
                                     USE_GKE_GCLOUD_AUTH_PLUGIN=True \
                                         gcloud --project "$GCP_PROJECT" \
@@ -78,9 +77,6 @@ pipelines:
                                       "--project=${GCP_PROJECT}" \
                                       "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
                                       -- -4 -L8888:127.0.0.1:8888 -N -q -f
-                              # TODO: relay-canary by itself is performed infrequently. However
-                              # this is still ideally refactored to have `deploy` stage of the
-                              # relay-canary pipeline as a material.
                               - script: |
                                     /devinfra/scripts/k8s/k8sdeploy.py \
                                     --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
@@ -93,3 +89,14 @@ pipelines:
                                     --label-selector="service=relay,deploy_if_production=true" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
+            - mark-as-complete:
+                  # Manually completes this pipeline run.
+                  # This will trigger relay-pop deployments.
+                  approval:
+                      type: manual
+                  jobs:
+                      deploy:
+                          elastic_profile_id: relay
+                          tasks:
+                              - exec:
+                                    command: true

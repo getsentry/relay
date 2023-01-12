@@ -41,7 +41,6 @@ pipelines:
                                     ${GO_REVISION_RELAY_REPO} \
                                     sentryio \
                                     "us.gcr.io/sentryio/relay"
-            # TODO: Need relay pipeline deploy to succeed.
             - deploy:
                   approval:
                       type: manual

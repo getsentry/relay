@@ -3,6 +3,7 @@
 # - https://www.notion.so/sentry/GoCD-New-Service-Quickstart-6d8db7a6964049b3b0e78b8a4b52e25d
 format_version: 10
 pipelines:
+    # This is infrequently deployed and so it's separate from and doesn't block deploy-relay.
     deploy-relay-canary:
         environment_variables:
             GCP_PROJECT: internal-sentry
@@ -64,7 +65,6 @@ pipelines:
                           timeout: 1800 # 30 mins
                           elastic_profile_id: relay
                           tasks:
-                              # TODO: create-sentry-release and self-service secrets
                               - script: |
                                     USE_GKE_GCLOUD_AUTH_PLUGIN=True \
                                         gcloud --project "$GCP_PROJECT" \

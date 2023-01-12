@@ -16,32 +16,13 @@ pipelines:
                 shallow_clone: true
                 branch: master
                 destination: relay
+            # Relay PoPs can't be deployed until the relay deploy pipeline reaches
+            # the mark-as-complete stage.
+            pipeline-deploy-relay-completed:
+                pipeline: deploy-relay
+                stage: mark-as-complete
         stages:
-            # TODO: it'd be ideal to use checks stage from relay pipeline as a material
-            #       rather than run this again with different elastic_profile_id.
-            - checks:
-                  approval:
-                      type: manual
-                  fetch_materials: true
-                  jobs:
-                      checks:
-                          timeout: 1800
-                          elastic_profile_id: relay-pop
-                          tasks:
-                              - script: |
-                                    /devinfra/scripts/checks/githubactions/checkruns.py \
-                                    getsentry/relay \
-                                    ${GO_REVISION_RELAY_REPO} \
-                                    "Integration Tests" \
-                                    "Test (macos-latest)" \
-                                    "Test (windows-latest)" \
-                                    "Test All Features (ubuntu-latest)"
-                              - script: |
-                                    /devinfra/scripts/checks/googlecloud/checkcloudbuild.py \
-                                    ${GO_REVISION_RELAY_REPO} \
-                                    sentryio \
-                                    "us.gcr.io/sentryio/relay"
-            # TODO: Need relay pipeline deploy to succeed.
+            # checks isn't needed because it's implied by pipeline-deploy-relay-completed.
             - deploy:
                   approval:
                       type: manual
