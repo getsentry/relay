@@ -1094,7 +1094,9 @@ impl EnvelopeProcessorService {
                     // allocations.
                     let limit = self.config.max_replay_size();
                     let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload(), limit);
+                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                            relay_replays::recording::process_recording(&item.payload(), limit)
+                        });
 
                     match parsed_recording {
                         Ok(recording) => {

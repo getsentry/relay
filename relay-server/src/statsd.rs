@@ -298,6 +298,9 @@ pub enum RelayTimers {
 
     /// Time in milliseconds spent on converting a transaction event into a metric.
     TransactionMetricsExtraction,
+
+    /// Time in milliseconds spent on parsing, normalizing and scrubbing Relay recordings.
+    ReplayRecordingProcessing,
 }
 
 impl TimerMetric for RelayTimers {
@@ -328,6 +331,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
+            RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
         }
     }
 }
