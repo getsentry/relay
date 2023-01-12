@@ -299,7 +299,7 @@ pub enum RelayTimers {
     /// Time in milliseconds spent on converting a transaction event into a metric.
     TransactionMetricsExtraction,
 
-    /// Time in milliseconds spent on parsing, normalizing and scrubbing Relay recordings.
+    /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
 }
 
