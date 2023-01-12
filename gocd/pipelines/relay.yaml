@@ -48,8 +48,20 @@ pipelines:
                       type: manual
                   fetch_materials: true
                   jobs:
-                      deploy:
+                      create_sentry_release:
+                          environment_variables:
+                              SENTRY_ORG: sentry
+                              SENTRY_PROJECT: relay
+                              SENTRY_URL: "https://sentry.my.sentry.io/"
+                              # Temporary; self-service encrypted secrets aren't implemented yet.
+                              SENTRY_AUTH_TOKEN: "{{SECRET:[devinfra-temp][relay-sentry-auth-token]}}"
                           timeout: 1800 # 30 mins
+                          elastic_profile_id: relay
+                          tasks:
+                              - script: |
+                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                      deploy:
+                          timeout: 1800
                           elastic_profile_id: relay
                           tasks:
                               # TODO: create-sentry-release and self-service secrets
