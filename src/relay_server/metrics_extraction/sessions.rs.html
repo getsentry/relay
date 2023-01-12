@@ -599,63 +599,13 @@
 <span id="598">598</span>
 <span id="599">599</span>
 <span id="600">600</span>
-<span id="601">601</span>
-<span id="602">602</span>
-<span id="603">603</span>
-<span id="604">604</span>
-<span id="605">605</span>
-<span id="606">606</span>
-<span id="607">607</span>
-<span id="608">608</span>
-<span id="609">609</span>
-<span id="610">610</span>
-<span id="611">611</span>
-<span id="612">612</span>
-<span id="613">613</span>
-<span id="614">614</span>
-<span id="615">615</span>
-<span id="616">616</span>
-<span id="617">617</span>
-<span id="618">618</span>
-<span id="619">619</span>
-<span id="620">620</span>
-<span id="621">621</span>
-<span id="622">622</span>
-<span id="623">623</span>
-<span id="624">624</span>
-<span id="625">625</span>
-<span id="626">626</span>
-<span id="627">627</span>
-<span id="628">628</span>
-<span id="629">629</span>
-<span id="630">630</span>
-<span id="631">631</span>
-<span id="632">632</span>
-<span id="633">633</span>
-<span id="634">634</span>
-<span id="635">635</span>
-<span id="636">636</span>
-<span id="637">637</span>
-<span id="638">638</span>
-<span id="639">639</span>
-<span id="640">640</span>
-<span id="641">641</span>
-<span id="642">642</span>
-<span id="643">643</span>
-<span id="644">644</span>
-<span id="645">645</span>
-<span id="646">646</span>
-<span id="647">647</span>
-<span id="648">648</span>
-<span id="649">649</span>
-<span id="650">650</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
 <span class="kw">use </span>relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-<span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+<span class="kw">use </span>relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue};
 
 <span class="kw">use </span><span class="kw">super</span>::utils::with_tag;
 
@@ -663,7 +613,7 @@
 </span><span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 <span class="doccomment">/// Current version of metrics extraction.
-</span><span class="kw">const </span>EXTRACT_VERSION: u16 = <span class="number">2</span>;
+</span><span class="kw">const </span>EXTRACT_VERSION: u16 = <span class="number">3</span>;
 <span class="kw">const </span>EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = <span class="number">2</span>;
 
 <span class="doccomment">/// Configuration for metric extraction from sessions.
@@ -849,20 +799,6 @@
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Crashed),
-            ));
-        }
-    }
-
-    <span class="comment">// Count durations only for exited sessions, since Sentry doesn&#39;t use durations for other types of sessions.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>((duration, status)) = session.final_duration() {
-        <span class="kw">if </span>status == SessionStatus::Exited {
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                <span class="string">&quot;duration&quot;</span>,
-                MetricUnit::Duration(DurationUnit::Second),
-                MetricValue::Distribution(duration),
-                timestamp,
-                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, status),
             ));
         }
     }
@@ -1124,42 +1060,6 @@
                 <span class="macro">assert_eq!</span>(user_metric_tag_keys, [<span class="string">&quot;release&quot;</span>, <span class="string">&quot;session.status&quot;</span>]);
             }
         }
-    }
-
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_extract_session_metrics_duration() {
-        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
-
-        <span class="kw">let </span>session = SessionUpdate::parse(
-            <span class="string">r#&quot;{
-            &quot;init&quot;: false,
-            &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;attrs&quot;: {
-                &quot;release&quot;: &quot;1.0.0&quot;
-            },
-            &quot;did&quot;: &quot;user123&quot;,
-            &quot;status&quot;: &quot;exited&quot;,
-            &quot;duration&quot;: 123.4
-        }&quot;#
-            </span>.as_bytes(),
-        )
-        .unwrap();
-
-        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
-
-        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>); <span class="comment">// duration and user ID
-
-        </span><span class="kw">let </span>duration_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
-        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:sessions/duration@second&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            duration_metric.value,
-            MetricValue::Distribution(<span class="kw">_</span>)
-        ));
-
-        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
-        <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
     }
 
     <span class="attribute">#[test]

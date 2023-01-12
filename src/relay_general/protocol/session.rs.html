@@ -513,20 +513,6 @@
 <span id="512">512</span>
 <span id="513">513</span>
 <span id="514">514</span>
-<span id="515">515</span>
-<span id="516">516</span>
-<span id="517">517</span>
-<span id="518">518</span>
-<span id="519">519</span>
-<span id="520">520</span>
-<span id="521">521</span>
-<span id="522">522</span>
-<span id="523">523</span>
-<span id="524">524</span>
-<span id="525">525</span>
-<span id="526">526</span>
-<span id="527">527</span>
-<span id="528">528</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::SystemTime;
 
@@ -683,7 +669,6 @@
     <span class="kw">fn </span>abnormal_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32;
     <span class="kw">fn </span>crashed_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32;
     <span class="kw">fn </span>all_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SessionErrored&gt;;
-    <span class="kw">fn </span>final_duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(f64, SessionStatus)&gt;;
     <span class="kw">fn </span>abnormal_mechanism(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AbnormalMechanism;
 }
 
@@ -766,15 +751,6 @@
         }
     }
 
-    <span class="kw">fn </span>final_duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(f64, SessionStatus)&gt; {
-        <span class="kw">if </span><span class="self">self</span>.status.is_terminal() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(duration) = <span class="self">self</span>.duration {
-                <span class="kw">return </span><span class="prelude-val">Some</span>((duration, <span class="self">self</span>.status));
-            }
-        }
-        <span class="prelude-val">None
-    </span>}
-
     <span class="kw">fn </span>all_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SessionErrored&gt; {
         <span class="kw">if </span><span class="self">self</span>.errors &gt; <span class="number">0 </span>|| <span class="self">self</span>.status.is_error() {
             <span class="prelude-val">Some</span>(SessionErrored::Individual(<span class="self">self</span>.session_id))
@@ -834,10 +810,6 @@
     <span class="kw">fn </span>crashed_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.crashed
     }
-
-    <span class="kw">fn </span>final_duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(f64, SessionStatus)&gt; {
-        <span class="prelude-val">None
-    </span>}
 
     <span class="kw">fn </span>all_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SessionErrored&gt; {
         <span class="comment">// Errors contain crashed &amp; abnormal as well.
