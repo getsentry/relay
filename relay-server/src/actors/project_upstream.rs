@@ -75,7 +75,7 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition inforamtion.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    sender: BroadcastChannel<Arc<ProjectState>>,
+    channel: BroadcastChannel<Arc<ProjectState>>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -90,7 +90,7 @@ impl ProjectStateChannel {
         let now = Instant::now();
         Self {
             no_cache,
-            sender: sender.into_channel(),
+            channel: sender.into_channel(),
             deadline: now + timeout,
             attempts: 0,
         }
@@ -101,11 +101,11 @@ impl ProjectStateChannel {
     }
 
     pub fn attach(&mut self, sender: BroadcastSender<Arc<ProjectState>>) {
-        self.sender.attach(sender)
+        self.channel.attach(sender)
     }
 
     pub fn send(self, state: ProjectState) {
-        self.sender.send(Arc::new(state))
+        self.channel.send(Arc::new(state))
     }
 
     pub fn expired(&self) -> bool {
@@ -114,7 +114,7 @@ impl ProjectStateChannel {
 }
 
 /// Internal [`UpstreamProjectSourceService`] message protocol.
-enum UpstreamProjectSourceState {
+enum UpstreamProjectInternal {
     /// Checks for backoff status and makes sure to schedule the another fetch if
     /// possible.
     CheckAndSchedule,
@@ -149,21 +149,21 @@ pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
     state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-    state_tx: mpsc::UnboundedSender<UpstreamProjectSourceState>,
-    state_rx: mpsc::UnboundedReceiver<UpstreamProjectSourceState>,
+    inner_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
+    inner_rx: mpsc::UnboundedReceiver<UpstreamProjectInternal>,
 }
 
 impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
     pub fn new(config: Arc<Config>) -> Self {
-        let (state_tx, state_rx) = mpsc::unbounded_channel();
+        let (inner_tx, inner_rx) = mpsc::unbounded_channel();
 
         Self {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            config,
             state_channels: HashMap::new(),
-            state_tx,
-            state_rx,
+            config,
+            inner_tx,
+            inner_rx,
         }
     }
 
@@ -182,7 +182,7 @@ impl UpstreamProjectSourceService {
     async fn fetch_states(
         config: Arc<Config>,
         mut state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-        state_tx: mpsc::UnboundedSender<UpstreamProjectSourceState>,
+        state_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
         attempt: usize,
     ) {
         let batch_size = config.query_batch_size();
@@ -260,7 +260,9 @@ impl UpstreamProjectSourceService {
             let future_request = compat::send(UpstreamRelay::from_registry(), SendQuery(query))
                 .map(|response| match response {
                     Ok(response) => Ok((channels_batch, response)),
-                    _ => Err(ProjectError::ScheduleFailed),
+                    // Also propagate the channels in error case, since we will want to try to
+                    // fetch the projects again.
+                    _ => Err((channels_batch, ProjectError::ScheduleFailed)),
                 });
 
             requests.push(future_request);
@@ -280,8 +282,8 @@ impl UpstreamProjectSourceService {
                     //
                     // Otherwise we might refuse to fetch any project configs because of a
                     // single, reproducible 500 we observed for a particular project.
-                    if let Err(err) = state_tx.send(UpstreamProjectSourceState::ResetBackoff) {
-                        relay_log::error!("Unable to send the internal UpstreamProjectSourceState::ResetBackoff message: {err}");
+                    if let Err(err) = state_tx.send(UpstreamProjectInternal::ResetBackoff) {
+                        relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
                     }
 
                     // Count number of project states returned (via http requests).
@@ -325,19 +327,20 @@ impl UpstreamProjectSourceService {
                     // Put the channels back into the queue, we will retry again shortly.
                     state_channels.extend(channels_batch);
                 }
-                Err(err) => {
-                    relay_log::error!("The Upstream Actor mailbox is full: {}", LogError(&err));
+                Err((channels_batch, err)) => {
+                    relay_log::error!("Failed to schedule projects fetch: {}", LogError(&err));
+                    state_channels.extend(channels_batch);
                 }
             }
         }
 
         if !state_channels.is_empty() {
             if state_tx
-                .send(UpstreamProjectSourceState::ScheduleFetch(state_channels))
+                .send(UpstreamProjectInternal::ScheduleFetch(state_channels))
                 .is_err()
             {
                 relay_log::error!(
-                    "Unable to send the internal UpstreamProjectSourceState::ScheduleFetch message"
+                    "Unable to send the internal UpstreamProjectInternal::ScheduleFetch message"
                 );
             }
         } else {
@@ -347,23 +350,23 @@ impl UpstreamProjectSourceService {
             // expired we need to reset the backoff so that the next request is not
             // simply ignored (by handle) and does a schedule_fetch().
             // Explanation 2: We use the backoff member for two purposes:
-            //  -1 to schedule repeated fetch requests (at less and less frequent intervals)
-            //  -2 as a flag to know if a fetch is already scheduled.
+            //  - 1 to schedule repeated fetch requests (at less and less frequent intervals)
+            //  - 2 as a flag to know if a fetch is already scheduled.
             // Resetting it in here signals that we don't have a backoff scheduled (either
             // because everything went fine or because all the requests have expired).
             // Next time a user wants a project it should schedule fetch requests.
-            if let Err(err) = state_tx.send(UpstreamProjectSourceState::ResetBackoff) {
-                relay_log::error!("Unable to send the internal UpstreamProjectSourceState::ResetBackoff message: {err}");
+            if let Err(err) = state_tx.send(UpstreamProjectInternal::ResetBackoff) {
+                relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
             }
 
             // We also rigger another check if we have to schedule another fetch, because it can happen
             // that meanwhile we got more request channels to process.
             if state_tx
-                .send(UpstreamProjectSourceState::CheckAndSchedule)
+                .send(UpstreamProjectInternal::CheckAndSchedule)
                 .is_err()
             {
                 relay_log::error!(
-                    "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
+                    "Unable to send the internal UpstreamProjectInternal::CheckAndSchedule message"
                 );
             }
         }
@@ -399,20 +402,20 @@ impl UpstreamProjectSourceService {
 
         // Check is we can schedule the fetch right away.
         if self
-            .state_tx
-            .send(UpstreamProjectSourceState::CheckAndSchedule)
+            .inner_tx
+            .send(UpstreamProjectInternal::CheckAndSchedule)
             .is_err()
         {
             relay_log::error!(
-                "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
+                "Unable to send the internal UpstreamProjectInternal::CheckAndSchedule message"
             );
         }
     }
 
     /// Handles internal communication.
-    fn handle_upstream_state(&mut self, message: UpstreamProjectSourceState) {
+    fn handle_upstream_state(&mut self, message: UpstreamProjectInternal) {
         match message {
-            UpstreamProjectSourceState::CheckAndSchedule => {
+            UpstreamProjectInternal::CheckAndSchedule => {
                 // Schedule the fetch if there is nothing running at this moment.
                 if !self.backoff.started() {
                     self.backoff.reset();
@@ -423,19 +426,19 @@ impl UpstreamProjectSourceService {
                             self.state_channels.drain().collect();
 
                         if self
-                            .state_tx
-                            .send(UpstreamProjectSourceState::ScheduleFetch(channels))
+                            .inner_tx
+                            .send(UpstreamProjectInternal::ScheduleFetch(channels))
                             .is_err()
                         {
                             relay_log::error!(
-                    "Unable to send the interval UpstreamProjectSourceState::ScheduleFetch message"
-                );
+                                "Unable to send the interval UpstreamProjectInternal::ScheduleFetch message"
+                            );
                         }
                     }
                 }
             }
-            UpstreamProjectSourceState::ResetBackoff => self.backoff.reset(),
-            UpstreamProjectSourceState::ScheduleFetch(mut channels) => {
+            UpstreamProjectInternal::ResetBackoff => self.backoff.reset(),
+            UpstreamProjectInternal::ScheduleFetch(mut channels) => {
                 if channels.is_empty() {
                     relay_log::error!("project state schedule fetch request without projects");
                     return;
@@ -448,7 +451,7 @@ impl UpstreamProjectSourceService {
 
                 let config = self.config.clone();
                 let attempt = self.backoff.attempt();
-                let state_tx = self.state_tx.clone();
+                let state_tx = self.inner_tx.clone();
                 let wait = self.next_backoff();
 
                 tokio::spawn(async move {
@@ -470,7 +473,7 @@ impl Service for UpstreamProjectSourceService {
                 tokio::select! {
                     biased;
 
-                    Some(message) = self.state_rx.recv() => self.handle_upstream_state(message),
+                    Some(message) = self.inner_rx.recv() => self.handle_upstream_state(message),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
