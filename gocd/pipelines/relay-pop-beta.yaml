@@ -6,6 +6,8 @@ pipelines:
     deploy-relay-pop-beta:
         environment_variables:
             GCP_PROJECT: internal-sentry
+            # Required for checkruns.
+            GITHUB_TOKEN: "{{SECRET:[devinfra-github][token]}}"
         group: relay
         lock_behavior: unlockWhenFinished
         materials:
