@@ -118,6 +118,8 @@ enum UpstreamProjectInternal {
     /// Checks for backoff status and makes sure to schedule the another fetch if
     /// possible.
     CheckAndSchedule,
+    /// Insert channel and the project key back into the queue
+    InsertBack(ProjectKey, ProjectStateChannel),
     /// Resets the current backoff period.
     ResetBackoff,
     /// Schedules the new fetch for project states.
@@ -182,7 +184,7 @@ impl UpstreamProjectSourceService {
     async fn fetch_states(
         config: Arc<Config>,
         mut state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-        state_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
+        inner_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
         attempt: usize,
     ) {
         let batch_size = config.query_batch_size();
@@ -282,7 +284,7 @@ impl UpstreamProjectSourceService {
                     //
                     // Otherwise we might refuse to fetch any project configs because of a
                     // single, reproducible 500 we observed for a particular project.
-                    if let Err(err) = state_tx.send(UpstreamProjectInternal::ResetBackoff) {
+                    if let Err(err) = inner_tx.send(UpstreamProjectInternal::ResetBackoff) {
                         relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
                     }
 
@@ -293,7 +295,11 @@ impl UpstreamProjectSourceService {
                     );
                     for (key, channel) in channels_batch {
                         if response.pending.contains(&key) {
-                            state_channels.insert(key, channel);
+                            if let Err(err) =
+                                inner_tx.send(UpstreamProjectInternal::InsertBack(key, channel))
+                            {
+                                relay_log::error!("Unable to send the internal UpstreamProjectInternal::InsertBack message for {key}: {err}")
+                            }
                             continue;
                         }
                         let state = response
@@ -335,7 +341,7 @@ impl UpstreamProjectSourceService {
         }
 
         if !state_channels.is_empty() {
-            if state_tx
+            if inner_tx
                 .send(UpstreamProjectInternal::ScheduleFetch(state_channels))
                 .is_err()
             {
@@ -355,13 +361,13 @@ impl UpstreamProjectSourceService {
             // Resetting it in here signals that we don't have a backoff scheduled (either
             // because everything went fine or because all the requests have expired).
             // Next time a user wants a project it should schedule fetch requests.
-            if let Err(err) = state_tx.send(UpstreamProjectInternal::ResetBackoff) {
+            if let Err(err) = inner_tx.send(UpstreamProjectInternal::ResetBackoff) {
                 relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
             }
 
             // We also rigger another check if we have to schedule another fetch, because it can happen
             // that meanwhile we got more request channels to process.
-            if state_tx
+            if inner_tx
                 .send(UpstreamProjectInternal::CheckAndSchedule)
                 .is_err()
             {
@@ -437,7 +443,13 @@ impl UpstreamProjectSourceService {
                     }
                 }
             }
+
+            UpstreamProjectInternal::InsertBack(key, channel) => {
+                self.state_channels.insert(key, channel);
+            }
+
             UpstreamProjectInternal::ResetBackoff => self.backoff.reset(),
+
             UpstreamProjectInternal::ScheduleFetch(mut channels) => {
                 if channels.is_empty() {
                     relay_log::error!("project state schedule fetch request without projects");
