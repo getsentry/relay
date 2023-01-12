@@ -437,13 +437,10 @@ def test_session_metrics_extracted_only_once(
 
     relay_chain.send_session(project_id, session_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, 2, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
     assert metrics["c:sessions/session@none"]["value"] == 1.0
-
-    # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["d:sessions/duration@second"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -480,7 +477,7 @@ def test_session_metrics_processing(
         metrics_consumer.assert_empty(timeout=2)
         return
 
-    metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 2)
 
     expected_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
@@ -509,21 +506,6 @@ def test_session_metrics_processing(
             "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
-        },
-    }
-
-    assert metrics["d:sessions/duration@second"] == {
-        "org_id": 1,
-        "project_id": 42,
-        "timestamp": expected_timestamp,
-        "name": "d:sessions/duration@second",
-        "type": "d",
-        "value": [1947.49],
-        "tags": {
-            "sdk": "raven-node/2.6.3",
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-            "session.status": "exited",
         },
     }
 

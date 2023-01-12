@@ -201,20 +201,6 @@ pub fn extract_session_metrics<T: SessionLike>(
             ));
         }
     }
-
-    // Count durations only for exited sessions, since Sentry doesn't use durations for other types of sessions.
-    if let Some((duration, status)) = session.final_duration() {
-        if status == SessionStatus::Exited {
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "duration",
-                MetricUnit::Duration(DurationUnit::Second),
-                MetricValue::Distribution(duration),
-                timestamp,
-                with_tag(&tags, "session.status", status),
-            ));
-        }
-    }
 }
 
 #[cfg(test)]
@@ -473,42 +459,6 @@ mod tests {
                 assert_eq!(user_metric_tag_keys, ["release", "session.status"]);
             }
         }
-    }
-
-    #[test]
-    fn test_extract_session_metrics_duration() {
-        let mut metrics = vec![];
-
-        let session = SessionUpdate::parse(
-            r#"{
-            "init": false,
-            "started": "2021-04-26T08:00:00+0100",
-            "attrs": {
-                "release": "1.0.0"
-            },
-            "did": "user123",
-            "status": "exited",
-            "duration": 123.4
-        }"#
-            .as_bytes(),
-        )
-        .unwrap();
-
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
-
-        assert_eq!(metrics.len(), 2); // duration and user ID
-
-        let duration_metric = &metrics[1];
-        assert_eq!(duration_metric.name, "d:sessions/duration@second");
-        assert!(matches!(
-            duration_metric.value,
-            MetricValue::Distribution(_)
-        ));
-
-        let user_metric = &metrics[0];
-        assert_eq!(user_metric.name, "s:sessions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
-        assert!(!user_metric.tags.contains_key("session.status"));
     }
 
     #[test]
