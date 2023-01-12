@@ -3393,7 +3393,6 @@ name = "relay-profiling"
 version = "22.12.0"
 dependencies = [
  "android_trace_log",
- "base64 0.10.1",
  "bytes 0.4.12",
  "chrono",
  "data-encoding",
