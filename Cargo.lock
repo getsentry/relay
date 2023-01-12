@@ -894,9 +894,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.3.2"
+version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
+checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "debugid"
@@ -3166,8 +3166,8 @@ dependencies = [
 name = "relay-auth"
 version = "22.12.0"
 dependencies = [
- "base64 0.10.1",
  "chrono",
+ "data-encoding",
  "ed25519-dalek",
  "hmac",
  "rand 0.6.5",
@@ -3396,6 +3396,7 @@ dependencies = [
  "base64 0.10.1",
  "bytes 0.4.12",
  "chrono",
+ "data-encoding",
  "relay-general",
  "serde",
  "serde_json",
@@ -3470,11 +3471,11 @@ dependencies = [
  "actix",
  "actix-web",
  "anyhow",
- "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",
  "chrono",
  "clap",
+ "data-encoding",
  "failure",
  "flate2",
  "fragile",
