@@ -717,13 +717,17 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
         assert len(m_item_body) == 2
-        assert m_item_body[0]["name"] == "d:transactions/duration@millisecond"
+        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
         assert (
-            m_item_body[0]["tags"]["transaction"]
+            m_item_body_sorted[1]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
-        assert m_item_body[1]["name"] == "c:transactions/count_per_root_project@none"
-        assert m_item_body[1]["value"] == 1.0
+        assert (
+            m_item_body_sorted[0]["name"]
+            == "c:transactions/count_per_root_project@none"
+        )
+        assert m_item_body_sorted[0]["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
 
