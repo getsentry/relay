@@ -72,7 +72,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 }
 
-/// The wrapper struct for the incoming external requests which also keeps addition inforamtion.
+/// The wrapper struct for the incoming external requests which also keeps addition information.
 #[derive(Debug)]
 struct ProjectStateChannel {
     channel: BroadcastChannel<Arc<ProjectState>>,
