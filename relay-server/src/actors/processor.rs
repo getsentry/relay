@@ -2324,27 +2324,45 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
-    type ProcessSessionArguments = (
-        Item,
-        DateTime<Utc>,
-        Option<&'static str>,
-        Option<net::IpAddr>,
-        SessionMetricsConfig,
-        ClockDriftProcessor,
-        Vec<Metric>,
-    );
     use super::*;
 
-    // helper function that gives valid arguments to the process_session method
-    fn args_process_session() -> ProcessSessionArguments {
-        let mut item = Item::new(ItemType::Event);
+    struct TestProcessSessionArguments<'a> {
+        item: Item,
+        received: DateTime<Utc>,
+        client: Option<&'a str>,
+        client_addr: Option<net::IpAddr>,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: ClockDriftProcessor,
+        extracted_metrics: Vec<Metric>,
+    }
 
-        let session = r#"{
+    impl<'a> TestProcessSessionArguments<'a> {
+        fn check_item_kept(&mut self) -> bool {
+            let proc = create_test_processor(Default::default());
+            proc.process_session(
+                &mut self.item,
+                self.received,
+                self.client,
+                self.client_addr,
+                self.metrics_config,
+                &self.clock_drift_processor,
+                &mut self.extracted_metrics,
+            )
+        }
+    }
+
+    impl<'a> Default for TestProcessSessionArguments<'a> {
+        fn default() -> Self {
+            let mut item = Item::new(ItemType::Event);
+
+            let session = r#"{
             "init": false,
             "started": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
@@ -2356,59 +2374,48 @@ mod tests {
             "duration": 123.4
         }"#;
 
-        item.set_payload(ContentType::Json, session);
-        let received =
-            DateTime::parse_from_str("2021 Apr 26 08:00:00.000 +0000", "%Y %b %d %H:%M:%S%.3f %z")
-                .unwrap()
-                .into();
+            item.set_payload(ContentType::Json, session);
+            let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
 
-        (
-            item,
-            received,
-            None,
-            None,
-            serde_json::from_str(
-                "
+            TestProcessSessionArguments {
+                item,
+                received,
+                client: None,
+                client_addr: None,
+                metrics_config: serde_json::from_str(
+                    "
         {
             \"version\": 0,
             \"drop\": true
         }",
-            )
-            .unwrap(),
-            ClockDriftProcessor::new(None, received),
-            vec![],
-        )
+                )
+                .unwrap(),
+                clock_drift_processor: ClockDriftProcessor::new(None, received),
+                extracted_metrics: vec![],
+            }
+        }
     }
 
-    /// Checks all conditions that should make the process_session method reject an item
+    /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
+    /// other tests are valid
     #[test]
     fn test_keep_item() {
-        let proc = create_test_processor(Default::default());
+        let mut args = TestProcessSessionArguments::default();
+        assert!(args.check_item_kept());
+    }
 
-        let test_keep = |mut args: ProcessSessionArguments| -> bool {
-            proc.process_session(
-                &mut args.0,
-                args.1,
-                args.2,
-                args.3,
-                args.4,
-                &args.5,
-                &mut args.6,
-            )
-        };
-
-        let should_keep = args_process_session();
-        assert!(test_keep(should_keep));
-
-        let mut invalid_json = args_process_session();
-        invalid_json
-            .0
+    #[test]
+    fn test_invalid_json() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item
             .set_payload(ContentType::Json, "this isnt valid json");
-        assert!(!test_keep(invalid_json));
+        assert!(!args.check_item_kept());
+    }
 
-        // item should be rejected if the sequence is equal to u64::MAX
-        let mut sequence_overflow = args_process_session();
-        sequence_overflow.0.set_payload(
+    #[test]
+    fn test_sequence_overflow() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_payload(
             ContentType::Json,
             r#"{
             "init": false,
@@ -2423,18 +2430,23 @@ mod tests {
             "duration": 123.4
         }"#,
         );
-        assert!(!test_keep(sequence_overflow));
+        assert!(!args.check_item_kept());
+    }
+    #[test]
+    fn test_invalid_timestamp() {
+        let mut args = TestProcessSessionArguments {
+            received: DateTime::from_str("2021-05-26T08:00:00+0100").unwrap(),
+            ..Default::default()
+        };
 
-        let mut invalid_timestamp = args_process_session();
-        invalid_timestamp.1 =
-            DateTime::parse_from_str("2021 May 13 08:00:00.000 +0000", "%Y %b %d %H:%M:%S%.3f %z")
-                .unwrap()
-                .into();
-        assert!(!test_keep(invalid_timestamp));
+        assert!(!args.check_item_kept());
+    }
 
-        let mut extracted_metrics = args_process_session();
-        extracted_metrics.0.set_metrics_extracted(true);
-        assert!(!test_keep(extracted_metrics));
+    #[test]
+    fn test_metrics_extracted() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_metrics_extracted(true);
+        assert!(!args.check_item_kept());
     }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
