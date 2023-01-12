@@ -4,7 +4,7 @@ use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
@@ -12,7 +12,7 @@ use super::utils::with_tag;
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 /// Current version of metrics extraction.
-const EXTRACT_VERSION: u16 = 2;
+const EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
 
 /// Configuration for metric extraction from sessions.
