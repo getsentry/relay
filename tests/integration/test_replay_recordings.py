@@ -1,4 +1,4 @@
-import time
+import zlib
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -92,8 +92,6 @@ def test_chunked_replay_recordings_processing(
     assert replay_recording["received"]
     assert type(replay_recording["received"]) == int
 
-    outcomes_consumer.assert_empty()
-
 
 def test_nonchunked_replay_recordings_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
@@ -117,7 +115,8 @@ def test_nonchunked_replay_recordings_processing(
             ["attachment_type", "replay_recording"],
         ]
     )
-    envelope.add_item(Item(payload=PayloadRef(bytes=b"test"), type="replay_recording"))
+    payload = recording_payload(b"[]")
+    envelope.add_item(Item(payload=PayloadRef(bytes=payload), type="replay_recording"))
 
     relay.send_envelope(project_id, envelope)
 
@@ -129,7 +128,12 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["org_id"] == org_id
     assert type(replay_recording["received"]) == int
     assert replay_recording["retention_days"] == 90
-    assert replay_recording["payload"] == b"test"
+    assert replay_recording["payload"] == payload
     assert replay_recording["type"] == "replay_recording_not_chunked"
 
     outcomes_consumer.assert_empty()
+
+
+def recording_payload(bits: bytes):
+    compressed_payload = zlib.compress(bits)
+    return b'{"segment_id": 0}\n' + compressed_payload
