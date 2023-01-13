@@ -21,6 +21,7 @@ pub fn state_with_rule_and_condition(
             ty: rule_type,
             id: RuleId(1),
             time_range: Default::default(),
+            decaying_fn: relay_sampling::DecayingFunction::Constant,
         }],
         None => Vec::new(),
     };
@@ -50,6 +51,7 @@ pub fn state_with_rule(
             ty: rule_type,
             id: RuleId(1),
             time_range: Default::default(),
+            decaying_fn: relay_sampling::DecayingFunction::Constant,
         }],
         None => Vec::new(),
     };

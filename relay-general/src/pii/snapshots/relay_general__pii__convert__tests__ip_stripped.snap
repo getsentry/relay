@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "user": {
-    "ip_address": "[ip]",
+    "ip_address": null,
     "username": "[ip]",
     "data": {
       "a_password_here": "hello",
@@ -18,17 +18,35 @@ expression: data
   "breadcrumbs": {
     "values": [
       {
-        "message": "[ip]"
+        "message": "[ip]",
+        "data": {
+          "test_data": "[ip]"
+        }
       }
-    ],
-    "data": {
-      "test_data": "73.133.27.120"
-    }
+    ]
+  },
+  "sdk": {
+    "client_ip": null
   },
   "_meta": {
     "breadcrumbs": {
       "values": {
         "0": {
+          "data": {
+            "test_data": {
+              "": {
+                "rem": [
+                  [
+                    "@ip:replace",
+                    "s",
+                    0,
+                    4
+                  ]
+                ],
+                "len": 13
+              }
+            }
+          },
           "message": {
             "": {
               "rem": [
@@ -45,18 +63,33 @@ expression: data
         }
       }
     },
+    "sdk": {
+      "client_ip": {
+        "": {
+          "err": [
+            [
+              "invalid_data",
+              {
+                "reason": "expected an ip address"
+              }
+            ]
+          ],
+          "val": "should also be stripped"
+        }
+      }
+    },
     "user": {
       "ip_address": {
         "": {
-          "rem": [
+          "err": [
             [
-              "@ip:replace",
-              "s",
-              0,
-              4
+              "invalid_data",
+              {
+                "reason": "expected an ip address"
+              }
             ]
           ],
-          "len": 13
+          "val": "should be stripped despite lacking ip address"
         }
       },
       "username": {

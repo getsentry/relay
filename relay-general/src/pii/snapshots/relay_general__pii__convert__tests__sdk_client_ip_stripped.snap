@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "sdk": {
-    "client_ip": null
+    "client_ip": "[ip]"
   },
   "_meta": {
     "sdk": {
@@ -12,10 +12,13 @@ expression: data
         "": {
           "rem": [
             [
-              "@anything:remove",
-              "x"
+              "@ip:replace",
+              "s",
+              0,
+              4
             ]
-          ]
+          ],
+          "len": 9
         }
       }
     }

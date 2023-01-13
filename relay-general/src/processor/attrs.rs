@@ -36,6 +36,7 @@ pub enum ValueType {
     // Roots
     Event,
     Attachments,
+    Replay,
 
     // Protocol types
     Exception,
@@ -75,6 +76,7 @@ derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::Object => "object",
     ValueType::Event => "event",
     ValueType::Attachments => "attachments",
+    ValueType::Replay => "replay",
     ValueType::Exception => "error" | "exception",
     ValueType::Stacktrace => "stack" | "stacktrace",
     ValueType::Frame => "frame",
@@ -362,7 +364,7 @@ impl<'a> fmt::Display for PathItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             PathItem::StaticKey(s) => f.pad(s),
-            PathItem::Index(val) => write!(f, "{}", val),
+            PathItem::Index(val) => write!(f, "{val}"),
         }
     }
 }
@@ -670,7 +672,7 @@ impl<'a> fmt::Display for Path<'a> {
             if idx > 0 {
                 write!(f, ".")?;
             }
-            write!(f, "{}", item)?;
+            write!(f, "{item}")?;
         }
         Ok(())
     }
