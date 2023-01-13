@@ -1,7 +1,9 @@
+use bytes::Bytes;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::net;
+use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -23,8 +25,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -38,7 +40,7 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project::{Feature, ProjectConfig, ProjectState};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -1020,8 +1022,9 @@ impl EnvelopeProcessorService {
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
-        let envelope = &mut state.envelope;
-        let client_addr = envelope.meta().client_addr();
+        let meta = state.envelope.meta().clone();
+        let client_addr = meta.client_addr();
+        let user_agent = meta.user_agent();
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1029,20 +1032,62 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let parsed_replay =
-                    relay_replays::normalize_replay_event(&item.payload(), client_addr);
-                match parsed_replay {
-                    Ok(replay) => {
-                        item.set_payload(ContentType::Json, &replay[..]);
-                        true
-                    }
-                    Err(error) => {
-                        relay_log::warn!("failed to parse replay event: {}", LogError(&error));
-                        context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                            DataCategory::Replay,
-                            1,
-                        );
+                let result = self.process_replay_event(
+                    &item.payload(),
+                    &state.project_state.config,
+                    client_addr,
+                    user_agent,
+                );
+
+                match result {
+                    Ok(replay) => match replay.to_json() {
+                        Ok(json) => {
+                            item.set_payload(ContentType::Json, json.as_bytes());
+                            true
+                        }
+                        Err(e) => {
+                            relay_log::error!(
+                                "replay-event: failed to serialize replay with message {}",
+                                e
+                            );
+                            false
+                        }
+                    },
+                    Err(e) => {
+                        match e {
+                            ReplayError::NoContent => {
+                                relay_log::warn!("replay-event: no data found");
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotScrub(e) => {
+                                relay_log::warn!("replay-event: PII scrub failure {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotParse(e) => {
+                                relay_log::warn!("replay-event: {}", e.to_string());
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::InvalidPayload(e) => {
+                                relay_log::warn!("replay-event: {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                        }
                         false
                     }
                 }
@@ -1050,21 +1095,26 @@ impl EnvelopeProcessorService {
             ItemType::ReplayRecording => {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
-                if replays_enabled && state.project_state.organization_id == Some(1) {
+                if replays_enabled {
                     // Limit expansion of recordings to the max replay size. The payload is
                     // decompressed temporarily and then immediately re-compressed. However, to
                     // limit memory pressure, we use the replay limit as a good overall limit for
                     // allocations.
                     let limit = self.config.max_replay_size();
                     let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload(), limit);
+                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                            relay_replays::recording::process_recording(&item.payload(), limit)
+                        });
 
                     match parsed_recording {
                         Ok(recording) => {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         Err(e) => {
-                            relay_log::warn!("failed to parse replay event: {}", e);
+                            relay_log::warn!(
+                                "replay-recording-event: failed to parse with message {}",
+                                e
+                            );
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
@@ -1080,6 +1130,43 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
+    }
+
+    /// Validates, normalizes, and scrubs PII from a replay event.
+    fn process_replay_event(
+        &self,
+        payload: &Bytes,
+        config: &ProjectConfig,
+        client_ip: Option<NetIPAddr>,
+        user_agent: Option<&str>,
+    ) -> Result<Annotated<Replay>, ReplayError> {
+        let mut replay =
+            Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
+
+        if let Some(replay_value) = replay.value_mut() {
+            replay_value.validate()?;
+            replay_value.normalize(client_ip, user_agent);
+        } else {
+            return Err(ReplayError::NoContent);
+        }
+
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        Ok(replay)
     }
 
     /// Creates and initializes the processing state.

@@ -180,7 +180,6 @@ pub trait SessionLike {
     fn abnormal_count(&self) -> u32;
     fn crashed_count(&self) -> u32;
     fn all_errors(&self) -> Option<SessionErrored>;
-    fn final_duration(&self) -> Option<(f64, SessionStatus)>;
     fn abnormal_mechanism(&self) -> AbnormalMechanism;
 }
 
@@ -263,15 +262,6 @@ impl SessionLike for SessionUpdate {
         }
     }
 
-    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
-        if self.status.is_terminal() {
-            if let Some(duration) = self.duration {
-                return Some((duration, self.status.clone()));
-            }
-        }
-        None
-    }
-
     fn all_errors(&self) -> Option<SessionErrored> {
         if self.errors > 0 || self.status.is_error() {
             Some(SessionErrored::Individual(self.session_id))
@@ -330,10 +320,6 @@ impl SessionLike for SessionAggregateItem {
 
     fn crashed_count(&self) -> u32 {
         self.crashed
-    }
-
-    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
-        None
     }
 
     fn all_errors(&self) -> Option<SessionErrored> {

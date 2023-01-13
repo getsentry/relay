@@ -3,6 +3,7 @@ use std::io::{self, ErrorKind, Read};
 
 use actix_web::{error::PayloadError, HttpRequest};
 use bytes::Bytes;
+use data_encoding::BASE64;
 use flate2::read::ZlibDecoder;
 use futures01::prelude::*;
 use url::form_urlencoded;
@@ -71,8 +72,9 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, PayloadE
 
     // TODO: Switch to a streaming decoder
     // see https://github.com/alicemaz/rust-base64/pull/56
-    let binary_body =
-        base64::decode(&body).map_err(|e| io::Error::new(ErrorKind::InvalidInput, e))?;
+    let binary_body = BASE64
+        .decode(body.as_ref())
+        .map_err(|e| io::Error::new(ErrorKind::InvalidInput, e))?;
     if binary_body.starts_with(b"{") {
         return Ok(binary_body.into());
     }
