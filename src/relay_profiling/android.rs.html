@@ -251,10 +251,12 @@
 <span id="251">251</span>
 <span id="252">252</span>
 <span id="253">253</span>
+<span id="254">254</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{HashMap, HashSet};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
 <span class="kw">use </span>android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
+<span class="kw">use </span>data_encoding::BASE64;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span>relay_general::protocol::EventId;
@@ -343,7 +345,7 @@
     }
 
     <span class="kw">fn </span>parse(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
-        <span class="kw">let </span>profile_bytes = <span class="kw">match </span>base64::decode(<span class="kw-2">&amp;</span><span class="self">self</span>.sampled_profile) {
+        <span class="kw">let </span>profile_bytes = <span class="kw">match </span>BASE64.decode(<span class="self">self</span>.sampled_profile.as_bytes()) {
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidBase64Value),
         };

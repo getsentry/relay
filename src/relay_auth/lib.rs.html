@@ -895,15 +895,6 @@
 <span id="894">894</span>
 <span id="895">895</span>
 <span id="896">896</span>
-<span id="897">897</span>
-<span id="898">898</span>
-<span id="899">899</span>
-<span id="900">900</span>
-<span id="901">901</span>
-<span id="902">902</span>
-<span id="903">903</span>
-<span id="904">904</span>
-<span id="905">905</span>
 </pre><pre class="rust"><code><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -913,6 +904,7 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, TimeZone, Utc};
+<span class="kw">use </span>data_encoding::BASE64URL_NOPAD;
 <span class="kw">use </span>hmac::{Hmac, Mac};
 <span class="kw">use </span>rand::{rngs::OsRng, thread_rng, RngCore};
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -1107,11 +1099,11 @@
     </span><span class="kw">pub fn </span>sign_with_header(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], header: <span class="kw-2">&amp;</span>SignatureHeader) -&gt; String {
         <span class="kw">let </span><span class="kw-2">mut </span>header =
             serde_json::to_vec(<span class="kw-2">&amp;</span>header).expect(<span class="string">&quot;attempted to pack non json safe header&quot;</span>);
-        <span class="kw">let </span>header_encoded = base64::encode_config(<span class="kw-2">&amp;</span>header[..], base64::URL_SAFE_NO_PAD);
+        <span class="kw">let </span>header_encoded = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>header);
         header.push(<span class="string">b&#39;\x00&#39;</span>);
         header.extend_from_slice(data);
         <span class="kw">let </span>sig = <span class="self">self</span>.inner.sign::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>header);
-        <span class="kw">let </span><span class="kw-2">mut </span>sig_encoded = base64::encode_config(<span class="kw-2">&amp;</span>sig.to_bytes()[..], base64::URL_SAFE_NO_PAD);
+        <span class="kw">let </span><span class="kw-2">mut </span>sig_encoded = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>sig.to_bytes());
         sig_encoded.push(<span class="string">&#39;.&#39;</span>);
         sig_encoded.push_str(<span class="kw-2">&amp;</span>header_encoded);
         sig_encoded
@@ -1148,7 +1140,7 @@
     <span class="kw">type </span><span class="prelude-val">Err </span>= KeyParseError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;SecretKey, KeyParseError&gt; {
-        <span class="kw">let </span>bytes = <span class="kw">match </span>base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+        <span class="kw">let </span>bytes = <span class="kw">match </span>BASE64URL_NOPAD.decode(s.as_bytes()) {
             <span class="prelude-val">Ok</span>(bytes) =&gt; bytes,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
         };
@@ -1169,16 +1161,12 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>SecretKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span>f.alternate() {
-            <span class="macro">write!</span>(
-                f,
-                <span class="string">&quot;{}&quot;</span>,
-                base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
-            )
+            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()))
         } <span class="kw">else </span>{
             <span class="macro">write!</span>(
                 f,
                 <span class="string">&quot;{}&quot;</span>,
-                base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.secret.to_bytes()[..], base64::URL_SAFE_NO_PAD)
+                BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.secret.to_bytes())
             )
         }
     }
@@ -1198,17 +1186,13 @@
     </span><span class="kw">pub fn </span>verify_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;SignatureHeader&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>iter = sig.splitn(<span class="number">2</span>, <span class="string">&#39;.&#39;</span>);
         <span class="kw">let </span>sig_bytes = <span class="kw">match </span>iter.next() {
-            <span class="prelude-val">Some</span>(sig_encoded) =&gt; {
-                base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()<span class="question-mark">?
-            </span>}
+            <span class="prelude-val">Some</span>(sig_encoded) =&gt; BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
         <span class="kw">let </span>sig = ed25519_dalek::Signature::from_bytes(<span class="kw-2">&amp;</span>sig_bytes).ok()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>header = <span class="kw">match </span>iter.next() {
-            <span class="prelude-val">Some</span>(header_encoded) =&gt; {
-                base64::decode_config(header_encoded, base64::URL_SAFE_NO_PAD).ok()<span class="question-mark">?
-            </span>}
+            <span class="prelude-val">Some</span>(header_encoded) =&gt; BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
         <span class="kw">let </span><span class="kw-2">mut </span>to_verify = header.clone();
@@ -1279,7 +1263,7 @@
     <span class="kw">type </span><span class="prelude-val">Err </span>= KeyParseError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PublicKey, KeyParseError&gt; {
-        <span class="kw">let </span>bytes = <span class="kw">match </span>base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+        <span class="kw">let </span>bytes = <span class="kw">match </span>BASE64URL_NOPAD.decode(s.as_bytes()) {
             <span class="prelude-val">Ok</span>(bytes) =&gt; bytes,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
         };
@@ -1292,11 +1276,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>PublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(
-            f,
-            <span class="string">&quot;{}&quot;</span>,
-            base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
-        )
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()))
     }
 }
 
@@ -1351,11 +1331,11 @@
     <span class="doccomment">/// Signs the given `RegisterState` and serializes it into a single string.
     </span><span class="kw">fn </span>sign(state: RegisterState, secret: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>state).expect(<span class="string">&quot;relay register state serializes to JSON&quot;</span>);
-        <span class="kw">let </span>token = base64::encode_config(<span class="kw-2">&amp;</span>json, base64::URL_SAFE_NO_PAD);
+        <span class="kw">let </span>token = BASE64URL_NOPAD.encode(json.as_bytes());
 
         <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
         mac.input(token.as_bytes());
-        <span class="kw">let </span>signature = base64::encode_config(<span class="kw-2">&amp;</span>mac.result().code(), base64::URL_SAFE_NO_PAD);
+        <span class="kw">let </span>signature = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>mac.result().code());
 
         <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{token}:{signature}&quot;</span>))
     }
@@ -1381,14 +1361,16 @@
         max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;RegisterState, UnpackError&gt; {
         <span class="kw">let </span>(token, signature) = <span class="self">self</span>.split();
-        <span class="kw">let </span>code = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)
+        <span class="kw">let </span>code = BASE64URL_NOPAD
+            .decode(signature.as_bytes())
             .map_err(|<span class="kw">_</span>| UnpackError::BadEncoding)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
         mac.input(token.as_bytes());
         mac.verify(<span class="kw-2">&amp;</span>code).map_err(|<span class="kw">_</span>| UnpackError::BadSignature)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>json = base64::decode_config(token, base64::URL_SAFE_NO_PAD)
+        <span class="kw">let </span>json = BASE64URL_NOPAD
+            .decode(token.as_bytes())
             .map_err(|<span class="kw">_</span>| UnpackError::BadEncoding)<span class="question-mark">?</span>;
         <span class="kw">let </span>state =
             serde_json::from_slice::&lt;RegisterState&gt;(<span class="kw-2">&amp;</span>json).map_err(UnpackError::BadPayload)<span class="question-mark">?</span>;
@@ -1445,7 +1427,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>];
     rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
-    base64::encode_config(<span class="kw-2">&amp;</span>bytes, base64::URL_SAFE_NO_PAD)
+    BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>bytes)
 }
 
 <span class="doccomment">/// Represents a request for registration with the upstream.
