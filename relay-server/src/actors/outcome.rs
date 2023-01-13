@@ -358,6 +358,8 @@ pub enum DiscardReason {
 
     /// (Relay) We failed to parse the replay so we discard it.
     InvalidReplayEvent,
+    InvalidReplayEventNoPayload,
+    InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
 
     /// (Relay) Profiling related discard reasons
@@ -400,6 +402,8 @@ impl DiscardReason {
             DiscardReason::TransactionSampled => "transaction_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
+            DiscardReason::InvalidReplayEventNoPayload => "invalid_replay_no_payload",
+            DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::Profiling(reason) => reason,
         }

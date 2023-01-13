@@ -34,7 +34,7 @@ mod request;
 mod spans;
 mod stacktrace;
 
-mod user_agent;
+pub mod user_agent;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
