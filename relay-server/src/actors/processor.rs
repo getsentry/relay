@@ -2323,7 +2323,7 @@ mod tests {
 
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
-    use crate::utils::Semaphore as MySemaphore;
+    use crate::utils::Semaphore as TestSemaphore;
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
@@ -2401,7 +2401,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 envelope_context: EnvelopeContext::new(
                     &envelope,
-                    MySemaphore::new(42).try_acquire().unwrap(),
+                    TestSemaphore::new(42).try_acquire().unwrap(),
                 ),
             };
             let result = service.sample_envelope(&mut state);
