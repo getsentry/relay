@@ -2344,7 +2344,7 @@ mod tests {
     }
 
     impl<'a> TestProcessSessionArguments<'a> {
-        fn check_item_kept(&mut self) -> bool {
+        fn run_session_producer(&mut self) -> bool {
             let proc = create_test_processor(Default::default());
             proc.process_session(
                 &mut self.item,
@@ -2356,9 +2356,7 @@ mod tests {
                 &mut self.extracted_metrics,
             )
         }
-    }
 
-    impl<'a> Default for TestProcessSessionArguments<'a> {
         fn default() -> Self {
             let mut item = Item::new(ItemType::Event);
 
@@ -2377,7 +2375,7 @@ mod tests {
             item.set_payload(ContentType::Json, session);
             let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
 
-            TestProcessSessionArguments {
+            Self {
                 item,
                 received,
                 client: None,
@@ -2399,21 +2397,21 @@ mod tests {
     /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
     /// other tests are valid
     #[test]
-    fn test_keep_item() {
+    fn test_process_session_keep_item() {
         let mut args = TestProcessSessionArguments::default();
-        assert!(args.check_item_kept());
+        assert!(args.run_session_producer());
     }
 
     #[test]
-    fn test_invalid_json() {
+    fn test_process_session_invalid_json() {
         let mut args = TestProcessSessionArguments::default();
         args.item
             .set_payload(ContentType::Json, "this isnt valid json");
-        assert!(!args.check_item_kept());
+        assert!(!args.run_session_producer());
     }
 
     #[test]
-    fn test_sequence_overflow() {
+    fn test_process_session_sequence_overflow() {
         let mut args = TestProcessSessionArguments::default();
         args.item.set_payload(
             ContentType::Json,
@@ -2430,23 +2428,20 @@ mod tests {
             "duration": 123.4
         }"#,
         );
-        assert!(!args.check_item_kept());
+        assert!(!args.run_session_producer());
     }
     #[test]
-    fn test_invalid_timestamp() {
-        let mut args = TestProcessSessionArguments {
-            received: DateTime::from_str("2021-05-26T08:00:00+0100").unwrap(),
-            ..Default::default()
-        };
-
-        assert!(!args.check_item_kept());
+    fn test_process_session_invalid_timestamp() {
+        let mut args = TestProcessSessionArguments::default();
+        args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
+        assert!(!args.run_session_producer());
     }
 
     #[test]
-    fn test_metrics_extracted() {
+    fn test_process_sessionprocess_session_metrics_extracted() {
         let mut args = TestProcessSessionArguments::default();
         args.item.set_metrics_extracted(true);
-        assert!(!args.check_item_kept());
+        assert!(!args.run_session_producer());
     }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
