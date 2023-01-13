@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
+use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
@@ -90,7 +91,7 @@ impl AndroidProfile {
     }
 
     fn parse(&mut self) -> Result<(), ProfileError> {
-        let profile_bytes = match base64::decode(&self.sampled_profile) {
+        let profile_bytes = match BASE64.decode(self.sampled_profile.as_bytes()) {
             Ok(profile) => profile,
             Err(_) => return Err(ProfileError::InvalidBase64Value),
         };
