@@ -18,6 +18,7 @@ __all__ = [
     "StoreNormalizer",
     "GeoIpLookup",
     "is_glob_match",
+    "is_codeowners_path_match",
     "parse_release",
     "validate_pii_config",
     "convert_datascrubbing_config",
@@ -158,6 +159,11 @@ def is_glob_match(
         value = value.encode("utf-8")
     return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)
 
+
+def is_codeowners_path_match(value, pattern):
+    if isinstance(value, text_type):
+        value = value.encode("utf-8")
+    return rustcall(lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern))
 
 def validate_pii_config(config):
     """
