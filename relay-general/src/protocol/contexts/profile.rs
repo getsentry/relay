@@ -1,35 +1,6 @@
-use crate::types::{Annotated, Error, FromValue, Value};
-use once_cell::sync::OnceCell;
-use regex::Regex;
+use crate::types::Annotated;
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct ProfileId(pub String);
-
-impl FromValue for ProfileId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
-                static PROFILE_ID: OnceCell<Regex> = OnceCell::new();
-                let regex = PROFILE_ID.get_or_init(|| Regex::new("^[a-fA-F0-9]{32}$").unwrap());
-
-                if !regex.is_match(&value) || value.bytes().all(|x| x == b'0') {
-                    meta.add_error(Error::invalid("not a valid profile id"));
-                    meta.set_original_value(Some(value));
-                    Annotated(None, meta)
-                } else {
-                    Annotated(Some(ProfileId(value.to_ascii_lowercase())), meta)
-                }
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("profile id"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
-        }
-    }
-}
+use crate::protocol::EventId;
 
 /// Profile context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -38,7 +9,7 @@ impl FromValue for ProfileId {
 pub struct ProfileContext {
     /// The profile ID.
     #[metastructure(required = "true")]
-    pub profile_id: Annotated<ProfileId>,
+    pub profile_id: Annotated<EventId>,
 }
 
 impl ProfileContext {
@@ -61,7 +32,9 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
-            profile_id: Annotated::new(ProfileId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            profile_id: Annotated::new(EventId(
+                uuid::Uuid::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            )),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
@@ -75,7 +48,9 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
-            profile_id: Annotated::new(ProfileId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            profile_id: Annotated::new(EventId(
+                uuid::Uuid::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            )),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
