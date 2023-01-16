@@ -23,9 +23,27 @@ use relay_system::{
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError};
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{
+    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::ErrorBoundary;
+
+/// This is the return type from [`UpstreamProjectSourceService::fetch_states`] function. Returns
+/// list of the results:
+/// * when the response successful, we get back the tuple of [`ProjectStateChannel`] tree and the
+///   results from the requests to upstream
+/// * otherwise we get the tuple of [`ProjectStateChannel`]
+///   tree which we can re-used to re-schedule the fetch or the channel error.
+type ProjectStatesResponses = Vec<
+    Result<
+        (
+            BTreeMap<ProjectKey, ProjectStateChannel>,
+            Result<GetProjectStatesResponse, UpstreamRequestError>,
+        ),
+        (BTreeMap<ProjectKey, ProjectStateChannel>, ProjectError),
+    >,
+>;
 
 /// A query to retrieve a batch of project states from upstream.
 ///
@@ -113,19 +131,6 @@ impl ProjectStateChannel {
     }
 }
 
-/// Internal [`UpstreamProjectSourceService`] message protocol.
-enum UpstreamProjectInternal {
-    /// Checks for backoff status and makes sure to schedule the another fetch if
-    /// possible.
-    CheckAndSchedule,
-    /// Insert channel and the project key back into the queue
-    InsertBack(ProjectKey, ProjectStateChannel),
-    /// Resets the current backoff period.
-    ResetBackoff,
-    /// Schedules the new fetch for project states.
-    ScheduleFetch(HashMap<ProjectKey, ProjectStateChannel>),
-}
-
 /// This is the [`UpstreamProjectSourceService`] interface.
 #[derive(Debug)]
 pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
@@ -151,8 +156,14 @@ pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
     state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-    inner_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
-    inner_rx: mpsc::UnboundedReceiver<UpstreamProjectInternal>,
+    inner_tx: mpsc::UnboundedSender<(
+        HashMap<ProjectKey, ProjectStateChannel>,
+        ProjectStatesResponses,
+    )>,
+    inner_rx: mpsc::UnboundedReceiver<(
+        HashMap<ProjectKey, ProjectStateChannel>,
+        ProjectStatesResponses,
+    )>,
 }
 
 impl UpstreamProjectSourceService {
@@ -184,7 +195,10 @@ impl UpstreamProjectSourceService {
     async fn fetch_states(
         config: Arc<Config>,
         mut state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-        inner_tx: mpsc::UnboundedSender<UpstreamProjectInternal>,
+        inner_tx: mpsc::UnboundedSender<(
+            HashMap<ProjectKey, ProjectStateChannel>,
+            ProjectStatesResponses,
+        )>,
         attempt: usize,
     ) {
         let batch_size = config.query_batch_size();
@@ -275,6 +289,14 @@ impl UpstreamProjectSourceService {
         let responses = future::join_all(requests).await;
         metric!(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
 
+        // Send back all resolved responses and also unused channels.
+        if let Err(err) = inner_tx.send((state_channels, responses)) {
+            relay_log::error!("Unable to forward the requests to further processing: {err}");
+        }
+    }
+
+    /// Handles the responses from the upstream.
+    fn handle_responses(&mut self, responses: ProjectStatesResponses) {
         for response in responses {
             match response {
                 Ok((channels_batch, Ok(mut response))) => {
@@ -284,9 +306,7 @@ impl UpstreamProjectSourceService {
                     //
                     // Otherwise we might refuse to fetch any project configs because of a
                     // single, reproducible 500 we observed for a particular project.
-                    if let Err(err) = inner_tx.send(UpstreamProjectInternal::ResetBackoff) {
-                        relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
-                    }
+                    self.backoff.reset();
 
                     // Count number of project states returned (via http requests).
                     metric!(
@@ -295,11 +315,7 @@ impl UpstreamProjectSourceService {
                     );
                     for (key, channel) in channels_batch {
                         if response.pending.contains(&key) {
-                            if let Err(err) =
-                                inner_tx.send(UpstreamProjectInternal::InsertBack(key, channel))
-                            {
-                                relay_log::error!("Unable to send the internal UpstreamProjectInternal::InsertBack message for {key}: {err}")
-                            }
+                            self.state_channels.insert(key, channel);
                             continue;
                         }
                         let state = response
@@ -329,26 +345,22 @@ impl UpstreamProjectSourceService {
                 }
                 Ok((channels_batch, Err(err))) => {
                     relay_log::error!("error fetching project states: {}", LogError(&err));
-
+                    metric!(
+                        histogram(RelayHistograms::ProjectStatePending) =
+                            self.state_channels.len() as u64
+                    );
                     // Put the channels back into the queue, we will retry again shortly.
-                    state_channels.extend(channels_batch);
+                    self.state_channels.extend(channels_batch);
                 }
                 Err((channels_batch, err)) => {
                     relay_log::error!("Failed to schedule projects fetch: {}", LogError(&err));
-                    state_channels.extend(channels_batch);
+                    self.state_channels.extend(channels_batch);
                 }
             }
         }
 
-        if !state_channels.is_empty() {
-            if inner_tx
-                .send(UpstreamProjectInternal::ScheduleFetch(state_channels))
-                .is_err()
-            {
-                relay_log::error!(
-                    "Unable to send the internal UpstreamProjectInternal::ScheduleFetch message"
-                );
-            }
+        if !self.state_channels.is_empty() {
+            self.schedule_fetch()
         } else {
             // No open channels left, if this is because we fetched everything we
             // have already reset the backoff. If however, this is because we had
@@ -361,21 +373,28 @@ impl UpstreamProjectSourceService {
             // Resetting it in here signals that we don't have a backoff scheduled (either
             // because everything went fine or because all the requests have expired).
             // Next time a user wants a project it should schedule fetch requests.
-            if let Err(err) = inner_tx.send(UpstreamProjectInternal::ResetBackoff) {
-                relay_log::error!("Unable to send the internal UpstreamProjectInternal::ResetBackoff message: {err}");
-            }
-
-            // We also rigger another check if we have to schedule another fetch, because it can happen
-            // that meanwhile we got more request channels to process.
-            if inner_tx
-                .send(UpstreamProjectInternal::CheckAndSchedule)
-                .is_err()
-            {
-                relay_log::error!(
-                    "Unable to send the internal UpstreamProjectInternal::CheckAndSchedule message"
-                );
-            }
+            self.backoff.reset();
         }
+    }
+
+    /// Spawns the [`tokio::task`] to fetch the project configs from upstream.
+    fn schedule_fetch(&mut self) {
+        if self.state_channels.is_empty() {
+            relay_log::error!("project state schedule fetch request without projects");
+            return;
+        }
+
+        let channels: HashMap<ProjectKey, ProjectStateChannel> =
+            self.state_channels.drain().collect();
+        let config = self.config.clone();
+        let attempt = self.backoff.attempt();
+        let inner_tx = self.inner_tx.clone();
+        let wait = self.next_backoff();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(wait).await;
+            Self::fetch_states(config, channels, inner_tx, attempt).await
+        });
     }
 
     /// Handles the incoming external messages.
@@ -387,6 +406,7 @@ impl UpstreamProjectSourceService {
             },
             sender,
         ) = message;
+
         let query_timeout = self.config.query_timeout();
 
         // If there is already channel for the requested project key, we attach to it,
@@ -404,73 +424,12 @@ impl UpstreamProjectSourceService {
                     channel.no_cache();
                 }
             }
-        };
-
-        // Check is we can schedule the fetch right away.
-        if self
-            .inner_tx
-            .send(UpstreamProjectInternal::CheckAndSchedule)
-            .is_err()
-        {
-            relay_log::error!(
-                "Unable to send the internal UpstreamProjectInternal::CheckAndSchedule message"
-            );
         }
-    }
 
-    /// Handles internal communication.
-    fn handle_upstream_state(&mut self, message: UpstreamProjectInternal) {
-        match message {
-            UpstreamProjectInternal::CheckAndSchedule => {
-                // Schedule the fetch if there is nothing running at this moment.
-                if !self.backoff.started() {
-                    self.backoff.reset();
-
-                    // Request the fetch schedule only if there is something to schedule.
-                    if !self.state_channels.is_empty() {
-                        let channels: HashMap<ProjectKey, ProjectStateChannel> =
-                            self.state_channels.drain().collect();
-
-                        if self
-                            .inner_tx
-                            .send(UpstreamProjectInternal::ScheduleFetch(channels))
-                            .is_err()
-                        {
-                            relay_log::error!(
-                                "Unable to send the interval UpstreamProjectInternal::ScheduleFetch message"
-                            );
-                        }
-                    }
-                }
-            }
-
-            UpstreamProjectInternal::InsertBack(key, channel) => {
-                self.state_channels.insert(key, channel);
-            }
-
-            UpstreamProjectInternal::ResetBackoff => self.backoff.reset(),
-
-            UpstreamProjectInternal::ScheduleFetch(mut channels) => {
-                if channels.is_empty() {
-                    relay_log::error!("project state schedule fetch request without projects");
-                    return;
-                }
-
-                // Collect all the channels which might still be in the queue.
-                channels.extend(self.state_channels.drain());
-
-                metric!(histogram(RelayHistograms::ProjectStatePending) = channels.len() as u64);
-
-                let config = self.config.clone();
-                let attempt = self.backoff.attempt();
-                let state_tx = self.inner_tx.clone();
-                let wait = self.next_backoff();
-
-                tokio::spawn(async move {
-                    tokio::time::sleep(wait).await;
-                    Self::fetch_states(config, channels, state_tx, attempt).await
-                });
-            }
+        // Schedule the fetch if there is nothing running at this moment.
+        if !self.backoff.started() && !self.state_channels.is_empty() {
+            self.backoff.reset();
+            self.schedule_fetch();
         }
     }
 }
@@ -485,7 +444,10 @@ impl Service for UpstreamProjectSourceService {
                 tokio::select! {
                     biased;
 
-                    Some(message) = self.inner_rx.recv() => self.handle_upstream_state(message),
+                    Some((state_channels, responses)) = self.inner_rx.recv() => {
+                        self.state_channels.extend(state_channels);
+                        self.handle_responses(responses);
+                    }
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
