@@ -1147,22 +1147,22 @@ impl EnvelopeProcessorService {
             Some(body) => body,
         };
 
-        let buffer = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+        let buffer = metric!(timer(RelayTimers::ReplayRecordingDecompress), {
             recording::decompress(body, limit)?
         });
-        let mut events = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+        let mut events = metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
             recording::deserialize(buffer)?
         });
 
-        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+        metric!(timer(RelayTimers::ReplayRecordingScrubPII), {
             recording::strip_pii(&mut events)
                 .map_err(recording::RecordingParseError::ProcessingAction)?
         });
 
-        let bytes = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+        let bytes = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
             recording::serialize(events)?
         });
-        let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+        let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
             recording::compress(bytes)?
         });
 

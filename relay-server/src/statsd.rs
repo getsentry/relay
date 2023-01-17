@@ -300,7 +300,11 @@ pub enum RelayTimers {
     TransactionMetricsExtraction,
 
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
-    ReplayRecordingProcessing,
+    ReplayRecordingDecompress,
+    ReplayRecordingDeserialize,
+    ReplayRecordingScrubPII,
+    ReplayRecordingCompress,
+    ReplayRecordingSerialize,
 }
 
 impl TimerMetric for RelayTimers {
