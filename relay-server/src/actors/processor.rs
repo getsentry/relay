@@ -34,6 +34,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
+use relay_replays::recording;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1095,7 +1096,7 @@ impl EnvelopeProcessorService {
                     let limit = self.config.max_replay_size();
                     let parsed_recording =
                         metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::recording::process_recording(&item.payload(), limit)
+                            self.process_recording_timed(&item.payload(), limit)
                         });
 
                     match parsed_recording {
@@ -1122,6 +1123,50 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
+    }
+
+    fn process_recording_timed(
+        &self,
+        bytes: &[u8],
+        limit: usize,
+    ) -> Result<Vec<u8>, recording::RecordingParseError> {
+        // Check for null byte condition.
+        if bytes.is_empty() {
+            return Err(recording::RecordingParseError::Message("no data found"));
+        }
+
+        let mut split = bytes.splitn(2, |b| b == &b'\n');
+        let header = split
+            .next()
+            .ok_or(recording::RecordingParseError::Message("no headers found"))?;
+
+        let body = match split.next() {
+            Some(b"") | None => {
+                return Err(recording::RecordingParseError::Message("no body found"))
+            }
+            Some(body) => body,
+        };
+
+        let buffer = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+            recording::decompress(body, limit)?
+        });
+        let mut events = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+            recording::deserialize(buffer)?
+        });
+
+        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+            recording::strip_pii(&mut events)
+                .map_err(recording::RecordingParseError::ProcessingAction)?
+        });
+
+        let bytes = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+            recording::serialize(events)?
+        });
+        let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+            recording::compress(bytes)?
+        });
+
+        Ok([header.into(), vec![b'\n'], compressed_bytes].concat())
     }
 
     /// Validates, normalizes, and scrubs PII from a replay event.
