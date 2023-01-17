@@ -37,7 +37,7 @@ pipelines:
                               # This should really be rotated to an internal integration token.
                               SENTRY_AUTH_TOKEN: "{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}"
                           timeout: 1800 # 30 mins
-                          elastic_profile_id: relay
+                          elastic_profile_id: relay-pop
                           tasks:
                               - script: |
                                     ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
