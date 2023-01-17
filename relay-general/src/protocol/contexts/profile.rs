@@ -5,7 +5,6 @@ use crate::protocol::EventId;
 /// Profile context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-// #[metastructure(process_func = "process_trace_context")]
 pub struct ProfileContext {
     /// The profile ID.
     #[metastructure(required = "true")]
@@ -13,7 +12,7 @@ pub struct ProfileContext {
 }
 
 impl ProfileContext {
-    /// The key under which a trace context is generally stored (in `Contexts`)
+    /// The key under which a profile context is generally stored (in `Contexts`)
     pub fn default_key() -> &'static str {
         "profile"
     }
