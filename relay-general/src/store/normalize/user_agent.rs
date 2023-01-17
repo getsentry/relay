@@ -8,23 +8,23 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
+use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent, UserAgentInfo};
 
 pub fn normalize_user_agent(event: &mut Event) {
-    let user_agent = match get_user_agent(&event.request) {
+    let user_agent = match get_user_agent(&event.request).user_agent {
         Some(ua) => ua,
         None => return,
     };
 
     if let Some(contexts) = event.contexts.value_mut() {
         // If a contexts object exists we modify in place.
-        normalize_user_agent_generic(contexts, &event.platform, user_agent);
+        normalize_user_agent_info_generic(contexts, &event.platform, user_agent);
     } else {
         // If a contexts object does not exist we create a new one and attempt to populate
         // it.  If we didn't write any data to our new contexts instance we can throw it out
         // and leave the existing contexts value as "None".
         let mut contexts = Contexts::new();
-        normalize_user_agent_generic(&mut contexts, &event.platform, user_agent);
+        normalize_user_agent_info_generic(&mut contexts, &event.platform, user_agent);
 
         if !contexts.is_empty() {
             event.contexts.set_value(Some(contexts));
@@ -32,7 +32,7 @@ pub fn normalize_user_agent(event: &mut Event) {
     }
 }
 
-pub fn normalize_user_agent_generic(
+pub fn normalize_user_agent_info_generic(
     contexts: &mut Contexts,
     platform: &Annotated<String>,
     user_agent: &str,

@@ -48,7 +48,7 @@ static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
 
 /// Checks if the event originates from a known web crawler.
 pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = user_agent::get_user_agent(&event.request) {
+    if let Some(user_agent) = user_agent::get_user_agent(&event.request).user_agent {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false

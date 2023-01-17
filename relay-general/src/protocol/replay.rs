@@ -28,7 +28,7 @@ use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
 use crate::store::is_valid_platform;
-use crate::store::user_agent::normalize_user_agent_generic;
+use crate::store::user_agent::normalize_user_agent_info_generic;
 use crate::types::{Annotated, Array};
 use crate::user_agent;
 use std::fmt::Display;
@@ -264,7 +264,7 @@ impl Replay {
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
-        let user_agent = match user_agent::get_user_agent(&self.request) {
+        let user_agent = match user_agent::get_user_agent(&self.request).user_agent {
             Some(ua) => ua,
             None => match default_user_agent {
                 Some(dua) => dua,
@@ -273,7 +273,7 @@ impl Replay {
         };
 
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        normalize_user_agent_generic(contexts, &self.platform, user_agent);
+        normalize_user_agent_info_generic(contexts, &self.platform, user_agent);
     }
 
     fn normalize_platform(&mut self) {

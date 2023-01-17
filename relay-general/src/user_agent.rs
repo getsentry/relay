@@ -26,18 +26,41 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
     )
 });
 
-fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
+#[derive(Default)]
+pub struct ClientHints<'a> {
+    os: Option<&'a str>,
+    device: Option<&'a str>,
+    browser: Option<&'a str>,
+}
+
+#[derive(Default)]
+pub struct UserAgentInfo<'a> {
+    pub user_agent: Option<&'a str>,
+    pub client_hints: Option<ClientHints<'a>>,
+}
+
+fn get_user_agent_from_headers(headers: &Headers) -> UserAgentInfo {
+    let mut client_hints: Option<ClientHints> = None;
+    let mut user_agent: Option<&str> = None;
+
     for item in headers.iter() {
         if let Some((ref o_k, ref v)) = item.value() {
             if let Some(k) = o_k.as_str() {
-                if k.to_lowercase() == "user-agent" {
-                    return v.as_str();
+                match k.to_lowercase().as_str() {
+                    "user-agent" => user_agent = v.as_str(),
+                    "sec-ch-ua-platform-version" => {
+                        client_hints.get_or_insert(ClientHints::default()).os = v.as_str()
+                    }
+                    _ => {}
                 }
             }
         }
     }
 
-    None
+    UserAgentInfo {
+        user_agent,
+        client_hints,
+    }
 }
 
 /// Initializes the user agent parser.
@@ -49,14 +72,14 @@ pub fn init_parser() {
     Lazy::force(&UA_PARSER);
 }
 
-/// Returns the user agent string from a `Request`.
+/// Returns the user agent info from a `Request`.
 ///
-/// Returns `Some` if the event's request interface contains a `user-agent` header. Returns `None`
-/// otherwise.
-pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
-    let request = request.value()?;
-    let headers = request.headers.value()?;
-    get_user_agent_from_headers(headers)
+///  TODO: document it
+pub fn get_user_agent(request: &Annotated<Request>) -> UserAgentInfo {
+    match request.value().and_then(|request| request.headers.value()) {
+        Some(headers) => get_user_agent_from_headers(headers),
+        None => UserAgentInfo::default(),
+    }
 }
 
 /// Returns the family and version of a user agent client.
