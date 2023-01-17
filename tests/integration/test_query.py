@@ -195,7 +195,7 @@ def test_query_retry_maxed_out(
         assert request_count == 1 + RETRIES
 
         assert {str(e) for _, e in mini_sentry.test_failures} == {
-            "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error\n  caused by: no error details",
+            "Relay sent us event: error fetching project states: upstream failed\n  caused by: upstream request returned error 500 Internal Server Error\n  caused by: no error details",
             "Relay sent us event: error fetching project state 31a5a894b4524f74a9a8d0e27e21ba91: deadline exceeded",
             "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
