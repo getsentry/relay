@@ -7,6 +7,7 @@
 - Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 - Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
 - Stop extracting duration metric for session payloads. ([#1739](https://github.com/getsentry/relay/pull/1739))
+- Add Profiling Context ([#1748](https://github.com/getsentry/relay/pull/1748))
 
 **Internal**:
 
