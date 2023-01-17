@@ -17,6 +17,7 @@ use crate::actors::processor::ProcessEnvelope;
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::actors::upstream::UpstreamRequestError;
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
@@ -25,10 +26,13 @@ use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
 
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProjectError {
     #[error("could not schedule project fetching")]
     ScheduleFailed,
+
+    #[error("upstream failed")]
+    UpstreamFailed(#[from] UpstreamRequestError),
 }
 
 impl ResponseError for ProjectError {}

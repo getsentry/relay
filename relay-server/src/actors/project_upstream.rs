@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, BTreeMap, HashMap};
+use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,27 +23,12 @@ use relay_system::{
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError};
-use crate::actors::upstream::{
-    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
-};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::ErrorBoundary;
+use crate::utils::{ErrorBoundary, SleepHandle};
 
-/// This is the return type from [`UpstreamProjectSourceService::fetch_states`] function. Returns
-/// list of the results:
-/// * when the response successful, we get back the tuple of [`ProjectStateChannel`] tree and the
-///   results from the requests to upstream
-/// * otherwise we get the tuple of [`ProjectStateChannel`]
-///   tree which we can re-used to re-schedule the fetch or the channel error.
-type ProjectStatesResponses = Vec<
-    Result<
-        (
-            BTreeMap<ProjectKey, ProjectStateChannel>,
-            Result<GetProjectStatesResponse, UpstreamRequestError>,
-        ),
-        (BTreeMap<ProjectKey, ProjectStateChannel>, ProjectError),
-    >,
->;
+/// The map of project keys with their project state channels.
+type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 
 /// A query to retrieve a batch of project states from upstream.
 ///
@@ -148,6 +133,18 @@ impl FromMessage<FetchProjectState> for UpstreamProjectSource {
     }
 }
 
+/// The batch of the channels which used to fetch the project states.
+struct ChannelsBatch {
+    nocache_channels: Vec<(ProjectKey, ProjectStateChannel)>,
+    cache_channels: Vec<(ProjectKey, ProjectStateChannel)>,
+}
+
+/// Collected Upstream responses, with associated projec state channels.
+struct UpstreamResponse {
+    channels_batch: ProjectStateChannels,
+    response: Result<GetProjectStatesResponse, ProjectError>,
+}
+
 /// Service responsible for fetching the [`ProjectState`] from the upstream.
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// `ProjectState` and takes care of the backoff in case there is a problem with the requests.
@@ -155,15 +152,10 @@ impl FromMessage<FetchProjectState> for UpstreamProjectSource {
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
-    state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-    inner_tx: mpsc::UnboundedSender<(
-        HashMap<ProjectKey, ProjectStateChannel>,
-        ProjectStatesResponses,
-    )>,
-    inner_rx: mpsc::UnboundedReceiver<(
-        HashMap<ProjectKey, ProjectStateChannel>,
-        ProjectStatesResponses,
-    )>,
+    state_channels: ProjectStateChannels,
+    inner_tx: mpsc::UnboundedSender<Vec<UpstreamResponse>>,
+    inner_rx: mpsc::UnboundedReceiver<Vec<UpstreamResponse>>,
+    fetch_handle: SleepHandle,
 }
 
 impl UpstreamProjectSourceService {
@@ -174,6 +166,7 @@ impl UpstreamProjectSourceService {
         Self {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             state_channels: HashMap::new(),
+            fetch_handle: SleepHandle::idle(),
             config,
             inner_tx,
             inner_rx,
@@ -188,21 +181,11 @@ impl UpstreamProjectSourceService {
         self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
-    /// Executes an upstream request to fetch project configs.
-    ///
-    /// This assumes that currently no request is running. If the upstream request fails or new
-    /// channels are pushed in the meanwhile, this will reschedule automatically.
-    async fn fetch_states(
-        config: Arc<Config>,
-        mut state_channels: HashMap<ProjectKey, ProjectStateChannel>,
-        inner_tx: mpsc::UnboundedSender<(
-            HashMap<ProjectKey, ProjectStateChannel>,
-            ProjectStatesResponses,
-        )>,
-        attempt: usize,
-    ) {
-        let batch_size = config.query_batch_size();
-        let num_batches = config.max_concurrent_queries();
+    /// Prepares the batches of the cache and nocache channels which could be used to request the
+    /// project states.
+    fn prepare_batches(&mut self) -> ChannelsBatch {
+        let batch_size = self.config.query_batch_size();
+        let num_batches = self.config.max_concurrent_queries();
 
         // Pop N items from state_channels. Intuitively, we would use
         // `state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
@@ -210,12 +193,12 @@ impl UpstreamProjectSourceService {
         //
         // Instead, we have to collect the keys we want into a separate vector and pop them
         // one-by-one.
-        let projects: Vec<_> = (state_channels.keys().copied())
+        let projects: Vec<_> = (self.state_channels.keys().copied())
             .take(batch_size * num_batches)
             .collect();
 
         let fresh_channels = (projects.iter())
-            .filter_map(|id| Some((*id, state_channels.remove(id)?)))
+            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(id, channel)| {
                 if channel.expired() {
                     metric!(
@@ -238,23 +221,38 @@ impl UpstreamProjectSourceService {
 
         let total_count = cache_channels.len() + nocache_channels.len();
 
-        metric!(histogram(RelayHistograms::ProjectStatePending) = state_channels.len() as u64);
+        metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
         relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
             total_count,
-            total_count + state_channels.len(),
-            attempt,
+            total_count + self.state_channels.len(),
+            self.backoff.attempt(),
         );
 
-        let request_start = Instant::now();
+        ChannelsBatch {
+            nocache_channels,
+            cache_channels,
+        }
+    }
 
-        let cache_batches = cache_channels.into_iter().chunks(batch_size);
-        let nocache_batches = nocache_channels.into_iter().chunks(batch_size);
+    /// Executes an upstream request to fetch project configs.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
+    async fn fetch_states(
+        config: Arc<Config>,
+        channels: ChannelsBatch,
+        inner_tx: mpsc::UnboundedSender<Vec<UpstreamResponse>>,
+    ) {
+        let request_start = Instant::now();
+        let batch_size = config.query_batch_size();
+        let cache_batches = channels.cache_channels.into_iter().chunks(batch_size);
+        let nocache_batches = channels.nocache_channels.into_iter().chunks(batch_size);
 
         let mut requests = vec![];
         for channels_batch in cache_batches.into_iter().chain(nocache_batches.into_iter()) {
-            let mut channels_batch: BTreeMap<_, _> = channels_batch.collect();
+            let mut channels_batch: ProjectStateChannels = channels_batch.collect();
             for channel in channels_batch.values_mut() {
                 channel.attempts += 1;
             }
@@ -275,10 +273,18 @@ impl UpstreamProjectSourceService {
 
             let future_request = compat::send(UpstreamRelay::from_registry(), SendQuery(query))
                 .map(|response| match response {
-                    Ok(response) => Ok((channels_batch, response)),
+                    Ok(response) => UpstreamResponse {
+                        channels_batch,
+                        response: response.map_err(ProjectError::UpstreamFailed),
+                    },
                     // Also propagate the channels in error case, since we will want to try to
                     // fetch the projects again.
-                    _ => Err((channels_batch, ProjectError::ScheduleFailed)),
+                    _ => UpstreamResponse {
+                        channels_batch,
+                        response: Err::<GetProjectStatesResponse, ProjectError>(
+                            ProjectError::ScheduleFailed,
+                        ),
+                    },
                 });
 
             requests.push(future_request);
@@ -290,16 +296,19 @@ impl UpstreamProjectSourceService {
         metric!(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
 
         // Send back all resolved responses and also unused channels.
-        if let Err(err) = inner_tx.send((state_channels, responses)) {
+        if let Err(err) = inner_tx.send(responses) {
             relay_log::error!("Unable to forward the requests to further processing: {err}");
         }
     }
 
     /// Handles the responses from the upstream.
-    fn handle_responses(&mut self, responses: ProjectStatesResponses) {
+    fn handle_responses(&mut self, responses: Vec<UpstreamResponse>) {
         for response in responses {
             match response {
-                Ok((channels_batch, Ok(mut response))) => {
+                UpstreamResponse {
+                    channels_batch,
+                    response: Ok(mut response),
+                } => {
                     // If a single request succeeded we reset the backoff. We decided to
                     // only backoff if we see that the project config endpoint is
                     // completely down and did not answer a single request successfully.
@@ -343,17 +352,16 @@ impl UpstreamProjectSourceService {
                         channel.send(state.sanitize());
                     }
                 }
-                Ok((channels_batch, Err(err))) => {
+                UpstreamResponse {
+                    channels_batch,
+                    response: Err(err),
+                } => {
                     relay_log::error!("error fetching project states: {}", LogError(&err));
                     metric!(
                         histogram(RelayHistograms::ProjectStatePending) =
                             self.state_channels.len() as u64
                     );
                     // Put the channels back into the queue, we will retry again shortly.
-                    self.state_channels.extend(channels_batch);
-                }
-                Err((channels_batch, err)) => {
-                    relay_log::error!("Failed to schedule projects fetch: {}", LogError(&err));
                     self.state_channels.extend(channels_batch);
                 }
             }
@@ -377,24 +385,28 @@ impl UpstreamProjectSourceService {
         }
     }
 
-    /// Spawns the [`tokio::task`] to fetch the project configs from upstream.
-    fn schedule_fetch(&mut self) {
+    /// Creates the async task to fetch the project states.
+    fn do_fetch(&mut self) {
+        self.fetch_handle.reset();
+
         if self.state_channels.is_empty() {
             relay_log::error!("project state schedule fetch request without projects");
             return;
         }
 
-        let channels: HashMap<ProjectKey, ProjectStateChannel> =
-            self.state_channels.drain().collect();
         let config = self.config.clone();
-        let attempt = self.backoff.attempt();
         let inner_tx = self.inner_tx.clone();
-        let wait = self.next_backoff();
+        let channels = self.prepare_batches();
 
-        tokio::spawn(async move {
-            tokio::time::sleep(wait).await;
-            Self::fetch_states(config, channels, inner_tx, attempt).await
-        });
+        tokio::spawn(async move { Self::fetch_states(config, channels, inner_tx).await });
+    }
+
+    /// Schedules the next trigger for fetching the project states.
+    fn schedule_fetch(&mut self) {
+        if self.fetch_handle.is_idle() {
+            let wait = self.next_backoff();
+            self.fetch_handle.set(wait);
+        }
     }
 
     /// Handles the incoming external messages.
@@ -427,7 +439,7 @@ impl UpstreamProjectSourceService {
         }
 
         // Schedule the fetch if there is nothing running at this moment.
-        if !self.backoff.started() && !self.state_channels.is_empty() {
+        if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch();
         }
@@ -444,10 +456,8 @@ impl Service for UpstreamProjectSourceService {
                 tokio::select! {
                     biased;
 
-                    Some((state_channels, responses)) = self.inner_rx.recv() => {
-                        self.state_channels.extend(state_channels);
-                        self.handle_responses(responses);
-                    }
+                    () = &mut self.fetch_handle => self.do_fetch(),
+                    Some(responses) = self.inner_rx.recv() => self.handle_responses(responses),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
