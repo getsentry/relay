@@ -7,7 +7,7 @@ use std::time::Duration;
 // runtime.
 use actix::SystemService;
 use actix_web::http::Method;
-use futures::{future, FutureExt};
+use futures::future;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -26,9 +26,6 @@ use crate::actors::project_cache::{FetchProjectState, ProjectError};
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ErrorBoundary, SleepHandle};
-
-/// The map of project keys with their project state channels.
-type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 
 /// A query to retrieve a batch of project states from upstream.
 ///
@@ -116,7 +113,14 @@ impl ProjectStateChannel {
     }
 }
 
+/// The map of project keys with their project state channels.
+type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
+
 /// This is the [`UpstreamProjectSourceService`] interface.
+///
+/// The service is responsible for fetching the [`ProjectState`] from the upstream.
+/// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
+/// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
 pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
 
@@ -145,9 +149,7 @@ struct UpstreamResponse {
     response: Result<GetProjectStatesResponse, ProjectError>,
 }
 
-/// Service responsible for fetching the [`ProjectState`] from the upstream.
-/// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
-/// `ProjectState` and takes care of the backoff in case there is a problem with the requests.
+/// The service which handles the fetching of the [`ProjectState`] from upstream.
 #[derive(Debug)]
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
@@ -271,23 +273,16 @@ impl UpstreamProjectSourceService {
             // count number of http requests for project states
             metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
-            let future_request = compat::send(UpstreamRelay::from_registry(), SendQuery(query))
-                .map(|response| match response {
-                    Ok(response) => UpstreamResponse {
-                        channels_batch,
-                        response: response.map_err(ProjectError::UpstreamFailed),
+            requests.push(async move {
+                let request = compat::send(UpstreamRelay::from_registry(), SendQuery(query));
+                UpstreamResponse {
+                    channels_batch,
+                    response: match request.await {
+                        Ok(response) => response.map_err(ProjectError::UpstreamFailed),
+                        _ => Err(ProjectError::ScheduleFailed),
                     },
-                    // Also propagate the channels in error case, since we will want to try to
-                    // fetch the projects again.
-                    _ => UpstreamResponse {
-                        channels_batch,
-                        response: Err::<GetProjectStatesResponse, ProjectError>(
-                            ProjectError::ScheduleFailed,
-                        ),
-                    },
-                });
-
-            requests.push(future_request);
+                }
+            });
         }
 
         // Wait on results of all fanouts. We fail everything if a single one fails with a
