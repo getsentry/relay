@@ -33,34 +33,18 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, Recordin
         Some(body) => body,
     };
 
-    let mut events = deserialize_compressed(body, limit)?;
+    let buffer = decompress(body, limit)?;
+    let mut events = deserialize(buffer)?;
+
     strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
-    let out_bytes = serialize_compressed(events)?;
-    Ok([header.into(), vec![b'\n'], out_bytes].concat())
+
+    let bytes = serialize(events)?;
+    let compressed_bytes = compress(bytes)?;
+
+    Ok([header.into(), vec![b'\n'], compressed_bytes].concat())
 }
 
-fn deserialize_compressed(
-    zipped_input: &[u8],
-    limit: usize,
-) -> Result<Vec<Event>, RecordingParseError> {
-    let decoder = ZlibDecoder::new(zipped_input);
-
-    let mut buffer = Vec::new();
-    decoder.take(limit as u64).read_to_end(&mut buffer)?;
-
-    Ok(serde_json::from_slice(&buffer)?)
-}
-
-fn serialize_compressed(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
-    let buffer = serde_json::to_vec(&rrweb)?;
-
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&buffer)?;
-    let result = encoder.finish()?;
-    Ok(result)
-}
-
-fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
+pub fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     let mut pii_config = PiiConfig::default();
     pii_config.applications =
         BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
@@ -70,6 +54,30 @@ fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     processor.mask_pii(events)?;
 
     Ok(())
+}
+
+pub fn serialize(events: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
+    serde_json::to_vec(&events).map_err(RecordingParseError::Json)
+}
+
+pub fn compress(buffer: Vec<u8>) -> Result<Vec<u8>, RecordingParseError> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&buffer)?;
+    encoder.finish().map_err(RecordingParseError::Compression)
+}
+
+pub fn deserialize(buffer: Vec<u8>) -> Result<Vec<Event>, RecordingParseError> {
+    serde_json::from_slice(&buffer).map_err(RecordingParseError::Json)
+}
+
+pub fn decompress(zipped_input: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
+    let mut buffer = Vec::new();
+
+    ZlibDecoder::new(zipped_input)
+        .take(limit as u64)
+        .read_to_end(&mut buffer)?;
+
+    Ok(buffer)
 }
 
 // Error
@@ -109,7 +117,7 @@ impl From<std::io::Error> for RecordingParseError {
 
 // Recording Processor
 
-struct RecordingProcessor<'a> {
+pub struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
 }
 
@@ -234,7 +242,7 @@ impl RecordingProcessor<'_> {
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-enum Event {
+pub enum Event {
     T2(FullSnapshotEvent),
     T3(IncrementalSnapshotEvent),
     T4(MetaEvent),
@@ -279,7 +287,7 @@ impl<'de> serde::Deserialize<'de> for Event {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEvent {
+pub struct FullSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -287,14 +295,14 @@ struct FullSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEventData {
+pub struct FullSnapshotEventData {
     node: Node,
     #[serde(rename = "initialOffset")]
     initial_offset: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct IncrementalSnapshotEvent {
+pub struct IncrementalSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -302,7 +310,7 @@ struct IncrementalSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MetaEvent {
+pub struct MetaEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -310,7 +318,7 @@ struct MetaEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct CustomEvent {
+pub struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: f64,
@@ -327,13 +335,13 @@ enum CustomEventDataVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Breadcrumb {
+pub struct Breadcrumb {
     tag: String,
     payload: BreadcrumbPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BreadcrumbPayload {
+pub struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
@@ -347,14 +355,14 @@ struct BreadcrumbPayload {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct PerformanceSpan {
+pub struct PerformanceSpan {
     tag: String,
     payload: PerformanceSpanPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PerformanceSpanPayload {
+pub struct PerformanceSpanPayload {
     op: String,
     description: String,
     start_timestamp: f64,
@@ -378,7 +386,7 @@ struct PerformanceSpanPayload {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Node {
+pub struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     root_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -433,7 +441,7 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DocumentNode {
+pub struct DocumentNode {
     id: u32,
     #[serde(rename = "type")]
     ty: u8,
@@ -443,7 +451,7 @@ struct DocumentNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DocumentTypeNode {
+pub struct DocumentTypeNode {
     #[serde(rename = "type")]
     ty: u8,
     id: Value,
@@ -454,7 +462,7 @@ struct DocumentTypeNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ElementNode {
+pub struct ElementNode {
     id: Value,
     #[serde(rename = "type")]
     ty: u8,
@@ -469,7 +477,7 @@ struct ElementNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TextNode {
+pub struct TextNode {
     id: Value,
     #[serde(rename = "type")]
     ty: u8,
@@ -533,7 +541,7 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InputIncrementalSourceData {
+pub struct InputIncrementalSourceData {
     source: u8,
     id: u32,
     text: String,
@@ -545,7 +553,7 @@ struct InputIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceData {
+pub struct MutationIncrementalSourceData {
     source: u8,
     texts: Vec<Value>,
     attributes: Vec<Value>,
@@ -557,7 +565,7 @@ struct MutationIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationAdditionIncrementalSourceData {
+pub struct MutationAdditionIncrementalSourceData {
     parent_id: Value,
     next_id: Value,
     node: Node,
