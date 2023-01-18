@@ -22,8 +22,10 @@ use relay_system::{
 };
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchProjectState, ProjectError};
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::project_cache::FetchProjectState;
+use crate::actors::upstream::{
+    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ErrorBoundary, SleepHandle};
 
@@ -143,10 +145,10 @@ struct ChannelsBatch {
     cache_channels: Vec<(ProjectKey, ProjectStateChannel)>,
 }
 
-/// Collected Upstream responses, with associated projec state channels.
+/// Collected Upstream responses, with associated project state channels.
 struct UpstreamResponse {
     channels_batch: ProjectStateChannels,
-    response: Result<GetProjectStatesResponse, ProjectError>,
+    response: Result<GetProjectStatesResponse, UpstreamRequestError>,
 }
 
 /// The service which handles the fetching of the [`ProjectState`] from upstream.
@@ -155,8 +157,8 @@ pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
     state_channels: ProjectStateChannels,
-    inner_tx: mpsc::UnboundedSender<Vec<UpstreamResponse>>,
-    inner_rx: mpsc::UnboundedReceiver<Vec<UpstreamResponse>>,
+    inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
+    inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
     fetch_handle: SleepHandle,
 }
 
@@ -245,8 +247,7 @@ impl UpstreamProjectSourceService {
     async fn fetch_states(
         config: Arc<Config>,
         channels: ChannelsBatch,
-        inner_tx: mpsc::UnboundedSender<Vec<UpstreamResponse>>,
-    ) {
+    ) -> Vec<Option<UpstreamResponse>> {
         let request_start = Instant::now();
         let batch_size = config.query_batch_size();
         let cache_batches = channels.cache_channels.into_iter().chunks(batch_size);
@@ -275,35 +276,52 @@ impl UpstreamProjectSourceService {
 
             requests.push(async move {
                 let request = compat::send(UpstreamRelay::from_registry(), SendQuery(query));
-                UpstreamResponse {
-                    channels_batch,
-                    response: match request.await {
-                        Ok(response) => response.map_err(ProjectError::UpstreamFailed),
-                        _ => Err(ProjectError::ScheduleFailed),
-                    },
+                match request.await {
+                    Ok(response) => Some(UpstreamResponse {
+                        channels_batch,
+                        response,
+                    }),
+                    // If sending of the request to upstream fails:
+                    // - drop the current batch of the channels
+                    // - report the error, since this is the case we should not have in proper
+                    //   workflow
+                    // - return `None` to signal that we do not have any response from the Upstream
+                    //   and we should ignore this.
+                    Err(err) => {
+                        relay_log::error!("Failed to send the request to upstream: {err}");
+                        None
+                    }
                 }
             });
         }
 
-        // Wait on results of all fanouts. We fail everything if a single one fails with a
-        // MailboxError, but errors of a single fanout don't propagate like that.
+        // Wait on results of all fanouts, and return the resolved responses.
         let responses = future::join_all(requests).await;
         metric!(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
+        responses
+    }
 
-        // Send back all resolved responses and also unused channels.
-        if let Err(err) = inner_tx.send(responses) {
-            relay_log::error!("Unable to forward the requests to further processing: {err}");
+    /// Schedules the next trigger for fetching the project states.
+    ///
+    /// The next trigger will be scheduled only if the current handle is idle.
+    fn schedule_fetch(&mut self) {
+        if self.fetch_handle.is_idle() {
+            let wait = self.next_backoff();
+            self.fetch_handle.set(wait);
         }
     }
 
     /// Handles the responses from the upstream.
-    fn handle_responses(&mut self, responses: Vec<UpstreamResponse>) {
-        for response in responses {
+    fn handle_responses(&mut self, responses: Vec<Option<UpstreamResponse>>) {
+        // Iterate only over the returned responses.
+        for response in responses.into_iter().flatten() {
+            let UpstreamResponse {
+                channels_batch,
+                response,
+            } = response;
+
             match response {
-                UpstreamResponse {
-                    channels_batch,
-                    response: Ok(mut response),
-                } => {
+                Ok(mut response) => {
                     // If a single request succeeded we reset the backoff. We decided to
                     // only backoff if we see that the project config endpoint is
                     // completely down and did not answer a single request successfully.
@@ -347,17 +365,14 @@ impl UpstreamProjectSourceService {
                         channel.send(state.sanitize());
                     }
                 }
-                UpstreamResponse {
-                    channels_batch,
-                    response: Err(err),
-                } => {
+                Err(err) => {
                     relay_log::error!("error fetching project states: {}", LogError(&err));
                     metric!(
                         histogram(RelayHistograms::ProjectStatePending) =
                             self.state_channels.len() as u64
                     );
                     // Put the channels back into the queue, we will retry again shortly.
-                    self.state_channels.extend(channels_batch);
+                    self.state_channels.extend(channels_batch)
                 }
             }
         }
@@ -393,15 +408,14 @@ impl UpstreamProjectSourceService {
         let inner_tx = self.inner_tx.clone();
         let channels = self.prepare_batches();
 
-        tokio::spawn(async move { Self::fetch_states(config, channels, inner_tx).await });
-    }
-
-    /// Schedules the next trigger for fetching the project states.
-    fn schedule_fetch(&mut self) {
-        if self.fetch_handle.is_idle() {
-            let wait = self.next_backoff();
-            self.fetch_handle.set(wait);
-        }
+        tokio::spawn(async move {
+            let responses = Self::fetch_states(config, channels).await;
+            // Send back all resolved responses and also unused channels.
+            // These responses will be handled by `handle_responses` function.
+            if let Err(err) = inner_tx.send(responses) {
+                relay_log::error!("Unable to forward the requests to further processing: {err}");
+            }
+        });
     }
 
     /// Handles the incoming external messages.
