@@ -360,12 +360,15 @@ jobs:
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
 
-
   self-hosted-end-to-end:
     runs-on: ubuntu-latest
     # temporary, remove once we are confident the action is working
     continue-on-error: true
     timeout-minutes: 30
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -373,6 +376,6 @@ jobs:
         uses: getsentry/action-self-hosted-e2e-tests@711694d0081a834777ca9c77c3f4c322ce7b08c4
         with:
           project_name: relay
-          image_url: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }} 
+          image_url: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
           docker_repo: getsentry/relay
           docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
