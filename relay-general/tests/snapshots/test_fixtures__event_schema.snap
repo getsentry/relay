@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -825,6 +826,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/TraceContext"
+        },
+        {
+          "$ref": "#/definitions/ProfileContext"
         },
         {
           "$ref": "#/definitions/MonitorContext"
@@ -2446,6 +2450,31 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ],
               "format": "int64"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ProfileContext": {
+      "description": " Profile context",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "profile_id"
+          ],
+          "properties": {
+            "profile_id": {
+              "description": " The profile ID.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/EventId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "additionalProperties": false
