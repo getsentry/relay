@@ -303,7 +303,7 @@ impl Error {
     pub fn expected(expectation: &str) -> Self {
         // Does not use `Error::invalid` to avoid the string copy.
         Error::with(ErrorKind::InvalidData, |error| {
-            error.insert("reason", format!("expected {}", expectation));
+            error.insert("reason", format!("expected {expectation}"));
         })
     }
 

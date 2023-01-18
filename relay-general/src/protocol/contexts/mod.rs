@@ -10,6 +10,8 @@ mod monitor;
 pub use monitor::*;
 mod os;
 pub use os::*;
+mod profile;
+pub use profile::*;
 mod reprocessing;
 pub use reprocessing::*;
 mod response;
@@ -46,6 +48,8 @@ pub enum Context {
     Gpu(Box<GpuContext>),
     /// Information related to Tracing.
     Trace(Box<TraceContext>),
+    /// Information related to Profiling.
+    Profile(Box<ProfileContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
@@ -74,6 +78,7 @@ impl Context {
             Context::Reprocessing(_) => Some(ReprocessingContext::default_key()),
             Context::Gpu(_) => Some(GpuContext::default_key()),
             Context::Trace(_) => Some(TraceContext::default_key()),
+            Context::Profile(_) => Some(ProfileContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Otel(_) => Some(OtelContext::default_key()),

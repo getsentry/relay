@@ -461,7 +461,7 @@ mod tests {
                 return Annotated::new(Value::String("max depth".to_string()));
             }
             let mut rv = Object::new();
-            rv.insert(format!("key{}", depth), make_nested_object(depth - 1));
+            rv.insert(format!("key{depth}"), make_nested_object(depth - 1));
             Annotated::new(Value::Object(rv))
         }
 
@@ -529,7 +529,7 @@ mod tests {
             let mut map = Object::new();
             for idx in 0..100 {
                 map.insert(
-                    format!("key_{}", idx),
+                    format!("key_{idx}"),
                     Annotated::new(ExtraValue(Value::String("x".repeat(50000)))),
                 );
             }
@@ -635,7 +635,7 @@ mod tests {
     fn test_custom_context_trimming() {
         let mut contexts = Object::new();
         for i in 1..2 {
-            contexts.insert(format!("despacito{}", i), {
+            contexts.insert(format!("despacito{i}"), {
                 let mut context = Object::new();
                 context.insert(
                     "foo".to_string(),
@@ -657,7 +657,7 @@ mod tests {
             let other = match contexts
                 .value()
                 .unwrap()
-                .get(&format!("despacito{}", i))
+                .get(&format!("despacito{i}"))
                 .unwrap()
                 .value()
                 .unwrap()
@@ -723,7 +723,7 @@ mod tests {
             .unwrap()
         {
             ExtraValue(Value::Array(x)) => x,
-            x => panic!("Wrong type: {:?}", x),
+            x => panic!("Wrong type: {x:?}"),
         };
 
         // this is larger / 2 for the extra value
@@ -833,7 +833,7 @@ mod tests {
 
         for n in 0..5 {
             frames.push(Annotated::new(Frame {
-                filename: Annotated::new(format!("foo {}", n).into()),
+                filename: Annotated::new(format!("foo {n}").into()),
                 pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
                 context_line: Annotated::new("b".to_string()),
                 post_context: Annotated::new(vec![Annotated::new("c".to_string())]),

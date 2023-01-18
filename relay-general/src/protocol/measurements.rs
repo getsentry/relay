@@ -36,7 +36,7 @@ impl IntoValue for MetricUnit {
     where
         Self: Sized,
     {
-        Value::String(format!("{}", self))
+        Value::String(format!("{self}"))
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -94,15 +94,13 @@ impl FromValue for Measurements {
 
                     if name.is_empty() {
                         processing_errors.push(Error::invalid(format!(
-                            "measurement name '{}' cannot be empty",
-                            name
+                            "measurement name '{name}' cannot be empty"
                         )));
                     } else if is_valid_measurement_name(name) {
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
-                            "measurement name '{}' can contain only characters a-z0-9._",
-                            name
+                            "measurement name '{name}' can contain only characters a-z0-9._"
                         )));
                     }
 
@@ -136,7 +134,7 @@ impl DerefMut for Measurements {
 }
 
 fn is_valid_measurement_name(name: &str) -> bool {
-    name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+    name.starts_with(|c: char| c.is_ascii_alphabetic())
         && name
             .chars()
             .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.'))

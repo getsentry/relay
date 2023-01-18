@@ -2,8 +2,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use actix::Recipient;
+use actix_web::server::StopServer;
 use actix_web::{server, App};
 use anyhow::{Context, Result};
+use futures01::Future;
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
 
@@ -323,30 +325,51 @@ where
     }
 }
 
-/// Given a relay config spawns the server together with all actors and lets them run forever.
-///
-/// Effectively this boots the server.
-pub fn start(config: Config) -> Result<Recipient<server::StopServer>> {
-    let config = Arc::new(config);
+/// Keeps the address to the running http servers and helps with start/stop handling.
+pub struct HttpServer(Recipient<StopServer>);
 
-    Controller::from_registry().do_send(Configure {
-        shutdown_timeout: config.shutdown_timeout(),
-    });
+impl HttpServer {
+    /// Given a relay config spawns the server together with all actors and lets them run forever.
+    ///
+    /// Effectively this boots the server.
+    pub fn start(config: Config) -> Result<Self> {
+        let config = Arc::new(config);
 
-    let state = ServiceState::start(config.clone())?;
-    let mut server = server::new(move || make_app(state.clone()));
-    server = server
-        .workers(config.cpu_concurrency())
-        .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
-        .keep_alive(config.keepalive_timeout().as_secs() as usize)
-        .maxconn(config.max_connections())
-        .maxconnrate(config.max_connection_rate())
-        .backlog(config.max_pending_connections())
-        .disable_signals();
+        Controller::from_registry().do_send(Configure {
+            shutdown_timeout: config.shutdown_timeout(),
+        });
 
-    server = listen(server, &config)?;
-    server = listen_ssl(server, &config)?;
+        let state = ServiceState::start(config.clone())?;
+        let mut server = server::new(move || make_app(state.clone()));
+        server = server
+            .workers(config.cpu_concurrency())
+            .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
+            .keep_alive(config.keepalive_timeout().as_secs() as usize)
+            .maxconn(config.max_connections())
+            .maxconnrate(config.max_connection_rate())
+            .backlog(config.max_pending_connections())
+            .disable_signals();
 
-    dump_listen_infos(&server);
-    Ok(server.start().recipient())
+        server = listen(server, &config)?;
+        server = listen_ssl(server, &config)?;
+
+        dump_listen_infos(&server);
+        let recipient = server.start().recipient();
+        Ok(Self(recipient))
+    }
+
+    /// Triggers the shutdown process by sending [`actix_web::server::StopServer`] to the running http server.
+    pub fn shutdown(&self, graceful: bool) {
+        let Self(recipient) = self;
+        relay_log::info!("Shutting down HTTP server");
+        recipient.send(StopServer { graceful }).wait().ok();
+    }
+}
+
+impl fmt::Debug for HttpServer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("HttpServer")
+            .field(&"actix::Recipient<actix_web::server::StopServer>")
+            .finish()
+    }
 }

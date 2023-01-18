@@ -112,7 +112,7 @@ pub extern "C" fn relay_err_get_last_message() -> RelayStr {
     relay_ffi::with_last_error(|err| {
         let mut msg = err.to_string();
         for cause in err.chain().skip(1) {
-            write!(&mut msg, "\n  caused by: {}", cause).ok();
+            write!(&mut msg, "\n  caused by: {cause}").ok();
         }
         RelayStr::from_string(msg)
     })
@@ -126,7 +126,7 @@ pub extern "C" fn relay_err_get_backtrace() -> RelayStr {
         .filter(|bt| !bt.is_empty());
 
     match backtrace {
-        Some(backtrace) => RelayStr::from_string(format!("stacktrace: {}", backtrace)),
+        Some(backtrace) => RelayStr::from_string(format!("stacktrace: {backtrace}")),
         None => RelayStr::default(),
     }
 }

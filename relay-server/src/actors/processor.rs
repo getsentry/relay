@@ -1,7 +1,9 @@
+use bytes::Bytes;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::net;
+use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -22,8 +24,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -37,7 +39,7 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project::{Feature, ProjectConfig, ProjectState};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -583,6 +585,7 @@ impl EnvelopeProcessorService {
         let mut changed = false;
         let payload = item.payload();
 
+        // sessionupdate::parse is already tested
         let mut session = match SessionUpdate::parse(&payload) {
             Ok(session) => session,
             Err(error) => {
@@ -594,7 +597,7 @@ impl EnvelopeProcessorService {
         if session.sequence == u64::MAX {
             relay_log::trace!("skipping session due to sequence overflow");
             return false;
-        }
+        };
 
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to session");
@@ -633,8 +636,15 @@ impl EnvelopeProcessorService {
             }
         }
 
+        if self.config.processing_enabled() && matches!(session.status, SessionStatus::Unknown(_)) {
+            return false;
+        }
+
         // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled() && !item.metrics_extracted() {
+        if metrics_config.is_enabled()
+            && !item.metrics_extracted()
+            && !matches!(session.status, SessionStatus::Unknown(_))
+        {
             extract_session_metrics(
                 &session.attributes,
                 &session,
@@ -1011,8 +1021,9 @@ impl EnvelopeProcessorService {
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
-        let envelope = &mut state.envelope;
-        let client_addr = envelope.meta().client_addr();
+        let meta = state.envelope.meta().clone();
+        let client_addr = meta.client_addr();
+        let user_agent = meta.user_agent();
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1020,20 +1031,62 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let parsed_replay =
-                    relay_replays::normalize_replay_event(&item.payload(), client_addr);
-                match parsed_replay {
-                    Ok(replay) => {
-                        item.set_payload(ContentType::Json, &replay[..]);
-                        true
-                    }
-                    Err(error) => {
-                        relay_log::warn!("failed to parse replay event: {}", LogError(&error));
-                        context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                            DataCategory::Replay,
-                            1,
-                        );
+                let result = self.process_replay_event(
+                    &item.payload(),
+                    &state.project_state.config,
+                    client_addr,
+                    user_agent,
+                );
+
+                match result {
+                    Ok(replay) => match replay.to_json() {
+                        Ok(json) => {
+                            item.set_payload(ContentType::Json, json.as_bytes());
+                            true
+                        }
+                        Err(e) => {
+                            relay_log::error!(
+                                "replay-event: failed to serialize replay with message {}",
+                                e
+                            );
+                            false
+                        }
+                    },
+                    Err(e) => {
+                        match e {
+                            ReplayError::NoContent => {
+                                relay_log::warn!("replay-event: no data found");
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotScrub(e) => {
+                                relay_log::warn!("replay-event: PII scrub failure {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotParse(e) => {
+                                relay_log::warn!("replay-event: {}", e.to_string());
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::InvalidPayload(e) => {
+                                relay_log::warn!("replay-event: {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                        }
                         false
                     }
                 }
@@ -1048,14 +1101,19 @@ impl EnvelopeProcessorService {
                     // allocations.
                     let limit = self.config.max_replay_size();
                     let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload(), limit);
+                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                            relay_replays::recording::process_recording(&item.payload(), limit)
+                        });
 
                     match parsed_recording {
                         Ok(recording) => {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         Err(e) => {
-                            relay_log::warn!("failed to parse replay event: {}", e);
+                            relay_log::warn!(
+                                "replay-recording-event: failed to parse with message {}",
+                                e
+                            );
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
@@ -1071,6 +1129,43 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
+    }
+
+    /// Validates, normalizes, and scrubs PII from a replay event.
+    fn process_replay_event(
+        &self,
+        payload: &Bytes,
+        config: &ProjectConfig,
+        client_ip: Option<NetIPAddr>,
+        user_agent: Option<&str>,
+    ) -> Result<Annotated<Replay>, ReplayError> {
+        let mut replay =
+            Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
+
+        if let Some(replay_value) = replay.value_mut() {
+            replay_value.validate()?;
+            replay_value.normalize(client_ip, user_agent);
+        } else {
+            return Err(ReplayError::NoContent);
+        }
+
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        Ok(replay)
     }
 
     /// Creates and initializes the processing state.
@@ -2314,12 +2409,130 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_general::protocol::EventId;
+    use relay_sampling::{RuleCondition, RuleType, SamplingMode};
 
+    use crate::service::ServiceState;
+    use crate::testutils::{new_envelope, state_with_rule_and_condition};
+    use crate::utils::Semaphore as TestSemaphore;
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
+
+    struct TestProcessSessionArguments<'a> {
+        item: Item,
+        received: DateTime<Utc>,
+        client: Option<&'a str>,
+        client_addr: Option<net::IpAddr>,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: ClockDriftProcessor,
+        extracted_metrics: Vec<Metric>,
+    }
+
+    impl<'a> TestProcessSessionArguments<'a> {
+        fn run_session_producer(&mut self) -> bool {
+            let proc = create_test_processor(Default::default());
+            proc.process_session(
+                &mut self.item,
+                self.received,
+                self.client,
+                self.client_addr,
+                self.metrics_config,
+                &self.clock_drift_processor,
+                &mut self.extracted_metrics,
+            )
+        }
+
+        fn default() -> Self {
+            let mut item = Item::new(ItemType::Event);
+
+            let session = r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#;
+
+            item.set_payload(ContentType::Json, session);
+            let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
+
+            Self {
+                item,
+                received,
+                client: None,
+                client_addr: None,
+                metrics_config: serde_json::from_str(
+                    "
+        {
+            \"version\": 0,
+            \"drop\": true
+        }",
+                )
+                .unwrap(),
+                clock_drift_processor: ClockDriftProcessor::new(None, received),
+                extracted_metrics: vec![],
+            }
+        }
+    }
+
+    /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
+    /// other tests are valid.
+    #[test]
+    fn test_process_session_keep_item() {
+        let mut args = TestProcessSessionArguments::default();
+        assert!(args.run_session_producer());
+    }
+
+    #[test]
+    fn test_process_session_invalid_json() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item
+            .set_payload(ContentType::Json, "this isnt valid json");
+        assert!(!args.run_session_producer());
+    }
+
+    #[test]
+    fn test_process_session_sequence_overflow() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_payload(
+            ContentType::Json,
+            r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "seq": 18446744073709551615,
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#,
+        );
+        assert!(!args.run_session_producer());
+    }
+    #[test]
+    fn test_process_session_invalid_timestamp() {
+        let mut args = TestProcessSessionArguments::default();
+        args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
+        assert!(!args.run_session_producer());
+    }
+
+    #[test]
+    fn test_process_session_metrics_extracted() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_metrics_extracted(true);
+        assert!(!args.run_session_producer());
+    }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();
@@ -2349,6 +2562,57 @@ mod tests {
             .values
             .value()
             .unwrap()
+    }
+
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
+        relay_test::setup();
+
+        // an empty json still produces a valid config
+        let json_config = serde_json::json!({});
+
+        let config = Config::from_json_value(json_config.clone()).unwrap();
+        let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
+
+        // it really shouldn't be necessary to start an entire service for a unit test
+        // it was ported from a python integration test
+        ServiceState::start(arconfig).unwrap();
+        let service = create_test_processor(config);
+        let envelope = new_envelope(false, "foo");
+
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        for (sample_rate, shouldkeep) in [(0.0, false), (1.0, true)] {
+            let project_state = state_with_rule_and_condition(
+                Some(sample_rate),
+                RuleType::Transaction,
+                SamplingMode::Received,
+                RuleCondition::all(),
+            );
+
+            let mut state = ProcessEnvelopeState {
+                envelope: new_envelope(false, "foo"),
+                event: Annotated::from(event.clone()),
+                transaction_metrics_extracted: false,
+                metrics: Default::default(),
+                sample_rates: None,
+                extracted_metrics: vec![],
+                project_state: Arc::new(project_state),
+                sampling_project_state: None,
+                project_id: ProjectId::new(42),
+                envelope_context: EnvelopeContext::new(
+                    &envelope,
+                    TestSemaphore::new(42).try_acquire().unwrap(),
+                ),
+            };
+            let result = service.sample_envelope(&mut state);
+            assert_eq!(result.is_ok(), shouldkeep);
+        }
     }
 
     #[test]

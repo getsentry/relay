@@ -1,0 +1,110 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "user": {
+    "ip_address": null,
+    "username": "[ip]",
+    "data": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello"
+    }
+  },
+  "breadcrumbs": {
+    "values": [
+      {
+        "message": "[ip]",
+        "data": {
+          "test_data": "[ip]"
+        }
+      }
+    ]
+  },
+  "sdk": {
+    "client_ip": null
+  },
+  "_meta": {
+    "breadcrumbs": {
+      "values": {
+        "0": {
+          "data": {
+            "test_data": {
+              "": {
+                "rem": [
+                  [
+                    "@ip:replace",
+                    "s",
+                    0,
+                    4
+                  ]
+                ],
+                "len": 13
+              }
+            }
+          },
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 13
+            }
+          }
+        }
+      }
+    },
+    "sdk": {
+      "client_ip": {
+        "": {
+          "err": [
+            [
+              "invalid_data",
+              {
+                "reason": "expected an ip address"
+              }
+            ]
+          ],
+          "val": "should also be stripped"
+        }
+      }
+    },
+    "user": {
+      "ip_address": {
+        "": {
+          "err": [
+            [
+              "invalid_data",
+              {
+                "reason": "expected an ip address"
+              }
+            ]
+          ],
+          "val": "should be stripped despite lacking ip address"
+        }
+      },
+      "username": {
+        "": {
+          "rem": [
+            [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ]
+          ],
+          "len": 13
+        }
+      }
+    }
+  }
+}
