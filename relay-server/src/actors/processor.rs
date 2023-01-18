@@ -2525,7 +2525,7 @@ mod tests {
     }
 
     #[test]
-    fn test_process_sessionprocess_session_metrics_extracted() {
+    fn test_process_session_metrics_extracted() {
         let mut args = TestProcessSessionArguments::default();
         args.item.set_metrics_extracted(true);
         assert!(!args.run_session_producer());
