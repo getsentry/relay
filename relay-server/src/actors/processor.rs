@@ -2636,7 +2636,7 @@ mod tests {
                 transaction_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                extracted_metrics: vec![],
+                extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
