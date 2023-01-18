@@ -943,53 +943,6 @@
 <span id="942">942</span>
 <span id="943">943</span>
 <span id="944">944</span>
-<span id="945">945</span>
-<span id="946">946</span>
-<span id="947">947</span>
-<span id="948">948</span>
-<span id="949">949</span>
-<span id="950">950</span>
-<span id="951">951</span>
-<span id="952">952</span>
-<span id="953">953</span>
-<span id="954">954</span>
-<span id="955">955</span>
-<span id="956">956</span>
-<span id="957">957</span>
-<span id="958">958</span>
-<span id="959">959</span>
-<span id="960">960</span>
-<span id="961">961</span>
-<span id="962">962</span>
-<span id="963">963</span>
-<span id="964">964</span>
-<span id="965">965</span>
-<span id="966">966</span>
-<span id="967">967</span>
-<span id="968">968</span>
-<span id="969">969</span>
-<span id="970">970</span>
-<span id="971">971</span>
-<span id="972">972</span>
-<span id="973">973</span>
-<span id="974">974</span>
-<span id="975">975</span>
-<span id="976">976</span>
-<span id="977">977</span>
-<span id="978">978</span>
-<span id="979">979</span>
-<span id="980">980</span>
-<span id="981">981</span>
-<span id="982">982</span>
-<span id="983">983</span>
-<span id="984">984</span>
-<span id="985">985</span>
-<span id="986">986</span>
-<span id="987">987</span>
-<span id="988">988</span>
-<span id="989">989</span>
-<span id="990">990</span>
-<span id="991">991</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
@@ -1176,7 +1129,6 @@
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
 
-    <span class="kw">use </span>bytes::Bytes;
     <span class="kw">use </span>chrono::DateTime;
 
     <span class="kw">use </span>chrono::Duration <span class="kw">as </span>DateDuration;
@@ -1188,30 +1140,13 @@
         SamplingRule, TimeRange,
     };
 
-    <span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::create_sampling_context;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::new_envelope;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::state_with_config;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::state_with_rule;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::state_with_rule_and_condition;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
-    <span class="kw">fn </span>state_with_config(sampling_config: SamplingConfig) -&gt; ProjectState {
-        <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
-        state.config.dynamic_sampling = <span class="prelude-val">Some</span>(sampling_config);
-        state
-    }
-
-    <span class="kw">fn </span>state_with_rule(
-        sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-        rule_type: RuleType,
-        mode: SamplingMode,
-    ) -&gt; ProjectState {
-        state_with_decaying_rule(
-            sample_rate,
-            rule_type,
-            mode,
-            DecayingFunction::Constant,
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-        )
-    }
 
     <span class="kw">fn </span>state_with_decaying_rule(
         sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
@@ -1240,58 +1175,6 @@
         })
     }
 
-    <span class="kw">fn </span>create_sampling_context(sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;) -&gt; DynamicSamplingContext {
-        DynamicSamplingContext {
-            trace_id: uuid::Uuid::new_v4(),
-            public_key: <span class="string">&quot;12345678901234567890123456789012&quot;</span>.parse().unwrap(),
-            release: <span class="prelude-val">None</span>,
-            environment: <span class="prelude-val">None</span>,
-            transaction: <span class="prelude-val">None</span>,
-            sample_rate,
-            user: Default::default(),
-            other: Default::default(),
-        }
-    }
-
-    <span class="doccomment">/// ugly hack to build an envelope with an optional trace context
-    </span><span class="kw">fn </span>new_envelope&lt;T: Into&lt;String&gt;&gt;(with_dsc: bool, transaction_name: T) -&gt; Box&lt;Envelope&gt; {
-        <span class="kw">let </span>transaction_name = transaction_name.into();
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>;
-        <span class="kw">let </span>event_id = EventId::new();
-
-        <span class="kw">let </span>raw_event = <span class="kw">if </span>with_dsc {
-            <span class="macro">format!</span>(
-                <span class="string">&quot;{{\&quot;transaction\&quot;: \&quot;{}\&quot;, \&quot;event_id\&quot;:\&quot;{}\&quot;,\&quot;dsn\&quot;:\&quot;{}\&quot;, \&quot;trace\&quot;: {}}}\n&quot;</span>,
-                transaction_name,
-                event_id.<span class="number">0</span>.to_simple(),
-                dsn,
-                serde_json::to_string(<span class="kw-2">&amp;</span>create_sampling_context(<span class="prelude-val">None</span>)).unwrap(),
-            )
-        } <span class="kw">else </span>{
-            <span class="macro">format!</span>(
-                <span class="string">&quot;{{\&quot;transaction\&quot;: \&quot;{}\&quot;, \&quot;event_id\&quot;:\&quot;{}\&quot;,\&quot;dsn\&quot;:\&quot;{}\&quot;}}\n&quot;</span>,
-                transaction_name,
-                event_id.<span class="number">0</span>.to_simple(),
-                dsn,
-            )
-        };
-
-        <span class="kw">let </span>bytes = Bytes::from(raw_event);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(bytes).unwrap();
-
-        <span class="kw">let </span>item1 = Item::new(ItemType::Transaction);
-        envelope.add_item(item1);
-
-        <span class="kw">let </span>item2 = Item::new(ItemType::Attachment);
-        envelope.add_item(item2);
-
-        <span class="kw">let </span>item3 = Item::new(ItemType::Attachment);
-        envelope.add_item(item3);
-
-        envelope
-    }
-
     <span class="kw">fn </span>prepare_and_get_sampling_rule(
         client_sample_rate: f64,
         event_type: EventType,
@@ -1313,31 +1196,6 @@
             <span class="prelude-val">None</span>, <span class="comment">// ip address not needed for uniform rule
             </span>now,
         )
-    }
-
-    <span class="kw">fn </span>state_with_rule_and_condition(
-        sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-        rule_type: RuleType,
-        mode: SamplingMode,
-        condition: RuleCondition,
-    ) -&gt; ProjectState {
-        <span class="kw">let </span>rules = <span class="kw">match </span>sample_rate {
-            <span class="prelude-val">Some</span>(sample_rate) =&gt; <span class="macro">vec!</span>[SamplingRule {
-                condition,
-                sample_rate,
-                ty: rule_type,
-                id: RuleId(<span class="number">1</span>),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            <span class="prelude-val">None </span>=&gt; Vec::new(),
-        };
-
-        state_with_config(SamplingConfig {
-            rules,
-            mode,
-            next_id: <span class="prelude-val">None</span>,
-        })
     }
 
     <span class="kw">fn </span>samplingresult_from_rules_and_proccessing_flag(
@@ -1732,6 +1590,54 @@
         <span class="macro">assert_eq!</span>(spec.unwrap().unwrap().sample_rate, <span class="number">0.2</span>);
     }
 
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_sample_rate() {
+        <span class="kw">let </span>event_state_drop = state_with_rule_and_condition(
+            <span class="prelude-val">Some</span>(<span class="number">0.0</span>),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">true</span>, <span class="string">&quot;foo&quot;</span>);
+
+        <span class="kw">let </span>event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(<span class="string">&quot;foo&quot;</span>.to_owned()),
+            ..Event::default()
+        };
+
+        <span class="comment">// if it matches the transaction rule, the transaction should be dropped
+        </span><span class="kw">let </span>should_drop = should_keep_event(
+            envelope.dsc(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>event_state_drop,
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event_state_drop),
+            <span class="bool-val">false</span>,
+        );
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(should_drop, SamplingResult::Drop(<span class="kw">_</span>)));
+
+        <span class="kw">let </span>event_state_keep = state_with_rule_and_condition(
+            <span class="prelude-val">Some</span>(<span class="number">1.0</span>),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        <span class="kw">let </span>should_keep = should_keep_event(
+            envelope.dsc(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>event_state_keep,
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event_state_keep),
+            <span class="bool-val">false</span>,
+        );
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(should_keep, SamplingResult::Keep));
+    }
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_event_decaying_rule_with_linear_function() {
         <span class="kw">let </span>now = Utc::now();

@@ -2988,6 +2988,62 @@
 <span id="2987">2987</span>
 <span id="2988">2988</span>
 <span id="2989">2989</span>
+<span id="2990">2990</span>
+<span id="2991">2991</span>
+<span id="2992">2992</span>
+<span id="2993">2993</span>
+<span id="2994">2994</span>
+<span id="2995">2995</span>
+<span id="2996">2996</span>
+<span id="2997">2997</span>
+<span id="2998">2998</span>
+<span id="2999">2999</span>
+<span id="3000">3000</span>
+<span id="3001">3001</span>
+<span id="3002">3002</span>
+<span id="3003">3003</span>
+<span id="3004">3004</span>
+<span id="3005">3005</span>
+<span id="3006">3006</span>
+<span id="3007">3007</span>
+<span id="3008">3008</span>
+<span id="3009">3009</span>
+<span id="3010">3010</span>
+<span id="3011">3011</span>
+<span id="3012">3012</span>
+<span id="3013">3013</span>
+<span id="3014">3014</span>
+<span id="3015">3015</span>
+<span id="3016">3016</span>
+<span id="3017">3017</span>
+<span id="3018">3018</span>
+<span id="3019">3019</span>
+<span id="3020">3020</span>
+<span id="3021">3021</span>
+<span id="3022">3022</span>
+<span id="3023">3023</span>
+<span id="3024">3024</span>
+<span id="3025">3025</span>
+<span id="3026">3026</span>
+<span id="3027">3027</span>
+<span id="3028">3028</span>
+<span id="3029">3029</span>
+<span id="3030">3030</span>
+<span id="3031">3031</span>
+<span id="3032">3032</span>
+<span id="3033">3033</span>
+<span id="3034">3034</span>
+<span id="3035">3035</span>
+<span id="3036">3036</span>
+<span id="3037">3037</span>
+<span id="3038">3038</span>
+<span id="3039">3039</span>
+<span id="3040">3040</span>
+<span id="3041">3041</span>
+<span id="3042">3042</span>
+<span id="3043">3043</span>
+<span id="3044">3044</span>
+<span id="3045">3045</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -5395,7 +5451,12 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    <span class="kw">use </span>relay_general::protocol::EventId;
+    <span class="kw">use </span>relay_sampling::{RuleCondition, RuleType, SamplingMode};
 
+    <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
+    <span class="kw">use </span><span class="kw">crate</span>::utils::Semaphore <span class="kw">as </span>TestSemaphore;
     <span class="kw">use crate</span>::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -5428,6 +5489,57 @@
             .values
             .value()
             .unwrap()
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_it_keeps_or_drops_transactions() {
+        relay_test::setup();
+
+        <span class="comment">// an empty json still produces a valid config
+        </span><span class="kw">let </span>json_config = <span class="macro">serde_json::json!</span>({});
+
+        <span class="kw">let </span>config = Config::from_json_value(json_config.clone()).unwrap();
+        <span class="kw">let </span>arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
+
+        <span class="comment">// it really shouldn&#39;t be necessary to start an entire service for a unit test
+        // it was ported from a python integration test
+        </span>ServiceState::start(arconfig).unwrap();
+        <span class="kw">let </span>service = create_test_processor(config);
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>);
+
+        <span class="kw">let </span>event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(<span class="string">&quot;testing&quot;</span>.to_owned()),
+            ..Event::default()
+        };
+
+        <span class="kw">for </span>(sample_rate, shouldkeep) <span class="kw">in </span>[(<span class="number">0.0</span>, <span class="bool-val">false</span>), (<span class="number">1.0</span>, <span class="bool-val">true</span>)] {
+            <span class="kw">let </span>project_state = state_with_rule_and_condition(
+                <span class="prelude-val">Some</span>(sample_rate),
+                RuleType::Transaction,
+                SamplingMode::Received,
+                RuleCondition::all(),
+            );
+
+            <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
+                envelope: new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>),
+                event: Annotated::from(event.clone()),
+                transaction_metrics_extracted: <span class="bool-val">false</span>,
+                metrics: Default::default(),
+                sample_rates: <span class="prelude-val">None</span>,
+                extracted_metrics: <span class="macro">vec!</span>[],
+                project_state: Arc::new(project_state),
+                sampling_project_state: <span class="prelude-val">None</span>,
+                project_id: ProjectId::new(<span class="number">42</span>),
+                envelope_context: EnvelopeContext::new(
+                    <span class="kw-2">&amp;</span>envelope,
+                    TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
+                ),
+            };
+            <span class="kw">let </span>result = service.sample_envelope(<span class="kw-2">&amp;mut </span>state);
+            <span class="macro">assert_eq!</span>(result.is_ok(), shouldkeep);
+        }
     }
 
     <span class="attribute">#[test]

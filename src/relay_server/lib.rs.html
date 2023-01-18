@@ -301,6 +301,9 @@
 <span id="300">300</span>
 <span id="301">301</span>
 <span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -568,6 +571,9 @@
 <span class="kw">mod </span>service;
 <span class="kw">mod </span>statsd;
 <span class="kw">mod </span>utils;
+
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>testutils;
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::Controller;
