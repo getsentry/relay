@@ -549,6 +549,34 @@
 <span id="548">548</span>
 <span id="549">549</span>
 <span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -659,6 +687,28 @@
     /// }
     /// ```
     </span><span class="kw">pub </span>replay_type: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The sample rate used to make a recording decision when an error has been detected.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///     &quot;error_sample_rate&quot;: 0.75
+    /// }
+    /// ```
+    </span><span class="kw">pub </span>error_sample_rate: Annotated&lt;f64&gt;,
+
+    <span class="doccomment">/// The sample rate used to make a recording decision
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///     &quot;session_sample_rate&quot;: 0.125
+    /// }
+    /// ```
+    </span><span class="kw">pub </span>session_sample_rate: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Segment identifier.
     ///
@@ -897,6 +947,9 @@
   &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;replay_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;segment_id&quot;: 0,
+  &quot;replay_type&quot;: &quot;session&quot;,
+  &quot;error_sample_rate&quot;: 0.5,
+  &quot;session_sample_rate&quot;: 0.5,
   &quot;timestamp&quot;: 946684800.0,
   &quot;replay_start_timestamp&quot;: 946684800.0,
   &quot;urls&quot;: [&quot;localhost:9000&quot;],
@@ -921,6 +974,9 @@
             replay_id: Annotated::new(EventId(
                 uuid::Uuid::parse_str(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>).unwrap(),
             )),
+            replay_type: Annotated::new(<span class="string">&quot;session&quot;</span>.to_string()),
+            error_sample_rate: Annotated::new(<span class="number">0.5</span>),
+            session_sample_rate: Annotated::new(<span class="number">0.5</span>),
             segment_id: Annotated::new(<span class="number">0</span>),
             timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
             replay_start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
