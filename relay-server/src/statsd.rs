@@ -134,6 +134,12 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Replay histograms.
+    ReplayOriginalCompressedSize,
+    ReplayOriginalDecompressedSize,
+    ReplayCompressedSize,
+    ReplayDecompressedSize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -160,6 +166,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::ReplayOriginalCompressedSize => "replay.original_compressed_size",
+            RelayHistograms::ReplayOriginalDecompressedSize => "replay.original_decompressed_size",
+            RelayHistograms::ReplayCompressedSize => "replay.compressed_size",
+            RelayHistograms::ReplayDecompressedSize => "replay.decompressed_size",
         }
     }
 }

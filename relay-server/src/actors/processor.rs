@@ -48,7 +48,7 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -1135,6 +1135,8 @@ impl EnvelopeProcessorService {
             return Err(recording::RecordingParseError::Message("no data found"));
         }
 
+        metric!(histogram(RelayHistograms::ReplayOriginalCompressedSize) = bytes.len() as u64);
+
         let mut split = bytes.splitn(2, |b| b == &b'\n');
         let header = split
             .next()
@@ -1150,6 +1152,8 @@ impl EnvelopeProcessorService {
         let buffer = metric!(timer(RelayTimers::ReplayRecordingDecompress), {
             recording::decompress(body, limit)?
         });
+        metric!(histogram(RelayHistograms::ReplayOriginalDecompressedSize) = buffer.len() as u64);
+
         let mut events = metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
             recording::deserialize(buffer)?
         });
@@ -1162,9 +1166,12 @@ impl EnvelopeProcessorService {
         let bytes = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
             recording::serialize(events)?
         });
+        metric!(histogram(RelayHistograms::ReplayDecompressedSize) = bytes.len() as u64);
+
         let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
             recording::compress(bytes)?
         });
+        metric!(histogram(RelayHistograms::ReplayCompressedSize) = compressed_bytes.len() as u64);
 
         Ok([header.into(), vec![b'\n'], compressed_bytes].concat())
     }
