@@ -634,32 +634,8 @@
 <span id="633">633</span>
 <span id="634">634</span>
 <span id="635">635</span>
-<span id="636">636</span>
-<span id="637">637</span>
-<span id="638">638</span>
-<span id="639">639</span>
-<span id="640">640</span>
-<span id="641">641</span>
-<span id="642">642</span>
-<span id="643">643</span>
-<span id="644">644</span>
-<span id="645">645</span>
-<span id="646">646</span>
-<span id="647">647</span>
-<span id="648">648</span>
-<span id="649">649</span>
-<span id="650">650</span>
-<span id="651">651</span>
-<span id="652">652</span>
-<span id="653">653</span>
-<span id="654">654</span>
-<span id="655">655</span>
-<span id="656">656</span>
-<span id="657">657</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>actix::{Actor, Message};
-<span class="kw">use </span>actix_web::ResponseError;
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
@@ -669,13 +645,13 @@
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Sender, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
@@ -683,14 +659,6 @@
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
-
-<span class="attribute">#[derive(Clone, Debug, thiserror::Error)]
-</span><span class="kw">pub enum </span>ProjectError {
-    <span class="attribute">#[error(<span class="string">&quot;could not schedule project fetching&quot;</span>)]
-    </span>ScheduleFailed,
-}
-
-<span class="kw">impl </span>ResponseError <span class="kw">for </span>ProjectError {}
 
 <span class="doccomment">/// Requests a refresh of a project state from one of the available sources.
 ///
@@ -982,7 +950,7 @@
 </span><span class="kw">struct </span>ProjectSource {
     config: Arc&lt;Config&gt;,
     local_source: Addr&lt;LocalProjectSource&gt;,
-    upstream_source: actix::Addr&lt;UpstreamProjectSource&gt;,
+    upstream_source: Addr&lt;UpstreamProjectSource&gt;,
     <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
 }
@@ -990,7 +958,7 @@
 <span class="kw">impl </span>ProjectSource {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = LocalProjectSourceService::new(config.clone()).start();
-        <span class="kw">let </span>upstream_source = UpstreamProjectSource::new(config.clone()).start();
+        <span class="kw">let </span>upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
@@ -1045,16 +1013,14 @@
             }
         };
 
-        compat::send(
-            <span class="self">self</span>.upstream_source,
-            FetchProjectState {
+        <span class="self">self</span>.upstream_source
+            .send(FetchProjectState {
                 project_key,
                 no_cache,
-            },
-        )
-        .<span class="kw">await
-        </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?
-    </span>}
+            })
+            .<span class="kw">await
+            </span>.map_err(|<span class="kw">_</span>| ())
+    }
 }
 
 <span class="doccomment">/// Updates the cache with new project state information.
@@ -1284,18 +1250,13 @@
     }
 }
 
-<span class="attribute">#[derive(Clone)]
+<span class="attribute">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>FetchProjectState {
     <span class="doccomment">/// The public key to fetch the project by.
     </span><span class="kw">pub </span>project_key: ProjectKey,
 
     <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
     </span><span class="kw">pub </span>no_cache: bool,
-}
-
-<span class="comment">// TODO: Remove once `UpstreamProjectSource` was moved to tokio
-</span><span class="kw">impl </span>Message <span class="kw">for </span>FetchProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt;;
 }
 
 <span class="attribute">#[derive(Clone, Debug)]
@@ -1307,11 +1268,6 @@
     <span class="kw">pub fn </span>project_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProjectKey {
         <span class="self">self</span>.project_key
     }
-}
-
-<span class="comment">// TODO: Remove once `RedisProjectSource` and `LocalProjectSource` were moved to tokio
-</span><span class="kw">impl </span>Message <span class="kw">for </span>FetchOptionalProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

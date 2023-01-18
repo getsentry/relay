@@ -380,28 +380,133 @@
 <span id="379">379</span>
 <span id="380">380</span>
 <span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
-<span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<span class="kw">use </span>std::collections::{hash_map::Entry, HashMap};
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::{Duration, Instant};
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span>actix::fut;
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="comment">// TODO(actix): These two import will be removed when the `Upstream` actor is migrated to new tokio
+// runtime.
+</span><span class="kw">use </span>actix::SystemService;
 <span class="kw">use </span>actix_web::http::Method;
-<span class="kw">use </span>futures01::{future, future::Shared, sync::oneshot, Future};
+<span class="kw">use </span>futures::future;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>tokio::sync::mpsc;
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span>relay_common::{ProjectKey, RetryBackoff};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{
+    compat, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{FetchProjectState, ProjectError};
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
+    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ErrorBoundary};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ErrorBoundary, SleepHandle};
 
 <span class="doccomment">/// A query to retrieve a batch of project states from upstream.
 ///
@@ -448,25 +553,26 @@
     </span>}
 }
 
-<span class="attribute">#[derive(Debug)]
+<span class="doccomment">/// The wrapper struct for the incoming external requests which also keeps addition information.
+</span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectStateChannel {
-    sender: oneshot::Sender&lt;Arc&lt;ProjectState&gt;&gt;,
-    receiver: Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
+    channel: BroadcastChannel&lt;Arc&lt;ProjectState&gt;&gt;,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
 }
 
 <span class="kw">impl </span>ProjectStateChannel {
-    <span class="kw">pub fn </span>new(timeout: Duration) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(sender, receiver) = oneshot::channel();
-
+    <span class="kw">pub fn </span>new(
+        sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;,
+        timeout: Duration,
+        no_cache: bool,
+    ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>now = Instant::now();
         <span class="self">Self </span>{
-            sender,
-            receiver: receiver.shared(),
+            no_cache,
+            channel: sender.into_channel(),
             deadline: now + timeout,
-            no_cache: <span class="bool-val">false</span>,
             attempts: <span class="number">0</span>,
         }
     }
@@ -475,12 +581,12 @@
         <span class="self">self</span>.no_cache = <span class="bool-val">true</span>;
     }
 
-    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: ProjectState) {
-        <span class="self">self</span>.sender.send(Arc::new(state)).ok();
+    <span class="kw">pub fn </span>attach(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;) {
+        <span class="self">self</span>.channel.attach(sender)
     }
 
-    <span class="kw">pub fn </span>receiver(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt; {
-        <span class="self">self</span>.receiver.clone()
+    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: ProjectState) {
+        <span class="self">self</span>.channel.send(Arc::new(state))
     }
 
     <span class="kw">pub fn </span>expired(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -488,19 +594,65 @@
     }
 }
 
-<span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>UpstreamProjectSource {
-    backoff: RetryBackoff,
-    config: Arc&lt;Config&gt;,
-    state_channels: HashMap&lt;ProjectKey, ProjectStateChannel&gt;,
+<span class="doccomment">/// The map of project keys with their project state channels.
+</span><span class="kw">type </span>ProjectStateChannels = HashMap&lt;ProjectKey, ProjectStateChannel&gt;;
+
+<span class="doccomment">/// This is the [`UpstreamProjectSourceService`] interface.
+///
+/// The service is responsible for fetching the [`ProjectState`] from the upstream.
+/// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
+/// state and takes care of the backoff in case there is a problem with the requests.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;);
+
+<span class="kw">impl </span>Interface <span class="kw">for </span>UpstreamProjectSource {}
+
+<span class="kw">impl </span>FromMessage&lt;FetchProjectState&gt; <span class="kw">for </span>UpstreamProjectSource {
+    <span class="kw">type </span>Response = BroadcastResponse&lt;Arc&lt;ProjectState&gt;&gt;;
+
+    <span class="kw">fn </span>from_message(
+        message: FetchProjectState,
+        sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(message, sender)
+    }
 }
 
-<span class="kw">impl </span>UpstreamProjectSource {
-    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
-        UpstreamProjectSource {
+<span class="doccomment">/// The batch of the channels which used to fetch the project states.
+</span><span class="kw">struct </span>ChannelsBatch {
+    nocache_channels: Vec&lt;(ProjectKey, ProjectStateChannel)&gt;,
+    cache_channels: Vec&lt;(ProjectKey, ProjectStateChannel)&gt;,
+}
+
+<span class="doccomment">/// Collected Upstream responses, with associated project state channels.
+</span><span class="kw">struct </span>UpstreamResponse {
+    channels_batch: ProjectStateChannels,
+    response: <span class="prelude-ty">Result</span>&lt;GetProjectStatesResponse, UpstreamRequestError&gt;,
+}
+
+<span class="doccomment">/// The service which handles the fetching of the [`ProjectState`] from upstream.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>UpstreamProjectSourceService {
+    backoff: RetryBackoff,
+    config: Arc&lt;Config&gt;,
+    state_channels: ProjectStateChannels,
+    inner_tx: mpsc::UnboundedSender&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt;&gt;,
+    inner_rx: mpsc::UnboundedReceiver&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt;&gt;,
+    fetch_handle: SleepHandle,
+}
+
+<span class="kw">impl </span>UpstreamProjectSourceService {
+    <span class="doccomment">/// Creates a new [`UpstreamProjectSourceService`] instance.
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(inner_tx, inner_rx) = mpsc::unbounded_channel();
+
+        <span class="self">Self </span>{
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            config,
             state_channels: HashMap::new(),
+            fetch_handle: SleepHandle::idle(),
+            config,
+            inner_tx,
+            inner_rx,
         }
     }
 
@@ -512,26 +664,14 @@
         <span class="self">self</span>.config.query_batch_interval() + <span class="self">self</span>.backoff.next_backoff()
     }
 
-    <span class="doccomment">/// Schedules a batched upstream query with exponential backoff.
-    </span><span class="kw">fn </span>schedule_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) {
-        utils::run_later(<span class="self">self</span>.next_backoff(), <span class="self">Self</span>::fetch_states).spawn(context)
-    }
-
-    <span class="doccomment">/// Executes an upstream request to fetch project configs.
-    ///
-    /// This assumes that currently no request is running. If the upstream request fails or new
-    /// channels are pushed in the meanwhile, this will reschedule automatically.
-    </span><span class="kw">fn </span>fetch_states(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) {
-        <span class="kw">if </span><span class="self">self</span>.state_channels.is_empty() {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;project state update scheduled without projects&quot;</span>);
-            <span class="kw">return</span>;
-        }
-
+    <span class="doccomment">/// Prepares the batches of the cache and nocache channels which could be used to request the
+    /// project states.
+    </span><span class="kw">fn </span>prepare_batches(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; ChannelsBatch {
         <span class="kw">let </span>batch_size = <span class="self">self</span>.config.query_batch_size();
         <span class="kw">let </span>num_batches = <span class="self">self</span>.config.max_concurrent_queries();
 
         <span class="comment">// Pop N items from state_channels. Intuitively, we would use
-        // `self.state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
+        // `state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
         // much of the iterator is consumed.
         //
         // Instead, we have to collect the keys we want into a separate vector and pop them
@@ -573,192 +713,246 @@
             <span class="self">self</span>.backoff.attempt(),
         );
 
+        ChannelsBatch {
+            nocache_channels,
+            cache_channels,
+        }
+    }
+
+    <span class="doccomment">/// Executes an upstream request to fetch project configs.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
+    </span><span class="kw">async fn </span>fetch_states(
+        config: Arc&lt;Config&gt;,
+        channels: ChannelsBatch,
+    ) -&gt; Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt; {
         <span class="kw">let </span>request_start = Instant::now();
+        <span class="kw">let </span>batch_size = config.query_batch_size();
+        <span class="kw">let </span>cache_batches = channels.cache_channels.into_iter().chunks(batch_size);
+        <span class="kw">let </span>nocache_batches = channels.nocache_channels.into_iter().chunks(batch_size);
 
-        <span class="kw">let </span>cache_batches = cache_channels.into_iter().chunks(batch_size);
-        <span class="kw">let </span>nocache_batches = nocache_channels.into_iter().chunks(batch_size);
-        <span class="kw">let </span>requests: Vec&lt;<span class="kw">_</span>&gt; = cache_batches
-            .into_iter()
-            .chain(nocache_batches.into_iter())
-            .map(|channels_batch| {
-                <span class="kw">let </span><span class="kw-2">mut </span>channels_batch: BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = channels_batch.collect();
-                <span class="kw">for </span>channel <span class="kw">in </span>channels_batch.values_mut() {
-                    channel.attempts += <span class="number">1</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>requests = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>channels_batch <span class="kw">in </span>cache_batches.into_iter().chain(nocache_batches.into_iter()) {
+            <span class="kw">let </span><span class="kw-2">mut </span>channels_batch: ProjectStateChannels = channels_batch.collect();
+            <span class="kw">for </span>channel <span class="kw">in </span>channels_batch.values_mut() {
+                channel.attempts += <span class="number">1</span>;
+            }
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending request of size {}&quot;</span>, channels_batch.len());
+            <span class="macro">metric!</span>(
+                histogram(RelayHistograms::ProjectStateRequestBatchSize) =
+                    channels_batch.len() <span class="kw">as </span>u64
+            );
+
+            <span class="kw">let </span>query = GetProjectStates {
+                public_keys: channels_batch.keys().copied().collect(),
+                full_config: config.processing_enabled(),
+                no_cache: channels_batch.values().any(|c| c.no_cache),
+            };
+
+            <span class="comment">// count number of http requests for project states
+            </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRequest) += <span class="number">1</span>);
+
+            requests.push(<span class="kw">async move </span>{
+                <span class="kw">let </span>request = compat::send(UpstreamRelay::from_registry(), SendQuery(query));
+                <span class="kw">match </span>request.<span class="kw">await </span>{
+                    <span class="prelude-val">Ok</span>(response) =&gt; <span class="prelude-val">Some</span>(UpstreamResponse {
+                        channels_batch,
+                        response,
+                    }),
+                    <span class="comment">// If sending of the request to upstream fails:
+                    // - drop the current batch of the channels
+                    // - report the error, since this is the case we should not have in proper
+                    //   workflow
+                    // - return `None` to signal that we do not have any response from the Upstream
+                    //   and we should ignore this.
+                    </span><span class="prelude-val">Err</span>(err) =&gt; {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to send the request to upstream: {err}&quot;</span>);
+                        <span class="prelude-val">None
+                    </span>}
                 }
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending request of size {}&quot;</span>, channels_batch.len());
-                <span class="macro">metric!</span>(
-                    histogram(RelayHistograms::ProjectStateRequestBatchSize) =
-                        channels_batch.len() <span class="kw">as </span>u64
-                );
+            });
+        }
 
-                <span class="kw">let </span>query = GetProjectStates {
-                    public_keys: channels_batch.keys().copied().collect(),
-                    full_config: <span class="self">self</span>.config.processing_enabled(),
-                    no_cache: channels_batch.values().any(|c| c.no_cache),
-                };
+        <span class="comment">// Wait on results of all fanouts, and return the resolved responses.
+        </span><span class="kw">let </span>responses = future::join_all(requests).<span class="kw">await</span>;
+        <span class="macro">metric!</span>(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
+        responses
+    }
 
-                <span class="comment">// count number of http requests for project states
-                </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRequest) += <span class="number">1</span>);
+    <span class="doccomment">/// Schedules the next trigger for fetching the project states.
+    ///
+    /// The next trigger will be scheduled only if the current handle is idle.
+    </span><span class="kw">fn </span>schedule_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.fetch_handle.is_idle() {
+            <span class="kw">let </span>wait = <span class="self">self</span>.next_backoff();
+            <span class="self">self</span>.fetch_handle.set(wait);
+        }
+    }
 
-                UpstreamRelay::from_registry()
-                    .send(SendQuery(query))
-                    .map_err(|<span class="kw">_</span>| ProjectError::ScheduleFailed)
-                    .map(<span class="kw">move </span>|response| (channels_batch, response))
-            })
-            .collect();
+    <span class="doccomment">/// Handles the responses from the upstream.
+    </span><span class="kw">fn </span>handle_responses(<span class="kw-2">&amp;mut </span><span class="self">self</span>, responses: Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt;) {
+        <span class="comment">// Iterate only over the returned responses.
+        </span><span class="kw">for </span>response <span class="kw">in </span>responses.into_iter().flatten() {
+            <span class="kw">let </span>UpstreamResponse {
+                channels_batch,
+                response,
+            } = response;
 
-        <span class="comment">// Wait on results of all fanouts. We fail everything if a single one fails with a
-        // MailboxError, but errors of a single fanout don&#39;t propagate like that.
-        </span>future::join_all(requests)
-            .into_actor(<span class="self">self</span>)
-            .and_then(<span class="kw">move </span>|responses, slf, ctx| {
-                <span class="macro">metric!</span>(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
+            <span class="kw">match </span>response {
+                <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>response) =&gt; {
+                    <span class="comment">// If a single request succeeded we reset the backoff. We decided to
+                    // only backoff if we see that the project config endpoint is
+                    // completely down and did not answer a single request successfully.
+                    //
+                    // Otherwise we might refuse to fetch any project configs because of a
+                    // single, reproducible 500 we observed for a particular project.
+                    </span><span class="self">self</span>.backoff.reset();
 
-                <span class="kw">for </span>(channels_batch, response) <span class="kw">in </span>responses {
-                    <span class="kw">match </span>response {
-                        <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>response) =&gt; {
-                            <span class="comment">// If a single request succeeded we reset the backoff. We decided to
-                            // only backoff if we see that the project config endpoint is
-                            // completely down and did not answer a single request successfully.
-                            //
-                            // Otherwise we might refuse to fetch any project configs because of a
-                            // single, reproducible 500 we observed for a particular project.
-                            </span>slf.backoff.reset();
-
-                            <span class="comment">// count number of project states returned (via http requests)
-                            </span><span class="macro">metric!</span>(
-                                histogram(RelayHistograms::ProjectStateReceived) =
-                                    response.configs.len() <span class="kw">as </span>u64
-                            );
-                            <span class="kw">for </span>(key, channel) <span class="kw">in </span>channels_batch {
-                                <span class="kw">if </span>response.pending.contains(<span class="kw-2">&amp;</span>key) {
-                                    slf.state_channels.insert(key, channel);
-                                    <span class="kw">continue</span>;
-                                }
-                                <span class="kw">let </span>state = response
-                                    .configs
-                                    .remove(<span class="kw-2">&amp;</span>key)
-                                    .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>))
-                                    .unwrap_or_else(|error| {
-                                        <span class="macro">relay_log::error!</span>(
-                                            <span class="string">&quot;error fetching project state {}: {}&quot;</span>,
-                                            key,
-                                            LogError(error)
-                                        );
-                                        <span class="prelude-val">Some</span>(ProjectState::err())
-                                    })
-                                    .unwrap_or_else(ProjectState::missing);
-                                <span class="kw">let </span>result = <span class="kw">if </span>state.invalid() { <span class="string">&quot;invalid&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;ok&quot; </span>};
-                                <span class="macro">metric!</span>(
-                                    histogram(RelayHistograms::ProjectStateAttempts) =
-                                        channel.attempts,
-                                    result = result,
-                                );
-                                <span class="macro">metric!</span>(
-                                    counter(RelayCounters::ProjectUpstreamCompleted) += <span class="number">1</span>,
-                                    result = result,
-                                );
-                                channel.send(state.sanitize());
-                            }
+                    <span class="comment">// Count number of project states returned (via http requests).
+                    </span><span class="macro">metric!</span>(
+                        histogram(RelayHistograms::ProjectStateReceived) =
+                            response.configs.len() <span class="kw">as </span>u64
+                    );
+                    <span class="kw">for </span>(key, channel) <span class="kw">in </span>channels_batch {
+                        <span class="kw">if </span>response.pending.contains(<span class="kw-2">&amp;</span>key) {
+                            <span class="self">self</span>.state_channels.insert(key, channel);
+                            <span class="kw">continue</span>;
                         }
-                        <span class="prelude-val">Err</span>(error) =&gt; {
-                            <span class="macro">relay_log::error!</span>(
-                                <span class="string">&quot;error fetching project states: {}&quot;</span>,
-                                LogError(<span class="kw-2">&amp;</span>error)
-                            );
-
-                            <span class="comment">// Put the channels back into the queue, in addition to channels that
-                            // have been pushed in the meanwhile. We will retry again shortly.
-                            </span>slf.state_channels.extend(channels_batch);
-
-                            <span class="macro">metric!</span>(
-                                histogram(RelayHistograms::ProjectStatePending) =
-                                    slf.state_channels.len() <span class="kw">as </span>u64
-                            );
-                        }
+                        <span class="kw">let </span>state = response
+                            .configs
+                            .remove(<span class="kw-2">&amp;</span>key)
+                            .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>))
+                            .unwrap_or_else(|error| {
+                                <span class="macro">relay_log::error!</span>(
+                                    <span class="string">&quot;error fetching project state {}: {}&quot;</span>,
+                                    key,
+                                    LogError(error)
+                                );
+                                <span class="prelude-val">Some</span>(ProjectState::err())
+                            })
+                            .unwrap_or_else(ProjectState::missing);
+                        <span class="kw">let </span>result = <span class="kw">if </span>state.invalid() { <span class="string">&quot;invalid&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;ok&quot; </span>};
+                        <span class="macro">metric!</span>(
+                            histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
+                            result = result,
+                        );
+                        <span class="macro">metric!</span>(
+                            counter(RelayCounters::ProjectUpstreamCompleted) += <span class="number">1</span>,
+                            result = result,
+                        );
+                        channel.send(state.sanitize());
                     }
                 }
-
-                <span class="kw">if </span>!slf.state_channels.is_empty() {
-                    <span class="comment">// we still have some project configs waiting for state
-                    // try again next time
-                    </span>slf.schedule_fetch(ctx);
-                } <span class="kw">else </span>{
-                    <span class="comment">// No open channels left, if this is because we fetched everything we
-                    // have already reset the backoff. If however, this is because we had
-                    // failures but the channels have been cleaned up because the requests
-                    // expired we need to reset the backoff so that the next request is not
-                    // simply ignored (by handle) and does a schedule_fetch().
-                    // Explanation 2: We use the backoff member for two purposes:
-                    //  -1 to schedule repeated fetch requests (at less and less frequent intervals)
-                    //  -2 as a flag to know if a fetch is already scheduled.
-                    // Resetting it in here signals that we don&#39;t have a backoff scheduled (either
-                    // because everything went fine or because all the requests have expired).
-                    // Next time a user wants a project it should schedule fetch requests.
-                    </span>slf.backoff.reset();
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching project states: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">metric!</span>(
+                        histogram(RelayHistograms::ProjectStatePending) =
+                            <span class="self">self</span>.state_channels.len() <span class="kw">as </span>u64
+                    );
+                    <span class="comment">// Put the channels back into the queue, we will retry again shortly.
+                    </span><span class="self">self</span>.state_channels.extend(channels_batch)
                 }
-
-                fut::ok(())
-            })
-            .drop_err()
-            .spawn(context);
-    }
-}
-
-<span class="kw">impl </span>Actor <span class="kw">for </span>UpstreamProjectSource {
-    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
-
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="comment">// Set the mailbox size to the size of the eveenvelopent buffer. This is a rough estimate
-        // but should ensure that we&#39;re not dropping messages if the main arbiter running this actor
-        // gets hammered a bit.
-        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size();
-        context.set_mailbox_capacity(mailbox_size);
-
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project upstream cache started&quot;</span>);
-    }
-
-    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project upstream cache stopped&quot;</span>);
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;FetchProjectState&gt; <span class="kw">for </span>UpstreamProjectSource {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseFuture&lt;Arc&lt;ProjectState&gt;, ()&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FetchProjectState, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">if </span>!<span class="self">self</span>.backoff.started() {
-            <span class="self">self</span>.backoff.reset();
-            <span class="self">self</span>.schedule_fetch(context);
+            }
         }
+
+        <span class="kw">if </span>!<span class="self">self</span>.state_channels.is_empty() {
+            <span class="self">self</span>.schedule_fetch()
+        } <span class="kw">else </span>{
+            <span class="comment">// No open channels left, if this is because we fetched everything we
+            // have already reset the backoff. If however, this is because we had
+            // failures but the channels have been cleaned up because the requests
+            // expired we need to reset the backoff so that the next request is not
+            // simply ignored (by handle) and does a schedule_fetch().
+            // Explanation 2: We use the backoff member for two purposes:
+            //  - 1 to schedule repeated fetch requests (at less and less frequent intervals)
+            //  - 2 as a flag to know if a fetch is already scheduled.
+            // Resetting it in here signals that we don&#39;t have a backoff scheduled (either
+            // because everything went fine or because all the requests have expired).
+            // Next time a user wants a project it should schedule fetch requests.
+            </span><span class="self">self</span>.backoff.reset();
+        }
+    }
+
+    <span class="doccomment">/// Creates the async task to fetch the project states.
+    </span><span class="kw">fn </span>do_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.fetch_handle.reset();
+
+        <span class="kw">if </span><span class="self">self</span>.state_channels.is_empty() {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;project state schedule fetch request without projects&quot;</span>);
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
+        <span class="kw">let </span>inner_tx = <span class="self">self</span>.inner_tx.clone();
+        <span class="kw">let </span>channels = <span class="self">self</span>.prepare_batches();
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>responses = <span class="self">Self</span>::fetch_states(config, channels).<span class="kw">await</span>;
+            <span class="comment">// Send back all resolved responses and also unused channels.
+            // These responses will be handled by `handle_responses` function.
+            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(err) = inner_tx.send(responses) {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Unable to forward the requests to further processing: {err}&quot;</span>);
+            }
+        });
+    }
+
+    <span class="doccomment">/// Handles the incoming external messages.
+    </span><span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpstreamProjectSource) {
+        <span class="kw">let </span>UpstreamProjectSource(
+            FetchProjectState {
+                project_key,
+                no_cache,
+            },
+            sender,
+        ) = message;
 
         <span class="kw">let </span>query_timeout = <span class="self">self</span>.config.query_timeout();
-        <span class="kw">let </span>FetchProjectState {
-            project_key: public_key,
-            no_cache,
-        } = message;
 
-        <span class="comment">// There&#39;s an edge case where a project is represented by two Project actors. This can
-        // happen if our project eviction logic removes an actor from `project_cache.projects`
-        // while it is still being held onto. This in turn happens because we have no efficient way
-        // of determining the refcount of an `Addr&lt;Project&gt;`.
-        //
-        // Instead of fixing the race condition, let&#39;s just make sure we don&#39;t fetch project caches
-        // twice. If the cleanup/eviction logic were to be fixed to take the addr&#39;s refcount into
-        // account, there should never be an instance where `state_channels` already contains a
-        // channel for our current `message.id`.
-        </span><span class="kw">let </span>channel = <span class="self">self
-            </span>.state_channels
-            .entry(public_key)
-            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
-
-        <span class="comment">// Ensure upstream skips caches if one of the recipients requests an uncached response. This
-        // operation is additive across requests.
-        </span><span class="kw">if </span>no_cache {
-            channel.no_cache();
+        <span class="comment">// If there is already channel for the requested project key, we attach to it,
+        // otherwise create a new one.
+        </span><span class="kw">match </span><span class="self">self</span>.state_channels.entry(project_key) {
+            Entry::Vacant(entry) =&gt; {
+                entry.insert(ProjectStateChannel::new(sender, query_timeout, no_cache));
+            }
+            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
+                <span class="kw">let </span>channel = entry.get_mut();
+                channel.attach(sender);
+                <span class="comment">// Ensure upstream skips caches if one of the recipients requests an uncached response. This
+                // operation is additive across requests.
+                </span><span class="kw">if </span>no_cache {
+                    channel.no_cache();
+                }
+            }
         }
 
-        Box::new(channel.receiver().map_err(|<span class="kw">_</span>| ()).map(|x| (<span class="kw-2">*</span>x).clone()))
+        <span class="comment">// Schedule the fetch if there is nothing running at this moment.
+        </span><span class="kw">if </span>!<span class="self">self</span>.backoff.started() {
+            <span class="self">self</span>.backoff.reset();
+            <span class="self">self</span>.schedule_fetch();
+        }
+    }
+}
+
+<span class="kw">impl </span>Service <span class="kw">for </span>UpstreamProjectSourceService {
+    <span class="kw">type </span>Interface = UpstreamProjectSource;
+
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project upstream cache started&quot;</span>);
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    biased;
+
+                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.fetch_handle =&gt; <span class="self">self</span>.do_fetch(),
+                    <span class="prelude-val">Some</span>(responses) = <span class="self">self</span>.inner_rx.recv() =&gt; <span class="self">self</span>.handle_responses(responses),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+                }
+            }
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project upstream cache stopped&quot;</span>);
+        });
     }
 }
 </code></pre></div>
