@@ -3044,6 +3044,127 @@
 <span id="3043">3043</span>
 <span id="3044">3044</span>
 <span id="3045">3045</span>
+<span id="3046">3046</span>
+<span id="3047">3047</span>
+<span id="3048">3048</span>
+<span id="3049">3049</span>
+<span id="3050">3050</span>
+<span id="3051">3051</span>
+<span id="3052">3052</span>
+<span id="3053">3053</span>
+<span id="3054">3054</span>
+<span id="3055">3055</span>
+<span id="3056">3056</span>
+<span id="3057">3057</span>
+<span id="3058">3058</span>
+<span id="3059">3059</span>
+<span id="3060">3060</span>
+<span id="3061">3061</span>
+<span id="3062">3062</span>
+<span id="3063">3063</span>
+<span id="3064">3064</span>
+<span id="3065">3065</span>
+<span id="3066">3066</span>
+<span id="3067">3067</span>
+<span id="3068">3068</span>
+<span id="3069">3069</span>
+<span id="3070">3070</span>
+<span id="3071">3071</span>
+<span id="3072">3072</span>
+<span id="3073">3073</span>
+<span id="3074">3074</span>
+<span id="3075">3075</span>
+<span id="3076">3076</span>
+<span id="3077">3077</span>
+<span id="3078">3078</span>
+<span id="3079">3079</span>
+<span id="3080">3080</span>
+<span id="3081">3081</span>
+<span id="3082">3082</span>
+<span id="3083">3083</span>
+<span id="3084">3084</span>
+<span id="3085">3085</span>
+<span id="3086">3086</span>
+<span id="3087">3087</span>
+<span id="3088">3088</span>
+<span id="3089">3089</span>
+<span id="3090">3090</span>
+<span id="3091">3091</span>
+<span id="3092">3092</span>
+<span id="3093">3093</span>
+<span id="3094">3094</span>
+<span id="3095">3095</span>
+<span id="3096">3096</span>
+<span id="3097">3097</span>
+<span id="3098">3098</span>
+<span id="3099">3099</span>
+<span id="3100">3100</span>
+<span id="3101">3101</span>
+<span id="3102">3102</span>
+<span id="3103">3103</span>
+<span id="3104">3104</span>
+<span id="3105">3105</span>
+<span id="3106">3106</span>
+<span id="3107">3107</span>
+<span id="3108">3108</span>
+<span id="3109">3109</span>
+<span id="3110">3110</span>
+<span id="3111">3111</span>
+<span id="3112">3112</span>
+<span id="3113">3113</span>
+<span id="3114">3114</span>
+<span id="3115">3115</span>
+<span id="3116">3116</span>
+<span id="3117">3117</span>
+<span id="3118">3118</span>
+<span id="3119">3119</span>
+<span id="3120">3120</span>
+<span id="3121">3121</span>
+<span id="3122">3122</span>
+<span id="3123">3123</span>
+<span id="3124">3124</span>
+<span id="3125">3125</span>
+<span id="3126">3126</span>
+<span id="3127">3127</span>
+<span id="3128">3128</span>
+<span id="3129">3129</span>
+<span id="3130">3130</span>
+<span id="3131">3131</span>
+<span id="3132">3132</span>
+<span id="3133">3133</span>
+<span id="3134">3134</span>
+<span id="3135">3135</span>
+<span id="3136">3136</span>
+<span id="3137">3137</span>
+<span id="3138">3138</span>
+<span id="3139">3139</span>
+<span id="3140">3140</span>
+<span id="3141">3141</span>
+<span id="3142">3142</span>
+<span id="3143">3143</span>
+<span id="3144">3144</span>
+<span id="3145">3145</span>
+<span id="3146">3146</span>
+<span id="3147">3147</span>
+<span id="3148">3148</span>
+<span id="3149">3149</span>
+<span id="3150">3150</span>
+<span id="3151">3151</span>
+<span id="3152">3152</span>
+<span id="3153">3153</span>
+<span id="3154">3154</span>
+<span id="3155">3155</span>
+<span id="3156">3156</span>
+<span id="3157">3157</span>
+<span id="3158">3158</span>
+<span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -3072,7 +3193,7 @@
 <span class="kw">use </span>relay_general::protocol::{
     <span class="self">self</span>, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 <span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 <span class="kw">use </span>relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -3632,7 +3753,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>changed = <span class="bool-val">false</span>;
         <span class="kw">let </span>payload = item.payload();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionUpdate::parse(<span class="kw-2">&amp;</span>payload) {
+        <span class="comment">// sessionupdate::parse is already tested
+        </span><span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionUpdate::parse(<span class="kw-2">&amp;</span>payload) {
             <span class="prelude-val">Ok</span>(session) =&gt; session,
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid session payload: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
@@ -3643,7 +3765,7 @@
         <span class="kw">if </span>session.sequence == u64::MAX {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session due to sequence overflow&quot;</span>);
             <span class="kw">return </span><span class="bool-val">false</span>;
-        }
+        };
 
         <span class="kw">if </span>clock_drift_processor.is_drifted() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;applying clock drift correction to session&quot;</span>);
@@ -3682,8 +3804,15 @@
             }
         }
 
+        <span class="kw">if </span><span class="self">self</span>.config.processing_enabled() &amp;&amp; <span class="macro">matches!</span>(session.status, SessionStatus::Unknown(<span class="kw">_</span>)) {
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
         <span class="comment">// Extract metrics if they haven&#39;t been extracted by a prior Relay
-        </span><span class="kw">if </span>metrics_config.is_enabled() &amp;&amp; !item.metrics_extracted() {
+        </span><span class="kw">if </span>metrics_config.is_enabled()
+            &amp;&amp; !item.metrics_extracted()
+            &amp;&amp; !<span class="macro">matches!</span>(session.status, SessionStatus::Unknown(<span class="kw">_</span>))
+        {
             extract_session_metrics(
                 <span class="kw-2">&amp;</span>session.attributes,
                 <span class="kw-2">&amp;</span>session,
@@ -5449,6 +5578,8 @@
 
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::str::FromStr;
+
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::EventId;
@@ -5460,6 +5591,117 @@
     <span class="kw">use crate</span>::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">struct </span>TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
+        item: Item,
+        received: DateTime&lt;Utc&gt;,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+        client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: ClockDriftProcessor,
+        extracted_metrics: Vec&lt;Metric&gt;,
+    }
+
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
+        <span class="kw">fn </span>run_session_producer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+            <span class="kw">let </span>proc = create_test_processor(Default::default());
+            proc.process_session(
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>.item,
+                <span class="self">self</span>.received,
+                <span class="self">self</span>.client,
+                <span class="self">self</span>.client_addr,
+                <span class="self">self</span>.metrics_config,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.clock_drift_processor,
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>.extracted_metrics,
+            )
+        }
+
+        <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+
+            <span class="kw">let </span>session = <span class="string">r#&quot;{
+            &quot;init&quot;: false,
+            &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+            &quot;attrs&quot;: {
+                &quot;release&quot;: &quot;1.0.0&quot;
+            },
+            &quot;did&quot;: &quot;user123&quot;,
+            &quot;status&quot;: &quot;this is not a valid status!&quot;,
+            &quot;duration&quot;: 123.4
+        }&quot;#</span>;
+
+            item.set_payload(ContentType::Json, session);
+            <span class="kw">let </span>received = DateTime::from_str(<span class="string">&quot;2021-04-26T08:00:00+0100&quot;</span>).unwrap();
+
+            <span class="self">Self </span>{
+                item,
+                received,
+                client: <span class="prelude-val">None</span>,
+                client_addr: <span class="prelude-val">None</span>,
+                metrics_config: serde_json::from_str(
+                    <span class="string">&quot;
+        {
+            \&quot;version\&quot;: 0,
+            \&quot;drop\&quot;: true
+        }&quot;</span>,
+                )
+                .unwrap(),
+                clock_drift_processor: ClockDriftProcessor::new(<span class="prelude-val">None</span>, received),
+                extracted_metrics: <span class="macro">vec!</span>[],
+            }
+        }
+    }
+
+    <span class="doccomment">/// Checks that the default test-arguments leads to the item being kept, which helps ensure the
+    /// other tests are valid.
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_process_session_keep_item() {
+        <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
+        <span class="macro">assert!</span>(args.run_session_producer());
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_process_session_invalid_json() {
+        <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
+        args.item
+            .set_payload(ContentType::Json, <span class="string">&quot;this isnt valid json&quot;</span>);
+        <span class="macro">assert!</span>(!args.run_session_producer());
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_process_session_sequence_overflow() {
+        <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
+        args.item.set_payload(
+            ContentType::Json,
+            <span class="string">r#&quot;{
+            &quot;init&quot;: false,
+            &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+            &quot;seq&quot;: 18446744073709551615,
+            &quot;attrs&quot;: {
+                &quot;release&quot;: &quot;1.0.0&quot;
+            },
+            &quot;did&quot;: &quot;user123&quot;,
+            &quot;status&quot;: &quot;this is not a valid status!&quot;,
+            &quot;duration&quot;: 123.4
+        }&quot;#</span>,
+        );
+        <span class="macro">assert!</span>(!args.run_session_producer());
+    }
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_process_session_invalid_timestamp() {
+        <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
+        args.received = DateTime::from_str(<span class="string">&quot;2021-05-26T08:00:00+0100&quot;</span>).unwrap();
+        <span class="macro">assert!</span>(!args.run_session_producer());
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_process_session_metrics_extracted() {
+        <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
+        args.item.set_metrics_extracted(<span class="bool-val">true</span>);
+        <span class="macro">assert!</span>(!args.run_session_producer());
+    }
 
     <span class="kw">fn </span>create_breadcrumbs_item(breadcrumbs: <span class="kw-2">&amp;</span>[(<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, <span class="kw-2">&amp;</span>str)]) -&gt; Item {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::new();

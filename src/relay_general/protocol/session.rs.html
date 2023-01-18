@@ -513,7 +513,46 @@
 <span id="512">512</span>
 <span id="513">513</span>
 <span id="514">514</span>
-</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 <span class="kw">use </span>std::time::SystemTime;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -525,8 +564,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::IpAddr;
 
 <span class="doccomment">/// The type of session event we&#39;re dealing with.
-</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+</span><span class="attribute">#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 </span><span class="kw">pub enum </span>SessionStatus {
     <span class="doccomment">/// The session is healthy.
     ///
@@ -540,6 +578,8 @@
     </span>Abnormal,
     <span class="doccomment">/// The session exited cleanly but experienced some errors during its run.
     </span>Errored,
+    <span class="doccomment">/// Unknown status, for forward compatibility.
+    </span>Unknown(String),
 }
 
 <span class="kw">impl </span>SessionStatus {
@@ -556,6 +596,39 @@
     <span class="doccomment">/// Returns `true` if the status indicates a fatal session.
     </span><span class="kw">pub fn </span>is_fatal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, SessionStatus::Crashed | SessionStatus::Abnormal)
+    }
+    <span class="kw">fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            SessionStatus::Ok =&gt; <span class="string">&quot;ok&quot;</span>,
+            SessionStatus::Crashed =&gt; <span class="string">&quot;crashed&quot;</span>,
+            SessionStatus::Abnormal =&gt; <span class="string">&quot;abnormal&quot;</span>,
+            SessionStatus::Exited =&gt; <span class="string">&quot;exited&quot;</span>,
+            SessionStatus::Errored =&gt; <span class="string">&quot;errored&quot;</span>,
+            SessionStatus::Unknown(s) =&gt; s.as_str(),
+        }
+    }
+}
+
+<span class="kw">impl </span>Display <span class="kw">for </span>SessionStatus {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_str())
+    }
+}
+
+<span class="macro">relay_common::impl_str_serde!</span>(SessionStatus, <span class="string">&quot;A session status&quot;</span>);
+
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>SessionStatus {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseSessionStatusError;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+            <span class="string">&quot;ok&quot; </span>=&gt; SessionStatus::Ok,
+            <span class="string">&quot;crashed&quot; </span>=&gt; SessionStatus::Crashed,
+            <span class="string">&quot;abnormal&quot; </span>=&gt; SessionStatus::Abnormal,
+            <span class="string">&quot;exited&quot; </span>=&gt; SessionStatus::Exited,
+            <span class="string">&quot;errored&quot; </span>=&gt; SessionStatus::Errored,
+            other =&gt; SessionStatus::Unknown(other.to_owned()),
+        })
     }
 }
 
@@ -576,14 +649,6 @@
 }
 
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseSessionStatusError {}
-
-<span class="macro">derive_fromstr_and_display!</span>(SessionStatus, ParseSessionStatusError, {
-    SessionStatus::Ok =&gt; <span class="string">&quot;ok&quot;</span>,
-    SessionStatus::Crashed =&gt; <span class="string">&quot;crashed&quot;</span>,
-    SessionStatus::Abnormal =&gt; <span class="string">&quot;abnormal&quot;</span>,
-    SessionStatus::Exited =&gt; <span class="string">&quot;exited&quot;</span>,
-    SessionStatus::Errored =&gt; <span class="string">&quot;errored&quot;</span>,
-});
 
 <span class="attribute">#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
@@ -850,9 +915,22 @@
 
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+
+    <span class="kw">use </span>std::str::FromStr;
+
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_sessionstatus_unknown() {
+        <span class="kw">let </span>unknown = SessionStatus::from_str(<span class="string">&quot;invalid status&quot;</span>).unwrap();
+        <span class="kw">if let </span>SessionStatus::Unknown(inner) = unknown {
+            <span class="macro">assert_eq!</span>(inner, <span class="string">&quot;invalid status&quot;</span>.to_owned());
+        } <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        }
+    }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_session_default_values() {
