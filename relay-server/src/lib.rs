@@ -266,6 +266,9 @@ mod service;
 mod statsd;
 mod utils;
 
+#[cfg(test)]
+mod testutils;
+
 use relay_config::Config;
 use relay_system::Controller;
 
