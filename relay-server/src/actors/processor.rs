@@ -2482,7 +2482,7 @@ mod tests {
     }
 
     /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
-    /// other tests are valid
+    /// other tests are valid.
     #[test]
     fn test_process_session_keep_item() {
         let mut args = TestProcessSessionArguments::default();
