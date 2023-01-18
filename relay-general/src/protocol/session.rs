@@ -24,7 +24,7 @@ pub enum SessionStatus {
     Abnormal,
     /// The session exited cleanly but experienced some errors during its run.
     Errored,
-    /// Unknown status, for forward compatibility
+    /// Unknown status, for forward compatibility.
     Unknown(String),
 }
 
