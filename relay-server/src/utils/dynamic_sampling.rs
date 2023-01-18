@@ -184,7 +184,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
 
-    use bytes::Bytes;
     use chrono::DateTime;
 
     use chrono::Duration as DateDuration;
@@ -196,30 +195,13 @@ mod tests {
         SamplingRule, TimeRange,
     };
 
-    use crate::envelope::Item;
+    use crate::testutils::create_sampling_context;
+    use crate::testutils::new_envelope;
+    use crate::testutils::state_with_config;
+    use crate::testutils::state_with_rule;
+    use crate::testutils::state_with_rule_and_condition;
 
     use super::*;
-
-    fn state_with_config(sampling_config: SamplingConfig) -> ProjectState {
-        let mut state = ProjectState::allowed();
-        state.config.dynamic_sampling = Some(sampling_config);
-        state
-    }
-
-    fn state_with_rule(
-        sample_rate: Option<f64>,
-        rule_type: RuleType,
-        mode: SamplingMode,
-    ) -> ProjectState {
-        state_with_decaying_rule(
-            sample_rate,
-            rule_type,
-            mode,
-            DecayingFunction::Constant,
-            None,
-            None,
-        )
-    }
 
     fn state_with_decaying_rule(
         sample_rate: Option<f64>,
@@ -248,58 +230,6 @@ mod tests {
         })
     }
 
-    fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
-        DynamicSamplingContext {
-            trace_id: uuid::Uuid::new_v4(),
-            public_key: "12345678901234567890123456789012".parse().unwrap(),
-            release: None,
-            environment: None,
-            transaction: None,
-            sample_rate,
-            user: Default::default(),
-            other: Default::default(),
-        }
-    }
-
-    /// ugly hack to build an envelope with an optional trace context
-    fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box<Envelope> {
-        let transaction_name = transaction_name.into();
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42";
-        let event_id = EventId::new();
-
-        let raw_event = if with_dsc {
-            format!(
-                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
-                transaction_name,
-                event_id.0.to_simple(),
-                dsn,
-                serde_json::to_string(&create_sampling_context(None)).unwrap(),
-            )
-        } else {
-            format!(
-                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
-                transaction_name,
-                event_id.0.to_simple(),
-                dsn,
-            )
-        };
-
-        let bytes = Bytes::from(raw_event);
-
-        let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-
-        let item1 = Item::new(ItemType::Transaction);
-        envelope.add_item(item1);
-
-        let item2 = Item::new(ItemType::Attachment);
-        envelope.add_item(item2);
-
-        let item3 = Item::new(ItemType::Attachment);
-        envelope.add_item(item3);
-
-        envelope
-    }
-
     fn prepare_and_get_sampling_rule(
         client_sample_rate: f64,
         event_type: EventType,
@@ -321,31 +251,6 @@ mod tests {
             None, // ip address not needed for uniform rule
             now,
         )
-    }
-
-    fn state_with_rule_and_condition(
-        sample_rate: Option<f64>,
-        rule_type: RuleType,
-        mode: SamplingMode,
-        condition: RuleCondition,
-    ) -> ProjectState {
-        let rules = match sample_rate {
-            Some(sample_rate) => vec![SamplingRule {
-                condition,
-                sample_rate,
-                ty: rule_type,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            None => Vec::new(),
-        };
-
-        state_with_config(SamplingConfig {
-            rules,
-            mode,
-            next_id: None,
-        })
     }
 
     fn samplingresult_from_rules_and_proccessing_flag(
@@ -740,6 +645,54 @@ mod tests {
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
     }
 
+    #[test]
+    fn test_sample_rate() {
+        let event_state_drop = state_with_rule_and_condition(
+            Some(0.0),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        let envelope = new_envelope(true, "foo");
+
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("foo".to_owned()),
+            ..Event::default()
+        };
+
+        // if it matches the transaction rule, the transaction should be dropped
+        let should_drop = should_keep_event(
+            envelope.dsc(),
+            Some(&event),
+            None,
+            &event_state_drop,
+            Some(&event_state_drop),
+            false,
+        );
+
+        assert!(matches!(should_drop, SamplingResult::Drop(_)));
+
+        let event_state_keep = state_with_rule_and_condition(
+            Some(1.0),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        let should_keep = should_keep_event(
+            envelope.dsc(),
+            Some(&event),
+            None,
+            &event_state_keep,
+            Some(&event_state_keep),
+            false,
+        );
+
+        assert!(matches!(should_keep, SamplingResult::Keep));
+    }
     #[test]
     fn test_event_decaying_rule_with_linear_function() {
         let now = Utc::now();
