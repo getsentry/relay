@@ -35,7 +35,7 @@ pub struct RawUserAgentInfo<'a> {
     pub sec_ch_ua_model: Option<&'a str>,
 }
 
-pub fn get_context_headers(headers: &Headers) -> RawUserAgentInfo {
+pub fn get_raw_ua_info_from_headers(headers: &Headers) -> RawUserAgentInfo {
     let mut contexts = RawUserAgentInfo::default();
 
     for item in headers.iter() {

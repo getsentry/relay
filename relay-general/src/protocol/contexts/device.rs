@@ -192,6 +192,11 @@ impl DeviceContext {
             ..DeviceContext::default()
         })
     }
+
+    pub fn new_from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+        Self::new_from_client_hints(raw_contexts)
+            .or_else(|| raw_contexts.user_agent.and_then(Self::new_from_user_agent))
+    }
 }
 
 #[test]

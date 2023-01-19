@@ -8,7 +8,7 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_context_headers, RawUserAgentInfo};
+use crate::user_agent::{get_raw_ua_info_from_headers, RawUserAgentInfo};
 
 pub fn normalize_user_agent(event: &mut Event) {
     let headers = match event
@@ -20,7 +20,7 @@ pub fn normalize_user_agent(event: &mut Event) {
         None => return,
     };
 
-    let raw_ua_contexts = get_context_headers(headers);
+    let raw_ua_contexts = get_raw_ua_info_from_headers(headers);
 
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
     normalize_user_agent_info_generic(contexts, &event.platform, &raw_ua_contexts);
@@ -32,13 +32,13 @@ pub fn normalize_user_agent_info_generic(
     raw_contexts: &RawUserAgentInfo,
 ) {
     if !contexts.contains_key(BrowserContext::default_key()) {
-        if let Some(browser_context) = browser_context_from_raw_contexts(raw_contexts) {
+        if let Some(browser_context) = BrowserContext::new_from_hints_or_ua(raw_contexts) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
     if !contexts.contains_key(DeviceContext::default_key()) {
-        if let Some(device_context) = device_context_from_raw_contexts(raw_contexts) {
+        if let Some(device_context) = DeviceContext::new_from_hints_or_ua(raw_contexts) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
     }
@@ -54,65 +54,13 @@ pub fn normalize_user_agent_info_generic(
         _ => "client_os",
     };
     if !contexts.contains_key(os_context_key) {
-        if let Some(os_context) = get_os_context_from_raw_context(raw_contexts) {
+        if let Some(os_context) = OsContext::new_from_hints_or_ua(raw_contexts) {
             contexts.insert(
                 os_context_key.to_owned(),
                 Annotated::new(Context::Os(Box::new(os_context)).into()),
             );
         }
     }
-}
-
-/// we want to first get the context from client hints, only when that fails try from the user agent
-fn generic_context_from_hint_or_ua<U, V, T>(
-    raw_contexts: &RawUserAgentInfo,
-    get_from_hints: U,
-    get_from_ua: V,
-) -> Option<T>
-where
-    U: Fn(&RawUserAgentInfo) -> Option<T>,
-    V: Fn(&str) -> Option<T>,
-{
-    if raw_contexts.sec_ch_ua.is_none() && raw_contexts.user_agent.is_none() {
-        return None;
-    }
-
-    let from_hints = get_from_hints(raw_contexts);
-
-    if from_hints.is_some() {
-        return from_hints;
-    }
-
-    let from_ua = get_from_ua(raw_contexts.user_agent?);
-
-    if from_ua.is_some() {
-        return from_ua;
-    }
-    None
-}
-
-fn browser_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
-    generic_context_from_hint_or_ua(
-        raw_contexts,
-        BrowserContext::new_from_client_hints,
-        BrowserContext::new_from_user_agent,
-    )
-}
-
-fn device_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
-    generic_context_from_hint_or_ua(
-        raw_contexts,
-        DeviceContext::new_from_client_hints,
-        DeviceContext::new_from_user_agent,
-    )
-}
-
-fn get_os_context_from_raw_context(raw_contexts: &RawUserAgentInfo) -> Option<OsContext> {
-    generic_context_from_hint_or_ua(
-        raw_contexts,
-        OsContext::new_from_client_hints,
-        OsContext::new_from_user_agent,
-    )
 }
 
 pub fn is_known(family: &str) -> bool {
