@@ -1,5 +1,7 @@
 use crate::protocol::LenientString;
+use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
+use crate::user_agent::{parse_os, RawUserAgentInfo};
 
 /// Operating system information.
 ///
@@ -44,6 +46,31 @@ impl OsContext {
     /// The key under which an os context is generally stored (in `Contexts`)
     pub fn default_key() -> &'static str {
         "os"
+    }
+
+    pub fn new_from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
+        let platform = contexts.sec_ch_ua_platform?;
+        let version = contexts.sec_ch_ua_platform_version?;
+
+        Some(OsContext {
+            name: Annotated::new(platform.to_owned()),
+            version: Annotated::new(version.to_owned()),
+            ..Default::default()
+        })
+    }
+
+    pub fn new_from_user_agent(user_agent: &str) -> Option<OsContext> {
+        let os = parse_os(user_agent);
+
+        if !is_known(os.family.as_str()) {
+            return None;
+        }
+
+        Some(OsContext {
+            name: Annotated::from(os.family),
+            version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
+            ..OsContext::default()
+        })
     }
 }
 

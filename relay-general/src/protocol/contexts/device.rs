@@ -1,4 +1,6 @@
+use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
+use crate::user_agent::{parse_device, RawUserAgentInfo};
 
 /// Device information.
 ///
@@ -166,6 +168,29 @@ impl DeviceContext {
     /// The key under which a device context is generally stored (in `Contexts`)
     pub fn default_key() -> &'static str {
         "device"
+    }
+
+    pub fn new_from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
+        let device = raw_contexts.sec_ch_ua_model?.to_owned();
+        Some(DeviceContext {
+            name: Annotated::new(device),
+            ..Default::default()
+        })
+    }
+
+    pub fn new_from_user_agent(user_agent: &str) -> Option<DeviceContext> {
+        let device = parse_device(user_agent);
+
+        if !is_known(device.family.as_str()) {
+            return None;
+        }
+
+        Some(DeviceContext {
+            family: Annotated::from(device.family),
+            model: Annotated::from(device.model),
+            brand: Annotated::from(device.brand),
+            ..DeviceContext::default()
+        })
     }
 }
 

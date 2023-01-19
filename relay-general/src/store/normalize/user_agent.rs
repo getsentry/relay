@@ -8,9 +8,7 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{
-    get_context_headers, parse_device, parse_os, parse_user_agent, RawUserAgentInfo,
-};
+use crate::user_agent::{get_context_headers, RawUserAgentInfo};
 
 pub fn normalize_user_agent(event: &mut Event) {
     let headers = match event
@@ -96,103 +94,32 @@ where
 fn browser_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
     generic_context_from_hint_or_ua(
         raw_contexts,
-        get_browser_from_hints,
-        user_agent_as_browser_context,
+        BrowserContext::new_from_client_hints,
+        BrowserContext::new_from_user_agent,
     )
-}
-
-fn get_browser_from_hints(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
-    let browser = raw_contexts.sec_ch_ua?.to_owned();
-
-    Some(BrowserContext {
-        name: Annotated::new(browser),
-        ..Default::default()
-    })
-}
-
-fn user_agent_as_browser_context(user_agent: &str) -> Option<BrowserContext> {
-    let browser = parse_user_agent(user_agent);
-
-    if !is_known(browser.family.as_str()) {
-        return None;
-    }
-
-    Some(BrowserContext {
-        name: Annotated::from(browser.family),
-        version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
-        ..BrowserContext::default()
-    })
 }
 
 fn device_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
     generic_context_from_hint_or_ua(
         raw_contexts,
-        get_device_context_from_hints,
-        user_agent_as_device_context,
+        DeviceContext::new_from_client_hints,
+        DeviceContext::new_from_user_agent,
     )
-}
-
-fn get_device_context_from_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
-    let device = raw_contexts.sec_ch_ua_model?.to_owned();
-    Some(DeviceContext {
-        name: Annotated::new(device),
-        ..Default::default()
-    })
-}
-
-fn user_agent_as_device_context(user_agent: &str) -> Option<DeviceContext> {
-    let device = parse_device(user_agent);
-
-    if !is_known(device.family.as_str()) {
-        return None;
-    }
-
-    Some(DeviceContext {
-        family: Annotated::from(device.family),
-        model: Annotated::from(device.model),
-        brand: Annotated::from(device.brand),
-        ..DeviceContext::default()
-    })
-}
-
-fn get_os_from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
-    let platform = contexts.sec_ch_ua_platform?;
-    let version = contexts.sec_ch_ua_platform_version?;
-
-    Some(OsContext {
-        name: Annotated::new(platform.to_owned()),
-        version: Annotated::new(version.to_owned()),
-        ..Default::default()
-    })
 }
 
 fn get_os_context_from_raw_context(raw_contexts: &RawUserAgentInfo) -> Option<OsContext> {
     generic_context_from_hint_or_ua(
         raw_contexts,
-        get_os_from_client_hints,
-        user_agent_as_os_context,
+        OsContext::new_from_client_hints,
+        OsContext::new_from_user_agent,
     )
 }
 
-fn user_agent_as_os_context(user_agent: &str) -> Option<OsContext> {
-    let os = parse_os(user_agent);
-
-    if !is_known(os.family.as_str()) {
-        return None;
-    }
-
-    Some(OsContext {
-        name: Annotated::from(os.family),
-        version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
-        ..OsContext::default()
-    })
-}
-
-fn is_known(family: &str) -> bool {
+pub fn is_known(family: &str) -> bool {
     family != "Other"
 }
 
-fn get_version(
+pub fn get_version(
     major: &Option<String>,
     minor: &Option<String>,
     patch: &Option<String>,
