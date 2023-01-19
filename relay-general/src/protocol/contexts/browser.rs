@@ -23,33 +23,33 @@ impl BrowserContext {
         "browser"
     }
 
-    pub fn new_from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
+    pub fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
         let browser = raw_contexts.sec_ch_ua?.to_owned();
         let version = raw_contexts.sec_ch_ua_full_version?.to_owned();
 
-        Some(BrowserContext {
+        Some(Self {
             name: Annotated::new(browser),
             version: Annotated::new(version),
             ..Default::default()
         })
     }
 
-    pub fn new_from_user_agent(user_agent: &str) -> Option<BrowserContext> {
+    pub fn from_user_agent(user_agent: &str) -> Option<Self> {
         let browser = parse_user_agent(user_agent);
 
         if !is_known(browser.family.as_str()) {
             return None;
         }
 
-        Some(BrowserContext {
+        Some(Self {
             name: Annotated::from(browser.family),
             version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
             ..BrowserContext::default()
         })
     }
 
-    pub fn new_from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        Self::new_from_client_hints(raw_contexts)
-            .or_else(|| raw_contexts.user_agent.and_then(Self::new_from_user_agent))
+    pub fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+        Self::from_client_hints(raw_contexts)
+            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }

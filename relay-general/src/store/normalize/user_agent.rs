@@ -32,13 +32,13 @@ pub fn normalize_user_agent_info_generic(
     raw_contexts: &RawUserAgentInfo,
 ) {
     if !contexts.contains_key(BrowserContext::default_key()) {
-        if let Some(browser_context) = BrowserContext::new_from_hints_or_ua(raw_contexts) {
+        if let Some(browser_context) = BrowserContext::from_hints_or_ua(raw_contexts) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
     if !contexts.contains_key(DeviceContext::default_key()) {
-        if let Some(device_context) = DeviceContext::new_from_hints_or_ua(raw_contexts) {
+        if let Some(device_context) = DeviceContext::from_hints_or_ua(raw_contexts) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
     }
@@ -54,7 +54,7 @@ pub fn normalize_user_agent_info_generic(
         _ => "client_os",
     };
     if !contexts.contains_key(os_context_key) {
-        if let Some(os_context) = OsContext::new_from_hints_or_ua(raw_contexts) {
+        if let Some(os_context) = OsContext::from_hints_or_ua(raw_contexts) {
             contexts.insert(
                 os_context_key.to_owned(),
                 Annotated::new(Context::Os(Box::new(os_context)).into()),

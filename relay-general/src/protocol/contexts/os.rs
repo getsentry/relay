@@ -48,7 +48,7 @@ impl OsContext {
         "os"
     }
 
-    pub fn new_from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
+    pub fn from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
         let platform = contexts.sec_ch_ua_platform?;
         let version = contexts.sec_ch_ua_platform_version?;
 
@@ -59,7 +59,7 @@ impl OsContext {
         })
     }
 
-    pub fn new_from_user_agent(user_agent: &str) -> Option<OsContext> {
+    pub fn from_user_agent(user_agent: &str) -> Option<OsContext> {
         let os = parse_os(user_agent);
 
         if !is_known(os.family.as_str()) {
@@ -73,9 +73,9 @@ impl OsContext {
         })
     }
 
-    pub fn new_from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        Self::new_from_client_hints(raw_contexts)
-            .or_else(|| raw_contexts.user_agent.and_then(Self::new_from_user_agent))
+    pub fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+        Self::from_client_hints(raw_contexts)
+            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }
 

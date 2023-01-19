@@ -170,7 +170,7 @@ impl DeviceContext {
         "device"
     }
 
-    pub fn new_from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
+    pub fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
         let device = raw_contexts.sec_ch_ua_model?.to_owned();
         Some(DeviceContext {
             model: Annotated::new(device),
@@ -178,7 +178,7 @@ impl DeviceContext {
         })
     }
 
-    pub fn new_from_user_agent(user_agent: &str) -> Option<DeviceContext> {
+    pub fn from_user_agent(user_agent: &str) -> Option<DeviceContext> {
         let device = parse_device(user_agent);
 
         if !is_known(device.family.as_str()) {
@@ -193,9 +193,9 @@ impl DeviceContext {
         })
     }
 
-    pub fn new_from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        Self::new_from_client_hints(raw_contexts)
-            .or_else(|| raw_contexts.user_agent.and_then(Self::new_from_user_agent))
+    pub fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+        Self::from_client_hints(raw_contexts)
+            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }
 
