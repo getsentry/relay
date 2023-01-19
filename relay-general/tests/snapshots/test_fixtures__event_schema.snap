@@ -2540,7 +2540,7 @@ expression: "relay_general::protocol::event_json_schema()"
               }
             },
             "instruction_addr_adjustment": {
-              "description": " Optional. A flat that indicates if, and how, `instruction_addr` values need to be adjusted\n before they are symbolicated.",
+              "description": " Optional. A flag that indicates if, and how, `instruction_addr` values need to be adjusted\n before they are symbolicated.",
               "default": null,
               "anyOf": [
                 {
