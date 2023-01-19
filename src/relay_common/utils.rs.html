@@ -340,6 +340,33 @@
 <span id="339">339</span>
 <span id="340">340</span>
 <span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str;
 
@@ -410,7 +437,7 @@
         pattern.push(<span class="string">&#39;^&#39;</span>);
 
         <span class="kw">static </span>GLOB_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
-        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r#&quot;\?|\*\*|\*&quot;#</span>).unwrap());
+        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r#&quot;\\\?|\\\*\\\*|\\\*|\?|\*\*|\*&quot;#</span>).unwrap());
 
         <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(<span class="self">self</span>.value) {
             pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..m.start()]));
@@ -418,7 +445,7 @@
                 <span class="string">&quot;?&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.question_mark),
                 <span class="string">&quot;**&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.double_star),
                 <span class="string">&quot;*&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.star),
-                <span class="kw">_ </span>=&gt; {}
+                <span class="kw">_ </span>=&gt; pattern.push_str(m.as_str()),
             }
             last = m.end();
         }
@@ -609,6 +636,18 @@
         <span class="kw">let </span>g = Glob::new(<span class="string">&quot;/api/*/stuff/**&quot;</span>);
         <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;/api/some/stuff/here/store/&quot;</span>));
         <span class="macro">assert!</span>(!g.is_match(<span class="string">&quot;/api/some/store/&quot;</span>));
+
+        <span class="kw">let </span>g = Glob::new(<span class="string">r&quot;/api/\*/stuff&quot;</span>);
+        <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;/api/*/stuff&quot;</span>));
+        <span class="macro">assert!</span>(!g.is_match(<span class="string">&quot;/api/some/stuff&quot;</span>));
+
+        <span class="kw">let </span>g = Glob::new(<span class="string">r&quot;*stuff&quot;</span>);
+        <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;some-stuff&quot;</span>));
+        <span class="macro">assert!</span>(!g.is_match(<span class="string">&quot;not-stuff-but-things&quot;</span>));
+
+        <span class="kw">let </span>g = Glob::new(<span class="string">r&quot;\*stuff&quot;</span>);
+        <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;*stuff&quot;</span>));
+        <span class="macro">assert!</span>(!g.is_match(<span class="string">&quot;some-stuff&quot;</span>));
     }
 
     <span class="attribute">#[test]
@@ -657,6 +696,21 @@
 
             <span class="macro">assert_eq!</span>(g.replace_captures(transaction, <span class="string">&quot;*&quot;</span>), result);
         }
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_do_not_replace() {
+        <span class="kw">let </span>g = Glob::builder(<span class="string">r&quot;/foo/\*/*&quot;</span>)
+            .capture_star(<span class="bool-val">true</span>)
+            .capture_double_star(<span class="bool-val">false</span>)
+            .capture_question_mark(<span class="bool-val">false</span>)
+            .build();
+
+        <span class="comment">// A literal asterisk matches
+        </span><span class="macro">assert_eq!</span>(g.replace_captures(<span class="string">&quot;/foo/*/bar&quot;</span>, <span class="string">&quot;_&quot;</span>), <span class="string">&quot;/foo/*/_&quot;</span>);
+
+        <span class="comment">// But only a literal asterisk
+        </span><span class="macro">assert_eq!</span>(g.replace_captures(<span class="string">&quot;/foo/nope/bar&quot;</span>, <span class="string">&quot;_&quot;</span>), <span class="string">&quot;/foo/nope/bar&quot;</span>);
     }
 
     <span class="attribute">#[test]
