@@ -761,6 +761,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 ]
               }
             },
+            "source": {
+              "description": " The installation mechanism for the SDK. _Optional._\n\n This can be a package manager like `npm` or `cocoapods` or a custom installation mechanism\n like `cdn`.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "version": {
               "description": " The version of the SDK. _Required._\n\n It should have the [Semantic Versioning](https://semver.org/) format `MAJOR.MINOR.PATCH`,\n without any prefix (no `v` or anything else in front of the major version number).\n\n Examples: `0.1.0`, `1.0.0`, `4.3.12`",
               "type": [
