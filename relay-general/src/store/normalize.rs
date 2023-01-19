@@ -34,7 +34,7 @@ mod request;
 mod spans;
 mod stacktrace;
 
-mod user_agent;
+pub mod user_agent;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -2364,7 +2364,7 @@ mod tests {
 
             let res = light_normalize_event(&mut modified_event, &Default::default());
 
-            assert!(res.is_err(), "{:?}", span);
+            assert!(res.is_err(), "{span:?}");
         }
     }
 

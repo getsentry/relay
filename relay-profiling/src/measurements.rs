@@ -20,12 +20,14 @@ pub struct MeasurementValue {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum MeasurementUnit {
     #[serde(alias = "ns")]
     Nanosecond,
     #[serde(alias = "hz")]
     Hertz,
+    Byte,
+    Percent,
 }
 
 #[cfg(test)]

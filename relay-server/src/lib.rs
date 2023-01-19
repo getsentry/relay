@@ -266,10 +266,13 @@ mod service;
 mod statsd;
 mod utils;
 
+#[cfg(test)]
+mod testutils;
+
 use relay_config::Config;
 use relay_system::Controller;
 
-use crate::actors::server::Server;
+use crate::actors::server::ServerService;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -280,5 +283,23 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Run the controller and block until a shutdown signal is sent to this process. This will
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.
-    Controller::run(|| Server::start(config))
+
+    // Create the old tokio 0.x runtime. It's required for old actix System to exist by `create_runtime` utiliy.
+    //
+    // TODO(actix): this can be removed once all the actors are on the new tokio. It looks like
+    // that this mostly needed for Upstream actor right now. ANd
+    let sys = actix::System::new("relay");
+    // We also need new tokio 1.x runtime. This cannot be created in the [`relay_system::Controller`] since
+    // it cannot access the `create_runtime` utilily function from there. This can be changed once
+    // the [`actix::System`] is removed.
+    let runtime = utils::create_runtime("http-server-handler", 1);
+    let shutdown_timeout = config.shutdown_timeout();
+
+    Controller::run(runtime.handle(), sys, || ServerService::start(config))?;
+
+    // Properly shutdown the new tokio runtime.
+    runtime.shutdown_timeout(shutdown_timeout);
+    relay_log::info!("relay shutdown complete");
+
+    Ok(())
 }

@@ -1,81 +1,53 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::fs;
-use std::io;
 use std::path::Path;
 use std::sync::Arc;
-use std::thread;
-
-use actix::prelude::*;
-use futures01::{sync::oneshot, Future};
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
+use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
+/// Service interface of the local project source.
 #[derive(Debug)]
-pub struct LocalProjectSource {
+pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>);
+
+impl Interface for LocalProjectSource {}
+
+impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
+    type Response = AsyncResponse<Option<Arc<ProjectState>>>;
+    fn from_message(
+        message: FetchOptionalProjectState,
+        sender: Sender<Option<Arc<ProjectState>>>,
+    ) -> Self {
+        Self(message, sender)
+    }
+}
+
+/// A service which periodically loads project states from disk.
+#[derive(Debug)]
+pub struct LocalProjectSourceService {
     config: Arc<Config>,
     local_states: HashMap<ProjectKey, Arc<ProjectState>>,
 }
 
-impl LocalProjectSource {
+impl LocalProjectSourceService {
     pub fn new(config: Arc<Config>) -> Self {
-        LocalProjectSource {
+        Self {
             config,
             local_states: HashMap::new(),
         }
     }
-}
 
-impl Actor for LocalProjectSource {
-    type Context = Context<Self>;
-
-    fn started(&mut self, context: &mut Self::Context) {
-        relay_log::info!("project local cache started");
-
-        // Start the background thread that reads the local states from disk.
-        // `poll_local_states` returns a future that resolves as soon as the first read is done.
-        poll_local_states(context.address(), self.config.clone())
-            .into_actor(self)
-            // Block entire actor on first local state read, such that we don't e.g. drop events on
-            // startup
-            .wait(context);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("project local cache stopped");
-    }
-}
-
-impl Handler<FetchOptionalProjectState> for LocalProjectSource {
-    type Result = Option<Arc<ProjectState>>;
-
-    fn handle(
-        &mut self,
-        message: FetchOptionalProjectState,
-        _context: &mut Self::Context,
-    ) -> Self::Result {
-        self.local_states.get(&message.project_key()).cloned()
-    }
-}
-
-struct UpdateLocalStates {
-    states: HashMap<ProjectKey, Arc<ProjectState>>,
-}
-
-impl Message for UpdateLocalStates {
-    type Result = ();
-}
-
-impl Handler<UpdateLocalStates> for LocalProjectSource {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
-        self.local_states = message.states;
+    fn handle_message(&mut self, message: LocalProjectSource) {
+        let LocalProjectSource(message, sender) = message;
+        let states = self.local_states.get(&message.project_key()).cloned();
+        sender.send(states);
     }
 }
 
@@ -85,14 +57,22 @@ fn get_project_id(path: &Path) -> Option<ProjectId> {
         .and_then(|stem| stem.parse().ok())
 }
 
-fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
+fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf, ProjectState)> {
+    let file = std::fs::File::open(&path)?;
+    let reader = std::io::BufReader::new(file);
+    Ok((path, serde_json::from_reader(reader)?))
+}
+
+async fn load_local_states(
+    projects_path: &Path,
+) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
     let mut states = HashMap::new();
 
-    let directory = match fs::read_dir(projects_path) {
+    let mut directory = match tokio::fs::read_dir(projects_path).await {
         Ok(directory) => directory,
         Err(error) => {
             return match error.kind() {
-                io::ErrorKind::NotFound => Ok(states),
+                tokio::io::ErrorKind::NotFound => Ok(states),
                 _ => Err(error),
             };
         }
@@ -101,11 +81,10 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
     // only printed when directory even exists.
     relay_log::debug!("Loading local states from directory {:?}", projects_path);
 
-    for entry in directory {
-        let entry = entry?;
+    while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
-        if !entry.metadata()?.is_file() {
+        if !entry.metadata().await?.is_file() {
             relay_log::warn!("skipping {:?}, not a file", path);
             continue;
         }
@@ -115,9 +94,10 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
             continue;
         }
 
-        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(&path)?))?;
-        let mut sanitized = ProjectState::sanitize(state);
+        // serde_json is not async, so spawn a blocking task here:
+        let (path, state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
 
+        let mut sanitized = ProjectState::sanitize(state);
         if sanitized.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
@@ -136,31 +116,70 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
     Ok(states)
 }
 
-fn poll_local_states(
-    manager: Addr<LocalProjectSource>,
-    config: Arc<Config>,
-) -> impl Future<Item = (), Error = ()> {
-    let (sender, receiver) = oneshot::channel();
+async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+    let states = load_local_states(path).await;
+    match states {
+        Ok(states) => {
+            let res = tx.send(states).await;
+            if res.is_err() {
+                relay_log::error!("failed to store static project configs");
+            }
+        }
+        Err(error) => relay_log::error!(
+            "failed to load static project configs: {}",
+            LogError(&error)
+        ),
+    };
+}
 
-    let _ = thread::spawn(move || {
-        let path = config.project_configs_path();
-        let mut sender = Some(sender);
+async fn spawn_poll_local_states(
+    config: &Config,
+    tx: mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+) {
+    let project_path = config.project_configs_path();
+    let period = config.local_cache_interval();
+
+    // Poll local states once before handling any message, such that the projects are
+    // populated.
+    poll_local_states(&project_path, &tx).await;
+
+    // Start a background loop that polls periodically:
+    tokio::spawn(async move {
+        // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
+        let start_at = Instant::now() + period;
+        let mut ticker = tokio::time::interval_at(start_at, period);
 
         loop {
-            match load_local_states(&path) {
-                Ok(states) => {
-                    manager.do_send(UpdateLocalStates { states });
-                    sender.take().map(|sender| sender.send(()).ok());
-                }
-                Err(error) => relay_log::error!(
-                    "failed to load static project configs: {}",
-                    LogError(&error)
-                ),
-            }
-
-            thread::sleep(config.local_cache_interval());
+            ticker.tick().await;
+            poll_local_states(&project_path, &tx).await;
         }
     });
+}
 
-    receiver.map_err(|_| ())
+impl Service for LocalProjectSourceService {
+    type Interface = LocalProjectSource;
+
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+        // Use a channel with size 1. If the channel is full because the consumer does not
+        // collect the result, the producer will block, which is acceptable.
+        let (state_tx, mut state_rx) = mpsc::channel(1);
+
+        tokio::spawn(async move {
+            relay_log::info!("project local cache started");
+
+            // Start the background task that periodically reloads projects from disk:
+            spawn_poll_local_states(&self.config, state_tx).await;
+
+            loop {
+                tokio::select! {
+                    biased;
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    Some(states) = state_rx.recv() => self.local_states = states,
+
+                    else => break,
+                }
+            }
+            relay_log::info!("project local cache stopped");
+        });
+    }
 }

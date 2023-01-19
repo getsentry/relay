@@ -247,13 +247,11 @@ impl Panic {
 
         let description = match info.location() {
             Some(location) => format!(
-                "thread '{}' panicked with '{}' at {}:{}",
-                thread,
-                message,
+                "thread '{thread}' panicked with '{message}' at {}:{}",
                 location.file(),
                 location.line()
             ),
-            None => format!("thread '{}' panicked with '{}'", thread, message),
+            None => format!("thread '{thread}' panicked with '{message}'"),
         };
 
         Self(description)

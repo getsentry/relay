@@ -11,7 +11,7 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 /// A processor that performs PII stripping.
@@ -160,6 +160,17 @@ impl<'a> Processor for PiiProcessor<'a> {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
         }
 
+        Ok(())
+    }
+
+    // Replay PII processor entry point.
+    fn process_replay(
+        &mut self,
+        replay: &mut Replay,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        replay.process_child_values(self, state)?;
         Ok(())
     }
 }

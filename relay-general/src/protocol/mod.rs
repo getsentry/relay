@@ -15,6 +15,7 @@ mod measurements;
 mod mechanism;
 mod metrics;
 mod relay_info;
+mod replay;
 mod request;
 #[cfg(feature = "jsonschema")]
 mod schema;
@@ -29,6 +30,7 @@ mod transaction;
 mod types;
 mod user;
 mod user_report;
+mod utils;
 
 pub use sentry_release_parser::{validate_environment, validate_release};
 
@@ -47,6 +49,7 @@ pub use self::measurements::*;
 pub use self::mechanism::*;
 pub use self::metrics::*;
 pub use self::relay_info::*;
+pub use self::replay::*;
 pub use self::request::*;
 #[cfg(feature = "jsonschema")]
 pub use self::schema::event_json_schema;

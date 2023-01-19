@@ -283,13 +283,13 @@ fn exception_from_single_fail<F: Fail + ?Sized>(
     f: &F,
     bt: Option<&failure::Backtrace>,
 ) -> Exception {
-    let dbg = format!("{:?}", f);
+    let dbg = format!("{f:?}");
     Exception {
         ty: parse_type_from_debug(&dbg).to_owned(),
         value: Some(f.to_string()),
         stacktrace: bt
             // format the stack trace with alternate debug to get addresses
-            .map(|bt| format!("{:#?}", bt))
+            .map(|bt| format!("{bt:#?}"))
             .and_then(|x| parse_stacktrace(&x)),
         ..Default::default()
     }

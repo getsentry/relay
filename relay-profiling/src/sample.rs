@@ -479,7 +479,7 @@ mod tests {
         let payload =
             include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
         let expanded_profile = match parse_profile(payload) {
-            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Err(err) => panic!("cannot parse profile: {err:?}"),
             Ok(profile) => profile,
         };
         assert_eq!(expanded_profile.profile.samples.len(), 4);

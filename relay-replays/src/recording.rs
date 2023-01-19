@@ -85,10 +85,10 @@ pub enum RecordingParseError {
 impl Display for RecordingParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordingParseError::Json(serde_error) => write!(f, "{}", serde_error),
-            RecordingParseError::Compression(io_error) => write!(f, "{}", io_error),
-            RecordingParseError::Message(message) => write!(f, "{}", message),
-            RecordingParseError::ProcessingAction(action) => write!(f, "{}", action),
+            RecordingParseError::Json(serde_error) => write!(f, "{serde_error}"),
+            RecordingParseError::Compression(io_error) => write!(f, "{io_error}"),
+            RecordingParseError::Message(message) => write!(f, "{message}"),
+            RecordingParseError::ProcessingAction(action) => write!(f, "{action}"),
         }
     }
 }
@@ -174,7 +174,9 @@ impl RecordingProcessor<'_> {
                 Some(message) => self.strip_pii(message)?,
                 None => {}
             },
-            CustomEventDataVariant::PerformanceSpan(_) => {}
+            CustomEventDataVariant::PerformanceSpan(span) => {
+                self.strip_pii(&mut span.payload.description)?;
+            }
         }
 
         Ok(())
@@ -185,7 +187,7 @@ impl RecordingProcessor<'_> {
             "script" | "style" => {}
             "img" | "source" => {
                 let attrs = &mut element.attributes;
-                attrs.insert("src".to_string(), "#".to_string());
+                attrs.insert("src".to_string(), Value::String("#".to_string()));
                 self.recurse_element_children(element)?
             }
             _ => self.recurse_element_children(element)?,
@@ -444,36 +446,36 @@ struct DocumentNode {
 struct DocumentTypeNode {
     #[serde(rename = "type")]
     ty: u8,
-    id: u32,
-    public_id: String,
-    system_id: String,
-    name: String,
+    id: Value,
+    public_id: Value,
+    system_id: Value,
+    name: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ElementNode {
-    id: u32,
+    id: Value,
     #[serde(rename = "type")]
     ty: u8,
-    attributes: HashMap<String, String>,
+    attributes: HashMap<String, Value>,
     tag_name: String,
     child_nodes: Vec<Node>,
     #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
-    is_svg: Option<bool>,
+    is_svg: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    need_block: Option<bool>,
+    need_block: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TextNode {
-    id: u32,
+    id: Value,
     #[serde(rename = "type")]
     ty: u8,
     text_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    is_style: Option<bool>,
+    is_style: Option<Value>,
 }
 
 /// Incremental Source Parser
@@ -535,7 +537,10 @@ struct InputIncrementalSourceData {
     source: u8,
     id: u32,
     text: String,
-    is_checked: bool,
+    is_checked: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    user_triggered: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -547,14 +552,14 @@ struct MutationIncrementalSourceData {
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    is_attach_iframe: Option<bool>,
+    is_attach_iframe: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationAdditionIncrementalSourceData {
-    parent_id: u32,
-    next_id: Option<u32>,
+    parent_id: Value,
+    next_id: Value,
     node: Node,
 }
 
@@ -671,6 +676,48 @@ mod tests {
                 }
             }
         }
+        unreachable!();
+    }
+
+    #[test]
+    fn test_scrub_pii_navigation() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-navigation.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let event = events.pop().unwrap();
+        if let recording::Event::T5(custom) = &event {
+            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
+                assert_eq!(
+                    &span.payload.description,
+                    "https://sentry.io?credit-card=[creditcard]"
+                );
+                return;
+            }
+        }
+
+        unreachable!();
+    }
+
+    #[test]
+    fn test_scrub_pii_resource() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-resource.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let event = events.pop().unwrap();
+        if let recording::Event::T5(custom) = &event {
+            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
+                assert_eq!(
+                    &span.payload.description,
+                    "https://sentry.io?credit-card=[creditcard]"
+                );
+                return;
+            }
+        }
+
         unreachable!();
     }
 
