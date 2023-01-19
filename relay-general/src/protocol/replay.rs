@@ -30,7 +30,7 @@ use crate::protocol::{
 use crate::store::is_valid_platform;
 use crate::store::user_agent::normalize_user_agent_info_generic;
 use crate::types::{Annotated, Array};
-use crate::user_agent;
+use crate::user_agent::get_context_headers;
 use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
 
@@ -264,16 +264,23 @@ impl Replay {
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
-        let user_agent = match user_agent::get_user_agent(&self.request).user_agent {
-            Some(ua) => ua,
-            None => match default_user_agent {
-                Some(dua) => dua,
-                None => return,
-            },
+        let headers = match self
+            .request
+            .value()
+            .and_then(|request| request.headers.value())
+        {
+            Some(headers) => headers,
+            None => return,
         };
 
+        let mut raw_ua_contexts = get_context_headers(headers);
+
+        if raw_ua_contexts.user_agent.is_none() {
+            raw_ua_contexts.user_agent = default_user_agent;
+        }
+
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        normalize_user_agent_info_generic(contexts, &self.platform, user_agent);
+        normalize_user_agent_info_generic(contexts, &self.platform, &raw_ua_contexts);
     }
 
     fn normalize_platform(&mut self) {

@@ -8,43 +8,39 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent, UserAgentInfo};
+use crate::user_agent::{
+    get_context_headers, parse_device, parse_os, parse_user_agent, RawUserAgentInfo,
+};
 
 pub fn normalize_user_agent(event: &mut Event) {
-    let user_agent = match get_user_agent(&event.request).user_agent {
-        Some(ua) => ua,
+    let headers = match event
+        .request
+        .value()
+        .and_then(|request| request.headers.value())
+    {
+        Some(headers) => headers,
         None => return,
     };
 
-    if let Some(contexts) = event.contexts.value_mut() {
-        // If a contexts object exists we modify in place.
-        normalize_user_agent_info_generic(contexts, &event.platform, user_agent);
-    } else {
-        // If a contexts object does not exist we create a new one and attempt to populate
-        // it.  If we didn't write any data to our new contexts instance we can throw it out
-        // and leave the existing contexts value as "None".
-        let mut contexts = Contexts::new();
-        normalize_user_agent_info_generic(&mut contexts, &event.platform, user_agent);
+    let raw_ua_contexts = get_context_headers(headers);
 
-        if !contexts.is_empty() {
-            event.contexts.set_value(Some(contexts));
-        }
-    }
+    let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
+    normalize_user_agent_info_generic(contexts, &event.platform, &raw_ua_contexts);
 }
 
 pub fn normalize_user_agent_info_generic(
     contexts: &mut Contexts,
     platform: &Annotated<String>,
-    user_agent: &str,
+    raw_contexts: &RawUserAgentInfo,
 ) {
     if !contexts.contains_key(BrowserContext::default_key()) {
-        if let Some(browser_context) = user_agent_as_browser_context(user_agent) {
+        if let Some(browser_context) = browser_context_from_raw_contexts(raw_contexts) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
     if !contexts.contains_key(DeviceContext::default_key()) {
-        if let Some(device_context) = user_agent_as_device_context(user_agent) {
+        if let Some(device_context) = device_context_from_raw_contexts(raw_contexts) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
     }
@@ -60,13 +56,58 @@ pub fn normalize_user_agent_info_generic(
         _ => "client_os",
     };
     if !contexts.contains_key(os_context_key) {
-        if let Some(os_context) = user_agent_as_os_context(user_agent) {
+        if let Some(os_context) = get_os_context_from_raw_context(raw_contexts) {
             contexts.insert(
                 os_context_key.to_owned(),
                 Annotated::new(Context::Os(Box::new(os_context)).into()),
             );
         }
     }
+}
+
+/// we want to first get the context from client hints, only when that fails try from the user agent
+fn generic_context_from_hint_or_ua<U, V, T>(
+    raw_contexts: &RawUserAgentInfo,
+    get_from_hints: U,
+    get_from_ua: V,
+) -> Option<T>
+where
+    U: Fn(&RawUserAgentInfo) -> Option<T>,
+    V: Fn(&str) -> Option<T>,
+{
+    if raw_contexts.sec_ch_ua.is_none() && raw_contexts.user_agent.is_none() {
+        return None;
+    }
+
+    let from_hints = get_from_hints(raw_contexts);
+
+    if from_hints.is_some() {
+        return from_hints;
+    }
+
+    let from_ua = get_from_ua(raw_contexts.user_agent?);
+
+    if from_ua.is_some() {
+        return from_ua;
+    }
+    None
+}
+
+fn browser_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
+    generic_context_from_hint_or_ua(
+        raw_contexts,
+        get_browser_from_hints,
+        user_agent_as_browser_context,
+    )
+}
+
+fn get_browser_from_hints(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
+    let browser = raw_contexts.sec_ch_ua?.to_owned();
+
+    Some(BrowserContext {
+        name: Annotated::new(browser),
+        ..Default::default()
+    })
 }
 
 fn user_agent_as_browser_context(user_agent: &str) -> Option<BrowserContext> {
@@ -83,6 +124,22 @@ fn user_agent_as_browser_context(user_agent: &str) -> Option<BrowserContext> {
     })
 }
 
+fn device_context_from_raw_contexts(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
+    generic_context_from_hint_or_ua(
+        raw_contexts,
+        get_device_context_from_hints,
+        user_agent_as_device_context,
+    )
+}
+
+fn get_device_context_from_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
+    let device = raw_contexts.sec_ch_ua_model?.to_owned();
+    Some(DeviceContext {
+        name: Annotated::new(device),
+        ..Default::default()
+    })
+}
+
 fn user_agent_as_device_context(user_agent: &str) -> Option<DeviceContext> {
     let device = parse_device(user_agent);
 
@@ -96,6 +153,25 @@ fn user_agent_as_device_context(user_agent: &str) -> Option<DeviceContext> {
         brand: Annotated::from(device.brand),
         ..DeviceContext::default()
     })
+}
+
+fn get_os_from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
+    let platform = contexts.sec_ch_ua_platform?;
+    let version = contexts.sec_ch_ua_platform_version?;
+
+    Some(OsContext {
+        name: Annotated::new(platform.to_owned()),
+        version: Annotated::new(version.to_owned()),
+        ..Default::default()
+    })
+}
+
+fn get_os_context_from_raw_context(raw_contexts: &RawUserAgentInfo) -> Option<OsContext> {
+    generic_context_from_hint_or_ua(
+        raw_contexts,
+        get_os_from_client_hints,
+        user_agent_as_os_context,
+    )
 }
 
 fn user_agent_as_os_context(user_agent: &str) -> Option<OsContext> {
@@ -190,7 +266,7 @@ mod tests {
     fn test_skip_unrecognizable_user_agent() {
         let mut event = testutils::get_event_with_user_agent("a dont no");
         normalize_user_agent(&mut event);
-        assert_eq!(event.contexts.value(), None);
+        assert!(event.contexts.value().unwrap().is_empty());
     }
 
     #[test]

@@ -27,40 +27,47 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
 });
 
 #[derive(Default)]
-pub struct ClientHints<'a> {
-    os: Option<&'a str>,
-    device: Option<&'a str>,
-    browser: Option<&'a str>,
-}
-
-#[derive(Default)]
-pub struct UserAgentInfo<'a> {
+pub struct RawUserAgentInfo<'a> {
     pub user_agent: Option<&'a str>,
-    pub client_hints: Option<ClientHints<'a>>,
+    pub sec_ch_ua_platform: Option<&'a str>,
+    pub sec_ch_ua_platform_version: Option<&'a str>,
+    pub sec_ch_ua: Option<&'a str>,
+    pub sec_ch_ua_model: Option<&'a str>,
 }
 
-fn get_user_agent_from_headers(headers: &Headers) -> UserAgentInfo {
-    let mut client_hints: Option<ClientHints> = None;
-    let mut user_agent: Option<&str> = None;
+pub fn get_context_headers(headers: &Headers) -> RawUserAgentInfo {
+    let mut contexts = RawUserAgentInfo::default();
 
     for item in headers.iter() {
         if let Some((ref o_k, ref v)) = item.value() {
             if let Some(k) = o_k.as_str() {
                 match k.to_lowercase().as_str() {
-                    "user-agent" => user_agent = v.as_str(),
                     "sec-ch-ua-platform-version" => {
-                        client_hints.get_or_insert(ClientHints::default()).os = v.as_str()
+                        contexts.sec_ch_ua_platform_version = v.as_str()
                     }
+                    "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
+                    "user-agent" => contexts.user_agent = v.as_str(),
+                    "sec-ch-ua" => contexts.user_agent = v.as_str(),
+                    "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
                     _ => {}
                 }
             }
         }
     }
+    contexts
+}
 
-    UserAgentInfo {
-        user_agent,
-        client_hints,
+fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
+    for item in headers.iter() {
+        if let Some((ref o_k, ref v)) = item.value() {
+            if let Some(k) = o_k.as_str() {
+                if k.to_lowercase() == "user-agent" {
+                    return v.as_str();
+                }
+            }
+        }
     }
+    None
 }
 
 /// Initializes the user agent parser.
@@ -75,11 +82,11 @@ pub fn init_parser() {
 /// Returns the user agent info from a `Request`.
 ///
 ///  TODO: document it
-pub fn get_user_agent(request: &Annotated<Request>) -> UserAgentInfo {
-    match request.value().and_then(|request| request.headers.value()) {
-        Some(headers) => get_user_agent_from_headers(headers),
-        None => UserAgentInfo::default(),
-    }
+pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
+    request
+        .value()
+        .and_then(|request| request.headers.value())
+        .and_then(|headers| get_user_agent_from_headers(headers))
 }
 
 /// Returns the family and version of a user agent client.
