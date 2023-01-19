@@ -32,6 +32,7 @@ pub struct RawUserAgentInfo<'a> {
     pub sec_ch_ua_platform: Option<&'a str>,
     pub sec_ch_ua_platform_version: Option<&'a str>,
     pub sec_ch_ua: Option<&'a str>,
+    pub sec_ch_ua_full_version: Option<&'a str>,
     pub sec_ch_ua_model: Option<&'a str>,
 }
 
@@ -47,7 +48,8 @@ pub fn get_raw_ua_info_from_headers(headers: &Headers) -> RawUserAgentInfo {
                     }
                     "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
                     "user-agent" => contexts.user_agent = v.as_str(),
-                    "sec-ch-ua" => contexts.user_agent = v.as_str(),
+                    "sec-ch-ua" => contexts.sec_ch_ua = v.as_str(),
+                    "sec-ch-ua-full-version" => contexts.sec_ch_ua_full_version = v.as_str(),
                     "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
                     _ => {}
                 }

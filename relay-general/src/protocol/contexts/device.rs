@@ -173,7 +173,7 @@ impl DeviceContext {
     pub fn new_from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<DeviceContext> {
         let device = raw_contexts.sec_ch_ua_model?.to_owned();
         Some(DeviceContext {
-            name: Annotated::new(device),
+            model: Annotated::new(device),
             ..Default::default()
         })
     }

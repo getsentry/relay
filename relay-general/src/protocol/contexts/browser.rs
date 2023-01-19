@@ -25,9 +25,11 @@ impl BrowserContext {
 
     pub fn new_from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<BrowserContext> {
         let browser = raw_contexts.sec_ch_ua?.to_owned();
+        let version = raw_contexts.sec_ch_ua_full_version?.to_owned();
 
         Some(BrowserContext {
             name: Annotated::new(browser),
+            version: Annotated::new(version),
             ..Default::default()
         })
     }
