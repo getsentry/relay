@@ -68,7 +68,7 @@ impl<'g> GlobBuilder<'g> {
         pattern.push('^');
 
         static GLOB_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\?|\*\*|\*"#).unwrap());
+        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*"#).unwrap());
 
         for m in regex.find_iter(self.value) {
             pattern.push_str(&regex::escape(&self.value[last..m.start()]));
@@ -76,7 +76,7 @@ impl<'g> GlobBuilder<'g> {
                 "?" => pattern.push_str(self.groups.question_mark),
                 "**" => pattern.push_str(self.groups.double_star),
                 "*" => pattern.push_str(self.groups.star),
-                _ => {}
+                _ => pattern.push_str(m.as_str()),
             }
             last = m.end();
         }
@@ -267,6 +267,18 @@ mod tests {
         let g = Glob::new("/api/*/stuff/**");
         assert!(g.is_match("/api/some/stuff/here/store/"));
         assert!(!g.is_match("/api/some/store/"));
+
+        let g = Glob::new(r"/api/\*/stuff");
+        assert!(g.is_match("/api/*/stuff"));
+        assert!(!g.is_match("/api/some/stuff"));
+
+        let g = Glob::new(r"*stuff");
+        assert!(g.is_match("some-stuff"));
+        assert!(!g.is_match("not-stuff-but-things"));
+
+        let g = Glob::new(r"\*stuff");
+        assert!(g.is_match("*stuff"));
+        assert!(!g.is_match("some-stuff"));
     }
 
     #[test]
