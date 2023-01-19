@@ -110,6 +110,7 @@ mod tests {
       "version": "0.10.0"
     }
   ],
+  "source": "cargo",
   "client_ip": "127.0.0.1",
   "other": "value"
 }"#;
