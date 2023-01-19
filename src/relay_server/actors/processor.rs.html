@@ -3165,6 +3165,8 @@
 <span id="3164">3164</span>
 <span id="3165">3165</span>
 <span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4192,6 +4194,7 @@
         <span class="kw">let </span>meta = state.envelope.meta().clone();
         <span class="kw">let </span>client_addr = meta.client_addr();
         <span class="kw">let </span>user_agent = meta.user_agent();
+        <span class="kw">let </span>event_id = state.envelope.event_id();
 
         state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
@@ -4279,7 +4282,8 @@
                         }
                         <span class="prelude-val">Err</span>(e) =&gt; {
                             <span class="macro">relay_log::warn!</span>(
-                                <span class="string">&quot;replay-recording-event: failed to parse with message {}&quot;</span>,
+                                <span class="string">&quot;replay-recording-event: failed to parse {:?} with message {}&quot;</span>,
+                                event_id,
                                 e
                             );
                             context.track_outcome(
