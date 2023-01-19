@@ -30,7 +30,7 @@ use crate::protocol::{
 use crate::store::is_valid_platform;
 use crate::store::user_agent::normalize_user_agent_info_generic;
 use crate::types::{Annotated, Array};
-use crate::user_agent::get_raw_ua_info_from_headers;
+use crate::user_agent::RawUserAgentInfo;
 use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
 
@@ -273,7 +273,7 @@ impl Replay {
             None => return,
         };
 
-        let mut raw_ua_contexts = get_raw_ua_info_from_headers(headers);
+        let mut raw_ua_contexts = RawUserAgentInfo::new(headers);
 
         if raw_ua_contexts.user_agent.is_none() {
             raw_ua_contexts.user_agent = default_user_agent;

@@ -26,37 +26,48 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
     )
 });
 
+/// this has both the user agent string and the client hints, useful for the scenarios where
+/// you will use either information from client hints if it exists and if not fall back to
+/// user agent string
 #[derive(Default)]
 pub struct RawUserAgentInfo<'a> {
+    /// the "old style" of a single UA string
     pub user_agent: Option<&'a str>,
+    /// your OS, e.g. macos, android ..
     pub sec_ch_ua_platform: Option<&'a str>,
+    /// the version number of your OS
     pub sec_ch_ua_platform_version: Option<&'a str>,
+    /// web browser
     pub sec_ch_ua: Option<&'a str>,
+    /// web browser version
     pub sec_ch_ua_full_version: Option<&'a str>,
+    /// device model, e.g. samsung galaxy 3
     pub sec_ch_ua_model: Option<&'a str>,
 }
 
-pub fn get_raw_ua_info_from_headers(headers: &Headers) -> RawUserAgentInfo {
-    let mut contexts = RawUserAgentInfo::default();
+impl<'a> RawUserAgentInfo<'a> {
+    pub fn new(headers: &'a Headers) -> Self {
+        let mut contexts = Self::default();
 
-    for item in headers.iter() {
-        if let Some((ref o_k, ref v)) = item.value() {
-            if let Some(k) = o_k.as_str() {
-                match k.to_lowercase().as_str() {
-                    "sec-ch-ua-platform-version" => {
-                        contexts.sec_ch_ua_platform_version = v.as_str()
+        for item in headers.iter() {
+            if let Some((ref o_k, ref v)) = item.value() {
+                if let Some(k) = o_k.as_str() {
+                    match k.to_lowercase().as_str() {
+                        "user-agent" => contexts.user_agent = v.as_str(),
+                        "sec-ch-ua-platform-version" => {
+                            contexts.sec_ch_ua_platform_version = v.as_str()
+                        }
+                        "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
+                        "sec-ch-ua" => contexts.sec_ch_ua = v.as_str(),
+                        "sec-ch-ua-full-version" => contexts.sec_ch_ua_full_version = v.as_str(),
+                        "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
+                        _ => {}
                     }
-                    "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
-                    "user-agent" => contexts.user_agent = v.as_str(),
-                    "sec-ch-ua" => contexts.sec_ch_ua = v.as_str(),
-                    "sec-ch-ua-full-version" => contexts.sec_ch_ua_full_version = v.as_str(),
-                    "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
-                    _ => {}
                 }
             }
         }
+        contexts
     }
-    contexts
 }
 
 fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
@@ -81,10 +92,7 @@ pub fn init_parser() {
     Lazy::force(&UA_PARSER);
 }
 
-/// Returns the user agent info from a `Request`.
-///
-///  TODO: document it
-pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
+pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str> {
     request
         .value()
         .and_then(|request| request.headers.value())

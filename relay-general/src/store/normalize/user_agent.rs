@@ -8,7 +8,7 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_raw_ua_info_from_headers, RawUserAgentInfo};
+use crate::user_agent::RawUserAgentInfo;
 
 pub fn normalize_user_agent(event: &mut Event) {
     let headers = match event
@@ -20,7 +20,7 @@ pub fn normalize_user_agent(event: &mut Event) {
         None => return,
     };
 
-    let raw_ua_contexts = get_raw_ua_info_from_headers(headers);
+    let raw_ua_contexts = RawUserAgentInfo::new(headers);
 
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
     normalize_user_agent_info_generic(contexts, &event.platform, &raw_ua_contexts);
