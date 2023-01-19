@@ -313,7 +313,7 @@ struct MetaEvent {
 struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
-    timestamp: f64,
+    timestamp: Value,
     data: CustomEventDataVariant,
 }
 
@@ -336,7 +336,7 @@ struct Breadcrumb {
 struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
-    timestamp: f64,
+    timestamp: Value,
     category: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     level: Option<String>,
@@ -357,8 +357,8 @@ struct PerformanceSpan {
 struct PerformanceSpanPayload {
     op: String,
     description: String,
-    start_timestamp: f64,
-    end_timestamp: f64,
+    start_timestamp: Value,
+    end_timestamp: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
 }
@@ -796,7 +796,7 @@ mod tests {
     fn test_rrweb_event_5_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
 
-        let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
+        let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
