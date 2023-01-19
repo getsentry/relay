@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
@@ -10,8 +10,7 @@ use crate::protocol::utils::null_to_default;
 use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SessionStatus {
     /// The session is healthy.
     ///
@@ -25,6 +24,8 @@ pub enum SessionStatus {
     Abnormal,
     /// The session exited cleanly but experienced some errors during its run.
     Errored,
+    /// Unknown status, for forward compatibility.
+    Unknown(String),
 }
 
 impl SessionStatus {
@@ -41,6 +42,39 @@ impl SessionStatus {
     /// Returns `true` if the status indicates a fatal session.
     pub fn is_fatal(&self) -> bool {
         matches!(self, SessionStatus::Crashed | SessionStatus::Abnormal)
+    }
+    fn as_str(&self) -> &str {
+        match self {
+            SessionStatus::Ok => "ok",
+            SessionStatus::Crashed => "crashed",
+            SessionStatus::Abnormal => "abnormal",
+            SessionStatus::Exited => "exited",
+            SessionStatus::Errored => "errored",
+            SessionStatus::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
+impl Display for SessionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+relay_common::impl_str_serde!(SessionStatus, "A session status");
+
+impl std::str::FromStr for SessionStatus {
+    type Err = ParseSessionStatusError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "ok" => SessionStatus::Ok,
+            "crashed" => SessionStatus::Crashed,
+            "abnormal" => SessionStatus::Abnormal,
+            "exited" => SessionStatus::Exited,
+            "errored" => SessionStatus::Errored,
+            other => SessionStatus::Unknown(other.to_owned()),
+        })
     }
 }
 
@@ -61,14 +95,6 @@ impl fmt::Display for ParseSessionStatusError {
 }
 
 impl std::error::Error for ParseSessionStatusError {}
-
-derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
-    SessionStatus::Ok => "ok",
-    SessionStatus::Crashed => "crashed",
-    SessionStatus::Abnormal => "abnormal",
-    SessionStatus::Exited => "exited",
-    SessionStatus::Errored => "errored",
-});
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -335,9 +361,22 @@ impl SessionAggregates {
 
 #[cfg(test)]
 mod tests {
+
+    use std::str::FromStr;
+
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_sessionstatus_unknown() {
+        let unknown = SessionStatus::from_str("invalid status").unwrap();
+        if let SessionStatus::Unknown(inner) = unknown {
+            assert_eq!(inner, "invalid status".to_owned());
+        } else {
+            panic!();
+        }
+    }
 
     #[test]
     fn test_session_default_values() {

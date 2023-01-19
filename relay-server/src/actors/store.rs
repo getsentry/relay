@@ -449,7 +449,7 @@ impl StoreService {
                 received: protocol::datetime_to_timestamp(session.timestamp),
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
-                status: session.status,
+                status: session.status.clone(),
                 errors: session.errors.clamp(
                     (session.status == SessionStatus::Crashed) as _,
                     u16::MAX.into(),
