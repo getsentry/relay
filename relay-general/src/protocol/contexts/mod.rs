@@ -24,6 +24,7 @@ mod otel;
 pub use otel::*;
 
 use crate::types::{Annotated, FromValue, Object, Value};
+use crate::user_agent::RawUserAgentInfo;
 
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
@@ -84,6 +85,19 @@ impl Context {
             Context::Otel(_) => Some(OtelContext::default_key()),
             Context::Other(_) => None,
         }
+    }
+}
+
+pub trait ContextFromUserAgentInfo
+where
+    Self: Sized,
+{
+    fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self>;
+    fn from_user_agent(user_agent: &str) -> Option<Self>;
+
+    fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+        Self::from_client_hints(raw_contexts)
+            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }
 

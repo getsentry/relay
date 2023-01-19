@@ -70,19 +70,6 @@ impl<'a> RawUserAgentInfo<'a> {
     }
 }
 
-fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
-    for item in headers.iter() {
-        if let Some((ref o_k, ref v)) = item.value() {
-            if let Some(k) = o_k.as_str() {
-                if k.to_lowercase() == "user-agent" {
-                    return v.as_str();
-                }
-            }
-        }
-    }
-    None
-}
-
 /// Initializes the user agent parser.
 ///
 /// This loads and compiles user agent patterns, which takes a few seconds to complete. The user
@@ -97,6 +84,20 @@ pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str>
         .value()
         .and_then(|request| request.headers.value())
         .and_then(|headers| get_user_agent_from_headers(headers))
+}
+
+/// Should we merge it with get_user_agent_from_request?
+fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
+    for item in headers.iter() {
+        if let Some((ref o_k, ref v)) = item.value() {
+            if let Some(k) = o_k.as_str() {
+                if k.to_lowercase() == "user-agent" {
+                    return v.as_str();
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Returns the family and version of a user agent client.

@@ -1,4 +1,4 @@
-use crate::protocol::LenientString;
+use crate::protocol::{ContextFromUserAgentInfo, LenientString};
 use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_os, RawUserAgentInfo};
@@ -47,35 +47,32 @@ impl OsContext {
     pub fn default_key() -> &'static str {
         "os"
     }
+}
 
-    pub fn from_client_hints(contexts: &RawUserAgentInfo) -> Option<OsContext> {
+impl ContextFromUserAgentInfo for OsContext {
+    fn from_client_hints(contexts: &RawUserAgentInfo) -> Option<Self> {
         let platform = contexts.sec_ch_ua_platform?;
         let version = contexts.sec_ch_ua_platform_version?;
 
-        Some(OsContext {
+        Some(Self {
             name: Annotated::new(platform.to_owned()),
             version: Annotated::new(version.to_owned()),
             ..Default::default()
         })
     }
 
-    pub fn from_user_agent(user_agent: &str) -> Option<OsContext> {
+    fn from_user_agent(user_agent: &str) -> Option<Self> {
         let os = parse_os(user_agent);
 
         if !is_known(os.family.as_str()) {
             return None;
         }
 
-        Some(OsContext {
+        Some(Self {
             name: Annotated::from(os.family),
             version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
             ..OsContext::default()
         })
-    }
-
-    pub fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        Self::from_client_hints(raw_contexts)
-            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::protocol::ContextFromUserAgentInfo;
 use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_user_agent, RawUserAgentInfo};
@@ -22,8 +23,10 @@ impl BrowserContext {
     pub fn default_key() -> &'static str {
         "browser"
     }
+}
 
-    pub fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
+impl ContextFromUserAgentInfo for BrowserContext {
+    fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
         let browser = raw_contexts.sec_ch_ua?.to_owned();
         let version = raw_contexts.sec_ch_ua_full_version?.to_owned();
 
@@ -34,7 +37,7 @@ impl BrowserContext {
         })
     }
 
-    pub fn from_user_agent(user_agent: &str) -> Option<Self> {
+    fn from_user_agent(user_agent: &str) -> Option<Self> {
         let browser = parse_user_agent(user_agent);
 
         if !is_known(browser.family.as_str()) {
@@ -46,10 +49,5 @@ impl BrowserContext {
             version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
             ..BrowserContext::default()
         })
-    }
-
-    pub fn from_hints_or_ua(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        Self::from_client_hints(raw_contexts)
-            .or_else(|| raw_contexts.user_agent.and_then(Self::from_user_agent))
     }
 }

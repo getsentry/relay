@@ -6,7 +6,9 @@
 
 use std::fmt::Write;
 
-use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
+use crate::protocol::{
+    BrowserContext, Context, ContextFromUserAgentInfo, Contexts, DeviceContext, Event, OsContext,
+};
 use crate::types::Annotated;
 use crate::user_agent::RawUserAgentInfo;
 
