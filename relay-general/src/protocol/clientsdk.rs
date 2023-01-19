@@ -156,6 +156,7 @@ mod tests {
             integrations: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            source: Annotated::empty(),
             other: Default::default(),
         });
 
