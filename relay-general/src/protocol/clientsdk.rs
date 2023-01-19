@@ -54,6 +54,13 @@ pub struct ClientSdkInfo {
     #[metastructure(skip_serialization = "empty_deep")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
+    /// The installation mechanism for the SDK. _Optional._
+    ///
+    /// This can be a package manager like `npm` or `cocoapods` or a custom installation mechanism
+    /// like `cdn`.
+    #[metastructure(skip_serialization = "empty")]
+    pub source: Annotated<String>,
+
     /// IP Address of sender??? Seems unused. Do not send, this only leads to surprises wrt PII, as
     /// the value appears nowhere in the UI.
     #[metastructure(pii = "true", skip_serialization = "empty", omit_from_schema)]
@@ -120,6 +127,7 @@ mod tests {
                     version: Annotated::new("0.10.0".to_string()),
                 }),
             ]),
+            source: Annotated::new("cargo".to_string()),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
             other: {
                 let mut map = Map::new();
