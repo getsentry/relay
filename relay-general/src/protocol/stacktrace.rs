@@ -337,7 +337,7 @@ pub struct RawStacktrace {
     /// values of the thread, thus mapping to the last frame in the list.
     pub registers: Annotated<Object<RegVal>>,
 
-    /// Optional. A flat that indicates if, and how, `instruction_addr` values need to be adjusted
+    /// Optional. A flag that indicates if, and how, `instruction_addr` values need to be adjusted
     /// before they are symbolicated.
     #[metastructure(skip_serialization = "null")]
     pub instruction_addr_adjustment: Annotated<InstructionAddrAdjustment>,
@@ -380,12 +380,12 @@ pub enum InstructionAddrAdjustment {
     /// The default. Applies a heuristic based on other event / exception attributes.
     Auto,
 
-    /// All but the first frame needs to be adjusted. The first frame is not a *return address*,
+    /// All but the first frame needs to be adjusted. The first frame's address is not a *return address*,
     /// but points directly to the faulty instruction.
     AllButFirst,
 
     /// All frames should be adjusted, for example because the stack walking implementation truncated
-    /// frames from the top of the stack, and all remaining frames are *return addresses*.
+    /// frames from the top of the stack, and all remaining frames' addresses are *return addresses*.
     All,
 
     /// The stack walking implementation already provides correct addresses and no adjustment should
