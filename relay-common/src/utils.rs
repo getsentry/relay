@@ -330,6 +330,21 @@ mod tests {
     }
 
     #[test]
+    fn test_do_not_replace() {
+        let g = Glob::builder(r"/foo/\*/*")
+            .capture_star(true)
+            .capture_double_star(false)
+            .capture_question_mark(false)
+            .build();
+
+        // A literal asterisk matches
+        assert_eq!(g.replace_captures("/foo/*/bar", "_"), "/foo/*/_");
+
+        // But only a literal asterisk
+        assert_eq!(g.replace_captures("/foo/nope/bar", "_"), "/foo/nope/bar");
+    }
+
+    #[test]
     fn test_glob_matcher() {
         #[derive(Clone, Copy, Debug, PartialEq)]
         enum Paths {
