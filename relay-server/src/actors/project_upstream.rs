@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 use std::collections::{hash_map::Entry, HashMap};
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
 // TODO(actix): These two import will be removed when the `Upstream` actor is migrated to new tokio
 // runtime.
+#[cfg(not(test))]
 use actix::SystemService;
 use actix_web::http::Method;
 use futures::future;
@@ -18,14 +20,22 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_statsd::metric;
 use relay_system::{
-    compat, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+
+#[cfg(not(test))]
+use relay_system::compat;
+#[cfg(test)]
+use relay_system::{AsyncResponse, Recipient};
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchProjectState;
+#[cfg(not(test))]
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
+#[cfg(test)]
+use crate::actors::upstream::{RequestPriority, UpstreamQuery, UpstreamRequestError};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ErrorBoundary, SleepHandle};
 
@@ -152,7 +162,6 @@ struct UpstreamResponse {
 }
 
 /// The service which handles the fetching of the [`ProjectState`] from upstream.
-#[derive(Debug)]
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
@@ -160,6 +169,22 @@ pub struct UpstreamProjectSourceService {
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
     inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
     fetch_handle: SleepHandle,
+    // For tests we want to inject our own recipient (Upstream service).
+    #[cfg(test)]
+    upstream: Option<Recipient<GetProjectStates, AsyncResponse<GetProjectStatesResponse>>>,
+}
+
+impl fmt::Debug for UpstreamProjectSourceService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UpstreamProjectSourceService")
+            .field("backoff", &self.backoff)
+            .field("config", &self.config)
+            .field("state_channels", &self.state_channels)
+            .field("inner_tx", &self.inner_tx)
+            .field("inner_rx", &self.inner_rx)
+            .field("fetch_handle", &self.fetch_handle)
+            .finish()
+    }
 }
 
 impl UpstreamProjectSourceService {
@@ -174,7 +199,20 @@ impl UpstreamProjectSourceService {
             config,
             inner_tx,
             inner_rx,
+            #[cfg(test)]
+            upstream: None,
         }
+    }
+
+    /// Test instance of the service.
+    #[cfg(test)]
+    pub fn new_test(
+        config: Arc<Config>,
+        upstream: Recipient<GetProjectStates, AsyncResponse<GetProjectStatesResponse>>,
+    ) -> Self {
+        let mut test = Self::new(config);
+        test.upstream = Some(upstream);
+        test
     }
 
     /// Returns the backoff timeout for a batched upstream query.
@@ -247,6 +285,7 @@ impl UpstreamProjectSourceService {
     async fn fetch_states(
         config: Arc<Config>,
         channels: ChannelsBatch,
+        #[cfg(test)] upstream: Recipient<GetProjectStates, AsyncResponse<GetProjectStatesResponse>>,
     ) -> Vec<Option<UpstreamResponse>> {
         let request_start = Instant::now();
         let batch_size = config.query_batch_size();
@@ -274,6 +313,7 @@ impl UpstreamProjectSourceService {
             // count number of http requests for project states
             metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
+            #[cfg(not(test))]
             requests.push(async move {
                 let request = compat::send(UpstreamRelay::from_registry(), SendQuery(query));
                 match request.await {
@@ -293,6 +333,21 @@ impl UpstreamProjectSourceService {
                     }
                 }
             });
+
+            // For tests we use injected UpstreamRelay recipient, where we send our queries.
+            #[cfg(test)]
+            {
+                let upstream = upstream.clone();
+                requests.push(async move {
+                    match upstream.send(query).await {
+                        Ok(response) => Some(UpstreamResponse {
+                            channels_batch,
+                            response: Ok(response),
+                        }),
+                        _ => None,
+                    }
+                });
+            }
         }
 
         // Wait on results of all fanouts, and return the resolved responses.
@@ -408,8 +463,17 @@ impl UpstreamProjectSourceService {
         let inner_tx = self.inner_tx.clone();
         let channels = self.prepare_batches();
 
+        #[cfg(test)]
+        let upstream = self.upstream.clone();
+
         tokio::spawn(async move {
-            let responses = Self::fetch_states(config, channels).await;
+            let responses = Self::fetch_states(
+                config,
+                channels,
+                #[cfg(test)]
+                upstream.unwrap(),
+            )
+            .await;
             // Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
             if let Err(err) = inner_tx.send(responses) {
@@ -474,5 +538,200 @@ impl Service for UpstreamProjectSourceService {
             }
             relay_log::info!("project upstream cache stopped");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_config::Config;
+    use relay_system::{AsyncResponse, NoResponse, Sender};
+
+    use super::*;
+
+    struct Stats;
+    struct SetState(ProjectState);
+
+    /// Test Upstream interface.
+    #[derive(Debug)]
+    enum TestUpstream {
+        // Mocks the upstream request, and always responds with current internal project state.
+        States(GetProjectStates, Sender<GetProjectStatesResponse>),
+        // Sets the internal project state to whaever is provided.
+        SetState(ProjectState),
+        // Returns the current stats, how many times different project keys were requested.
+        Stats(Sender<HashMap<ProjectKey, u64>>),
+    }
+
+    impl FromMessage<GetProjectStates> for TestUpstream {
+        type Response = AsyncResponse<GetProjectStatesResponse>;
+
+        fn from_message(
+            message: GetProjectStates,
+            sender: Sender<GetProjectStatesResponse>,
+        ) -> Self {
+            TestUpstream::States(message, sender)
+        }
+    }
+
+    impl FromMessage<Stats> for TestUpstream {
+        type Response = AsyncResponse<HashMap<ProjectKey, u64>>;
+
+        fn from_message(_message: Stats, sender: Sender<HashMap<ProjectKey, u64>>) -> Self {
+            TestUpstream::Stats(sender)
+        }
+    }
+
+    impl FromMessage<SetState> for TestUpstream {
+        type Response = NoResponse;
+
+        fn from_message(message: SetState, _sender: ()) -> Self {
+            TestUpstream::SetState(message.0)
+        }
+    }
+
+    impl Interface for TestUpstream {}
+
+    /// Test upstream service.
+    #[derive(Debug)]
+    struct TestUpstreamService {
+        state: ProjectState,
+        messages: HashMap<ProjectKey, u64>,
+    }
+
+    impl TestUpstreamService {
+        pub fn new() -> Self {
+            Self {
+                state: ProjectState::allowed(),
+                messages: HashMap::default(),
+            }
+        }
+    }
+
+    impl Service for TestUpstreamService {
+        type Interface = TestUpstream;
+
+        fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+
+                        Some(message) = rx.recv() => {
+
+                            match message {
+                                TestUpstream::States(GetProjectStates{ public_keys, ..}, sender) => {
+                                    // Collect the requests stats.
+                                    for pk in &public_keys {
+                                        *self.messages.entry(*pk).or_insert(0) += 1;
+                                    }
+
+                                    let mut configs = HashMap::new();
+                                    // Collect the keys and the inner project state for the
+                                    // response.
+                                    configs.insert(public_keys[0], ErrorBoundary::Ok(Some(self.state.clone())));
+                                    let response = GetProjectStatesResponse{configs, pending: vec![]};
+                                    sender.send(response);
+
+                                },
+                                TestUpstream::Stats(sender) => sender.send(self.messages.clone()),
+                                TestUpstream::SetState(state) => self.state = state,
+                            }
+                        }
+
+                        else => break,
+
+                    }
+                }
+            });
+        }
+    }
+
+    #[tokio::test]
+    async fn test_upstream_state_allowed() {
+        let config = Arc::new(Config::default());
+        let upstream_service = TestUpstreamService::new();
+        let upstream_addr = upstream_service.start();
+        let project_upstream =
+            UpstreamProjectSourceService::new_test(config, upstream_addr.clone().recipient());
+        let addr = project_upstream.start();
+
+        let project_key1 = "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap();
+        let project_key2 = "a94ae32be2584e0bbd7a4cbb95971f11".parse().unwrap();
+
+        // Check stats before processing.
+        let stats = upstream_addr.send(Stats).await.unwrap();
+        assert_eq!(stats.get(&project_key1), None);
+        assert_eq!(stats.get(&project_key2), None);
+
+        // Request same project key, which should end up as one upstream request.
+        let back_channel1 = addr.send(FetchProjectState {
+            project_key: project_key1,
+            no_cache: true,
+        });
+        let back_channel2 = addr.send(FetchProjectState {
+            project_key: project_key1,
+            no_cache: true,
+        });
+
+        // Introduce delay to simulate different timing for the incoming requests.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // Again requst first project key, and then send two requests for the second one.
+        // This shuld ne converted to 1 request with 2 project keys requested.
+        let back_channel3 = addr.send(FetchProjectState {
+            project_key: project_key1,
+            no_cache: true,
+        });
+        let back_channel4 = addr.send(FetchProjectState {
+            project_key: project_key2,
+            no_cache: true,
+        });
+        let back_channel5 = addr.send(FetchProjectState {
+            project_key: project_key2,
+            no_cache: true,
+        });
+
+        // All the responses must be ok.
+        for res in vec![
+            back_channel1,
+            back_channel2,
+            back_channel3,
+            back_channel4,
+            back_channel5,
+        ] {
+            assert!(!res.await.unwrap().invalid())
+        }
+
+        // We should get only 2 messages, since the first two request will be processed right away as 1 messages
+        // and 3 next will become one requst as well.
+        let stats = upstream_addr.send(Stats).await.unwrap();
+        assert_eq!(stats.len(), 2);
+        assert_eq!(stats.get(&project_key1), Some(&2));
+        assert_eq!(stats.get(&project_key2), Some(&1));
+    }
+
+    #[tokio::test]
+    async fn test_upstream_state_err() {
+        tokio::time::pause();
+
+        let config = Arc::new(Config::default());
+        let upstream_service = TestUpstreamService::new();
+        let upstream_addr = upstream_service.start();
+        // set the broken state
+        upstream_addr.send(SetState(ProjectState::err()));
+
+        let project_key = "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap();
+        let project_upstream =
+            UpstreamProjectSourceService::new_test(config, upstream_addr.clone().recipient());
+        let addr = project_upstream.start();
+
+        let back_channel = addr.send(FetchProjectState {
+            project_key: "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap(),
+            no_cache: true,
+        });
+        let project_state = back_channel.await.unwrap();
+        assert!(project_state.invalid());
+
+        let stats = upstream_addr.send(Stats).await.unwrap();
+        assert_eq!(stats.get(&project_key), Some(&1));
     }
 }
