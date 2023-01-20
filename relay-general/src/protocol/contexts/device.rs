@@ -179,7 +179,7 @@ impl ContextFromUserAgentInfo for DeviceContext {
     fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
         let device = raw_contexts.sec_ch_ua_model?.to_owned();
         Some(Self {
-            family: Annotated::new(device.clone()),
+            family: Annotated::new(device),
             ..Default::default()
         })
     }
