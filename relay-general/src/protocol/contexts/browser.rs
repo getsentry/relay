@@ -92,8 +92,6 @@ impl std::string::ToString for Browser {
 /// returns None if no browser field detected
 fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
     let s = s.into();
-    use Browser::*;
-
     let items: Vec<&str> = s.split(',').collect();
 
     for item in items {
@@ -109,30 +107,29 @@ fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
             continue;
         }
 
-        if item.contains(Chrome.as_str()) {
+        if item.contains(Browser::Chrome.as_str()) {
             return Some(Browser::Chrome);
-        } else if item.contains(Opera.as_str()) {
+        } else if item.contains(Browser::Opera.as_str()) {
             return Some(Browser::Opera);
-        } else if item.contains(Edge.as_str()) {
+        } else if item.contains(Browser::Edge.as_str()) {
             return Some(Browser::Edge);
-        } else if item.contains(Firefox.as_str()) {
+        } else if item.contains(Browser::Firefox.as_str()) {
             return Some(Browser::Firefox);
-        } else if item.contains(Safari.as_str()) {
+        } else if item.contains(Browser::Safari.as_str()) {
             return Some(Browser::Safari);
-        } else if item.contains(Brave.as_str()) {
+        } else if item.contains(Browser::Brave.as_str()) {
             return Some(Browser::Brave);
+        } else {
+            // "\"foo-browser\";v=\"109\"" -> "foo-browser"
+            let cleaned: String = item
+                .split(';')
+                .take(1)
+                .map(|s| s.trim().to_owned().replace('\"', ""))
+                .collect();
+
+            return Some(Browser::Other(cleaned));
         }
-
-        // "\"foo-browser\";v=\"109\"" -> "foo-browser"
-        let cleaned: String = item
-            .split(';')
-            .take(1)
-            .map(|s| s.trim().to_owned().replace('\"', ""))
-            .collect();
-
-        return Some(Browser::Other(cleaned));
     }
-
     None
 }
 
