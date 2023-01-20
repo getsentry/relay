@@ -313,7 +313,7 @@ pub enum RelayTimers {
     ReplayRecordingProcessing,
     ReplayRecordingDecompress,
     ReplayRecordingDeserialize,
-    ReplayRecordingScrubPII,
+    // ReplayRecordingScrubPII,
     ReplayRecordingCompress,
     ReplayRecordingSerialize,
 }
@@ -349,7 +349,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::ReplayRecordingDecompress => "replay.recording.decompress",
             RelayTimers::ReplayRecordingDeserialize => "replay.recording.deserialize",
-            RelayTimers::ReplayRecordingScrubPII => "replay.recording.scrub_pii",
+            // RelayTimers::ReplayRecordingScrubPII => "replay.recording.scrub_pii",
             RelayTimers::ReplayRecordingCompress => "replay.recording.compress",
             RelayTimers::ReplayRecordingSerialize => "replay.recording.serialize",
         }
