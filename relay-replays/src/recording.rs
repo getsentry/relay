@@ -313,7 +313,7 @@ struct MetaEvent {
 struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
-    timestamp: Value,
+    timestamp: f64,
     data: CustomEventDataVariant,
 }
 
@@ -336,7 +336,7 @@ struct Breadcrumb {
 struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
-    timestamp: Value,
+    timestamp: f64,
     category: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     level: Option<String>,
@@ -357,8 +357,8 @@ struct PerformanceSpan {
 struct PerformanceSpanPayload {
     op: String,
     description: String,
-    start_timestamp: Value,
-    end_timestamp: Value,
+    start_timestamp: f64,
+    end_timestamp: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
 }
