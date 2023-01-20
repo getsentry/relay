@@ -76,9 +76,66 @@ impl ContextFromUserAgentInfo for OsContext {
     }
 }
 
-#[test]
-fn test_os_context_roundtrip() {
-    let json = r#"{
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{Headers, PairList};
+
+    #[test]
+    fn test_choose_client_hints_for_os_context() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                Annotated::new(r#"macOS"#.to_string().into()), // no browser field here
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                Annotated::new("13.1.0".to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+
+        assert_eq!(os.clone().unwrap().name.as_str().unwrap(), "macOS");
+        assert_eq!(os.unwrap().version.as_str().unwrap(), "13.1.0");
+    }
+
+    #[test]
+    fn test_fallback_on_ua_string_for_os() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("invalid header".to_string().into()),
+                Annotated::new(r#"macOS"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                Annotated::new("13.1.0".to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+
+        assert_eq!(os.clone().unwrap().name.as_str().unwrap(), "Mac OS X");
+        assert_eq!(os.unwrap().version.as_str().unwrap(), "10.15.7");
+    }
+
+    #[test]
+    fn test_os_context_roundtrip() {
+        let json = r#"{
   "name": "iOS",
   "version": "11.4.2",
   "build": "FEEDFACE",
@@ -88,24 +145,25 @@ fn test_os_context_roundtrip() {
   "other": "value",
   "type": "os"
 }"#;
-    use crate::protocol::Context;
-    let context = Annotated::new(Context::Os(Box::new(OsContext {
-        name: Annotated::new("iOS".to_string()),
-        version: Annotated::new("11.4.2".to_string()),
-        build: Annotated::new(LenientString("FEEDFACE".to_string())),
-        kernel_version: Annotated::new("17.4.0".to_string()),
-        rooted: Annotated::new(true),
-        raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        use crate::protocol::Context;
+        let context = Annotated::new(Context::Os(Box::new(OsContext {
+            name: Annotated::new("iOS".to_string()),
+            version: Annotated::new("11.4.2".to_string()),
+            build: Annotated::new(LenientString("FEEDFACE".to_string())),
+            kernel_version: Annotated::new("17.4.0".to_string()),
+            rooted: Annotated::new(true),
+            raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
-    assert_eq!(json, context.to_json_pretty().unwrap());
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
 }
