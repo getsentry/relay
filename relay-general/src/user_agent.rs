@@ -28,8 +28,10 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
 
 /// this has both the user agent string and the client hints, useful for the scenarios where
 /// you will use either information from client hints if it exists and if not fall back to
-/// user agent string
-#[derive(Default)]
+/// user agent string.
+///
+/// The client hint variable names mirror the name of the headers. https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints
+#[derive(Default, Debug)]
 pub struct RawUserAgentInfo<'a> {
     /// the "old style" of a single UA string
     pub user_agent: Option<&'a str>,

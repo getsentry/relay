@@ -88,10 +88,7 @@ impl Context {
     }
 }
 
-pub trait ContextFromUserAgentInfo
-where
-    Self: Sized,
-{
+pub trait ContextFromUserAgentInfo: Sized {
     fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self>;
     fn from_user_agent(user_agent: &str) -> Option<Self>;
 
