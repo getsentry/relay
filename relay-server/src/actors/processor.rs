@@ -1026,6 +1026,7 @@ impl EnvelopeProcessorService {
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
         let user_agent = meta.user_agent();
+        let event_id = state.envelope.event_id();
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1113,7 +1114,8 @@ impl EnvelopeProcessorService {
                         }
                         Err(e) => {
                             relay_log::warn!(
-                                "replay-recording-event: failed to parse with message {}",
+                                "replay-recording-event: failed to parse {:?} with message {}",
+                                event_id,
                                 e
                             );
                             context.track_outcome(

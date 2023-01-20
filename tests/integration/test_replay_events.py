@@ -6,6 +6,8 @@ def generate_replay_sdk_event():
         "type": "replay_event",
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "replay_type": "session",
+        "error_sample_rate": 0.125,
+        "session_sample_rate": 0.5,
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "segment_id": 0,
         "timestamp": 1597977777.6189718,
@@ -63,6 +65,8 @@ def test_replay_event_with_processing(
     # Assert required fields were returned.
     assert parsed_replay["replay_id"] == replay["replay_id"]
     assert parsed_replay["replay_type"] == replay["replay_type"]
+    assert parsed_replay["error_sample_rate"] == replay["error_sample_rate"]
+    assert parsed_replay["session_sample_rate"] == replay["session_sample_rate"]
     assert parsed_replay["event_id"] == replay["event_id"]
     assert parsed_replay["type"] == replay["type"]
     assert parsed_replay["segment_id"] == replay["segment_id"]
