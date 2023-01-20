@@ -95,8 +95,6 @@ fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
     use Browser::*;
 
     let items: Vec<&str> = s.split(',').collect();
-    let mut browser = String::new();
-    let mut browser_detected = false;
 
     for item in items {
         let item = item.to_lowercase();
@@ -124,23 +122,18 @@ fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
         } else if item.contains(Brave.as_str()) {
             return Some(Browser::Brave);
         }
-        browser = item;
-        browser_detected = true;
-        break;
+
+        // "\"foo-browser\";v=\"109\"" -> "foo-browser"
+        let cleaned: String = item
+            .split(';')
+            .take(1)
+            .map(|s| s.trim().to_owned().replace('\"', ""))
+            .collect();
+
+        return Some(Browser::Other(cleaned));
     }
 
-    if !browser_detected {
-        return None;
-    }
-
-    // "\"foo-browser\";v=\"109\"" -> "foo-browser"
-    let cleaned: String = browser
-        .split(';')
-        .take(1)
-        .map(|s| s.trim().to_owned().replace('\"', ""))
-        .collect();
-
-    Some(Browser::Other(cleaned))
+    None
 }
 
 #[cfg(test)]
