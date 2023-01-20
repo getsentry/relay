@@ -56,13 +56,13 @@ impl<'a> RawUserAgentInfo<'a> {
                 if let Some(k) = o_k.as_str() {
                     match k.to_lowercase().as_str() {
                         "user-agent" => contexts.user_agent = v.as_str(),
-                        "sec-ch-ua-platform-version" => {
-                            contexts.sec_ch_ua_platform_version = v.as_str()
-                        }
-                        "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
                         "sec-ch-ua" => contexts.sec_ch_ua = v.as_str(),
                         "sec-ch-ua-full-version" => contexts.sec_ch_ua_full_version = v.as_str(),
                         "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
+                        "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
+                        "sec-ch-ua-platform-version" => {
+                            contexts.sec_ch_ua_platform_version = v.as_str()
+                        }
                         _ => {}
                     }
                 }
