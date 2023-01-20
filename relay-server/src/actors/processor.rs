@@ -1164,22 +1164,22 @@ impl EnvelopeProcessorService {
         });
         metric!(histogram(RelayHistograms::ReplayOriginalDecompressedSize) = buffer.len() as u64);
 
-        let mut events = metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
-            recording::deserialize(buffer)?
-        });
+        // let mut events = metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
+        //     recording::deserialize(buffer)?
+        // });
 
-        metric!(timer(RelayTimers::ReplayRecordingScrubPII), {
-            recording::strip_pii(&mut events)
-                .map_err(recording::RecordingParseError::ProcessingAction)?
-        });
+        // metric!(timer(RelayTimers::ReplayRecordingScrubPII), {
+        //     recording::strip_pii(&mut events)
+        //         .map_err(recording::RecordingParseError::ProcessingAction)?
+        // });
 
-        let bytes = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
-            recording::serialize(events)?
-        });
+        // let bytes = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
+        //     recording::serialize(events)?
+        // });
         metric!(histogram(RelayHistograms::ReplayDecompressedSize) = bytes.len() as u64);
 
         let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
-            recording::compress(bytes)?
+            recording::compress(buffer)?
         });
         metric!(histogram(RelayHistograms::ReplayCompressedSize) = compressed_bytes.len() as u64);
 

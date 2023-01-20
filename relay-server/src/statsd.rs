@@ -312,10 +312,10 @@ pub enum RelayTimers {
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
     ReplayRecordingDecompress,
-    ReplayRecordingDeserialize,
-    ReplayRecordingScrubPII,
+    // ReplayRecordingDeserialize,
+    // ReplayRecordingScrubPII,
     ReplayRecordingCompress,
-    ReplayRecordingSerialize,
+    // ReplayRecordingSerialize,
 }
 
 impl TimerMetric for RelayTimers {
@@ -348,10 +348,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::ReplayRecordingDecompress => "replay.recording.decompress",
-            RelayTimers::ReplayRecordingDeserialize => "replay.recording.deserialize",
-            RelayTimers::ReplayRecordingScrubPII => "replay.recording.scrub_pii",
+            // RelayTimers::ReplayRecordingDeserialize => "replay.recording.deserialize",
+            // RelayTimers::ReplayRecordingScrubPII => "replay.recording.scrub_pii",
             RelayTimers::ReplayRecordingCompress => "replay.recording.compress",
-            RelayTimers::ReplayRecordingSerialize => "replay.recording.serialize",
+            // RelayTimers::ReplayRecordingSerialize => "replay.recording.serialize",
         }
     }
 }
