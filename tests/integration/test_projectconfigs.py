@@ -352,3 +352,70 @@ def test_unparsable_project_config(mini_sentry, relay):
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_cached_project_config(mini_sentry, relay):
+    project_key = 42
+    relay_config = {
+        "cache": {"project_expiry": 2, "project_grace_period": 60, "miss_expiry": 2}
+    }
+    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    mini_sentry.add_full_project_config(project_key)
+    public_key = mini_sentry.get_dsn_public_key(project_key)
+
+    # Once the event is sent the project state is requested and cached.
+    relay.send_event(42)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+    # send a second event
+    relay.send_event(42)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+    data = get_response(relay, packed, signature)
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
+
+    # Introduce unparsable config.
+    config = mini_sentry.project_configs[project_key]["config"]
+    config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+        {
+            "condition": {
+                "op": "and",
+                "inner": [
+                    {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
+                ],
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z",
+            },
+            "decayingFn": {"function": "linear", "decayedSampleRate": 0.9},
+        }
+    )
+
+    # Caches must be expired at this point, and we are in the grace period.
+    time.sleep(2)
+    # The state must be stale and still be valid, but the update will be scheduled to get the new project state.
+    data = get_response(relay, packed, signature)
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
+
+    # This is still a grace period, and the state for us must be still valid, even though we get the error parsing the new state.
+    try:
+        # Give it a bit time for update to go through.
+        time.sleep(1)
+        data = get_response(relay, packed, signature)
+        assert {str(e) for _, e in mini_sentry.test_failures} == {
+            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
+        }
+    finally:
+        mini_sentry.test_failures.clear()
+
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
