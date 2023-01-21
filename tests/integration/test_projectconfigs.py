@@ -241,7 +241,7 @@ def get_response(relay, packed, signature):
 def test_unparsable_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 2, "miss_expiry": 2}
+        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2}
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
@@ -323,8 +323,30 @@ def test_unparsable_project_config(mini_sentry, relay):
         }
     ]
 
-    # Wait for caches to expire.
-    time.sleep(3)
+    # Wait for caches to expire. And we will get into the grace period.
+    time.sleep(2)
+    # The state should be stale at this point, once we request it, the update will be scheduled.
+    # But we still get back the cached invalid project state.
+    data = get_response(relay, packed, signature)
+    assert {
+        "configs": {
+            public_key: {
+                "projectId": None,
+                "lastChange": None,
+                "disabled": True,
+                "publicKeys": [],
+                "slug": None,
+                "config": {
+                    "allowedDomains": ["*"],
+                    "trustedRelays": [],
+                    "piiConfig": None,
+                },
+                "organizationId": None,
+            }
+        }
+    } == data
+    # give it a time to refresh the state
+    time.sleep(1)
 
     # This must succeed, since we will re-request the project state update at this point.
     relay.send_event(42)
