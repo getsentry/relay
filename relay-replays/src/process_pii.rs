@@ -1,4 +1,4 @@
-use serde_json::{Map, Value};
+use serde_json::{Error, Map, Value};
 use std::fmt::Display;
 
 pub type ProcessingResult = Result<Value, ParseError>;
@@ -6,20 +6,37 @@ pub type ProcessingResult = Result<Value, ParseError>;
 #[derive(Debug)]
 pub enum ParseError {
     InvalidPayload(&'static str),
+    CouldNotSerialize(Error),
+    CouldNotDeserialize(Error),
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseError::InvalidPayload(e) => write!(f, "{e}"),
+            ParseError::CouldNotSerialize(e) => {
+                write!(f, "could not serialize scrubbed output with error: {}", e)
+            }
+            ParseError::CouldNotDeserialize(e) => {
+                write!(f, "could not deserialize input data with error: {}", e)
+            }
         }
     }
 }
 
-pub fn scrub_pii(rrweb_data: &[u8]) -> Vec<u8> {
-    let d: Value = serde_json::from_slice(rrweb_data).unwrap();
-    let v = process_events(d).unwrap();
-    serde_json::to_vec(&v).unwrap()
+pub fn scrub_pii(rrweb_data: &[u8]) -> Result<Vec<u8>, ParseError> {
+    let result: Result<Value, Error> = serde_json::from_slice(rrweb_data);
+
+    match result {
+        Ok(events) => {
+            let scrubbed_events = process_events(events)?;
+            match serde_json::to_vec(&scrubbed_events) {
+                Ok(scrubbed_bytes) => Ok(scrubbed_bytes),
+                Err(e) => Err(ParseError::CouldNotSerialize(e)),
+            }
+        }
+        Err(e) => Err(ParseError::CouldNotDeserialize(e)),
+    }
 }
 
 fn process_events(events: Value) -> ProcessingResult {
@@ -452,7 +469,7 @@ mod tests {
     #[test]
     fn test_diff() {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
-        let x = scrub_pii(payload);
+        let x = scrub_pii(payload).unwrap();
 
         let x: Value = serde_json::from_slice(&x).unwrap();
         println!("{:?}", x);
