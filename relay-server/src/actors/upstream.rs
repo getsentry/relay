@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -8,7 +9,7 @@ use itertools::Itertools;
 use relay_log::LogError;
 use reqwest::header;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::{mpsc, watch, Notify, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
@@ -22,6 +23,7 @@ use relay_system::{
 };
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::service::REGISTRY;
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
 
@@ -200,8 +202,6 @@ pub struct IsNetworkOutage;
 /// low priority messages are sent. Within the same priority messages are sent FIFO.
 #[derive(Clone, Copy, Debug)]
 pub enum RequestPriority {
-    /// Immediate request that bypasses queueing and authentication (e.g. Authentication).
-    Immediate,
     /// High priority, low volume messages (e.g. ProjectConfig, ProjectStates, Registration messages).
     High,
     /// Low priority, high volume messages (e.g. Events and Outcomes).
@@ -211,7 +211,6 @@ pub enum RequestPriority {
 impl RequestPriority {
     fn name(&self) -> &'static str {
         match self {
-            RequestPriority::Immediate => "immediate",
             RequestPriority::High => "high",
             RequestPriority::Low => "low",
         }
@@ -416,7 +415,7 @@ pub enum UpstreamRelay {
 
 impl UpstreamRelay {
     pub fn from_registry() -> Addr<Self> {
-        todo!()
+        REGISTRY.get().unwrap().upstream_relay.clone()
     }
 }
 
@@ -459,59 +458,6 @@ where
     fn from_message(message: SendQuery<T>, sender: QuerySender<T>) -> Self {
         let SendQuery(query) = message;
         Self::SendQuery(Box::new((query, sender)))
-    }
-}
-
-/// TODO(ja): Doc
-/// TODO(ja): Name
-#[derive(Debug)]
-struct Dispatch {
-    config: Arc<Config>,
-    tx_high: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
-    tx_low: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
-    outage: OutageHandle,
-    auth: AuthHandle,
-}
-
-impl Dispatch {
-    fn enqueue_request(&mut self, request: Box<dyn UpstreamRequest>) {
-        let priority = request.priority();
-
-        // We can ignore send errors here. Once the channel closes, we drop all incoming requests
-        // here. The receiving end of the request will be notified of the drop if they are waiting
-        // for it.
-        match priority {
-            RequestPriority::Immediate => {
-                unreachable!("send immediate requests directly to client")
-            }
-            RequestPriority::High => self.tx_high.send(request).ok(),
-            RequestPriority::Low => self.tx_low.send(request).ok(),
-        };
-
-        // TODO(ja): Make this a gauge
-        // TODO(ja): Measure queue saturation
-        relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = 0u64,
-            priority = priority.name(),
-        );
-    }
-
-    fn handle_query(&mut self, query: Box<dyn ConfigureRequest>) {
-        // TODO(ja): configure can be expensive. This should be bounded + run in spawn_blocking
-        // Ideally we defer this to request execution and make it lazy. This is only here because
-        // `request::build()` cannot return an UpstreamRequestError if credentials are missing.
-        if let Some(request) = query.configure(&self.config) {
-            self.enqueue_request(request);
-        }
-    }
-
-    fn handle_message(&mut self, message: UpstreamRelay) {
-        match message {
-            UpstreamRelay::IsAuthenticated(_, sender) => sender.send(self.auth.is_authenticated()),
-            UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(self.outage.is_active()),
-            UpstreamRelay::SendRequest(request) => self.enqueue_request(request),
-            UpstreamRelay::SendQuery(query) => self.handle_query(query),
-        }
     }
 }
 
@@ -617,7 +563,7 @@ impl UpstreamRequest for GetHealthCheck {
     }
 
     fn priority(&self) -> RequestPriority {
-        RequestPriority::Immediate // TODO(ja): This is ugly since we never use this.
+        unreachable!("sent directly to client")
     }
 
     fn set_relay_id(&self) -> bool {
@@ -644,97 +590,260 @@ impl UpstreamRequest for GetHealthCheck {
     }
 }
 
-/// TODO(ja): Doc
-#[derive(Clone, Debug)]
-struct OutageHandle {
-    rx: watch::Receiver<bool>,
-    notify: Arc<Notify>,
-}
+impl UpstreamQuery for RegisterRequest {
+    type Response = RegisterChallenge;
 
-impl OutageHandle {
-    /// Returns `true` if the upstream is in an outage situation.
-    pub fn is_active(&self) -> bool {
-        *self.rx.borrow()
+    fn method(&self) -> Method {
+        Method::POST
     }
 
-    /// Waits until the outage is resolved.
-    ///
-    /// If there is no outage, this resolves immediately. Otherwise, if an outage has been
-    /// [notified](Self::notify), this will block until the outage monitor has reestablished
-    /// connection.
-    ///
-    /// # Cancel safety
-    ///
-    /// This method is cancel safe.
-    pub async fn resolved(&mut self) -> Result<(), ServiceError> {
-        while self.is_active() {
-            if self.rx.changed().await.is_err() {
-                return Err(ServiceError::ChannelClosed);
-            }
-        }
-
-        Ok(())
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/register/challenge/")
     }
 
-    /// Notify the outage monitor of a network outage.
-    ///
-    /// This will set the upstream into outage state. Subsequent calls to `is_active` will return
-    /// `true`, and the outage monitor will start to reestablish a connection with the upstream.
-    /// Calls to `resolved` will now block until the connection is established.
-    pub fn notify(&self) {
-        // Do not use `notify_one` here, since that would store a permit for the next call to
-        // `notify()` in the monitor. However, we need to ensure that the monitor only starts
-        // watching after it is done with a healthcheck.
-        self.notify.notify_waiters();
+    fn priority() -> RequestPriority {
+        unreachable!("sent directly to client")
+    }
+
+    fn retry() -> bool {
+        false
     }
 }
 
-/// TODO(ja): Doc
-struct OutageMonitor {
-    backoff: RetryBackoff,
-    status: watch::Sender<bool>,
-    notify: Arc<Notify>,
-    client: Arc<SharedClient>,
+impl UpstreamQuery for RegisterResponse {
+    type Response = Registration;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/register/response/")
+    }
+
+    fn priority() -> RequestPriority {
+        unreachable!("sent directly to client")
+    }
+
+    fn retry() -> bool {
+        false
+    }
 }
 
-impl OutageMonitor {
-    async fn connect(&mut self) {
-        self.backoff.reset();
+#[derive(Debug)]
+struct SharedClient {
+    config: Arc<Config>,
+    reqwest: reqwest::Client,
+}
 
-        loop {
-            let next_backoff = self.backoff.next_backoff();
-            relay_log::warn!(
-                "Network outage, scheduling another check in {:?}",
-                next_backoff
-            );
+impl SharedClient {
+    fn build(config: Arc<Config>) -> Self {
+        let reqwest = reqwest::ClientBuilder::new()
+            .connect_timeout(config.http_connection_timeout())
+            .timeout(config.http_timeout())
+            // In actix-web client this option could be set on a per-request basis.  In reqwest
+            // this option can only be set per-client. For non-forwarded upstream requests that is
+            // desirable, so we have it enabled.
+            //
+            // In the forward endpoint, this means that content negotiation is done twice, and the
+            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            .gzip(true)
+            .trust_dns(true)
+            .build()
+            .unwrap();
 
-            tokio::time::sleep(next_backoff).await;
-            match self.client.send(&GetHealthCheck).await {
-                Ok(_) => return,
-                Err(e) if !e.is_network_error() => return,
-                Err(_) => continue,
+        Self { config, reqwest }
+    }
+
+    /// TODO(ja): Doc
+    fn build_request(
+        &self,
+        request: &dyn UpstreamRequest,
+    ) -> Result<reqwest::Request, UpstreamRequestError> {
+        // TODO(ja): This entire function, esp request.build() can be slow -> move to spawn_blocking?
+
+        let url = self
+            .config
+            .upstream_descriptor()
+            .get_url(request.path().as_ref());
+
+        let host_header = self
+            .config
+            .http_host_header()
+            .unwrap_or_else(|| self.config.upstream_descriptor().host());
+
+        let method = request.method();
+
+        let mut builder = RequestBuilder::reqwest(self.reqwest.request(method, url));
+        // TODO(ja): All these headers can be prepared and cloned
+        builder.header("Host", host_header.as_bytes());
+
+        if request.set_relay_id() {
+            if let Some(credentials) = self.config.credentials() {
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
             }
+        }
+
+        match request.build(builder) {
+            Ok(Request(client_request)) => Ok(client_request),
+            Err(e) => Err(UpstreamRequestError::Http(e)),
         }
     }
 
-    pub async fn run(mut self) {
-        loop {
-            // Obtain the notify first to avoid a data race. As soon as this notify is created, it
-            // will capture `notify_waiting`. After this, signal waiting receivers to continue with
-            // new requests by setting the outage status to `false`.
-            let notify = self.notify.notified();
-            if self.status.send(false).is_err() {
-                return;
-            }
+    /// Handles an HTTP response returned from the upstream.
+    ///
+    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned.
+    /// Otherwise, the response is consumed and an error is returned. If `intercept_status_errors`
+    /// is set to `true` on the request, depending on the status code and details provided in the
+    /// payload, one of the following errors is returned:
+    ///
+    ///  1. `RateLimited` for a `429` status code.
+    ///  2. `ResponseError`  in all other cases, containing the status and details.
+    async fn transform_response(
+        &self,
+        request: &dyn UpstreamRequest,
+        response: Response,
+    ) -> Result<Response, UpstreamRequestError> {
+        let status = response.status();
 
-            notify.await;
-            if self.status.send(true).is_err() {
-                return;
-            }
-
-            self.connect().await;
-            relay_log::info!("Recovering from network outage.")
+        if !request.intercept_status_errors() || status.is_success() {
+            return Ok(response);
         }
+
+        let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
+            let retry_after = response
+                .get_header(header::RETRY_AFTER)
+                .and_then(|v| std::str::from_utf8(v).ok());
+
+            let rate_limits = response
+                .get_all_headers(utils::RATE_LIMITS_HEADER)
+                .iter()
+                .filter_map(|v| std::str::from_utf8(v).ok())
+                .join(", "); // TODO(ja): Avoid this stringify roundtrip
+
+            let upstream_limits = UpstreamRateLimits::new()
+                .retry_after(retry_after)
+                .rate_limits(rate_limits);
+
+            Some(upstream_limits)
+        } else {
+            None // TODO(ja): Check if we still need to consume responses
+        };
+
+        // At this point, we consume the Response. This means we need to consume the response
+        // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
+        // non-fatal failure as the upstream is not expected to always include a valid JSON
+        // response.
+        let json_result = response.json(self.config.max_api_payload_size()).await;
+
+        if let Some(upstream_limits) = upstream_limits {
+            Err(UpstreamRequestError::RateLimited(upstream_limits))
+        } else {
+            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            let api_response = json_result.unwrap_or_default();
+            Err(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    }
+
+    /// TODO(ja): Doc
+    async fn send(&self, request: &dyn UpstreamRequest) -> Result<Response, UpstreamRequestError> {
+        let send_start = Instant::now();
+
+        let client_request = self.build_request(request)?;
+        let response = self.reqwest.execute(client_request).await?;
+        let result = self.transform_response(request, Response(response)).await;
+
+        emit_response_metrics(send_start, request, &result, 1); // TODO(ja): continue logging attempts?
+        result
+    }
+
+    /// TODO(ja): Doc
+    pub async fn send_query<T>(&self, query: T) -> Result<T::Response, UpstreamRequestError>
+    where
+        T: UpstreamQuery + 'static,
+    {
+        let credentials = self
+            .config
+            .credentials()
+            .ok_or(UpstreamRequestError::NoCredentials)?;
+
+        let (sender, receiver) = AsyncResponse::channel();
+
+        // TODO(ja): Should this retry?
+        if let Some(request) = sign_query(query, credentials, &self.config, sender) {
+            let result = self.send(request.as_ref()).await;
+            request.respond(result).await;
+        }
+
+        receiver
+            .await
+            .unwrap_or(Err(UpstreamRequestError::ChannelClosed))
+    }
+}
+
+/// The position for enqueueing an upstream request.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum EnqueuePosition {
+    Front,
+    Back,
+}
+
+#[derive(Debug)]
+struct UpstreamQueue {
+    high: VecDeque<Box<dyn UpstreamRequest>>,
+    low: VecDeque<Box<dyn UpstreamRequest>>,
+}
+
+impl UpstreamQueue {
+    pub fn new() -> Self {
+        Self {
+            high: VecDeque::new(),
+            low: VecDeque::new(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.high.len() + self.low.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.high.is_empty() && self.low.is_empty()
+    }
+
+    fn push(&mut self, request: Box<dyn UpstreamRequest>, position: EnqueuePosition) {
+        let priority = request.priority();
+
+        // We can ignore send errors here. Once the channel closes, we drop all incoming requests
+        // here. The receiving end of the request will be notified of the drop if they are waiting
+        // for it.
+        let queue = match priority {
+            RequestPriority::High => &mut self.high,
+            RequestPriority::Low => &mut self.low,
+        };
+
+        match position {
+            EnqueuePosition::Front => queue.push_front(request),
+            EnqueuePosition::Back => queue.push_back(request),
+        }
+
+        // TODO(ja): Make this a gauge
+        // TODO(ja): Measure queue saturation
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+        );
+    }
+
+    pub fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
+        self.push(request, EnqueuePosition::Back)
+    }
+
+    pub fn place_back(&mut self, request: Box<dyn UpstreamRequest>) {
+        self.push(request, EnqueuePosition::Front)
+    }
+
+    pub fn dequeue(&mut self) -> Option<Box<dyn UpstreamRequest>> {
+        self.high.pop_front().or_else(|| self.low.pop_front())
     }
 }
 
@@ -758,46 +867,6 @@ enum AuthState {
     Denied,
 }
 
-impl UpstreamQuery for RegisterRequest {
-    type Response = RegisterChallenge;
-
-    fn method(&self) -> Method {
-        Method::POST
-    }
-
-    fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/register/challenge/")
-    }
-
-    fn priority() -> RequestPriority {
-        RequestPriority::Immediate
-    }
-
-    fn retry() -> bool {
-        false
-    }
-}
-
-impl UpstreamQuery for RegisterResponse {
-    type Response = Registration;
-
-    fn method(&self) -> Method {
-        Method::POST
-    }
-
-    fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/register/response/")
-    }
-
-    fn priority() -> RequestPriority {
-        RequestPriority::Immediate
-    }
-
-    fn retry() -> bool {
-        false
-    }
-}
-
 impl AuthState {
     /// Returns true if the state is considered authenticated.
     pub fn is_authenticated(self) -> bool {
@@ -805,23 +874,18 @@ impl AuthState {
     }
 }
 
-/// TODO(ja): Doc
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 enum AuthHandle {
-    /// TODO(ja): Doc
-    /// TODO(ja): Name
     NotNeeded,
     /// TODO(ja): Doc
     Required(watch::Receiver<AuthState>),
 }
 
 impl AuthHandle {
-    /// TODO(ja): Doc
     pub fn is_authenticated(&self) -> bool {
         match self {
-            // Non-managed mode Relays do not authenticate and are ready immediately
-            AuthHandle::NotNeeded => true,
-            AuthHandle::Required(rx) => match *rx.borrow() {
+            Self::NotNeeded => true,
+            Self::Required(rx) => match *rx.borrow() {
                 // Relays that have auth errors cannot send messages
                 AuthState::Unknown | AuthState::Registering | AuthState::Denied => false,
                 // All good in managed mode
@@ -830,25 +894,10 @@ impl AuthHandle {
         }
     }
 
-    /// TODO(ja): Doc
-    ///
-    /// # Cancel safety
-    ///
-    /// This method is cancel safe.
-    pub async fn authenticated(&mut self) -> Result<(), ServiceError> {
+    pub async fn changed(&mut self) {
         match self {
-            AuthHandle::NotNeeded => Ok(()),
-            AuthHandle::Required(ref mut rx) => loop {
-                match *rx.borrow() {
-                    AuthState::Unknown | AuthState::Registering => (),
-                    AuthState::Registered | AuthState::Renewing => return Ok(()),
-                    AuthState::Denied => return Err(ServiceError::AuthDenied),
-                }
-
-                if rx.changed().await.is_err() {
-                    return Err(ServiceError::ChannelClosed);
-                }
-            },
+            Self::NotNeeded => std::future::pending().await,
+            Self::Required(rx) => rx.changed().await.expect("TODO(ja): Fix"),
         }
     }
 }
@@ -962,340 +1011,241 @@ impl AuthMonitor {
     }
 }
 
-#[derive(Debug)]
-struct SharedClient {
+fn auth_channel(
     config: Arc<Config>,
-    reqwest: reqwest::Client,
-    outage: OutageHandle,
-    first_error: Option<Instant>,
+    client: Arc<SharedClient>,
+) -> (AuthHandle, Option<AuthMonitor>) {
+    if config.relay_mode() != RelayMode::Managed {
+        return (AuthHandle::NotNeeded, None);
+    }
+
+    let (auth_tx, auth_rx) = watch::channel(AuthState::Unknown);
+
+    let monitor = AuthMonitor {
+        config: config.clone(),
+        backoff: RetryBackoff::new(config.http_max_retry_interval()),
+        state: auth_tx,
+        client,
+    };
+
+    (AuthHandle::Required(auth_rx), Some(monitor))
 }
 
-impl SharedClient {
-    fn build(config: Arc<Config>, outage: OutageHandle) -> Self {
-        let reqwest = reqwest::ClientBuilder::new()
-            .connect_timeout(config.http_connection_timeout())
-            .timeout(config.http_timeout())
-            // In actix-web client this option could be set on a per-request basis.  In reqwest
-            // this option can only be set per-client. For non-forwarded upstream requests that is
-            // desirable, so we have it enabled.
-            //
-            // In the forward endpoint, this means that content negotiation is done twice, and the
-            // response body is first decompressed by reqwest, then re-compressed by actix-web.
-            .gzip(true)
-            .trust_dns(true)
-            .build()
-            .unwrap();
+#[derive(Clone, Debug)]
+struct Connector {
+    config: Arc<Config>,
+    client: Arc<SharedClient>,
+}
 
-        Self {
-            config,
-            reqwest,
-            outage,
-            first_error: None,
-        }
-    }
+impl Connector {
+    pub async fn connect(self) {
+        let mut backoff = RetryBackoff::new(self.config.http_max_retry_interval());
 
-    /// TODO(ja): Doc
-    fn build_request(
-        &self,
-        request: &dyn UpstreamRequest,
-    ) -> Result<reqwest::Request, UpstreamRequestError> {
-        // TODO(ja): This entire function, esp request.build() can be slow -> move to spawn_blocking?
+        loop {
+            let next_backoff = backoff.next_backoff();
+            relay_log::warn!(
+                "Network outage, scheduling another check in {:?}",
+                next_backoff
+            );
 
-        let url = self
-            .config
-            .upstream_descriptor()
-            .get_url(request.path().as_ref());
-
-        let host_header = self
-            .config
-            .http_host_header()
-            .unwrap_or_else(|| self.config.upstream_descriptor().host());
-
-        let method = request.method();
-
-        let mut builder = RequestBuilder::reqwest(self.reqwest.request(method, url));
-        // TODO(ja): All these headers can be prepared and cloned
-        builder.header("Host", host_header.as_bytes());
-
-        if request.set_relay_id() {
-            if let Some(credentials) = self.config.credentials() {
-                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+            tokio::time::sleep(next_backoff).await;
+            match self.client.send(&GetHealthCheck).await {
+                Ok(_) => return,
+                Err(e) if !e.is_network_error() => return,
+                Err(_) => continue,
             }
         }
+    }
+}
 
-        match request.build(builder) {
-            Ok(Request(client_request)) => Ok(client_request),
-            Err(e) => Err(UpstreamRequestError::Http(e)),
+#[derive(Debug)]
+enum ConnectionState {
+    Connected,
+    Interrupted(Instant),
+    Reconnecting(tokio::task::JoinHandle<()>),
+}
+
+#[derive(Debug)]
+struct ConnectionMonitor {
+    state: ConnectionState,
+    connector: Connector,
+}
+
+impl ConnectionMonitor {
+    pub fn new(config: Arc<Config>, client: Arc<SharedClient>) -> Self {
+        Self {
+            state: ConnectionState::Connected,
+            connector: Connector { config, client },
         }
     }
 
-    /// Handles an HTTP response returned from the upstream.
-    ///
-    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned.
-    /// Otherwise, the response is consumed and an error is returned. If `intercept_status_errors`
-    /// is set to `true` on the request, depending on the status code and details provided in the
-    /// payload, one of the following errors is returned:
-    ///
-    ///  1. `RateLimited` for a `429` status code.
-    ///  2. `ResponseError`  in all other cases, containing the status and details.
-    async fn transform_response(
-        &self,
-        request: &dyn UpstreamRequest,
-        response: Response,
-    ) -> Result<Response, UpstreamRequestError> {
-        let status = response.status();
-
-        if !request.intercept_status_errors() || status.is_success() {
-            return Ok(response);
+    pub fn is_stable(&self) -> bool {
+        match self.state {
+            ConnectionState::Connected => true,
+            ConnectionState::Interrupted(_) => true,
+            ConnectionState::Reconnecting(ref handle) => handle.is_finished(),
         }
+    }
 
-        let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
-            let retry_after = response
-                .get_header(header::RETRY_AFTER)
-                .and_then(|v| std::str::from_utf8(v).ok());
+    pub fn is_outage(&self) -> bool {
+        !self.is_stable()
+    }
 
-            let rate_limits = response
-                .get_all_headers(utils::RATE_LIMITS_HEADER)
-                .iter()
-                .filter_map(|v| std::str::from_utf8(v).ok())
-                .join(", "); // TODO(ja): Avoid this stringify roundtrip
+    pub async fn changed(&mut self) {
+        match self.state {
+            ConnectionState::Connected => std::future::pending().await,
+            ConnectionState::Interrupted(_) => std::future::pending().await,
+            ConnectionState::Reconnecting(ref mut handle) => {
+                handle.await.expect("TODO(ja)");
+            }
+        }
+    }
 
-            let upstream_limits = UpstreamRateLimits::new()
-                .retry_after(retry_after)
-                .rate_limits(rate_limits);
+    pub fn notify_error(&mut self) {
+        let now = Instant::now();
 
-            Some(upstream_limits)
-        } else {
-            None // TODO(ja): Check if we still need to consume responses
+        let first_error = match self.state {
+            ConnectionState::Connected => now,
+            ConnectionState::Interrupted(first) => first,
+            ConnectionState::Reconnecting(ref task) if task.is_finished() => now,
+            ConnectionState::Reconnecting(_) => return,
         };
 
-        // At this point, we consume the Response. This means we need to consume the response
-        // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
-        // non-fatal failure as the upstream is not expected to always include a valid JSON
-        // response.
-        let json_result = response.json(self.config.max_api_payload_size()).await;
+        self.state = ConnectionState::Interrupted(first_error);
 
-        if let Some(upstream_limits) = upstream_limits {
-            Err(UpstreamRequestError::RateLimited(upstream_limits))
-        } else {
-            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
-            let api_response = json_result.unwrap_or_default();
-            Err(UpstreamRequestError::ResponseError(status, api_response))
+        // Only take action if we exceeded the grace period.
+        if first_error + self.connector.config.http_outage_grace_period() <= now {
+            let task = tokio::spawn(self.connector.clone().connect());
+            self.state = ConnectionState::Reconnecting(task);
         }
     }
 
-    /// TODO(ja): Doc
-    /// TODO(ja): Name
-    async fn send_once(
-        &self,
-        request: &dyn UpstreamRequest,
-    ) -> Result<Response, UpstreamRequestError> {
-        let client_request = self.build_request(request)?;
-        let response = self.reqwest.execute(client_request).await?;
-        self.transform_response(request, Response(response)).await
-    }
-
-    /// Records an occurrence of a network error.
-    ///
-    /// If the network errors persist throughout the http outage grace period, an outage is
-    /// triggered, which results in halting all network requests and starting a reconnect loop.
-    fn handle_network_error(&self) {
-        // TODO(ja): Debounce this
-        // let now = Instant::now();
-        // let first_error = *self.first_error.get_or_insert(now);
-
-        // // Only take action if we exceeded the grace period.
-        // if now > first_error + self.config.http_outage_grace_period() {
-        self.outage.notify();
-        // }
-    }
-
-    /// Called when a message to the upstream goes through without a network error.
-    fn reset_network_error(&self) {
-        // self.first_error = None;
-    }
-
-    /// TODO(ja): Doc
-    pub async fn send(
-        &self,
-        request: &dyn UpstreamRequest,
-    ) -> Result<Response, UpstreamRequestError> {
-        let mut attempt = 0;
-
-        // TODO(ja): There is one regression: low-prio requests can stall high-prio reqs. Fine?
-        loop {
-            let send_start = Instant::now();
-            let result = self.send_once(request).await;
-            emit_response_metrics(send_start, request, &result, attempt);
-
-            if matches!(result, Err(ref err) if err.is_network_error()) {
-                self.handle_network_error();
-
-                if request.retry() {
-                    attempt += 1;
-                    continue; // TODO(ja): This shouldn't loop if we're in outage state
-                }
-            } else {
-                // we managed a request without a network error, reset the first time we got a
-                // network error and resume sending events.
-                self.reset_network_error();
-            }
-
-            return result;
-        }
-    }
-
-    /// TODO(ja): Doc
-    pub async fn send_query<T>(&self, query: T) -> Result<T::Response, UpstreamRequestError>
-    where
-        T: UpstreamQuery + 'static,
-    {
-        let credentials = self
-            .config
-            .credentials()
-            .ok_or(UpstreamRequestError::NoCredentials)?;
-
-        let (sender, receiver) = AsyncResponse::channel();
-
-        if let Some(request) = sign_query(query, credentials, &self.config, sender) {
-            let result = self.send(request.as_ref()).await;
-            request.respond(result).await;
+    pub fn reset_error(&mut self) {
+        if let ConnectionState::Reconnecting(ref task) = self.state {
+            task.abort();
         }
 
-        receiver
-            .await
-            .unwrap_or(Err(UpstreamRequestError::ChannelClosed))
+        self.state = ConnectionState::Connected;
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum RequestStatus {
+    Dropped,
+    Completed,
+}
+
+#[derive(Debug)]
+enum Action {
+    Retry(Box<dyn UpstreamRequest>),
+    // TODO(ja): More distinct naming Action::Complete vs RequestStatus::Completed.
+    Complete(RequestStatus),
 }
 
 /// TODO(ja): Doc
-/// TODO(ja): Name
 #[derive(Debug)]
 struct Broker {
-    rx_high: mpsc::UnboundedReceiver<Box<dyn UpstreamRequest>>,
-    rx_low: mpsc::UnboundedReceiver<Box<dyn UpstreamRequest>>,
-    semaphore: Arc<Semaphore>,
     client: Arc<SharedClient>,
-    outage: OutageHandle,
+    queue: UpstreamQueue,
     auth: AuthHandle,
+    conn: ConnectionMonitor,
+    permits: usize,
+    action_tx: mpsc::UnboundedSender<Action>,
+    config: Arc<Config>,
 }
 
 impl Broker {
-    /// TODO(ja): Doc
-    async fn ready(&mut self) -> Result<OwnedSemaphorePermit, ServiceError> {
-        let permit = self.semaphore.clone().acquire_owned().await;
+    async fn next_request(&mut self) -> Option<Box<dyn UpstreamRequest>> {
+        // TODO(ja): Describe why we can exit here
+        if self.queue.is_empty() || self.permits == 0 {
+            return None;
+        }
 
-        // TODO(ja): Explain error propagation
-        self.auth.authenticated().await?;
-
-        // TODO(ja): Consider placement of this:
-        //  - if we check it here, we might have a new outage by the time a new request comes
-        //    in. That's unlikely though.
-        //  - if we check it below, that means we spawn more tasks that will just be waiting
-        //    instead of leaving requests in the queue.
-        //  - the outage should be checked somewhere in the request loop too.
-        self.outage.resolved().await?;
-
-        permit.map_err(|_| ServiceError::ChannelClosed)
-    }
-
-    /// TODO(ja): Doc
-    async fn run(mut self) {
         loop {
-            let ready_result = self.ready().await;
+            if self.auth.is_authenticated() && self.conn.is_stable() {
+                self.permits -= 1; // TODO(ja): dequeue always returns Some
+                return self.queue.dequeue();
+            }
 
-            let request = tokio::select! {
+            tokio::select! {
                 biased;
 
-                Some(request) = self.rx_high.recv() => request,
-                Some(request) = self.rx_low.recv() => request,
-                else => return,
+                () = self.auth.changed() => (),
+                () = self.conn.changed() => (),
+            }
+        }
+    }
+
+    fn execute(&self, request: Box<dyn UpstreamRequest>) {
+        let client = self.client.clone();
+        let action_tx = self.action_tx.clone();
+
+        tokio::spawn(async move {
+            let result = client.send(request.as_ref()).await;
+
+            let status = match result {
+                Err(ref err) if err.is_network_error() => RequestStatus::Dropped,
+                _ => RequestStatus::Completed,
             };
 
-            match ready_result {
-                Ok(permit) => {
-                    let client = self.client.clone();
-                    tokio::spawn(async move {
-                        let result = client.send(request.as_ref()).await;
-                        request.respond(result).await;
-                        drop(permit);
-                    });
+            match status {
+                RequestStatus::Dropped if request.retry() => {
+                    // attempt += 1; // TODO(ja)
+                    // TODO(ja): Sent to `handle_result`.
+                    action_tx.send(Action::Retry(request)).ok();
                 }
-                Err(error) => request.respond(Err(error.into())).await,
-            };
+                _ => request.respond(result).await,
+            }
+
+            // TODO(ja): Sent to `handle_result`.
+            action_tx.send(Action::Complete(status)).ok();
+        });
+    }
+
+    fn handle_query(&mut self, query: Box<dyn ConfigureRequest>) {
+        // TODO(ja): configure can be expensive. This should be bounded + run in spawn_blocking
+        // Ideally we defer this to request execution and make it lazy. This is only here because
+        // `request::build()` cannot return an UpstreamRequestError if credentials are missing.
+        if let Some(request) = query.configure(&self.config) {
+            self.queue.enqueue(request);
+        }
+    }
+
+    fn handle_message(&mut self, message: UpstreamRelay) {
+        match message {
+            UpstreamRelay::IsAuthenticated(_, sender) => sender.send(self.auth.is_authenticated()),
+            UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(self.conn.is_outage()),
+            UpstreamRelay::SendRequest(request) => self.queue.enqueue(request),
+            UpstreamRelay::SendQuery(query) => self.handle_query(query),
+        }
+    }
+
+    fn complete(&mut self, status: RequestStatus) {
+        self.permits += 1;
+
+        match status {
+            RequestStatus::Dropped => self.conn.notify_error(),
+            RequestStatus::Completed => self.conn.reset_error(),
+        }
+    }
+
+    fn handle_action(&mut self, action: Action) {
+        match action {
+            Action::Retry(request) => self.queue.place_back(request),
+            Action::Complete(status) => self.complete(status),
         }
     }
 }
 
-/// TODO(ja): Doc
+#[derive(Debug)]
 pub struct UpstreamRelayService {
-    dispatch: Dispatch,
-    broker: Broker,
-    outage_monitor: OutageMonitor,
-    auth_monitor: Option<AuthMonitor>,
+    config: Arc<Config>,
 }
 
 impl UpstreamRelayService {
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
-        let (outage_tx, outage_rx) = watch::channel(false);
-        let outage_notify = Arc::new(Notify::new());
-        let outage_handle = OutageHandle {
-            rx: outage_rx,
-            notify: outage_notify.clone(),
-        };
-
-        let client = Arc::new(SharedClient::build(config.clone(), outage_handle.clone()));
-
-        let outage_monitor = OutageMonitor {
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            status: outage_tx,
-            notify: outage_notify,
-            client: client.clone(),
-        };
-
-        // only managed mode relays perform authentication
-        let (auth_handle, auth_monitor) = if config.relay_mode() == RelayMode::Managed {
-            let (auth_tx, auth_rx) = watch::channel(AuthState::Unknown);
-
-            let monitor = AuthMonitor {
-                config: config.clone(),
-                backoff: RetryBackoff::new(config.http_max_retry_interval()),
-                state: auth_tx,
-                client: client.clone(),
-            };
-
-            (AuthHandle::Required(auth_rx), Some(monitor))
-        } else {
-            (AuthHandle::NotNeeded, None)
-        };
-
-        let (tx_high, rx_high) = mpsc::unbounded_channel();
-        let (tx_low, rx_low) = mpsc::unbounded_channel();
-
-        let dispatch = Dispatch {
-            config: config.clone(),
-            tx_high,
-            tx_low,
-            outage: outage_handle.clone(),
-            auth: auth_handle.clone(),
-        };
-
-        let broker = Broker {
-            rx_high,
-            rx_low,
-            semaphore: Arc::new(Semaphore::new(config.max_concurrent_requests())),
-            client,
-            outage: outage_handle,
-            auth: auth_handle,
-        };
-
-        Self {
-            dispatch,
-            broker,
-            outage_monitor,
-            auth_monitor,
-        }
+        Self { config }
     }
 }
 
@@ -1303,22 +1253,41 @@ impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let Self {
-            mut dispatch,
-            broker,
-            outage_monitor,
-            auth_monitor,
-        } = self;
+        let Self { config } = self;
 
-        tokio::spawn(async move { outage_monitor.run().await });
-        if let Some(auth_monitor) = auth_monitor {
-            tokio::spawn(async move { auth_monitor.run().await });
+        let client = Arc::new(SharedClient::build(config.clone()));
+
+        // Spawn a background check for authentication, along with a handle for the broker.
+        let (auth_handle, auth_monitor) = auth_channel(config.clone(), client.clone());
+        if let Some(monitor) = auth_monitor {
+            tokio::spawn(monitor.run());
         }
-        tokio::spawn(async move { broker.run().await });
+
+        // Channel for internal actions.
+        let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+
+        // Main broker.
+        let mut broker = Broker {
+            client: client.clone(),
+            queue: UpstreamQueue::new(),
+            auth: auth_handle,
+            conn: ConnectionMonitor::new(config.clone(), client),
+            permits: config.max_concurrent_requests(),
+            action_tx,
+            config,
+        };
 
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                dispatch.handle_message(message);
+            loop {
+                tokio::select! {
+                    biased;
+
+                    Some(action) = action_rx.recv() => broker.handle_action(action),
+                    Some(request) = broker.next_request() => broker.execute(request),
+                    Some(message) = rx.recv() => broker.handle_message(message),
+
+                    else => break,
+                }
             }
         });
     }
