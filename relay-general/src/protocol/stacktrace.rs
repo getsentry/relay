@@ -4,7 +4,6 @@ use std::ops::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 
 use crate::macros::derive_fromstr_and_display;
-use crate::processor::ProcessValue;
 use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -372,7 +371,7 @@ pub struct RawStacktrace {
 /// When the stack walking implementation truncates frames from the top, `"all"` frames should be
 /// adjusted. In case the stack walking implementation already does the adjustment when producing
 /// stack frames, `"none"` should be used here.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "snake_case"))]
@@ -457,8 +456,6 @@ impl IntoValue for InstructionAddrAdjustment {
         serde::Serialize::serialize(&self.to_string(), s)
     }
 }
-
-impl ProcessValue for InstructionAddrAdjustment {}
 
 // NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
