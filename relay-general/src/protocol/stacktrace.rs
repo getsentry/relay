@@ -1,9 +1,9 @@
 use std::fmt;
 use std::ops::{Deref, DerefMut};
-use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::macros::derive_fromstr_and_display;
 use crate::processor::ProcessValue;
 use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{
@@ -405,31 +405,12 @@ impl fmt::Display for ParseAdjustmentError {
 
 impl std::error::Error for ParseAdjustmentError {}
 
-impl FromStr for InstructionAddrAdjustment {
-    type Err = ParseAdjustmentError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "auto" => Ok(Self::Auto),
-            "all_but_first" => Ok(Self::AllButFirst),
-            "all" => Ok(Self::All),
-            "none" => Ok(Self::None),
-            _ => Err(ParseAdjustmentError),
-        }
-    }
-}
-
-impl fmt::Display for InstructionAddrAdjustment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            InstructionAddrAdjustment::Auto => "auto",
-            InstructionAddrAdjustment::AllButFirst => "all_but_first",
-            InstructionAddrAdjustment::All => "all",
-            InstructionAddrAdjustment::None => "none",
-        };
-        f.write_str(s)
-    }
-}
+derive_fromstr_and_display!(InstructionAddrAdjustment, ParseAdjustmentError, {
+    InstructionAddrAdjustment::Auto => "auto",
+    InstructionAddrAdjustment::AllButFirst => "all_but_first",
+    InstructionAddrAdjustment::All => "all",
+    InstructionAddrAdjustment::None => "none",
+});
 
 impl Default for InstructionAddrAdjustment {
     fn default() -> Self {
