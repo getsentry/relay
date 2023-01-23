@@ -1859,7 +1859,7 @@ mod tests {
     );
     transaction_name_test!(
         test_transaction_name_normalize_uuid,
-        "/u/7b25feeaq-ed2d-4132-bcbd-6232b7922add/edit",
+        "/u/7b25feea-ed2d-4132-bcbd-6232b7922add/edit",
         "/u/*/edit"
     );
     transaction_name_test!(
