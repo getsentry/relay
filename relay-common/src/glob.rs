@@ -9,6 +9,9 @@ use regex::bytes::{Regex, RegexBuilder};
 static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(500)));
 
+static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(500)));
+
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct GlobOptions {
@@ -33,16 +36,16 @@ fn translate_pattern(pat: &str, options: GlobOptions) -> Option<Regex> {
         .ok()
 }
 
-pub fn translate_codeowners_pattern(pattern: &str) -> Regex {
+fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
     let mut regex = String::new();
 
     // Special case backslash can match a backslash file or directory
-    if pattern.starts_with("\\") {
-        return Regex::new(r"\\(?:\z|/)").unwrap();
+    if pattern.starts_with('\\') {
+        return Regex::new(r"\\(?:\z|/)").ok();
     }
 
     let anchored = pattern
-        .find("/")
+        .find('/')
         .map_or(false, |pos| pos != pattern.len() - 1);
 
     if anchored {
@@ -51,10 +54,10 @@ pub fn translate_codeowners_pattern(pattern: &str) -> Regex {
         regex += r"(?:\A|/)";
     }
 
-    let matches_dir = pattern.ends_with("/");
+    let matches_dir = pattern.ends_with('/');
     let mut pattern = pattern;
     if matches_dir {
-        pattern = pattern.trim_end_matches("/");
+        pattern = pattern.trim_end_matches('/');
     }
 
     // patterns ending with "/*" are special. They only match items directly in the directory
@@ -64,7 +67,7 @@ pub fn translate_codeowners_pattern(pattern: &str) -> Regex {
     let mut iterator = pattern.chars().enumerate();
 
     // Anchored paths may or may not start with a slash
-    if anchored && pattern.starts_with("/") {
+    if anchored && pattern.starts_with('/') {
         iterator.next();
         regex += r"/?";
     }
@@ -105,9 +108,25 @@ pub fn translate_codeowners_pattern(pattern: &str) -> Regex {
     } else {
         regex += r"(?:\z|/)";
     }
-    Regex::new(&regex).unwrap()
+    Regex::new(&regex).ok()
 }
 
+/// Returns `true` if the codeowners regex matches, `false` otherwise.
+pub fn codeowners_match_bytes(value: &[u8], pat: &str) -> bool {
+    let key = pat.to_string();
+
+    let mut cache = CODEOWNERS_CACHE.lock();
+
+    if let Some(pattern) = cache.get(&key) {
+        pattern.is_match(value)
+    } else if let Some(pattern) = translate_codeowners_pattern(&key) {
+        let result = pattern.is_match(value);
+        cache.put(key, pattern);
+        result
+    } else {
+        false
+    }
+}
 /// Performs a glob operation on bytes.
 ///
 /// Returns `true` if the glob matches, `false` otherwise.
@@ -192,32 +211,32 @@ mod tests {
     #[test]
     fn test_translate_codeowners_pattern() {
         let pattern = "*.txt";
-        let regex = translate_codeowners_pattern(pattern);
+        let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"file.txt"));
         assert!(regex.is_match(b"file.txt/"));
         assert!(regex.is_match(b"dir/file.txt"));
 
         let pattern = "/dir/*.txt";
-        let regex = translate_codeowners_pattern(pattern);
+        let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"/dir/file.txt"));
         assert!(regex.is_match(b"dir/file.txt"));
         assert!(!regex.is_match(b"/dir/subdir/file.txt"));
 
         let pattern = "apps/";
-        let regex = translate_codeowners_pattern(pattern);
+        let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"apps/file.txt"));
         assert!(regex.is_match(b"/apps/file.txt"));
         assert!(regex.is_match(b"/dir/apps/file.txt"));
         assert!(regex.is_match(b"/dir/subdir/apps/file.txt"));
 
         let pattern = "docs/*";
-        let regex = translate_codeowners_pattern(pattern);
+        let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"docs/getting-started.md"));
         // should not match on nested files
         assert!(!regex.is_match(b"docs/build-app/troubleshooting.md"));
 
         let pattern = "/docs/";
-        let regex = translate_codeowners_pattern(pattern);
+        let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"/docs/file.txt"));
         assert!(regex.is_match(b"/docs/subdir/file.txt"));
         assert!(!regex.is_match(b"app/docs/file.txt"));

@@ -10,7 +10,7 @@ use std::slice;
 
 use once_cell::sync::OnceCell;
 
-use relay_common::{glob_match_bytes, translate_codeowners_pattern, GlobOptions};
+use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
 };
@@ -242,8 +242,7 @@ pub unsafe extern "C" fn relay_is_codeowners_path_match(
     value: *const RelayBuf,
     pattern: *const RelayStr,
 ) -> bool {
-    let regex = translate_codeowners_pattern((*pattern).as_str());
-    return Ok(regex.is_match((*value).as_bytes()));
+    codeowners_match_bytes((*value).as_bytes(), (*pattern).as_str())
 }
 
 /// Parse a sentry release structure from a string.
