@@ -139,7 +139,7 @@ pub enum RelayHistograms {
     ReplayOriginalCompressedSize,
     ReplayOriginalDecompressedSize,
     ReplayCompressedSize,
-    ReplayDecompressedSize,
+    // ReplayDecompressedSize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -169,7 +169,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ReplayOriginalCompressedSize => "replay.original_compressed_size",
             RelayHistograms::ReplayOriginalDecompressedSize => "replay.original_decompressed_size",
             RelayHistograms::ReplayCompressedSize => "replay.compressed_size",
-            RelayHistograms::ReplayDecompressedSize => "replay.decompressed_size",
+            // RelayHistograms::ReplayDecompressedSize => "replay.decompressed_size",
         }
     }
 }
