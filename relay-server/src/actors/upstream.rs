@@ -118,6 +118,14 @@ pub enum UpstreamRequestError {
 }
 
 impl UpstreamRequestError {
+    fn status_code(&self) -> Option<StatusCode> {
+        match self {
+            UpstreamRequestError::ResponseError(code, _) => Some(*code),
+            UpstreamRequestError::Http(HttpError::Reqwest(e)) => e.status(),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the error indicates a network downtime.
     fn is_network_error(&self) -> bool {
         match self {
@@ -156,6 +164,25 @@ impl UpstreamRequestError {
             Self::NoCredentials | Self::SendFailed(_) | Self::ChannelClosed | Self::AuthDenied => {
                 false
             }
+        }
+    }
+
+    /// Returns a categorized description of the error.
+    ///
+    /// This is used for metrics and logging.
+    fn description(&self) -> &'static str {
+        match self {
+            UpstreamRequestError::NoCredentials => "credentials",
+            UpstreamRequestError::SendFailed(_) => "send_failed",
+            UpstreamRequestError::Http(HttpError::Io(_)) => "payload_failed",
+            UpstreamRequestError::Http(HttpError::Json(_)) => "invalid_json",
+            UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
+            UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
+            UpstreamRequestError::Http(HttpError::NoCredentials) => "no_credentials",
+            UpstreamRequestError::RateLimited(_) => "rate_limited",
+            UpstreamRequestError::ResponseError(_, _) => "response_error",
+            UpstreamRequestError::ChannelClosed => "channel_closed",
+            UpstreamRequestError::AuthDenied => "auth_denied",
         }
     }
 }
@@ -248,6 +275,12 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
         true
     }
 
+    /// Returns the name of the logical route.
+    ///
+    /// This is used for internal metrics and logging. Other than the path, this cannot contain
+    /// dynamic elements and should be globally unique.
+    fn route(&self) -> &'static str;
+
     /// Called whenever the request will be send over HTTP (possible multiple times)
     fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError>;
 
@@ -280,6 +313,12 @@ pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
     fn priority() -> RequestPriority {
         RequestPriority::Low
     }
+
+    /// Returns the name of the logical route.
+    ///
+    /// This is used for internal metrics and logging. Other than the path, this cannot contain
+    /// dynamic elements and should be globally unique.
+    fn route(&self) -> &'static str;
 }
 
 /// TODO(ja): Doc
@@ -374,6 +413,10 @@ where
             self.sender.send(result)
         })
     }
+
+    fn route(&self) -> &'static str {
+        self.query.route()
+    }
 }
 
 /// TODO(ja): Doc
@@ -442,67 +485,21 @@ fn emit_response_metrics(
     entry: &Entry,
     send_result: &Result<Response, UpstreamRequestError>,
 ) {
-    let sc;
-    let sc2;
-
-    let (status_code, result) = match send_result {
-        Ok(ref client_response) => {
-            sc = client_response.status();
-            (sc.as_str(), "success")
-        }
-        Err(UpstreamRequestError::ResponseError(status_code, _)) => {
-            (status_code.as_str(), "response_error")
-        }
-        Err(UpstreamRequestError::Http(HttpError::Io(_))) => ("-", "payload_failed"),
-        Err(UpstreamRequestError::Http(HttpError::Json(_))) => ("-", "invalid_json"),
-        Err(UpstreamRequestError::Http(HttpError::Reqwest(error))) => {
-            sc2 = error.status();
-            (
-                sc2.as_ref().map(|x| x.as_str()).unwrap_or("-"),
-                "reqwest_error",
-            )
-        }
-
-        Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
-        Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
-        Err(UpstreamRequestError::NoCredentials)
-        | Err(UpstreamRequestError::ChannelClosed)
-        | Err(UpstreamRequestError::AuthDenied)
-        | Err(UpstreamRequestError::Http(HttpError::Overflow))
-        | Err(UpstreamRequestError::Http(HttpError::NoCredentials)) => {
-            // these are not errors caused when sending to upstream so we don't need to log anything
-            relay_log::error!("meter_result called for unsupported error");
-            return;
-        }
+    let description = match send_result {
+        Ok(_) => "success",
+        Err(e) => e.description(),
     };
-
-    // TODO(ja): Move this to the trait
-    let path = entry.request.path();
-    let route_name = if path.contains("/outcomes/") {
-        "outcomes"
-    } else if path.contains("/envelope/") {
-        "envelope"
-    } else if path.contains("/projectids/") {
-        "project_ids"
-    } else if path.contains("/projectconfigs/") {
-        "project_configs"
-    } else if path.contains("/publickeys/") {
-        "public_keys"
-    } else if path.contains("/challenge/") {
-        "challenge"
-    } else if path.contains("/response/") {
-        "response"
-    } else if path.contains("/live/") {
-        "check_live"
-    } else {
-        "unknown"
+    let status_code = match send_result {
+        Ok(ref response) => Some(response.status()),
+        Err(ref error) => error.status_code(),
     };
+    let status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or("-");
 
     relay_statsd::metric!(
         timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
-        result = result,
-        status_code = status_code,
-        route = route_name,
+        result = description,
+        status_code = status_str,
+        route = entry.request.route(),
         retries = match entry.retries {
             0 => "0",
             1 => "1",
@@ -514,9 +511,9 @@ fn emit_response_metrics(
 
     relay_statsd::metric!(
         histogram(RelayHistograms::UpstreamRetries) = entry.retries as u64,
-        result = result,
-        status_code = status_code,
-        route = route_name,
+        result = description,
+        status_code = status_str,
+        route = entry.request.route(),
     );
 }
 
@@ -547,6 +544,10 @@ impl UpstreamRequest for GetHealthCheck {
 
     fn intercept_status_errors(&self) -> bool {
         true
+    }
+
+    fn route(&self) -> &'static str {
+        "check_live"
     }
 
     fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
@@ -583,6 +584,10 @@ impl UpstreamQuery for RegisterRequest {
     fn retry() -> bool {
         false
     }
+
+    fn route(&self) -> &'static str {
+        "challenge"
+    }
 }
 
 impl UpstreamQuery for RegisterResponse {
@@ -602,6 +607,10 @@ impl UpstreamQuery for RegisterResponse {
 
     fn retry() -> bool {
         false
+    }
+
+    fn route(&self) -> &'static str {
+        "response"
     }
 }
 

@@ -61,6 +61,10 @@ impl UpstreamQuery for SendOutcomes {
     fn retry() -> bool {
         true
     }
+
+    fn route(&self) -> &'static str {
+        "outcomes"
+    }
 }
 
 /// Defines the structure of the HTTP outcomes responses for successful requests

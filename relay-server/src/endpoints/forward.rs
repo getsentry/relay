@@ -168,6 +168,10 @@ impl UpstreamRequest for ForwardRequest {
         false
     }
 
+    fn route(&self) -> &'static str {
+        "forward"
+    }
+
     fn build(
         &mut self,
         _: &Config,

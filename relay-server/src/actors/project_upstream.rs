@@ -68,6 +68,10 @@ impl UpstreamQuery for GetProjectStates {
     fn retry() -> bool {
         false
     }
+
+    fn route(&self) -> &'static str {
+        "project_configs"
+    }
 }
 
 /// The wrapper struct for the incoming external requests which also keeps addition information.

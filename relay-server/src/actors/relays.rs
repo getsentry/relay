@@ -125,6 +125,10 @@ impl UpstreamQuery for GetRelays {
     fn retry() -> bool {
         false
     }
+
+    fn route(&self) -> &'static str {
+        "public_keys"
+    }
 }
 
 /// Cache entry with metadata.

@@ -78,6 +78,10 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
+    fn route(&self) -> &'static str {
+        "envelope"
+    }
+
     fn build(&mut self, _: &Config, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
         builder
