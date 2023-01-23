@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
@@ -397,20 +398,8 @@ pub enum InstructionAddrAdjustment {
     Unknown(String),
 }
 
-/// An error used when parsing `Level`.
-#[derive(Debug)]
-pub struct ParseAdjustmentError;
-
-impl fmt::Display for ParseAdjustmentError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid instruction_addr_adjustment")
-    }
-}
-
-impl std::error::Error for ParseAdjustmentError {}
-
 impl FromStr for InstructionAddrAdjustment {
-    type Err = ParseAdjustmentError;
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -418,7 +407,7 @@ impl FromStr for InstructionAddrAdjustment {
             "all_but_first" => Ok(Self::AllButFirst),
             "all" => Ok(Self::All),
             "none" => Ok(Self::None),
-            _ => Err(ParseAdjustmentError),
+            s => Ok(Self::Unknown(s.to_string())),
         }
     }
 }
@@ -430,6 +419,7 @@ impl fmt::Display for InstructionAddrAdjustment {
             InstructionAddrAdjustment::AllButFirst => "all_but_first",
             InstructionAddrAdjustment::All => "all",
             InstructionAddrAdjustment::None => "none",
+            InstructionAddrAdjustment::Unknown(s) => s,
         };
         f.write_str(s)
     }
