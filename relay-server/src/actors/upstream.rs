@@ -439,9 +439,8 @@ where
 /// Adds a metric for the upstream request.
 fn emit_response_metrics(
     send_start: Instant,
-    request: &dyn UpstreamRequest,
+    entry: &Entry,
     send_result: &Result<Response, UpstreamRequestError>,
-    attempt: usize,
 ) {
     let sc;
     let sc2;
@@ -478,7 +477,7 @@ fn emit_response_metrics(
     };
 
     // TODO(ja): Move this to the trait
-    let path = request.path();
+    let path = entry.request.path();
     let route_name = if path.contains("/outcomes/") {
         "outcomes"
     } else if path.contains("/envelope/") {
@@ -504,7 +503,7 @@ fn emit_response_metrics(
         result = result,
         status_code = status_code,
         route = route_name,
-        retries = match attempt {
+        retries = match entry.retries {
             0 => "0",
             1 => "1",
             2 => "2",
@@ -514,7 +513,7 @@ fn emit_response_metrics(
     );
 
     relay_statsd::metric!(
-        histogram(RelayHistograms::UpstreamRetries) = attempt as u64,
+        histogram(RelayHistograms::UpstreamRetries) = entry.retries as u64,
         result = result,
         status_code = status_code,
         route = route_name,
@@ -694,7 +693,7 @@ impl SharedClient {
                 .get_all_headers(utils::RATE_LIMITS_HEADER)
                 .iter()
                 .filter_map(|v| std::str::from_utf8(v).ok())
-                .join(", "); // TODO(ja): Avoid this stringify roundtrip
+                .join(", ");
 
             let upstream_limits = UpstreamRateLimits::new()
                 .retry_after(retry_after)
@@ -725,14 +724,9 @@ impl SharedClient {
         &self,
         request: &mut dyn UpstreamRequest,
     ) -> Result<Response, UpstreamRequestError> {
-        let send_start = Instant::now();
-
         let client_request = self.build_request(request)?;
         let response = self.reqwest.execute(client_request).await?;
-        let result = self.transform_response(request, Response(response)).await;
-
-        emit_response_metrics(send_start, request, &result, 1); // TODO(ja): continue logging attempts?
-        result
+        self.transform_response(request, Response(response)).await
     }
 
     /// TODO(ja): Doc
@@ -759,10 +753,26 @@ enum EnqueuePosition {
     Back,
 }
 
+/// TODO(ja): Doc
+#[derive(Debug)]
+struct Entry {
+    request: Box<dyn UpstreamRequest>,
+    retries: usize,
+}
+
+impl Entry {
+    pub fn new(request: Box<dyn UpstreamRequest>) -> Self {
+        Self {
+            request,
+            retries: 0,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct UpstreamQueue {
-    high: VecDeque<Box<dyn UpstreamRequest>>,
-    low: VecDeque<Box<dyn UpstreamRequest>>,
+    high: VecDeque<Entry>,
+    low: VecDeque<Entry>,
 }
 
 impl UpstreamQueue {
@@ -777,8 +787,8 @@ impl UpstreamQueue {
         self.high.len() + self.low.len()
     }
 
-    fn push(&mut self, request: Box<dyn UpstreamRequest>, position: EnqueuePosition) {
-        let priority = request.priority();
+    fn push(&mut self, entry: Entry, position: EnqueuePosition) {
+        let priority = entry.request.priority();
 
         // We can ignore send errors here. Once the channel closes, we drop all incoming requests
         // here. The receiving end of the request will be notified of the drop if they are waiting
@@ -789,27 +799,25 @@ impl UpstreamQueue {
         };
 
         match position {
-            EnqueuePosition::Front => queue.push_front(request),
-            EnqueuePosition::Back => queue.push_back(request),
+            EnqueuePosition::Front => queue.push_front(entry),
+            EnqueuePosition::Back => queue.push_back(entry),
         }
 
-        // TODO(ja): Make this a gauge
-        // TODO(ja): Measure queue saturation
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
         );
     }
 
-    pub fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
-        self.push(request, EnqueuePosition::Back)
+    pub fn enqueue(&mut self, entry: Entry) {
+        self.push(entry, EnqueuePosition::Back)
     }
 
-    pub fn place_back(&mut self, request: Box<dyn UpstreamRequest>) {
-        self.push(request, EnqueuePosition::Front)
+    pub fn place_back(&mut self, entry: Entry) {
+        self.push(entry, EnqueuePosition::Front)
     }
 
-    pub fn dequeue(&mut self) -> Option<Box<dyn UpstreamRequest>> {
+    pub fn dequeue(&mut self) -> Option<Entry> {
         self.high.pop_front().or_else(|| self.low.pop_front())
     }
 }
@@ -855,15 +863,14 @@ enum RequestStatus {
     /// TODO(ja): Doc
     Dropped,
     /// TODO(ja): Doc
-    Completed,
+    Received,
 }
 
 /// TODO(ja): Doc
 #[derive(Debug)]
 enum Action {
     /// TODO(ja): Doc
-    Retry(Box<dyn UpstreamRequest>),
-    // TODO(ja): More distinct naming Action::Complete vs RequestStatus::Completed.
+    Retry(Entry),
     /// TODO(ja): Doc
     Complete(RequestStatus),
     /// TODO(ja): Doc
@@ -1104,14 +1111,14 @@ struct Broker {
 }
 
 impl Broker {
-    async fn next_request(&mut self) -> Option<Box<dyn UpstreamRequest>> {
+    async fn next_request(&mut self) -> Option<Entry> {
         if self.permits == 0 || self.conn.is_outage() || !self.auth_state.is_authenticated() {
             return None;
         }
 
-        let item = self.queue.dequeue()?;
+        let entry = self.queue.dequeue()?;
         self.permits -= 1;
-        Some(item)
+        Some(entry)
     }
 
     async fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
@@ -1120,7 +1127,7 @@ impl Broker {
             // response channel. We do not expect that this blocks the broker.
             request.respond(Err(UpstreamRequestError::AuthDenied)).await;
         } else {
-            self.queue.enqueue(request);
+            self.queue.enqueue(Entry::new(request));
         }
     }
 
@@ -1134,28 +1141,31 @@ impl Broker {
         }
     }
 
-    fn execute(&self, mut request: Box<dyn UpstreamRequest>) {
+    fn execute(&self, mut entry: Entry) {
         let client = self.client.clone();
         let action_tx = self.action_tx.clone();
 
         tokio::spawn(async move {
-            let result = client.send(request.as_mut()).await;
+            let send_start = Instant::now();
+            let result = client.send(entry.request.as_mut()).await;
+            emit_response_metrics(send_start, &entry, &result);
 
             let status = match result {
                 Err(ref err) if err.is_network_error() => RequestStatus::Dropped,
-                _ => RequestStatus::Completed,
+                _ => RequestStatus::Received,
             };
 
             match status {
-                RequestStatus::Dropped if request.retry() => {
-                    // attempt += 1; // TODO(ja)
-                    // TODO(ja): Sent to `handle_result`.
-                    action_tx.send(Action::Retry(request)).ok();
+                RequestStatus::Dropped if entry.request.retry() => {
+                    entry.retries += 1;
+                    action_tx.send(Action::Retry(entry)).ok();
                 }
-                _ => request.respond(result).await,
+                _ => entry.request.respond(result).await,
             }
 
-            // TODO(ja): Sent to `handle_result`.
+            // Send an action back to the action channel of the broker, which will invoke
+            // `handle_action`. This is to let the broker know in a synchronized fashion that the
+            // request has finished and may need to be retried (above).
             action_tx.send(Action::Complete(status)).ok();
         });
     }
@@ -1165,7 +1175,7 @@ impl Broker {
 
         match status {
             RequestStatus::Dropped => self.conn.notify_error(self.action_tx.clone()),
-            RequestStatus::Completed => self.conn.reset_error(),
+            RequestStatus::Received => self.conn.reset_error(),
         }
     }
 
