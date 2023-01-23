@@ -1176,7 +1176,7 @@ impl EnvelopeProcessorService {
         // let bytes = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
         //     recording::serialize(events)?
         // });
-        metric!(histogram(RelayHistograms::ReplayDecompressedSize) = bytes.len() as u64);
+        // metric!(histogram(RelayHistograms::ReplayDecompressedSize) = bytes.len() as u64);
 
         let compressed_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
             recording::compress(buffer)?
