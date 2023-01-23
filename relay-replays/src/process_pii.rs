@@ -40,9 +40,7 @@ fn process_event(event: Value) -> ProcessingResult {
             Some(v) => match v {
                 Value::Number(number) => match number.as_i64() {
                     Some(2) => process_snapshot_event(event),
-                    // Some(3) => {
-                    //     process_incremental_snapshot_event(obj);
-                    // },
+                    Some(3) => process_incremental_snapshot_event(event),
                     Some(5) => process_sentry_event(event),
                     _ => Ok(v.to_owned()),
                 },
@@ -97,9 +95,123 @@ fn process_snapshot_event_data(event_data: Value) -> ProcessingResult {
 //
 // ...
 
-// fn process_incremental_snapshot_event(event: Value) -> ProcessingResult {
-//     match
-// }
+fn process_incremental_snapshot_event(event: Value) -> ProcessingResult {
+    match event {
+        Value::Object(mut obj) => match obj.get("data") {
+            Some(data) => {
+                let new_data = process_incremental_snapshot_event_data(data.to_owned())?;
+                obj.insert("data".to_string(), new_data);
+                Ok(Value::Object(obj))
+            }
+            None => Ok(Value::Object(obj)),
+        },
+        _ => Err(ParseError::InvalidPayload(
+            "expected incremental snapshot event to be of type object",
+        )),
+    }
+}
+
+fn process_incremental_snapshot_event_data(event: Value) -> ProcessingResult {
+    match event {
+        Value::Object(mut obj) => match obj.get("source") {
+            Some(source) => match source {
+                Value::Number(number) => match number.as_i64() {
+                    // DOM was changed.
+                    Some(0) => process_incremental_snapshot_event_dom_mutation(&mut obj),
+                    // User inputted text.
+                    Some(5) => process_incremental_snapshot_event_text_input(&mut obj),
+                    // Unhandled source types are preserved.
+                    _ => Ok(Value::Object(obj)),
+                },
+                _ => Err(ParseError::InvalidPayload(
+                    "expected incremental snapshot event source field to be of type number",
+                )),
+            },
+            None => Err(ParseError::InvalidPayload(
+                "expected incremental snapshot event to contain source field",
+            )),
+        },
+        _ => Err(ParseError::InvalidPayload(
+            "expected incremental snapshot event data key to be of type object",
+        )),
+    }
+}
+
+fn process_incremental_snapshot_event_dom_mutation(
+    obj: &mut Map<String, Value>,
+) -> ProcessingResult {
+    if let Some(texts) = obj.get("texts") {
+        obj.insert(
+            "texts".to_string(),
+            process_incremental_snapshot_event_dom_texts(texts.to_owned())?,
+        );
+    }
+
+    if let Some(adds) = obj.get("adds") {
+        obj.insert(
+            "adds".to_string(),
+            process_incremental_snapshot_event_dom_adds(adds.to_owned())?,
+        );
+    }
+
+    Ok(Value::Object(obj.to_owned()))
+}
+
+fn process_incremental_snapshot_event_dom_texts(texts: Value) -> ProcessingResult {
+    match texts {
+        Value::Array(text_values) => {
+            let new_text_values = Value::Array(
+                text_values
+                    .into_iter()
+                    .map(|child| process_value(&child))
+                    .collect::<Result<Vec<Value>, ParseError>>()?,
+            );
+            Ok(new_text_values)
+        }
+        _ => Ok(texts),
+    }
+}
+
+fn process_incremental_snapshot_event_dom_adds(adds: Value) -> ProcessingResult {
+    match adds {
+        Value::Array(adds_values) => {
+            let new_adds_values = Value::Array(
+                adds_values
+                    .into_iter()
+                    .map(|child| process_incremental_snapshot_event_dom_add(child))
+                    .collect::<Result<Vec<Value>, ParseError>>()?,
+            );
+            Ok(new_adds_values)
+        }
+        _ => Ok(adds),
+    }
+}
+
+fn process_incremental_snapshot_event_dom_add(add: Value) -> ProcessingResult {
+    match add {
+        Value::Object(mut obj) => match obj.get("node") {
+            Some(node) => {
+                let new_node = process_snapshot_node(node.to_owned())?;
+                obj.insert("node".to_string(), new_node);
+                Ok(Value::Object(obj))
+            }
+            None => Ok(Value::Object(obj)),
+        },
+        _ => Err(ParseError::InvalidPayload(
+            "expected incremental addition to be of type object",
+        )),
+    }
+}
+
+fn process_incremental_snapshot_event_text_input(obj: &mut Map<String, Value>) -> ProcessingResult {
+    match obj.get("text") {
+        Some(text) => {
+            obj.insert("text".to_string(), process_value(text)?);
+            Ok(Value::Object(obj.to_owned()))
+        }
+        None => Ok(Value::Object(obj.to_owned())),
+    }
+}
 
 // RRWeb Node Handling.
 //
@@ -326,14 +438,24 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
         let x = scrub_pii(payload);
 
-        let x: Value = serde_json::from_slice(&x).unwrap();
-        println!("{:?}", x);
-        assert!(false);
+        // let x: Value = serde_json::from_slice(&x).unwrap();
+        // println!("{:?}", x);
+        // assert!(false);
     }
 
     #[test]
     fn test_snapshot() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
         let x = scrub_pii(payload);
+    }
+
+    #[test]
+    fn test_diff() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
+        let x = scrub_pii(payload);
+
+        let x: Value = serde_json::from_slice(&x).unwrap();
+        println!("{:?}", x);
+        assert!(false);
     }
 }
