@@ -389,6 +389,12 @@ pub enum InstructionAddrAdjustment {
     /// The stack walking implementation already provides correct addresses and no adjustment should
     /// be performed when symbolicating.
     None,
+
+    /// Any other unknown adjustment strategy.
+    ///
+    /// This exists to ensure forward compatibility.
+    #[cfg_attr(feature = "jsonschema", schemars(skip))]
+    Unknown(String),
 }
 
 /// An error used when parsing `Level`.
