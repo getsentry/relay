@@ -57,6 +57,7 @@ fn serialize_compressed(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseErro
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&buffer)?;
     let result = encoder.finish()?;
+    drop(buffer);
     Ok(result)
 }
 
