@@ -75,6 +75,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 }
                 HttpError::Io(_) => HttpResponse::BadGateway().finish(),
                 HttpError::Json(e) => e.error_response(),
+                HttpError::NoCredentials => HttpResponse::InternalServerError().finish(),
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
@@ -167,7 +168,11 @@ impl UpstreamRequest for ForwardRequest {
         false
     }
 
-    fn build(&self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(
+        &mut self,
+        _: &Config,
+        mut builder: RequestBuilder,
+    ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
