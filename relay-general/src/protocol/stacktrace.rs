@@ -374,7 +374,6 @@ pub struct RawStacktrace {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "jsonschema", schemars(rename_all = "snake_case"))]
 pub enum InstructionAddrAdjustment {
     /// The default. Applies a heuristic based on other event / exception attributes.
     Auto,
