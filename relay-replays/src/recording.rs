@@ -380,7 +380,7 @@ struct PerformanceSpanPayload {
 #[serde(rename_all = "camelCase")]
 struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
-    root_id: Option<u32>,
+    root_id: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_shadow_host: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -434,7 +434,7 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DocumentNode {
-    id: u32,
+    id: i32,
     #[serde(rename = "type")]
     ty: u8,
     #[serde(rename = "childNodes")]
@@ -535,7 +535,7 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
 #[serde(rename_all = "camelCase")]
 struct InputIncrementalSourceData {
     source: u8,
-    id: u32,
+    id: i32,
     text: String,
     is_checked: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -796,8 +796,8 @@ mod tests {
     fn test_rrweb_event_5_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
 
-        let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
+        let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
+        assert_json_eq!(input_parsed, input_raw);
     }
 }

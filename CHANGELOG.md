@@ -6,6 +6,10 @@
 
 - Add error and sample rate fields to the replay event parser. ([#1745](https://github.com/getsentry/relay/pull/1745))
 
+**Internal**:
+
+- Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
+
 ## 23.1.0
 
 **Features**:
