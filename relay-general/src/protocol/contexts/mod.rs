@@ -88,6 +88,9 @@ impl Context {
     }
 }
 
+/// Trait to get the Context both from the user agent string and also the new client hints.
+/// With an automatically derived function which tries to first get the context from client hints,
+/// if that fails it tries for the user agent string.
 pub trait ContextFromUserAgentInfo: Sized {
     fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self>;
     fn from_user_agent(user_agent: &str) -> Option<Self>;
