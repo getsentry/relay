@@ -9,6 +9,7 @@
 **Internal**:
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
+- Refactor recording PII scrubbing to be sensitive to memory consumption. ([#1778](https://github.com/getsentry/relay/pull/1778))
 
 ## 23.1.0
 
