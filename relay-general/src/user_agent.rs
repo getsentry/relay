@@ -91,7 +91,7 @@ pub fn init_parser() {
     Lazy::force(&UA_PARSER);
 }
 
-/// Gette
+/// Gets the user agent string from request header type.
 pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str> {
     request
         .value()
