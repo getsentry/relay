@@ -284,20 +284,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.
 
-    // Create the old tokio 0.x runtime. It's required for old actix System to exist by `create_runtime` utiliy.
-    //
-    // TODO(actix): this can be removed once Controller can subscribe to shutdown signals.
-    let sys = actix::System::new("relay");
-    // We also need new tokio 1.x runtime. This cannot be created in the [`relay_system::Controller`] since
-    // it cannot access the `create_runtime` utilily function from there. This can be changed once
-    // the [`actix::System`] is removed.
-    let runtime = utils::create_runtime("http-server-handler", 1);
-    let shutdown_timeout = config.shutdown_timeout();
+    // Spawn the main tokio runtime here since the controller cannot access the config.
+    let main_runtime = utils::create_runtime("main-rt", config.cpu_concurrency());
+    let _guard = main_runtime.enter();
 
-    Controller::run(runtime.handle(), sys, || ServerService::start(config))?;
+    let shutdown_timeout = config.shutdown_timeout();
+    Controller::run(|| ServerService::start(config))?;
 
     // Properly shutdown the new tokio runtime.
-    runtime.shutdown_timeout(shutdown_timeout);
+    main_runtime.shutdown_timeout(shutdown_timeout);
     relay_log::info!("relay shutdown complete");
 
     Ok(())

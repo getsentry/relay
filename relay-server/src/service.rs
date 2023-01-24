@@ -112,7 +112,6 @@ pub struct ServiceState {
     buffer_guard: Arc<BufferGuard>,
     _aggregator_runtime: Arc<tokio::runtime::Runtime>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
-    _main_runtime: Arc<tokio::runtime::Runtime>,
     _project_runtime: Arc<tokio::runtime::Runtime>,
     _upstream_runtime: Arc<tokio::runtime::Runtime>,
     _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
@@ -121,7 +120,6 @@ pub struct ServiceState {
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub fn start(config: Arc<Config>) -> Result<Self> {
-        let main_runtime = utils::create_runtime("main-rt", config.cpu_concurrency());
         let upstream_runtime = utils::create_runtime("upstream-rt", 1);
         let project_runtime = utils::create_runtime("project-rt", 1);
         let aggregator_runtime = utils::create_runtime("aggregator-rt", 1);
@@ -143,8 +141,6 @@ impl ServiceState {
             }
             _ => None,
         };
-
-        let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
@@ -204,7 +200,6 @@ impl ServiceState {
             config,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
-            _main_runtime: Arc::new(main_runtime),
             _project_runtime: Arc::new(project_runtime),
             _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),

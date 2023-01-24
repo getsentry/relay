@@ -2,11 +2,7 @@ use std::fmt;
 use std::time::Duration;
 
 use actix::actors::signal;
-use actix::fut;
 use actix::prelude::*;
-use actix::SystemRunner;
-use futures01::future;
-use futures01::prelude::*;
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 
@@ -57,7 +53,8 @@ impl ShutdownHandle {
 ///
 /// ### Example
 ///
-/// ```
+/// ```ignore
+/// // TODO: This example is outdated and needs to be updated when the Controller is rewritten.
 /// use actix::prelude::*;
 /// use relay_system::{Controller, Shutdown};
 ///
@@ -80,8 +77,7 @@ impl ShutdownHandle {
 ///     }
 /// }
 ///
-///
-/// Controller::run(tokio::runtime::Runtime::new().unwrap().handle(), System::new("my-actix-system"), || -> Result<(), ()> {
+/// Controller::run(|| -> Result<(), ()> {
 ///     MyActor.start();
 ///     # System::current().stop();
 ///     Ok(())
@@ -90,8 +86,6 @@ impl ShutdownHandle {
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
-    /// Subscribed actors for the shutdown message.
-    subscribers: Vec<Recipient<Shutdown>>,
 }
 
 impl Controller {
@@ -110,17 +104,16 @@ impl Controller {
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
     /// the system blocks the current thread until a shutdown signal is sent to the server and all
     /// actors have completed a graceful shutdown.
-    pub fn run<F, R, E>(
-        handle: &tokio::runtime::Handle,
-        sys: SystemRunner,
-        factory: F,
-    ) -> Result<(), E>
+    pub fn run<F, R, E>(factory: F) -> Result<(), E>
     where
         F: FnOnce() -> Result<R, E> + 'static,
         F: Sync + Send,
     {
-        // While starting http server ensure that the new tokio 1.x system is available.
-        let _guard = handle.enter();
+        // Spawn a legacy actix system for the controller's signals.
+        let sys = actix::System::new("relay");
+
+        // Run the factory and exit early if an error happens. The return value of the factory is
+        // discarded for convenience, to allow shorthand notations.
         factory()?;
 
         // Ensure that the controller starts if no service has started it yet. It will register with
@@ -153,32 +146,14 @@ impl Controller {
         let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
         tx.send(Some(Shutdown { timeout })).ok();
 
-        let futures: Vec<_> = self
-            .subscribers
-            .iter()
-            .map(|recipient| recipient.send(Shutdown { timeout }))
-            .map(|future| future.then(|_| Ok(())))
-            .collect();
+        // Delay the shutdown for 100ms to allow recipients of the shutdown signal to execute their
+        // error handlers. Once `System::stop` is called, futures won't be polled anymore and we
+        // will not be able to print error messages.
+        let when = timeout.unwrap_or_else(|| Duration::from_secs(0)) + Duration::from_millis(100);
 
-        future::join_all(futures)
-            .into_actor(self)
-            .and_then(move |_, _, ctx| {
-                // Once all shutdowns have completed, we can schedule a stop of the actix system. It is
-                // performed with a slight delay to give pending synced futures a chance to perform their
-                // error handlers.
-                //
-                // Delay the shutdown for 100ms to allow synchronized futures to execute their error
-                // handlers. Once `System::stop` is called, futures won't be polled anymore and we will not
-                // be able to print error messages.
-                let when =
-                    timeout.unwrap_or_else(|| Duration::from_secs(0)) + Duration::from_millis(100);
-
-                ctx.run_later(when, |_, _| {
-                    System::current().stop();
-                });
-                fut::ok(())
-            })
-            .spawn(context);
+        context.run_later(when, |_, _| {
+            System::current().stop();
+        });
     }
 }
 
@@ -186,7 +161,6 @@ impl Default for Controller {
     fn default() -> Self {
         Controller {
             timeout: Duration::from_secs(0),
-            subscribers: Vec::new(),
         }
     }
 }
@@ -195,7 +169,6 @@ impl fmt::Debug for Controller {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
-            .field("subscribers", &self.subscribers.len())
             .finish()
     }
 }
@@ -252,27 +225,6 @@ impl Handler<Configure> for Controller {
 
     fn handle(&mut self, message: Configure, _context: &mut Self::Context) -> Self::Result {
         self.timeout = message.shutdown_timeout;
-    }
-}
-
-/// Subscribtion message for [`Shutdown`] events.
-pub struct Subscribe(pub Recipient<Shutdown>);
-
-impl fmt::Debug for Subscribe {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Subscribe(Shutdown)")
-    }
-}
-
-impl Message for Subscribe {
-    type Result = ();
-}
-
-impl Handler<Subscribe> for Controller {
-    type Result = ();
-
-    fn handle(&mut self, message: Subscribe, _context: &mut Self::Context) -> Self::Result {
-        self.subscribers.push(message.0)
     }
 }
 

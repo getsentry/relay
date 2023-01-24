@@ -25,10 +25,7 @@
 //! use relay_server::controller::Controller;
 //! use relay_server::server::Server;
 //!
-//! let rt = tokio::runtime::Runtime::new().unwrap();
-//! let sys = actix::System::new("my-system");
-//!
-//! Controller::run(rt.handle(), sys, || Server::start())
+//! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
 pub mod envelopes;
