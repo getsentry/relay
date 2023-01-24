@@ -1,4 +1,4 @@
-use crate::protocol::ContextFromUserAgentInfo;
+use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_user_agent, RawUserAgentInfo};
@@ -25,10 +25,10 @@ impl BrowserContext {
     }
 }
 
-impl ContextFromUserAgentInfo for BrowserContext {
+impl FromUserAgentInfo for BrowserContext {
     fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        let browser = parse_client_hint_browser(raw_contexts.sec_ch_ua?)?;
-        let version = raw_contexts.sec_ch_ua_full_version?.to_owned();
+        let browser = parse_client_hint_browser(raw_contexts.client_hints.sec_ch_ua?)?;
+        let version = raw_contexts.client_hints.sec_ch_ua_full_version?.to_owned();
 
         Some(Self {
             name: Annotated::new(browser.to_string()),
@@ -91,12 +91,7 @@ impl std::string::ToString for Browser {
 ///
 /// returns None if no browser field detected
 fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
-    let s = s.into();
-    let items: Vec<&str> = s.split(',').collect();
-
-    for item in items {
-        let item = item.to_lowercase();
-
+    for item in s.into().split(',').map(|s| s.to_lowercase()) {
         // if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.
         if item.contains("brand")

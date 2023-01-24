@@ -7,7 +7,7 @@
 use std::fmt::Write;
 
 use crate::protocol::{
-    BrowserContext, Context, ContextFromUserAgentInfo, Contexts, DeviceContext, Event, OsContext,
+    BrowserContext, Context, Contexts, DeviceContext, Event, FromUserAgentInfo, OsContext,
 };
 use crate::types::Annotated;
 use crate::user_agent::RawUserAgentInfo;

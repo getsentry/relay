@@ -35,6 +35,11 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
 pub struct RawUserAgentInfo<'a> {
     /// the "old style" of a single UA string
     pub user_agent: Option<&'a str>,
+    pub client_hints: ClientHints<'a>,
+}
+
+#[derive(Default, Debug)]
+pub struct ClientHints<'a> {
     /// your OS, e.g. macos, android ..
     pub sec_ch_ua_platform: Option<&'a str>,
     /// the version number of your OS
@@ -56,12 +61,17 @@ impl<'a> RawUserAgentInfo<'a> {
                 if let Some(k) = o_k.as_str() {
                     match k.to_lowercase().as_str() {
                         "user-agent" => contexts.user_agent = v.as_str(),
-                        "sec-ch-ua" => contexts.sec_ch_ua = v.as_str(),
-                        "sec-ch-ua-full-version" => contexts.sec_ch_ua_full_version = v.as_str(),
-                        "sec-ch-ua-model" => contexts.sec_ch_ua_model = v.as_str(),
-                        "sec-ch-ua-platform" => contexts.sec_ch_ua_platform = v.as_str(),
+
+                        "sec-ch-ua" => contexts.client_hints.sec_ch_ua = v.as_str(),
+                        "sec-ch-ua-full-version" => {
+                            contexts.client_hints.sec_ch_ua_full_version = v.as_str()
+                        }
+                        "sec-ch-ua-model" => contexts.client_hints.sec_ch_ua_model = v.as_str(),
+                        "sec-ch-ua-platform" => {
+                            contexts.client_hints.sec_ch_ua_platform = v.as_str()
+                        }
                         "sec-ch-ua-platform-version" => {
-                            contexts.sec_ch_ua_platform_version = v.as_str()
+                            contexts.client_hints.sec_ch_ua_platform_version = v.as_str()
                         }
                         _ => {}
                     }
@@ -81,6 +91,7 @@ pub fn init_parser() {
     Lazy::force(&UA_PARSER);
 }
 
+/// Gette
 pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str> {
     request
         .value()
