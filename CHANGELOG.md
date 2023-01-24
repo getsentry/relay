@@ -5,6 +5,7 @@
 **Features**:
 
 - Add error and sample rate fields to the replay event parser. ([#1745](https://github.com/getsentry/relay/pull/1745))
+- Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
 
 **Internal**:
 
