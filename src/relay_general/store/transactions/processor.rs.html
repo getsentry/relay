@@ -1880,6 +1880,11 @@
 <span id="1879">1879</span>
 <span id="1880">1880</span>
 <span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -2201,8 +2206,13 @@
             event.transaction_info.value_mut(),
         )<span class="question-mark">?</span>;
 
-        <span class="comment">// Normalize transaction names for URLs transaction sources only.
-        </span><span class="kw">if </span>event.get_transaction_source() == <span class="kw-2">&amp;</span>TransactionSource::Url &amp;&amp; <span class="self">self</span>.normalize_names {
+        <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
+        // This in addition to renaming rules can catch some high cardinality parts.
+        </span><span class="kw">if </span><span class="macro">matches!</span>(
+            event.get_transaction_source(),
+            <span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized
+        ) &amp;&amp; <span class="self">self</span>.normalize_names
+        {
             normalize_transaction_name(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
         }
 
