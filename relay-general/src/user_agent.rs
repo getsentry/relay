@@ -33,7 +33,7 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
 /// The client hint variable names mirror the name of the headers. '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
 #[derive(Default, Debug)]
 pub struct RawUserAgentInfo<'a> {
-    /// the "old style" of a single UA string
+    /// The "old style" of a single UA string.
     pub user_agent: Option<&'a str>,
     pub client_hints: ClientHints<'a>,
 }
