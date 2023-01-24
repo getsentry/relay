@@ -90,7 +90,7 @@ impl UpstreamRateLimits {
     }
 }
 
-/// TODO(ja): Doc
+/// An error returned from [`SendRequest`] and [`SendQuery`].
 #[derive(Debug, thiserror::Error)]
 pub enum UpstreamRequestError {
     #[error("attempted to send upstream request without credentials configured")]
@@ -118,6 +118,11 @@ pub enum UpstreamRequestError {
 }
 
 impl UpstreamRequestError {
+    /// Returns the status code of the HTTP request sent to the upstream.
+    ///
+    /// If this error is the result of sending a request to the upstream, this method returns `Sone`
+    /// with the status code. If the request could not be made or the error originates elsewhere,
+    /// this returns `None`.
     fn status_code(&self) -> Option<StatusCode> {
         match self {
             UpstreamRequestError::ResponseError(code, _) => Some(*code),
@@ -196,30 +201,33 @@ impl From<HttpError> for UpstreamRequestError {
     }
 }
 
-/// TODO(ja): Doc
+/// Checks the authentication state with the upstream.
 ///
-/// The `IsAuthenticated` message is an internal Relay message that is used to query the current
-/// state of authentication with the upstream sever.
+/// In static and proxy mode, Relay does not require authentication and `IsAuthenticated` always
+/// returns `true`. Otherwise, this message retrieves the current state of authentication:
 ///
-/// Currently it is only used by the HealthCheck actor.
+/// - Initially, Relay is unauthenticated until it has established connection.
+/// - If this Relay is not known by the upstream, it remains unauthenticated indefinitely.
+/// - Once Relay has registered, this message reports `true`.
+/// - In periodic intervals Relay re-authenticates, which may drop authentication temporarily.
 #[derive(Debug)]
 pub struct IsAuthenticated;
 
-/// TODO(ja): Doc
+/// Returns whether Relay is in an outage state.
 ///
-/// The `IsNetworkOutage` message is an internal Relay message that is used to
-/// query the current state of network connection with the upstream server.
+/// On repeated failure to submit requests to the upstream, the upstream service moves into an
+/// outage state. During this phase, no requests or retries are performed and all newly submitted
+/// [`SendRequest`] and [`SendQuery`] messages are put into the queue. Once connection is
+/// reestablished, requests resume in FIFO order.
 ///
-/// Currently it is only used by the HealthCheck actor to emit the
-/// `upstream.network_outage` metric.
+/// This message resolves to `true` if Relay is in outage mode and `false` if the service is
+/// performing regular operation.
 #[derive(Debug)]
 pub struct IsNetworkOutage;
 
-/// Priority of an upstream request for queueing.
+/// Priority of an upstream request.
 ///
-/// Requests are queued and send to the HTTP connections according to their priorities
-/// High priority messages are sent first and then, when no high priority message is pending,
-/// low priority messages are sent. Within the same priority messages are sent FIFO.
+/// See [`UpstreamRequest::priority`] for more information.
 #[derive(Clone, Copy, Debug)]
 pub enum RequestPriority {
     /// High priority, low volume messages (e.g. ProjectConfig, ProjectStates, Registration messages).
@@ -229,6 +237,7 @@ pub enum RequestPriority {
 }
 
 impl RequestPriority {
+    /// The name of the priority for logging and metrics.
     fn name(&self) -> &'static str {
         match self {
             RequestPriority::High => "high",
@@ -243,7 +252,7 @@ impl fmt::Display for RequestPriority {
     }
 }
 
-/// Represents an HTTP request to be sent to the upstream.
+/// Represents a generic HTTP request to be sent to the upstream.
 pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// The HTTP method of the request.
     fn method(&self) -> Method;
@@ -252,25 +261,42 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     fn path(&self) -> Cow<'_, str>;
 
     /// Whether this request should retry on network errors.
+    ///
+    /// Defaults to `true` and should be disabled if there is an external retry mechnism. Note that
+    /// failures other than network errors will **not** be retried.
     fn retry(&self) -> bool {
         true
     }
 
-    /// The queueing priority of the request. Defaults to `Low`.
+    /// The queueing priority of the request.
+    ///
+    ///  - High priority requests are always sent and retried first.
+    ///  - Low priority requests are sent if no high-priority messages are pending in the queue.
+    ///    This also applies to retries: A low-priority message is only sent if there are no
+    ///    high-priority requests waiting.
+    ///
+    /// Within the same priority, requests are delivered in FIFO order.
+    ///
+    /// Defaults to [`Low`](RequestPriority::Low).
     fn priority(&self) -> RequestPriority {
         RequestPriority::Low
     }
 
-    /// True if normal error processing should occur, false if
-    /// errors from the upstream should not be processed and returned as is
-    /// in the response.
+    /// Controls whether request errors should be intercepted.
+    ///
+    /// By default, error codes from responses will be intercepted and returned as
+    /// [`UpstreamRequestError`]. This also includes parsing of the request body for diagnostics.
+    /// Return `false` to disable this behavior and receive the verbatim response.
     fn intercept_status_errors(&self) -> bool {
         true
     }
 
-    /// If set to True it will add the X-Sentry-Relay-Id header to the request
+    /// Add the `X-Sentry-Relay-Id` header to the outgoing request.
     ///
-    /// This should be done (only) for calls to endpoints that use Relay authentication.
+    /// This header is used for authentication with the upstream and should be enabled only for
+    /// endpoints that require it.
+    ///
+    /// Defaults to `true`.
     fn set_relay_id(&self) -> bool {
         true
     }
@@ -281,35 +307,63 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// dynamic elements and should be globally unique.
     fn route(&self) -> &'static str;
 
-    /// Called whenever the request will be send over HTTP (possible multiple times)
+    /// Callback to build the outgoing web request.
+    ///
+    /// This callback populates the initialized request with headers and a request body. To send an
+    /// empty request without additional headers, call [`RequestBuilder::finish`] directly.
+    ///
+    /// Note that this function can be called repeatedly if [`retry`](UpstreamRequest::retry)
+    /// returns `true`. This function should therefore not move out of the request struct, but can
+    /// use it to memoize heavy computation.
     fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError>;
 
-    /// Called when the HTTP request completes, either with success or an error that will not
-    /// be retried.
+    /// Callback to complete an HTTP request.
+    ///
+    /// This callback receives the response or error. At time of invocation, the response body has
+    /// not been consumed. The response body or derived information can then be sent into a channel.
     fn respond(
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
 }
 
-/// TODO(ja): Doc
+/// Sends a [request](UpstreamRequest) to the upstream and resolves the response.
+///
+/// This message is fire-and-forget. The result of sending the request is passed to the
+/// [`UpstreamRequest::respond`] method, which can be used to process it and send it to a dedicated
+/// channel.
 #[derive(Debug)]
 pub struct SendRequest<T: UpstreamRequest>(pub T);
 
-/// TODO(ja): Doc
+/// Higher-level version of an [`UpstreamRequest`] with JSON request and response payloads.
+///
+/// The implementing type directly constitutes the request payload.
 pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
+    /// The response type that will be deserialized from successful queries.
     type Response: DeserializeOwned + Send;
 
-    /// The HTTP method of the request.
+    /// The HTTP method of the query.
     fn method(&self) -> Method;
 
     /// The path relative to the upstream.
     fn path(&self) -> Cow<'static, str>;
 
-    /// Whether this request should retry on network errors.
+    /// Whether this query should retry on network errors.
+    ///
+    /// This should be disabled if there is an external retry mechnism. Note that failures other
+    /// than network errors will **not** be retried.
     fn retry() -> bool;
 
-    /// The queueing priority of the request. Defaults to `Low`.
+    /// The queueing priority of the query.
+    ///
+    ///  - High priority queries are always sent and retried first.
+    ///  - Low priority queries are sent if no high-priority messages are pending in the queue.
+    ///    This also applies to retries: A low-priority message is only sent if there are no
+    ///    high-priority requests waiting.
+    ///
+    /// Within the same priority, queries are delivered in FIFO order.
+    ///
+    /// Defaults to [`Low`](RequestPriority::Low).
     fn priority() -> RequestPriority {
         RequestPriority::Low
     }
@@ -321,10 +375,13 @@ pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
     fn route(&self) -> &'static str;
 }
 
-/// TODO(ja): Doc
+/// Transmitting end of the return channel for [`UpstreamQuery`].
 type QuerySender<T> = Sender<Result<<T as UpstreamQuery>::Response, UpstreamRequestError>>;
 
-/// TODO(ja): Doc
+/// Memoized implementation of [`UpstreamRequest`] for an [`UpstreamQuery`].
+///
+/// This can be used to send queries as requests to the upstream. The request wraps an internal
+/// channel to send responses to.
 #[derive(Debug)]
 struct UpstreamQueryRequest<T: UpstreamQuery> {
     query: T,
@@ -337,7 +394,8 @@ impl<T> UpstreamQueryRequest<T>
 where
     T: UpstreamQuery + 'static,
 {
-    fn new(query: T, sender: QuerySender<T>) -> Self {
+    /// Wraps the given `query` in an [`UpstreamQuery`] implementation.
+    pub fn new(query: T, sender: QuerySender<T>) -> Self {
         Self {
             query,
             compiled: None,
@@ -375,17 +433,23 @@ where
         self.query.path()
     }
 
+    fn route(&self) -> &'static str {
+        self.query.route()
+    }
+
     fn build(
         &mut self,
         config: &Config,
         mut builder: RequestBuilder,
     ) -> Result<Request, HttpError> {
+        // Memoize the serialized body and signature for retries.
         let credentials = config.credentials().ok_or(HttpError::NoCredentials)?;
         let (body, signature) = self
             .compiled
             .get_or_insert_with(|| credentials.secret_key.pack(&self.query));
 
-        // TODO(ja): Doc why we do this or add config to `respond`.
+        // This config attribute is needed during `respond`, which does not have access to the
+        // config. For this reason, we need to store it on the request struct.
         self.max_response_size = config.max_api_payload_size();
 
         relay_statsd::metric!(
@@ -413,21 +477,39 @@ where
             self.sender.send(result)
         })
     }
-
-    fn route(&self) -> &'static str {
-        self.query.route()
-    }
 }
 
-/// TODO(ja): Doc
+/// Sends a [query](UpstreamQuery) to the upstream and resolves the response.
+///
+/// The result of the query is resolved asynchronously as response to the message. The query will
+/// still be performed even if the response is not awaited.
 #[derive(Debug)]
 pub struct SendQuery<T: UpstreamQuery>(pub T);
 
-/// TODO(ja): Doc
+/// Communication with the upstream via HTTP.
+///
+/// This service can send two main types of requests to the upstream, which can in turn be a Relay
+/// or the Sentry webserver:
+///
+///  - [`SendRequest`] sends a plain HTTP request to the upstream that can be configured and handled
+///    freely. Request implementations specify their priority and whether they should be retried
+///    automatically by the upstream service.
+///  - [`SendQuery`] sends a higher-level request with a standardized JSON body and resolves to a
+///    JSON response. The upstream service will automatically sign the message with its private key
+///    for authentication.
+///
+/// The upstream is also responsible to maintain the connection with the upstream. There are two
+/// main messages to inquire about the connection state:
+///
+///  - [`IsAuthenticated`]
+///  - [`IsNetworkOutage`]
 #[derive(Debug)]
 pub enum UpstreamRelay {
+    /// Checks the authentication state with the upstream.
     IsAuthenticated(IsAuthenticated, Sender<bool>),
+    /// Returns whether Relay is in an outage state.
     IsNetworkOutage(IsNetworkOutage, Sender<bool>),
+    /// Sends a [request](SendRequest) or [query](SendQuery) to the upstream.
     SendRequest(Box<dyn UpstreamRequest>),
 }
 
@@ -479,7 +561,7 @@ where
     }
 }
 
-/// Adds a metric for the upstream request.
+/// Captures statsd metrics for a completed upstream request.
 fn emit_response_metrics(
     send_start: Instant,
     entry: &Entry,
@@ -517,7 +599,7 @@ fn emit_response_metrics(
     );
 }
 
-/// Checks the status of the network connection with the upstream server
+/// Checks the status of the network connection with the upstream server.
 #[derive(Debug)]
 struct GetHealthCheck;
 
@@ -614,14 +696,21 @@ impl UpstreamQuery for RegisterResponse {
     }
 }
 
-#[derive(Debug)]
+/// A shared, asynchonous client to build and execute requests.
+///
+/// The main way to send a request through this client is [`send`](Self::send).
+///
+/// This instance holds a shared reference internally and can be cloned directly, so it does not
+/// have to be placed in an `Arc`.
+#[derive(Debug, Clone)]
 struct SharedClient {
     config: Arc<Config>,
     reqwest: reqwest::Client,
 }
 
 impl SharedClient {
-    fn build(config: Arc<Config>) -> Self {
+    /// Creates a new `SharedClient` instance.
+    pub fn build(config: Arc<Config>) -> Self {
         let reqwest = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
@@ -639,7 +728,11 @@ impl SharedClient {
         Self { config, reqwest }
     }
 
-    /// TODO(ja): Doc
+    /// Builds the request in a non-blocking fashion.
+    ///
+    /// This creates the request, adds internal headers, and invokes [`UpstreamRequest::build`]. The
+    /// build is invoked in a non-blocking fashion internally, so it can be called from an
+    /// asynchronous runtime.
     fn build_request(
         &self,
         request: &mut dyn UpstreamRequest,
@@ -728,8 +821,8 @@ impl SharedClient {
         }
     }
 
-    /// TODO(ja): Doc
-    async fn send(
+    /// Builds and sends a request to the upstream, returning either a response or the error.
+    pub async fn send(
         &self,
         request: &mut dyn UpstreamRequest,
     ) -> Result<Response, UpstreamRequestError> {
@@ -738,7 +831,7 @@ impl SharedClient {
         self.transform_response(request, Response(response)).await
     }
 
-    /// TODO(ja): Doc
+    /// Convenience method to send a query to the upstream and await the result.
     pub async fn send_query<T>(&self, query: T) -> Result<T::Response, UpstreamRequestError>
     where
         T: UpstreamQuery + 'static,
@@ -758,18 +851,29 @@ impl SharedClient {
 /// The position for enqueueing an upstream request.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum EnqueuePosition {
-    Front,
+    /// The default position for FIFO to be dequeued last.
     Back,
+
+    /// Places an element at the front to be dequeued next.
+    Front,
 }
 
-/// TODO(ja): Doc
+/// An upstream request enqueued in the [`UpstreamQueue`].
+///
+/// This is the primary type with which requests are passed around the service.
 #[derive(Debug)]
 struct Entry {
-    request: Box<dyn UpstreamRequest>,
-    retries: usize,
+    /// The inner request.
+    pub request: Box<dyn UpstreamRequest>,
+    /// The number of retries.
+    ///
+    /// This starts with `0` and is incremented every time a request is placed back into the queue
+    /// following a network error.
+    pub retries: usize,
 }
 
 impl Entry {
+    /// Creates a pristine queue `Entry`.
     pub fn new(request: Box<dyn UpstreamRequest>) -> Self {
         Self {
             request,
@@ -778,6 +882,10 @@ impl Entry {
     }
 }
 
+/// Queue utility for the [`UpstreamRelayService`].
+///
+/// Requests are queued and delivered according to their [`UpstreamRequest::priority`]. This queue
+/// is synchronous and managed by the [`Broker`].
 #[derive(Debug)]
 struct UpstreamQueue {
     high: VecDeque<Entry>,
@@ -785,6 +893,7 @@ struct UpstreamQueue {
 }
 
 impl UpstreamQueue {
+    /// Creates an empty upstream queue.
     pub fn new() -> Self {
         Self {
             high: VecDeque::new(),
@@ -792,11 +901,13 @@ impl UpstreamQueue {
         }
     }
 
+    /// Returns the number of entries in the queue.
     pub fn len(&self) -> usize {
         self.high.len() + self.low.len()
     }
 
-    fn push(&mut self, entry: Entry, position: EnqueuePosition) {
+    /// Puts an entry into the queue at the given position.
+    fn put(&mut self, entry: Entry, position: EnqueuePosition) {
         let priority = entry.request.priority();
 
         // We can ignore send errors here. Once the channel closes, we drop all incoming requests
@@ -818,20 +929,32 @@ impl UpstreamQueue {
         );
     }
 
+    /// Places an entry at the back of the queue.
+    ///
+    /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
+    /// priority class.
     pub fn enqueue(&mut self, entry: Entry) {
-        self.push(entry, EnqueuePosition::Back)
+        self.put(entry, EnqueuePosition::Back)
     }
 
-    pub fn place_back(&mut self, entry: Entry) {
-        self.push(entry, EnqueuePosition::Front)
+    /// Place an entry at the front of the queue.
+    ///
+    /// This entry will be dequeued next within its priority class, unless another call to
+    /// `enqueue_immediate` follows.
+    pub fn enqueue_immediate(&mut self, entry: Entry) {
+        self.put(entry, EnqueuePosition::Front)
     }
 
+    /// Removes the head of the queue with highest priority.
+    ///
+    /// This always returns entries with [high](RequestPriority::High) first before dequeueing
+    /// entries with low priority.
     pub fn dequeue(&mut self) -> Option<Entry> {
         self.high.pop_front().or_else(|| self.low.pop_front())
     }
 }
 
-/// Represents the current auth state.
+/// The state of authentication state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum AuthState {
     /// Relay is not authenticated and authentication has not started.
@@ -841,6 +964,9 @@ enum AuthState {
     Registering,
 
     /// The connection is healthy and authenticated in managed mode.
+    ///
+    /// This state is also used as default for Relays that do not require authentication based on
+    /// their configuration.
     Registered,
 
     /// Relay is authenticated and renewing the registration lease. During this process, Relay
@@ -852,7 +978,10 @@ enum AuthState {
 }
 
 impl AuthState {
-    /// TODO(ja): Doc
+    /// Returns the initial `AuthState` based on configuration.
+    ///
+    /// - Relays in managed mode require authentication. The state is set to `AuthState::Unknown`.
+    /// - Other Relays do not require authentication. The state is set to `AuthState::Registered`.
     pub fn init(config: &Config) -> Self {
         match config.relay_mode() {
             RelayMode::Managed => AuthState::Unknown,
@@ -860,47 +989,72 @@ impl AuthState {
         }
     }
 
-    /// Returns true if the state is considered authenticated.
+    /// Returns `true` if the state is considered authenticated.
     pub fn is_authenticated(self) -> bool {
         matches!(self, AuthState::Registered | AuthState::Renewing)
     }
 }
 
-/// TODO(ja): Doc
+/// Indicates whether an request was sent to the upstream.
 #[derive(Clone, Copy, Debug)]
-enum RequestStatus {
-    /// TODO(ja): Doc
+enum RequestOutcome {
+    /// The request was dropped due to a network outage.
     Dropped,
-    /// TODO(ja): Doc
+    /// The request was received by the upstream.
+    ///
+    /// This does not automatically mean that the request was successfully accepted. It could also
+    /// have been rate limited or rejected as invalid.
     Received,
 }
 
-/// TODO(ja): Doc
+/// Internal message of the upstream's [`Broker`].
+///
+/// These messages are used to serialize state mutations to the broker's internals. They are emitted
+/// by the auth monitor, connection monitor, and internal tasks for request handling.
 #[derive(Debug)]
 enum Action {
-    /// TODO(ja): Doc
+    /// A dropped needs to be retried.
+    ///
+    /// The entry is placed on the front of the [`UpstreamQueue`].
     Retry(Entry),
-    /// TODO(ja): Doc
-    Complete(RequestStatus),
-    /// TODO(ja): Doc
+    /// Notifies completion of a request with a given outcome.
+    ///
+    /// Dropped request that need retries will additionally invoke the [`Retry`](Self::Retry)
+    /// action.
+    Complete(RequestOutcome),
+    /// Previously lost connection has been regained.
+    ///
+    /// This message is delivered to the [`ConnectionMonitor`] instance.
     Connected,
-    /// TODO(ja): Doc
+    /// The auth monitor indicates a change in the authentication state.
+    ///
+    /// The new auth state is mirrored in an internal field for immediate access.
     UpdateAuth(AuthState),
 }
 
 type ActionTx = mpsc::UnboundedSender<Action>;
 
-/// TODO(ja): Doc
+/// Service that establishes and maintains authentication.
+///
+/// In regular intervals, the service checks for authentication and notifies the upstream if the key
+/// is no longer valid. This allows Sentry to reject registered Relays during runtim without
+/// restarts.
+///
+/// The monitor updates subscribers via the an `Action` channel of all changes to the authentication
+/// states.
 #[derive(Debug)]
 struct AuthMonitor {
     config: Arc<Config>,
-    client: Arc<SharedClient>,
+    client: SharedClient,
     state: AuthState,
     tx: ActionTx,
 }
 
 impl AuthMonitor {
     /// Returns the interval at which this Relay should renew authentication.
+    ///
+    /// Returns `Some` if authentication should be retried. Returns `None` if authentication is
+    /// permanent.
     fn renew_auth_interval(&self) -> Option<std::time::Duration> {
         if self.config.processing_enabled() {
             // processing relays do NOT re-authenticate
@@ -911,7 +1065,7 @@ impl AuthMonitor {
         }
     }
 
-    // TODO(ja): Doc
+    /// Updates the monitor's internal state and subscribers.
     fn send_state(&mut self, state: AuthState) -> Result<(), UpstreamRequestError> {
         self.state = state;
         self.tx
@@ -919,7 +1073,14 @@ impl AuthMonitor {
             .map_err(|_| UpstreamRequestError::ChannelClosed)
     }
 
-    // TODO(ja): Doc
+    /// Performs a single authentication pass.
+    ///
+    /// Authentication consists of an initial request, a challenge, and a signed response including
+    /// the challenge. Throughout this sequence, the auth monitor transitions the authentication
+    /// state. If authentication succeeds, the state is set to [`AuthState::Registered`] at the end.
+    ///
+    /// If any of the requests fails, this method returns an `Err` and leaves the last
+    /// authentication state in place.
     async fn authenticate(
         &mut self,
         credentials: &Credentials,
@@ -949,7 +1110,14 @@ impl AuthMonitor {
         Ok(())
     }
 
-    /// TODO(ja): Doc
+    /// Starts the authentication monitor's cycle.
+    ///
+    /// Authentication starts immediately and then enters a loop of recurring reauthentication until
+    /// one of the following conditions is met:
+    ///
+    ///  - Authentication is not required based on the Relay's mode configuration.
+    ///  - The upstream responded with a permanent rejection (auth denied).
+    ///  - All subscibers have shut down and the action channel is closed.
     pub async fn run(mut self) {
         if self.config.relay_mode() != RelayMode::Managed {
             return;
@@ -990,10 +1158,9 @@ impl AuthMonitor {
 
                     // If the authentication request fails due to any reason other than a network
                     // error, go back to `Registering` which indicates that this Relay is not
-                    // authenticated. Note that network errors are handled separately by the generic
-                    // response handler.
-                    if !err.is_network_error() && self.send_state(AuthState::Registering).is_err() {
-                        return;
+                    // authenticated, in case the state was `Renewing` before.
+                    if !err.is_network_error() {
+                        self.send_state(AuthState::Registering).ok();
                     }
 
                     // Even on network errors, retry authentication independently.
@@ -1009,56 +1176,48 @@ impl AuthMonitor {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Connector {
-    config: Arc<Config>,
-    client: Arc<SharedClient>,
-}
-
-impl Connector {
-    pub async fn connect(self, tx: ActionTx) {
-        let mut backoff = RetryBackoff::new(self.config.http_max_retry_interval());
-
-        loop {
-            let next_backoff = backoff.next_backoff();
-            relay_log::warn!(
-                "Network outage, scheduling another check in {:?}",
-                next_backoff
-            );
-
-            tokio::time::sleep(next_backoff).await;
-            match self.client.send(&mut GetHealthCheck).await {
-                Ok(_) => break,
-                Err(e) if !e.is_network_error() => break,
-                Err(_) => continue,
-            }
-        }
-
-        tx.send(Action::Connected).ok();
-    }
-}
-
+/// Internal state of the [`ConnectionMonitor`].
 #[derive(Debug)]
 enum ConnectionState {
+    /// The connection is healthy.
     Connected,
+
+    /// Network errors have been observed during the grace period.
+    ///
+    /// The connection is still considered healthy and requests should be made to the upstream.
     Interrupted(Instant),
+
+    /// The connection is interrupted and reconnection is in progress.
+    ///
+    /// If the task has finished, connection should be considered `Connected`.
     Reconnecting(tokio::task::JoinHandle<()>),
 }
 
+/// Maintains outage state of the connection to the upstream.
+///
+///  Use [`notify_error`](Self::notify_error) and [`reset_error`](Self::reset_error) to inform the
+/// monitor of successful and failed requests. If errors persist throughout a grace period, the
+/// monitor spanws a background task to re-establish connections. During this period,
+/// [`is_stable`](Self::is_stable) returns `false` and no other requests should be made to the
+/// upstream.
+///
+/// This state is synchronous and managed by the [`Broker`].
 #[derive(Debug)]
 struct ConnectionMonitor {
     state: ConnectionState,
-    connector: Connector,
+    client: SharedClient,
 }
 
 impl ConnectionMonitor {
-    pub fn new(config: Arc<Config>, client: Arc<SharedClient>) -> Self {
+    /// Creates a new `ConnectionMonitor` in connected state.
+    pub fn new(client: SharedClient) -> Self {
         Self {
             state: ConnectionState::Connected,
-            connector: Connector { config, client },
+            client,
         }
     }
 
+    /// Resets `Reconnecting` if the connection task has completed.
     fn clean_state(&mut self) -> &ConnectionState {
         if let ConnectionState::Reconnecting(ref task) = self.state {
             if task.is_finished() {
@@ -1069,6 +1228,7 @@ impl ConnectionMonitor {
         &self.state
     }
 
+    /// Returns `true` if the connection is not in outage state.
     pub fn is_stable(&mut self) -> bool {
         match self.clean_state() {
             ConnectionState::Connected => true,
@@ -1077,11 +1237,41 @@ impl ConnectionMonitor {
         }
     }
 
+    /// Returns `true` if the connection is in outage state.
     pub fn is_outage(&mut self) -> bool {
         !self.is_stable()
     }
 
-    pub fn notify_error(&mut self, return_tx: ActionTx) {
+    /// Performs connection attempts with exponential backoff until successful.
+    async fn connect(client: SharedClient, tx: ActionTx) {
+        let mut backoff = RetryBackoff::new(client.config.http_max_retry_interval());
+
+        loop {
+            let next_backoff = backoff.next_backoff();
+            relay_log::warn!(
+                "Network outage, scheduling another check in {:?}",
+                next_backoff
+            );
+
+            tokio::time::sleep(next_backoff).await;
+            match client.send(&mut GetHealthCheck).await {
+                // All errors that are not connection errors are considered a successful attempt
+                Err(e) if e.is_network_error() => continue,
+                _ => break,
+            }
+        }
+
+        tx.send(Action::Connected).ok();
+    }
+
+    /// Notifies the monitor of a request that resulted in a network error.
+    ///
+    /// This starts a grace period if not already started. If a prior grace period has been
+    /// exceeded, the monitor spawns a background job to reestablish connection and notifies the
+    /// given `return_tx` on success.
+    ///
+    /// This method does not block.
+    pub fn notify_error(&mut self, return_tx: &ActionTx) {
         let now = Instant::now();
 
         let first_error = match self.clean_state() {
@@ -1093,12 +1283,16 @@ impl ConnectionMonitor {
         self.state = ConnectionState::Interrupted(first_error);
 
         // Only take action if we exceeded the grace period.
-        if first_error + self.connector.config.http_outage_grace_period() <= now {
-            let task = tokio::spawn(self.connector.clone().connect(return_tx));
+        if first_error + self.client.config.http_outage_grace_period() <= now {
+            let return_tx = return_tx.clone();
+            let task = tokio::spawn(Self::connect(self.client.clone(), return_tx));
             self.state = ConnectionState::Reconnecting(task);
         }
     }
 
+    /// Notifies the monitor of a request that was delivered to the upstream.
+    ///
+    /// Resets the outage grace period and aborts connect background tasks.
     pub fn reset_error(&mut self) {
         if let ConnectionState::Reconnecting(ref task) = self.state {
             task.abort();
@@ -1108,10 +1302,12 @@ impl ConnectionMonitor {
     }
 }
 
-/// TODO(ja): Doc
+/// Main broker of the [`UpstreamRelayService`].
+///
+/// This handles incoming public messages, internal actions, and maintains the upstream queue.
 #[derive(Debug)]
-struct Broker {
-    client: Arc<SharedClient>,
+struct UpstreamBroker {
+    client: SharedClient,
     queue: UpstreamQueue,
     auth_state: AuthState,
     conn: ConnectionMonitor,
@@ -1119,7 +1315,18 @@ struct Broker {
     action_tx: ActionTx,
 }
 
-impl Broker {
+impl UpstreamBroker {
+    /// Returns the next entry from the queue if the upstream is in a healthy state.
+    ///
+    /// This returns `None` in any of the following conditions:
+    ///  - Maximum request concurrency has been reached. A slot will be reclaimed through
+    ///    [`Action::Complete`].
+    ///  - The connection is in outage state and all outgoing requests are suspended. Outage state
+    ///    will be reset through [`Action::Connected`].
+    ///  - Relay is not authenticated, including failed renewals. Auth state will be updated through
+    ///    [`Action::UpdateAuth`].
+    ///  - The request queue is empty. New requests will be added through [`SendRequest`] or
+    ///    [`SendQuery`] in the main message loop.
     async fn next_request(&mut self) -> Option<Entry> {
         if self.permits == 0 || self.conn.is_outage() || !self.auth_state.is_authenticated() {
             return None;
@@ -1130,6 +1337,10 @@ impl Broker {
         Some(entry)
     }
 
+    /// Attempts to place a new request into the queue.
+    ///
+    /// If authentication is permanently denied, the request will be failed immediately. In all
+    /// other cases, the request is enqueued and will wait for submission.
     async fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
         if let AuthState::Denied = self.auth_state {
             // This respond is near-instant because it should just send the error into the request's
@@ -1140,6 +1351,7 @@ impl Broker {
         }
     }
 
+    /// Handler of the main message loop.
     async fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
             UpstreamRelay::IsAuthenticated(_, sender) => {
@@ -1150,6 +1362,10 @@ impl Broker {
         }
     }
 
+    /// Spawns a request attempt.
+    ///
+    /// The request will run concurrently with other spawned requests and notify the action channel
+    /// on completion.
     fn execute(&self, mut entry: Entry) {
         let client = self.client.clone();
         let action_tx = self.action_tx.clone();
@@ -1160,12 +1376,12 @@ impl Broker {
             emit_response_metrics(send_start, &entry, &result);
 
             let status = match result {
-                Err(ref err) if err.is_network_error() => RequestStatus::Dropped,
-                _ => RequestStatus::Received,
+                Err(ref err) if err.is_network_error() => RequestOutcome::Dropped,
+                _ => RequestOutcome::Received,
             };
 
             match status {
-                RequestStatus::Dropped if entry.request.retry() => {
+                RequestOutcome::Dropped if entry.request.retry() => {
                     entry.retries += 1;
                     action_tx.send(Action::Retry(entry)).ok();
                 }
@@ -1179,18 +1395,20 @@ impl Broker {
         });
     }
 
-    fn complete(&mut self, status: RequestStatus) {
+    /// Marks completion of a running request and reclaims its slot.
+    fn complete(&mut self, status: RequestOutcome) {
         self.permits += 1;
 
         match status {
-            RequestStatus::Dropped => self.conn.notify_error(self.action_tx.clone()),
-            RequestStatus::Received => self.conn.reset_error(),
+            RequestOutcome::Dropped => self.conn.notify_error(&self.action_tx),
+            RequestOutcome::Received => self.conn.reset_error(),
         }
     }
 
+    /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => self.queue.place_back(request),
+            Action::Retry(request) => self.queue.enqueue_immediate(request),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
             Action::UpdateAuth(state) => self.auth_state = state,
@@ -1198,6 +1416,7 @@ impl Broker {
     }
 }
 
+/// Implementation of the [`UpstreamRelay`] interface.
 #[derive(Debug)]
 pub struct UpstreamRelayService {
     config: Arc<Config>,
@@ -1206,6 +1425,7 @@ pub struct UpstreamRelayService {
 impl UpstreamRelayService {
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
+        // Broker and other actual components are implemented in the Service's `spawn_handler`.
         Self { config }
     }
 }
@@ -1216,27 +1436,29 @@ impl Service for UpstreamRelayService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config } = self;
 
-        let client = Arc::new(SharedClient::build(config.clone()));
+        let client = SharedClient::build(config.clone());
 
-        // Channel for internal actions.
+        // Channel for serialized communication from the auth monitor, connection monitor, and
+        // concurrent requests back to the broker.
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
-        // Spawn a background check for authentication, along with a handle for the broker.
+        // Spawn a recurring background check for authentication. It terminates automatically if
+        // authentication is not required or rejected.
         let auth = AuthMonitor {
             config: config.clone(),
             client: client.clone(),
             state: AuthState::Unknown,
             tx: action_tx.clone(),
         };
-
         tokio::spawn(auth.run());
 
-        // Main broker.
-        let mut broker = Broker {
+        // Main broker that serializes public and internal messages, as well as maintains connection
+        // and authentication state.
+        let mut broker = UpstreamBroker {
             client: client.clone(),
             queue: UpstreamQueue::new(),
             auth_state: AuthState::init(&config),
-            conn: ConnectionMonitor::new(config.clone(), client),
+            conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
             action_tx,
         };
