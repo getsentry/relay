@@ -55,7 +55,8 @@ fn decompress(zipped_bytes: &[u8], limit: usize) -> Result<Vec<u8>, ProtocolErro
 
 fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
     match bytes.is_empty() {
-        true => {
+        true => Err(ProtocolError::MissingData),
+        false => {
             let mut split = bytes.splitn(2, |b| b == &b'\n');
             let header = split.next().ok_or(ProtocolError::MissingHeaders)?;
 
@@ -70,7 +71,6 @@ fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
 
             Ok((header, body))
         }
-        false => Err(ProtocolError::MissingData),
     }
 }
 
