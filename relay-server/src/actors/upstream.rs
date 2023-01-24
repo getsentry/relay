@@ -1,3 +1,9 @@
+//! Service to communicate with the upstream.
+//!
+//! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
+//! [`UpstreamRelayService`] along with messages to communicate with the service. Please look at
+//! service-level docs for more information.
+
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
@@ -6,7 +12,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use relay_log::LogError;
 use reqwest::header;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::mpsc;
@@ -15,6 +20,7 @@ use tokio::time::Instant;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::RetryBackoff;
 use relay_config::{Config, Credentials, RelayMode};
+use relay_log::LogError;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
@@ -120,7 +126,7 @@ pub enum UpstreamRequestError {
 impl UpstreamRequestError {
     /// Returns the status code of the HTTP request sent to the upstream.
     ///
-    /// If this error is the result of sending a request to the upstream, this method returns `Sone`
+    /// If this error is the result of sending a request to the upstream, this method returns `Some`
     /// with the status code. If the request could not be made or the error originates elsewhere,
     /// this returns `None`.
     fn status_code(&self) -> Option<StatusCode> {
@@ -262,7 +268,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
 
     /// Whether this request should retry on network errors.
     ///
-    /// Defaults to `true` and should be disabled if there is an external retry mechnism. Note that
+    /// Defaults to `true` and should be disabled if there is an external retry mechanism. Note that
     /// failures other than network errors will **not** be retried.
     fn retry(&self) -> bool {
         true
@@ -337,7 +343,8 @@ pub struct SendRequest<T: UpstreamRequest>(pub T);
 
 /// Higher-level version of an [`UpstreamRequest`] with JSON request and response payloads.
 ///
-/// The implementing type directly constitutes the request payload.
+/// The struct that implements the `UpstreamQuery` type has to be serializable and will be used as
+/// JSON request body. The response body struct is declared via the associated `Response` type.
 pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
     /// The response type that will be deserialized from successful queries.
     type Response: DeserializeOwned + Send;
@@ -696,7 +703,7 @@ impl UpstreamQuery for RegisterResponse {
     }
 }
 
-/// A shared, asynchonous client to build and execute requests.
+/// A shared, asynchronous client to build and execute requests.
 ///
 /// The main way to send a request through this client is [`send`](Self::send).
 ///
@@ -774,7 +781,7 @@ impl SharedClient {
     /// payload, one of the following errors is returned:
     ///
     ///  1. `RateLimited` for a `429` status code.
-    ///  2. `ResponseError`  in all other cases, containing the status and details.
+    ///  2. `ResponseError` in all other cases, containing the status and details.
     async fn transform_response(
         &self,
         request: &dyn UpstreamRequest,
@@ -885,7 +892,7 @@ impl Entry {
 /// Queue utility for the [`UpstreamRelayService`].
 ///
 /// Requests are queued and delivered according to their [`UpstreamRequest::priority`]. This queue
-/// is synchronous and managed by the [`Broker`].
+/// is synchronous and managed by the [`UpstreamBroker`].
 #[derive(Debug)]
 struct UpstreamQueue {
     high: VecDeque<Entry>,
@@ -954,7 +961,7 @@ impl UpstreamQueue {
     }
 }
 
-/// The state of authentication state.
+/// Possible authentication states for Relay.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum AuthState {
     /// Relay is not authenticated and authentication has not started.
@@ -1007,7 +1014,7 @@ enum RequestOutcome {
     Received,
 }
 
-/// Internal message of the upstream's [`Broker`].
+/// Internal message of the upstream's [`UpstreamBroker`].
 ///
 /// These messages are used to serialize state mutations to the broker's internals. They are emitted
 /// by the auth monitor, connection monitor, and internal tasks for request handling.
@@ -1060,7 +1067,7 @@ impl AuthMonitor {
             // processing relays do NOT re-authenticate
             None
         } else {
-            // only relays the have a configured auth-interval reauthenticate
+            // only relays that have a configured auth-interval reauthenticate
             self.config.http_auth_interval()
         }
     }
@@ -1079,8 +1086,8 @@ impl AuthMonitor {
     /// the challenge. Throughout this sequence, the auth monitor transitions the authentication
     /// state. If authentication succeeds, the state is set to [`AuthState::Registered`] at the end.
     ///
-    /// If any of the requests fails, this method returns an `Err` and leaves the last
-    /// authentication state in place.
+    /// If any of the requests fail, this method returns an `Err` and leaves the last authentication
+    /// state in place.
     async fn authenticate(
         &mut self,
         credentials: &Credentials,
@@ -1197,11 +1204,11 @@ enum ConnectionState {
 ///
 ///  Use [`notify_error`](Self::notify_error) and [`reset_error`](Self::reset_error) to inform the
 /// monitor of successful and failed requests. If errors persist throughout a grace period, the
-/// monitor spanws a background task to re-establish connections. During this period,
+/// monitor spawns a background task to re-establish connections. During this period,
 /// [`is_stable`](Self::is_stable) returns `false` and no other requests should be made to the
 /// upstream.
 ///
-/// This state is synchronous and managed by the [`Broker`].
+/// This state is synchronous and managed by the [`UpstreamBroker`].
 #[derive(Debug)]
 struct ConnectionMonitor {
     state: ConnectionState,
