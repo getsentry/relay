@@ -5,11 +5,23 @@ use std::io::{Error, Read, Write};
 
 /// Deserializes input bytes and returns a tuple of serialized (confirmed valid) JSON headers
 /// and deserialized JSON body value.
+///
+/// Body values are optionally compressed with gzip.
 pub fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Value), ProtocolError> {
     let (headers, body) = read(bytes)?;
-    let buf = decompress(body, limit)?;
-    let val: Value = serde_json::from_slice(&buf).map_err(ProtocolError::InvalidBody)?;
-    Ok((headers, val))
+
+    // We always attempt to decompress the body value. If decompression fails we try tp JSON
+    // deserialize the body bytes as is.
+    match decompress(body, limit) {
+        Ok(buf) => {
+            let val: Value = serde_json::from_slice(&buf).map_err(ProtocolError::InvalidBody)?;
+            Ok((headers, val))
+        }
+        Err(_) => {
+            let val: Value = serde_json::from_slice(body).map_err(ProtocolError::InvalidBody)?;
+            Ok((headers, val))
+        }
+    }
 }
 
 /// Serializes the headers and body arguments into a single vec of bytes. The body value is
