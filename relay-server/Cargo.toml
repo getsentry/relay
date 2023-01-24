@@ -12,7 +12,7 @@ publish = false
 
 [features]
 default = []
-ssl = ["native-tls", "actix-web/tls"]
+ssl = ["native-tls", "actix-web/tls", "relay-redis/tls", "relay-quotas/tls"]
 processing = ["minidump", "relay-config/processing", "relay-kafka/producer", "relay-quotas/redis", "relay-redis/impl", "symbolic-unreal", "symbolic-common"]
 
 [dependencies]

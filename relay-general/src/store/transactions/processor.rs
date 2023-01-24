@@ -319,8 +319,13 @@ impl Processor for TransactionsProcessor<'_> {
             event.transaction_info.value_mut(),
         )?;
 
-        // Normalize transaction names for URLs transaction sources only.
-        if event.get_transaction_source() == &TransactionSource::Url && self.normalize_names {
+        // Normalize transaction names for URLs and Sanitized transaction sources.
+        // This in addition to renaming rules can catch some high cardinality parts.
+        if matches!(
+            event.get_transaction_source(),
+            &TransactionSource::Url | &TransactionSource::Sanitized
+        ) && self.normalize_names
+        {
             normalize_transaction_name(&mut event.transaction)?;
         }
 
@@ -402,6 +407,7 @@ mod tests {
 
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
+    use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
     use relay_common::Glob;
@@ -1781,6 +1787,22 @@ mod tests {
            }
          }
          "###);
+    }
+
+    #[test]
+    fn test_normalize_transaction_names() {
+        let should_be_replaced = [
+            "/aaa11111-aa11-11a1-a11a-1aaa1111a111",
+            "/1aa111aa-11a1-11aa-a111-a1a11111aa11",
+            "/00a00000-0000-0000-0000-000000000001",
+            "/test/b25feeaa-ed2d-4132-bcbd-6232b7922add/url",
+        ];
+        let replaced = should_be_replaced.map(|s| {
+            let mut s = Annotated::new(s.to_owned());
+            normalize_transaction_name(&mut s).unwrap();
+            s.0.unwrap()
+        });
+        assert_debug_snapshot!(replaced);
     }
 
     macro_rules! transaction_name_test {
