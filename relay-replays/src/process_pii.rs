@@ -187,13 +187,28 @@ impl RecordingProcessor<'_> {
             Value::Array(text_values) => {
                 let new_text_values = Value::Array(
                     text_values
-                        .into_iter()
-                        .map(|child| self.new_pii_scrubbed_value(&child))
+                        .iter()
+                        .map(|child| {
+                            self.process_incremental_snapshot_event_dom_text(child.to_owned())
+                        })
                         .collect::<Result<Vec<Value>, ParseError>>()?,
                 );
                 Ok(new_text_values)
             }
             _ => Ok(texts),
+        }
+    }
+
+    fn process_incremental_snapshot_event_dom_text(&mut self, text: Value) -> ProcessingResult {
+        match text {
+            Value::Object(mut obj) => match obj.get("value") {
+                Some(value) => {
+                    obj.insert("value".to_string(), self.new_pii_scrubbed_value(value)?);
+                    Ok(Value::Object(obj))
+                }
+                None => Ok(Value::Object(obj)),
+            },
+            _ => Ok(text.to_owned()),
         }
     }
 

@@ -3,7 +3,12 @@
         "type": 3,
         "data": {
             "source": 0,
-            "texts": [],
+            "texts": [
+                {
+                    "id": 44,
+                    "value": "111-11-1111"
+                }
+            ],
             "attributes": [],
             "removes": [],
             "isAttachIframe": true,

@@ -103,7 +103,7 @@ impl Display for ProtocolError {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::{deserialize, serialize};
+    use crate::protocol::serialize;
     use serde_json::Value;
 
     #[test]
