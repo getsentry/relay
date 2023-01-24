@@ -50,15 +50,6 @@
 <span id="49">49</span>
 <span id="50">50</span>
 <span id="51">51</span>
-<span id="52">52</span>
-<span id="53">53</span>
-<span id="54">54</span>
-<span id="55">55</span>
-<span id="56">56</span>
-<span id="57">57</span>
-<span id="58">58</span>
-<span id="59">59</span>
-<span id="60">60</span>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -68,17 +59,9 @@
 /// &lt;https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97&gt;
 </span><span class="kw">pub static </span>TRANSACTION_NAME_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;
-
-    (?x)
+        <span class="string">r#&quot;(?x)
     (?P&lt;uuid&gt;[^/\\]*
-        \b
-            [0-9a-fA-F]{8}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{12}
-        \b
+        \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
     [^/\\]*) |
     (?P&lt;sha1&gt;[^/\\]*
         \b[0-9a-fA-F]{40}\b
@@ -114,8 +97,7 @@
     [^/\\]*) |
     (?P&lt;int&gt;[^/\\]*
         \b\d{2,}\b
-    [^/\\]*)
-&quot;#</span>,
+    [^/\\]*)&quot;#</span>,
     )
     .unwrap()
 });

@@ -1863,6 +1863,23 @@
 <span id="1862">1862</span>
 <span id="1863">1863</span>
 <span id="1864">1864</span>
+<span id="1865">1865</span>
+<span id="1866">1866</span>
+<span id="1867">1867</span>
+<span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -2267,6 +2284,7 @@
 
     <span class="kw">use </span>chrono::offset::TimeZone;
     <span class="kw">use </span>chrono::{Duration, Utc};
+    <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use </span>relay_common::Glob;
@@ -3646,6 +3664,22 @@
            }
          }
          &quot;###</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_normalize_transaction_names() {
+        <span class="kw">let </span>should_be_replaced = [
+            <span class="string">&quot;/aaa11111-aa11-11a1-a11a-1aaa1111a111&quot;</span>,
+            <span class="string">&quot;/1aa111aa-11a1-11aa-a111-a1a11111aa11&quot;</span>,
+            <span class="string">&quot;/00a00000-0000-0000-0000-000000000001&quot;</span>,
+            <span class="string">&quot;/test/b25feeaa-ed2d-4132-bcbd-6232b7922add/url&quot;</span>,
+        ];
+        <span class="kw">let </span>replaced = should_be_replaced.map(|s| {
+            <span class="kw">let </span><span class="kw-2">mut </span>s = Annotated::new(s.to_owned());
+            normalize_transaction_name(<span class="kw-2">&amp;mut </span>s).unwrap();
+            s.<span class="number">0</span>.unwrap()
+        });
+        <span class="macro">assert_debug_snapshot!</span>(replaced);
     }
 
     <span class="macro">macro_rules! </span>transaction_name_test {
