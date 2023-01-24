@@ -7,7 +7,6 @@ use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -2361,15 +2360,14 @@ impl EnvelopeProcessorService {
         let mut request = message.request;
         match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
             Err(e) => {
-                request.response_sender.map(|sender| {
-                    sender
-                        .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
-                        .ok()
-                });
+                request
+                    .response_sender
+                    .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
+                    .ok();
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;
-                UpstreamRelay::from_registry().do_send(SendRequest(request));
+                UpstreamRelay::from_registry().send(SendRequest(request));
             }
         }
     }

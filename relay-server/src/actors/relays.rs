@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::SystemService;
-use actix_web::http::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -13,11 +11,10 @@ use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 use relay_system::{
-    compat, Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface,
-    Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
 use crate::utils::SleepHandle;
 
@@ -127,6 +124,10 @@ impl UpstreamQuery for GetRelays {
 
     fn retry() -> bool {
         false
+    }
+
+    fn route(&self) -> &'static str {
+        "public_keys"
     }
 }
 
@@ -249,8 +250,10 @@ impl RelayCacheService {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            let upstream = UpstreamRelay::from_registry();
-            let query_result = match compat::send(upstream, SendQuery(request)).await {
+            let query_result = match UpstreamRelay::from_registry()
+                .send(SendQuery(request))
+                .await
+            {
                 Ok(inner) => inner,
                 // Drop the channels to propagate the `SendError` up.
                 Err(_send_error) => return,

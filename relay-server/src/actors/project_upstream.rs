@@ -3,10 +3,6 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
-// TODO(actix): These two import will be removed when the `Upstream` actor is migrated to new tokio
-// runtime.
-use actix::SystemService;
-use actix_web::http::Method;
 use futures::future;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -18,13 +14,13 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_statsd::metric;
 use relay_system::{
-    compat, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchProjectState;
 use crate::actors::upstream::{
-    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+    Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ErrorBoundary, SleepHandle};
@@ -71,6 +67,10 @@ impl UpstreamQuery for GetProjectStates {
 
     fn retry() -> bool {
         false
+    }
+
+    fn route(&self) -> &'static str {
+        "project_configs"
     }
 }
 
@@ -275,8 +275,7 @@ impl UpstreamProjectSourceService {
             metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
             requests.push(async move {
-                let request = compat::send(UpstreamRelay::from_registry(), SendQuery(query));
-                match request.await {
+                match UpstreamRelay::from_registry().send(SendQuery(query)).await {
                     Ok(response) => Some(UpstreamResponse {
                         channels_batch,
                         response,

@@ -1,14 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use actix::SystemService;
-
 use relay_config::{Config, RelayMode};
 use relay_metrics::AcceptsMetrics;
 use relay_statsd::metric;
-use relay_system::{
-    compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
-};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::service::{Registry, REGISTRY};
@@ -73,7 +69,7 @@ impl HealthCheckService {
         let upstream = UpstreamRelay::from_registry();
 
         if self.config.relay_mode() == RelayMode::Managed {
-            let fut = compat::send(upstream.clone(), IsNetworkOutage);
+            let fut = upstream.send(IsNetworkOutage);
             tokio::spawn(async move {
                 if let Ok(is_outage) = fut.await {
                     metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
@@ -89,9 +85,7 @@ impl HealthCheckService {
                 }
 
                 if self.config.requires_auth()
-                    && !compat::send(upstream, IsAuthenticated)
-                        .await
-                        .unwrap_or(false)
+                    && !upstream.send(IsAuthenticated).await.unwrap_or(false)
                 {
                     return false;
                 }
