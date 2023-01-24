@@ -107,7 +107,7 @@ impl ResponseError for BadStoreRequest {
                     .json(&body)
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
-                // These errors indicate that something's wrong with our actor system, most likely
+                // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
                 HttpResponse::ServiceUnavailable().json(&body)

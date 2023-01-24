@@ -13,8 +13,6 @@ use tokio::sync::watch;
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
 
-use crate::compat;
-
 type ShutdownChannel = (
     watch::Sender<Option<Shutdown>>,
     watch::Receiver<Option<Shutdown>>,
@@ -44,13 +42,13 @@ impl ShutdownHandle {
     }
 }
 
-/// Actor to start and gracefully stop an actix system.
+/// Service to start and gracefully stop an the system runtime.
 ///
-/// This actor contains a static `run` method which will run an actix system and block the current
+/// This service contains a static `run` method which will run a tokio system and block the current
 /// thread until the system shuts down again.
 ///
-/// This actor starts with default configuration. To change this configuration, send the
-/// [`Configure`] message.
+/// It starts with default configuration. To change this configuration, send the [`Configure`]
+/// message.
 ///
 /// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a
 /// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
@@ -121,13 +119,11 @@ impl Controller {
         F: FnOnce() -> Result<R, E> + 'static,
         F: Sync + Send,
     {
-        compat::init();
-
         // While starting http server ensure that the new tokio 1.x system is available.
         let _guard = handle.enter();
         factory()?;
 
-        // Ensure that the controller starts if no actor has started it yet. It will register with
+        // Ensure that the controller starts if no service has started it yet. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
         // controller will not be instantiated and our system will not listen for signals.
         Controller::from_registry();
@@ -138,15 +134,6 @@ impl Controller {
         sys.run();
 
         Ok(())
-    }
-
-    /// Subscribes the provided actor to the [`Shutdown`] signal of the system controller.
-    pub fn subscribe<A>(addr: Addr<A>)
-    where
-        A: Handler<Shutdown>,
-        A::Context: actix::dev::ToEnvelope<A, Shutdown>,
-    {
-        Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
     /// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
@@ -162,7 +149,7 @@ impl Controller {
     fn shutdown(&mut self, context: &mut Context<Self>, timeout: Option<Duration>) {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
-        // don't cancel the shutdown of other actors if one actor fails.
+        // don't cancel the shutdown of other services if one service fails.
         let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
         tx.send(Some(Shutdown { timeout })).ok();
 

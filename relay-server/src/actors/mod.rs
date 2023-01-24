@@ -1,11 +1,11 @@
-//! Defines all actors of the relay.
+//! Defines all services of Relay.
 //!
-//! Actors require an actix system to run, see [`relay_system`] and particularly
+//! Services require a tokio to run, see [`relay_system`] and particularly
 //! [`Controller`](relay_system::Controller) for more information.
 //!
-//! The web server is wrapped by the [`ServerService`](server::ServerService) actor. It starts the actix http web
-//! server and relays the graceful shutdown signal. Internally, it creates several other actors
-//! comprising the service state:
+//! The web server is wrapped by [`ServerService`](server::ServerService). It starts the actix HTTP
+//! web server and dispatches the graceful shutdown signal. Internally, it creates several other
+//! services comprising the service state:
 //!
 //!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project
 //!    configurations. Its requests are debounced and batched based on a configured interval (100ms
@@ -13,7 +13,7 @@
 //!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and
 //!    [`EnvelopeProcessor`](processor::EnvelopeProcessor): Handle a queue of envelopes, verify
 //!    their projects, execute PII stripping and finally send the envelope to the upstream. The
-//!    processor is spawned in multiple synchronous worker threads (via `SyncArbiter`).
+//!    processor is spawned in multiple synchronous worker threads.
 //!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream
 //!    (either another Relay or Sentry). It manages an internal client connector to throttle
 //!    requests and ensures this relay is authenticated before sending queries (e.g. project config

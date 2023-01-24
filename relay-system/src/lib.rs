@@ -1,8 +1,8 @@
 //! Foundational system components for Relay's services.
 //!
-//! Actors require an actix system to run. The system can be started using the [`Controller`] actor,
-//! which will also listen for shutdown signals and trigger a graceful shutdown. Note that actors
-//! must implement a handler for the [`Shutdown`] message and register with the controller to
+//! Services require a tokio system to run. The system can be started using the [`Controller`]
+//! service, which will also listen for shutdown signals and trigger a graceful shutdown. Note that
+//! actors must implement a handler for the [`Shutdown`] message and register with the controller to
 //! receive this signal. See the struct level documentation for more information.
 //!
 //! See the [`Controller`] struct for more information.
@@ -14,7 +14,6 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-pub mod compat;
 mod controller;
 mod service;
 mod statsd;

@@ -13,7 +13,6 @@ mod request;
 mod semaphore;
 mod sizes;
 mod sleep_handle;
-mod tracked_future;
 
 #[cfg(feature = "processing")]
 mod native;
@@ -35,7 +34,6 @@ pub use self::request::*;
 pub use self::semaphore::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
-pub use self::tracked_future::*;
 
 #[cfg(feature = "processing")]
 pub use self::native::*;
