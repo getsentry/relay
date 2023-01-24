@@ -1276,150 +1276,252 @@
 <span id="1275">1275</span>
 <span id="1276">1276</span>
 <span id="1277">1277</span>
-</pre><pre class="rust"><code><span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the
-//! upstream relay via HTTP.
+<span id="1278">1278</span>
+<span id="1279">1279</span>
+<span id="1280">1280</span>
+<span id="1281">1281</span>
+<span id="1282">1282</span>
+<span id="1283">1283</span>
+<span id="1284">1284</span>
+<span id="1285">1285</span>
+<span id="1286">1286</span>
+<span id="1287">1287</span>
+<span id="1288">1288</span>
+<span id="1289">1289</span>
+<span id="1290">1290</span>
+<span id="1291">1291</span>
+<span id="1292">1292</span>
+<span id="1293">1293</span>
+<span id="1294">1294</span>
+<span id="1295">1295</span>
+<span id="1296">1296</span>
+<span id="1297">1297</span>
+<span id="1298">1298</span>
+<span id="1299">1299</span>
+<span id="1300">1300</span>
+<span id="1301">1301</span>
+<span id="1302">1302</span>
+<span id="1303">1303</span>
+<span id="1304">1304</span>
+<span id="1305">1305</span>
+<span id="1306">1306</span>
+<span id="1307">1307</span>
+<span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
+<span id="1311">1311</span>
+<span id="1312">1312</span>
+<span id="1313">1313</span>
+<span id="1314">1314</span>
+<span id="1315">1315</span>
+<span id="1316">1316</span>
+<span id="1317">1317</span>
+<span id="1318">1318</span>
+<span id="1319">1319</span>
+<span id="1320">1320</span>
+<span id="1321">1321</span>
+<span id="1322">1322</span>
+<span id="1323">1323</span>
+<span id="1324">1324</span>
+<span id="1325">1325</span>
+<span id="1326">1326</span>
+<span id="1327">1327</span>
+<span id="1328">1328</span>
+<span id="1329">1329</span>
+<span id="1330">1330</span>
+<span id="1331">1331</span>
+<span id="1332">1332</span>
+<span id="1333">1333</span>
+<span id="1334">1334</span>
+<span id="1335">1335</span>
+<span id="1336">1336</span>
+<span id="1337">1337</span>
+<span id="1338">1338</span>
+<span id="1339">1339</span>
+<span id="1340">1340</span>
+<span id="1341">1341</span>
+<span id="1342">1342</span>
+<span id="1343">1343</span>
+<span id="1344">1344</span>
+<span id="1345">1345</span>
+<span id="1346">1346</span>
+<span id="1347">1347</span>
+<span id="1348">1348</span>
+<span id="1349">1349</span>
+<span id="1350">1350</span>
+<span id="1351">1351</span>
+<span id="1352">1352</span>
+<span id="1353">1353</span>
+<span id="1354">1354</span>
+<span id="1355">1355</span>
+<span id="1356">1356</span>
+<span id="1357">1357</span>
+<span id="1358">1358</span>
+<span id="1359">1359</span>
+<span id="1360">1360</span>
+<span id="1361">1361</span>
+<span id="1362">1362</span>
+<span id="1363">1363</span>
+<span id="1364">1364</span>
+<span id="1365">1365</span>
+<span id="1366">1366</span>
+<span id="1367">1367</span>
+<span id="1368">1368</span>
+<span id="1369">1369</span>
+<span id="1370">1370</span>
+<span id="1371">1371</span>
+<span id="1372">1372</span>
+<span id="1373">1373</span>
+<span id="1374">1374</span>
+<span id="1375">1375</span>
+<span id="1376">1376</span>
+<span id="1377">1377</span>
+<span id="1378">1378</span>
+<span id="1379">1379</span>
+<span id="1380">1380</span>
+<span id="1381">1381</span>
+<span id="1382">1382</span>
+<span id="1383">1383</span>
+<span id="1384">1384</span>
+<span id="1385">1385</span>
+<span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
+<span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
+<span id="1392">1392</span>
+<span id="1393">1393</span>
+<span id="1394">1394</span>
+<span id="1395">1395</span>
+<span id="1396">1396</span>
+<span id="1397">1397</span>
+<span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
+<span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
+<span id="1452">1452</span>
+<span id="1453">1453</span>
+<span id="1454">1454</span>
+<span id="1455">1455</span>
+<span id="1456">1456</span>
+<span id="1457">1457</span>
+<span id="1458">1458</span>
+<span id="1459">1459</span>
+<span id="1460">1460</span>
+<span id="1461">1461</span>
+<span id="1462">1462</span>
+<span id="1463">1463</span>
+<span id="1464">1464</span>
+<span id="1465">1465</span>
+<span id="1466">1466</span>
+<span id="1467">1467</span>
+<span id="1468">1468</span>
+<span id="1469">1469</span>
+<span id="1470">1470</span>
+<span id="1471">1471</span>
+<span id="1472">1472</span>
+<span id="1473">1473</span>
+<span id="1474">1474</span>
+<span id="1475">1475</span>
+<span id="1476">1476</span>
+<span id="1477">1477</span>
+<span id="1478">1478</span>
+<span id="1479">1479</span>
+<span id="1480">1480</span>
+<span id="1481">1481</span>
+<span id="1482">1482</span>
+<span id="1483">1483</span>
+<span id="1484">1484</span>
+<span id="1485">1485</span>
+<span id="1486">1486</span>
+<span id="1487">1487</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
-//! The actor handles two main types of messages plus some internal messages
-//!   * messages that use Relay authentication
-//!
-//!     These are requests for data originating inside Relay ( either requests for some
-//!     configuration data or outcome results being passed to the upstream server)
-//!
-//!   * messages that do no use Relay authentication
-//!
-//!     These are messages for requests that originate as user sent events and use whatever
-//!     authentication headers were provided by the original request.
-//!
-//!  * messages used internally by Relay
-//!
-//!    These are messages that Relay sends in order to coordinate its work and do not result
-//!    directly in a HTTP message being send to the upstream server.
-//!
+//! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
+//! [`UpstreamRelayService`] along with messages to communicate with the service. Please look at
+//! service-level docs for more information.
+
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::VecDeque;
 <span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::str;
+<span class="kw">use </span>std::future::Future;
+<span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>::actix::fut;
-<span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::http::{header, Method};
-<span class="kw">use </span>futures01::{future, prelude::<span class="kw-2">*</span>, sync::oneshot};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>serde::de::DeserializeOwned;
-<span class="kw">use </span>serde::ser::Serialize;
+<span class="kw">use </span>reqwest::header;
+<span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
+<span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span>relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-<span class="kw">use </span>relay_common::{tryf, RetryBackoff};
-<span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_log::{<span class="self">self</span>, LogError};
+<span class="kw">use </span>relay_common::RetryBackoff;
+<span class="kw">use </span>relay_config::{Config, Credentials, RelayMode};
+<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
-<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{
+    Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
+};
 
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, RelayErrorAction};
 
-<span class="attribute">#[derive(Debug, thiserror::Error)]
-</span><span class="kw">pub enum </span>UpstreamRequestError {
-    <span class="attribute">#[error(<span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
-    </span>NoCredentials,
-
-    <span class="doccomment">/// As opposed to HTTP variant this contains all network errors.
-    </span><span class="attribute">#[error(<span class="string">&quot;could not send request to upstream&quot;</span>)]
-    </span>SendFailed(<span class="attribute">#[source] </span>reqwest::Error),
-
-    <span class="doccomment">/// Likely a bad HTTP status code or unparseable response.
-    </span><span class="attribute">#[error(<span class="string">&quot;could not send request&quot;</span>)]
-    </span>Http(<span class="attribute">#[source] </span>HttpError),
-
-    <span class="attribute">#[error(<span class="string">&quot;upstream requests rate limited&quot;</span>)]
-    </span>RateLimited(UpstreamRateLimits),
-
-    <span class="attribute">#[error(<span class="string">&quot;upstream request returned error {0}&quot;</span>)]
-    </span>ResponseError(StatusCode, <span class="attribute">#[source] </span>ApiErrorResponse),
-
-    <span class="attribute">#[error(<span class="string">&quot;channel closed&quot;</span>)]
-    </span>ChannelClosed,
-}
-
-<span class="kw">impl </span>UpstreamRequestError {
-    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.
-    </span><span class="kw">fn </span>is_network_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::SendFailed(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-            <span class="self">Self</span>::ResponseError(code, <span class="kw">_</span>) =&gt; <span class="macro">matches!</span>(code.as_u16(), <span class="number">502 </span>| <span class="number">503 </span>| <span class="number">504</span>),
-            <span class="self">Self</span>::Http(http) =&gt; http.is_network_error(),
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// Returns `true` if the upstream has permanently rejected this Relay.
-    ///
-    /// This Relay should cease communication with the upstream and may shut down.
-    </span><span class="kw">fn </span>is_permanent_rejection(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::ResponseError(status_code, response) =&gt; {
-                <span class="kw-2">*</span>status_code == StatusCode::FORBIDDEN
-                    &amp;&amp; response.relay_action() == RelayErrorAction::Stop
-            }
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// Returns `true` if the request was received by the upstream.
-    ///
-    /// Despite resulting in an error, the server has received and acknowledged the request. This
-    /// includes rate limits (status code 429), and bad payloads (4XX), but not network errors
-    /// (502-504).
-    </span><span class="kw">pub fn </span>is_received(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="comment">// Rate limits are a special case of `ResponseError(429, _)`.
-            </span><span class="self">Self</span>::RateLimited(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-            <span class="comment">// Everything except network errors indicates the upstream has handled this request.
-            </span><span class="self">Self</span>::ResponseError(<span class="kw">_</span>, <span class="kw">_</span>) | <span class="self">Self</span>::Http(<span class="kw">_</span>) =&gt; !<span class="self">self</span>.is_network_error(),
-            <span class="comment">// Remaining kinds indicate a failure to send the request.
-            </span><span class="self">Self</span>::NoCredentials | <span class="self">Self</span>::SendFailed(<span class="kw">_</span>) | <span class="self">Self</span>::ChannelClosed =&gt; <span class="bool-val">false</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// Represents the current auth state.
-</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">enum </span>AuthState {
-    <span class="doccomment">/// Relay is not authenticated and authentication has not started.
-    </span>Unknown,
-
-    <span class="doccomment">/// Relay is not authenticated and authentication is in progress.
-    </span>Registering,
-
-    <span class="doccomment">/// The connection is healthy and authenticated in managed mode.
-    </span>Registered,
-
-    <span class="doccomment">/// Relay is authenticated and renewing the registration lease. During this process, Relay
-    /// remains authenticated, unless an error occurs.
-    </span>Renewing,
-
-    <span class="doccomment">/// Authentication has been permanently denied by the Upstream. Do not attempt to retry.
-    </span>Denied,
-}
-
-<span class="kw">impl </span>AuthState {
-    <span class="doccomment">/// Returns true if the state is considered authenticated.
-    </span><span class="kw">pub fn </span>is_authenticated(<span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, AuthState::Registered | AuthState::Renewing)
-    }
-}
-
-<span class="doccomment">/// The position for enqueueing an upstream request.
-</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">enum </span>EnqueuePosition {
-    Front,
-    Back,
-}
+<span class="kw">pub use </span>reqwest::Method;
 
 <span class="doccomment">/// Rate limits returned by the upstream.
 ///
@@ -1482,15 +1584,146 @@
     }
 }
 
-<span class="doccomment">/// Priority of an upstream request for queueing.
+<span class="doccomment">/// An error returned from [`SendRequest`] and [`SendQuery`].
+</span><span class="attribute">#[derive(Debug, thiserror::Error)]
+</span><span class="kw">pub enum </span>UpstreamRequestError {
+    <span class="attribute">#[error(<span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
+    </span>NoCredentials,
+
+    <span class="doccomment">/// As opposed to HTTP variant this contains all network errors.
+    </span><span class="attribute">#[error(<span class="string">&quot;could not send request to upstream&quot;</span>)]
+    </span>SendFailed(<span class="attribute">#[from] </span>reqwest::Error),
+
+    <span class="doccomment">/// Likely a bad HTTP status code or unparseable response.
+    </span><span class="attribute">#[error(<span class="string">&quot;could not send request&quot;</span>)]
+    </span>Http(<span class="attribute">#[source] </span>HttpError),
+
+    <span class="attribute">#[error(<span class="string">&quot;upstream requests rate limited&quot;</span>)]
+    </span>RateLimited(UpstreamRateLimits),
+
+    <span class="attribute">#[error(<span class="string">&quot;upstream request returned error {0}&quot;</span>)]
+    </span>ResponseError(StatusCode, <span class="attribute">#[source] </span>ApiErrorResponse),
+
+    <span class="attribute">#[error(<span class="string">&quot;channel closed&quot;</span>)]
+    </span>ChannelClosed,
+
+    <span class="attribute">#[error(<span class="string">&quot;upstream permanently denied authentication&quot;</span>)]
+    </span>AuthDenied,
+}
+
+<span class="kw">impl </span>UpstreamRequestError {
+    <span class="doccomment">/// Returns the status code of the HTTP request sent to the upstream.
+    ///
+    /// If this error is the result of sending a request to the upstream, this method returns `Some`
+    /// with the status code. If the request could not be made or the error originates elsewhere,
+    /// this returns `None`.
+    </span><span class="kw">fn </span>status_code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;StatusCode&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            UpstreamRequestError::ResponseError(code, <span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>code),
+            UpstreamRequestError::Http(HttpError::Reqwest(e)) =&gt; e.status(),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.
+    </span><span class="kw">fn </span>is_network_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::SendFailed(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            <span class="self">Self</span>::ResponseError(code, <span class="kw">_</span>) =&gt; <span class="macro">matches!</span>(code.as_u16(), <span class="number">502 </span>| <span class="number">503 </span>| <span class="number">504</span>),
+            <span class="self">Self</span>::Http(http) =&gt; http.is_network_error(),
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the upstream has permanently rejected this Relay.
+    ///
+    /// This Relay should cease communication with the upstream and may shut down.
+    </span><span class="kw">fn </span>is_permanent_rejection(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::ResponseError(status_code, response) =&gt; {
+                <span class="kw-2">*</span>status_code == StatusCode::FORBIDDEN
+                    &amp;&amp; response.relay_action() == RelayErrorAction::Stop
+            }
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the request was received by the upstream.
+    ///
+    /// Despite resulting in an error, the server has received and acknowledged the request. This
+    /// includes rate limits (status code 429), and bad payloads (4XX), but not network errors
+    /// (502-504).
+    </span><span class="kw">pub fn </span>is_received(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="comment">// Rate limits are a special case of `ResponseError(429, _)`.
+            </span><span class="self">Self</span>::RateLimited(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            <span class="comment">// Everything except network errors indicates the upstream has handled this request.
+            </span><span class="self">Self</span>::ResponseError(<span class="kw">_</span>, <span class="kw">_</span>) | <span class="self">Self</span>::Http(<span class="kw">_</span>) =&gt; !<span class="self">self</span>.is_network_error(),
+            <span class="comment">// Remaining kinds indicate a failure to send the request.
+            </span><span class="self">Self</span>::NoCredentials | <span class="self">Self</span>::SendFailed(<span class="kw">_</span>) | <span class="self">Self</span>::ChannelClosed | <span class="self">Self</span>::AuthDenied =&gt; {
+                <span class="bool-val">false
+            </span>}
+        }
+    }
+
+    <span class="doccomment">/// Returns a categorized description of the error.
+    ///
+    /// This is used for metrics and logging.
+    </span><span class="kw">fn </span>description(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            UpstreamRequestError::NoCredentials =&gt; <span class="string">&quot;credentials&quot;</span>,
+            UpstreamRequestError::SendFailed(<span class="kw">_</span>) =&gt; <span class="string">&quot;send_failed&quot;</span>,
+            UpstreamRequestError::Http(HttpError::Io(<span class="kw">_</span>)) =&gt; <span class="string">&quot;payload_failed&quot;</span>,
+            UpstreamRequestError::Http(HttpError::Json(<span class="kw">_</span>)) =&gt; <span class="string">&quot;invalid_json&quot;</span>,
+            UpstreamRequestError::Http(HttpError::Reqwest(<span class="kw">_</span>)) =&gt; <span class="string">&quot;reqwest_error&quot;</span>,
+            UpstreamRequestError::Http(HttpError::Overflow) =&gt; <span class="string">&quot;overflow&quot;</span>,
+            UpstreamRequestError::Http(HttpError::NoCredentials) =&gt; <span class="string">&quot;no_credentials&quot;</span>,
+            UpstreamRequestError::RateLimited(<span class="kw">_</span>) =&gt; <span class="string">&quot;rate_limited&quot;</span>,
+            UpstreamRequestError::ResponseError(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;response_error&quot;</span>,
+            UpstreamRequestError::ChannelClosed =&gt; <span class="string">&quot;channel_closed&quot;</span>,
+            UpstreamRequestError::AuthDenied =&gt; <span class="string">&quot;auth_denied&quot;</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;HttpError&gt; <span class="kw">for </span>UpstreamRequestError {
+    <span class="kw">fn </span>from(error: HttpError) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>error {
+            HttpError::NoCredentials =&gt; <span class="self">Self</span>::NoCredentials,
+            other =&gt; <span class="self">Self</span>::Http(other),
+        }
+    }
+}
+
+<span class="doccomment">/// Checks the authentication state with the upstream.
 ///
-/// Requests are queued and send to the HTTP connections according to their priorities
-/// High priority messages are sent first and then, when no high priority message is pending,
-/// low priority messages are sent. Within the same priority messages are sent FIFO.
+/// In static and proxy mode, Relay does not require authentication and `IsAuthenticated` always
+/// returns `true`. Otherwise, this message retrieves the current state of authentication:
+///
+/// - Initially, Relay is unauthenticated until it has established connection.
+/// - If this Relay is not known by the upstream, it remains unauthenticated indefinitely.
+/// - Once Relay has registered, this message reports `true`.
+/// - In periodic intervals Relay re-authenticates, which may drop authentication temporarily.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>IsAuthenticated;
+
+<span class="doccomment">/// Returns whether Relay is in an outage state.
+///
+/// On repeated failure to submit requests to the upstream, the upstream service moves into an
+/// outage state. During this phase, no requests or retries are performed and all newly submitted
+/// [`SendRequest`] and [`SendQuery`] messages are put into the queue. Once connection is
+/// reestablished, requests resume in FIFO order.
+///
+/// This message resolves to `true` if Relay is in outage mode and `false` if the service is
+/// performing regular operation.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>IsNetworkOutage;
+
+<span class="doccomment">/// Priority of an upstream request.
+///
+/// See [`UpstreamRequest::priority`] for more information.
 </span><span class="attribute">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub enum </span>RequestPriority {
-    <span class="doccomment">/// Immediate request that bypasses queueing and authentication (e.g. Authentication).
-    </span>Immediate,
     <span class="doccomment">/// High priority, low volume messages (e.g. ProjectConfig, ProjectStates, Registration messages).
     </span>High,
     <span class="doccomment">/// Low priority, high volume messages (e.g. Events and Outcomes).
@@ -1498,9 +1731,9 @@
 }
 
 <span class="kw">impl </span>RequestPriority {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="doccomment">/// The name of the priority for logging and metrics.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RequestPriority::Immediate =&gt; <span class="string">&quot;immediate&quot;</span>,
             RequestPriority::High =&gt; <span class="string">&quot;high&quot;</span>,
             RequestPriority::Low =&gt; <span class="string">&quot;low&quot;</span>,
         }
@@ -1513,734 +1746,356 @@
     }
 }
 
-<span class="kw">pub trait </span>RequestBuilderTransformer: <span class="lifetime">&#39;static </span>+ Send {
-    <span class="kw">fn </span>build_request(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, UpstreamRequestError&gt;;
-}
+<span class="doccomment">/// Represents a generic HTTP request to be sent to the upstream.
+</span><span class="kw">pub trait </span>UpstreamRequest: Send + Sync + fmt::Debug {
+    <span class="doccomment">/// The HTTP method of the request.
+    </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
 
-<span class="kw">impl </span>RequestBuilderTransformer <span class="kw">for </span>() {
-    <span class="kw">fn </span>build_request(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, UpstreamRequestError&gt; {
-        builder.finish().map_err(UpstreamRequestError::Http)
+    <span class="doccomment">/// The path relative to the upstream.
+    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;;
+
+    <span class="doccomment">/// Whether this request should retry on network errors.
+    ///
+    /// Defaults to `true` and should be disabled if there is an external retry mechanism. Note that
+    /// failures other than network errors will **not** be retried.
+    </span><span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+
+    <span class="doccomment">/// The queueing priority of the request.
+    ///
+    ///  - High priority requests are always sent and retried first.
+    ///  - Low priority requests are sent if no high-priority messages are pending in the queue.
+    ///    This also applies to retries: A low-priority message is only sent if there are no
+    ///    high-priority requests waiting.
+    ///
+    /// Within the same priority, requests are delivered in FIFO order.
+    ///
+    /// Defaults to [`Low`](RequestPriority::Low).
+    </span><span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
+        RequestPriority::Low
     }
+
+    <span class="doccomment">/// Controls whether request errors should be intercepted.
+    ///
+    /// By default, error codes from responses will be intercepted and returned as
+    /// [`UpstreamRequestError`]. This also includes parsing of the request body for diagnostics.
+    /// Return `false` to disable this behavior and receive the verbatim response.
+    </span><span class="kw">fn </span>intercept_status_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+
+    <span class="doccomment">/// Add the `X-Sentry-Relay-Id` header to the outgoing request.
+    ///
+    /// This header is used for authentication with the upstream and should be enabled only for
+    /// endpoints that require it.
+    ///
+    /// Defaults to `true`.
+    </span><span class="kw">fn </span>set_relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+
+    <span class="doccomment">/// Returns the name of the logical route.
+    ///
+    /// This is used for internal metrics and logging. Other than the path, this cannot contain
+    /// dynamic elements and should be globally unique.
+    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+
+    <span class="doccomment">/// Callback to build the outgoing web request.
+    ///
+    /// This callback populates the initialized request with headers and a request body. To send an
+    /// empty request without additional headers, call [`RequestBuilder::finish`] directly.
+    ///
+    /// Note that this function can be called repeatedly if [`retry`](UpstreamRequest::retry)
+    /// returns `true`. This function should therefore not move out of the request struct, but can
+    /// use it to memoize heavy computation.
+    </span><span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt;;
+
+    <span class="doccomment">/// Callback to complete an HTTP request.
+    ///
+    /// This callback receives the response or error. At time of invocation, the response body has
+    /// not been consumed. The response body or derived information can then be sent into a channel.
+    </span><span class="kw">fn </span>respond(
+        <span class="self">self</span>: Box&lt;<span class="self">Self</span>&gt;,
+        result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
+    ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = ()&gt; + Send + Sync&gt;&gt;;
 }
 
-<span class="kw">impl</span>&lt;F&gt; RequestBuilderTransformer <span class="kw">for </span>F
-<span class="kw">where
-    </span>F: FnMut(RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, UpstreamRequestError&gt; + Send + <span class="lifetime">&#39;static</span>,
-{
-    <span class="kw">fn </span>build_request(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, UpstreamRequestError&gt; {
-        <span class="self">self</span>(builder)
-    }
-}
-
-<span class="doccomment">/// Request objects queued inside the [`UpstreamRelay`] actor.
+<span class="doccomment">/// Sends a [request](UpstreamRequest) to the upstream and resolves the response.
 ///
-/// The objects are transformed into HTTP requests, and sent to upstream as HTTP connections
-/// become available.
-</span><span class="kw">struct </span>EnqueuedRequest {
-    <span class="doccomment">/// The request&#39;s trait object to create and handle the HTTP request.
-    </span>request: Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;,
-    <span class="doccomment">/// Number of times this request was already sent
-    </span>previous_retries: u32,
+/// This message is fire-and-forget. The result of sending the request is passed to the
+/// [`UpstreamRequest::respond`] method, which can be used to process it and send it to a dedicated
+/// channel.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SendRequest&lt;T: UpstreamRequest&gt;(<span class="kw">pub </span>T);
+
+<span class="doccomment">/// Higher-level version of an [`UpstreamRequest`] with JSON request and response payloads.
+///
+/// The struct that implements the `UpstreamQuery` type has to be serializable and will be used as
+/// JSON request body. The response body struct is declared via the associated `Response` type.
+</span><span class="kw">pub trait </span>UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
+    <span class="doccomment">/// The response type that will be deserialized from successful queries.
+    </span><span class="kw">type </span>Response: DeserializeOwned + Send;
+
+    <span class="doccomment">/// The HTTP method of the query.
+    </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
+
+    <span class="doccomment">/// The path relative to the upstream.
+    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;;
+
+    <span class="doccomment">/// Whether this query should retry on network errors.
+    ///
+    /// This should be disabled if there is an external retry mechnism. Note that failures other
+    /// than network errors will **not** be retried.
+    </span><span class="kw">fn </span>retry() -&gt; bool;
+
+    <span class="doccomment">/// The queueing priority of the query.
+    ///
+    ///  - High priority queries are always sent and retried first.
+    ///  - Low priority queries are sent if no high-priority messages are pending in the queue.
+    ///    This also applies to retries: A low-priority message is only sent if there are no
+    ///    high-priority requests waiting.
+    ///
+    /// Within the same priority, queries are delivered in FIFO order.
+    ///
+    /// Defaults to [`Low`](RequestPriority::Low).
+    </span><span class="kw">fn </span>priority() -&gt; RequestPriority {
+        RequestPriority::Low
+    }
+
+    <span class="doccomment">/// Returns the name of the logical route.
+    ///
+    /// This is used for internal metrics and logging. Other than the path, this cannot contain
+    /// dynamic elements and should be globally unique.
+    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="kw">impl </span>EnqueuedRequest {
-    <span class="kw">fn </span>new(request: <span class="kw">impl </span>UpstreamRequest + <span class="lifetime">&#39;static</span>) -&gt; <span class="self">Self </span>{
+<span class="doccomment">/// Transmitting end of the return channel for [`UpstreamQuery`].
+</span><span class="kw">type </span>QuerySender&lt;T&gt; = Sender&lt;<span class="prelude-ty">Result</span>&lt;&lt;T <span class="kw">as </span>UpstreamQuery&gt;::Response, UpstreamRequestError&gt;&gt;;
+
+<span class="doccomment">/// Memoized implementation of [`UpstreamRequest`] for an [`UpstreamQuery`].
+///
+/// This can be used to send queries as requests to the upstream. The request wraps an internal
+/// channel to send responses to.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>UpstreamQueryRequest&lt;T: UpstreamQuery&gt; {
+    query: T,
+    compiled: <span class="prelude-ty">Option</span>&lt;(Vec&lt;u8&gt;, String)&gt;,
+    max_response_size: usize,
+    sender: QuerySender&lt;T&gt;,
+}
+
+<span class="kw">impl</span>&lt;T&gt; UpstreamQueryRequest&lt;T&gt;
+<span class="kw">where
+    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+{
+    <span class="doccomment">/// Wraps the given `query` in an [`UpstreamQuery`] implementation.
+    </span><span class="kw">pub fn </span>new(query: T, sender: QuerySender&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            request: Box::new(request),
-            previous_retries: <span class="number">0</span>,
+            query,
+            compiled: <span class="prelude-val">None</span>,
+            max_response_size: <span class="number">0</span>,
+            sender,
         }
     }
+}
 
-    <span class="kw">fn </span>route_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="kw">if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/outcomes/&quot;</span>) {
-            <span class="string">&quot;outcomes&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/envelope/&quot;</span>) {
-            <span class="string">&quot;envelope&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/projectids/&quot;</span>) {
-            <span class="string">&quot;project_ids&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/projectconfigs/&quot;</span>) {
-            <span class="string">&quot;project_configs&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/publickeys/&quot;</span>) {
-            <span class="string">&quot;public_keys&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/challenge/&quot;</span>) {
-            <span class="string">&quot;challenge&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/response/&quot;</span>) {
-            <span class="string">&quot;response&quot;
-        </span>} <span class="kw">else if </span><span class="self">self</span>.request.path().contains(<span class="string">&quot;/live/&quot;</span>) {
-            <span class="string">&quot;check_live&quot;
-        </span>} <span class="kw">else </span>{
-            <span class="string">&quot;unknown&quot;
-        </span>}
+<span class="kw">impl</span>&lt;T&gt; UpstreamRequest <span class="kw">for </span>UpstreamQueryRequest&lt;T&gt;
+<span class="kw">where
+    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+{
+    <span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        T::retry()
     }
 
-    <span class="kw">fn </span>retries_bucket(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="kw">match </span><span class="self">self</span>.previous_retries {
+    <span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
+        T::priority()
+    }
+
+    <span class="kw">fn </span>intercept_status_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+
+    <span class="kw">fn </span>set_relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+
+    <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
+        <span class="self">self</span>.query.method()
+    }
+
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
+        <span class="self">self</span>.query.path()
+    }
+
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="self">self</span>.query.route()
+    }
+
+    <span class="kw">fn </span>build(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        config: <span class="kw-2">&amp;</span>Config,
+        <span class="kw-2">mut </span>builder: RequestBuilder,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="comment">// Memoize the serialized body and signature for retries.
+        </span><span class="kw">let </span>credentials = config.credentials().ok_or(HttpError::NoCredentials)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(body, signature) = <span class="self">self
+            </span>.compiled
+            .get_or_insert_with(|| credentials.secret_key.pack(<span class="kw-2">&amp;</span><span class="self">self</span>.query));
+
+        <span class="comment">// This config attribute is needed during `respond`, which does not have access to the
+        // config. For this reason, we need to store it on the request struct.
+        </span><span class="self">self</span>.max_response_size = config.max_api_payload_size();
+
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() <span class="kw">as </span>u64
+        );
+
+        builder.header(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, signature.as_bytes());
+        builder.header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>);
+        builder.body(<span class="kw-2">&amp;</span>body)
+    }
+
+    <span class="kw">fn </span>respond(
+        <span class="self">self</span>: Box&lt;<span class="self">Self</span>&gt;,
+        result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
+    ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = ()&gt; + Send + Sync&gt;&gt; {
+        Box::pin(<span class="kw">async move </span>{
+            <span class="kw">let </span>result = <span class="kw">match </span>result {
+                <span class="prelude-val">Ok</span>(response) =&gt; response
+                    .json(<span class="self">self</span>.max_response_size)
+                    .<span class="kw">await
+                    </span>.map_err(UpstreamRequestError::Http),
+                <span class="prelude-val">Err</span>(error) =&gt; <span class="prelude-val">Err</span>(error),
+            };
+
+            <span class="self">self</span>.sender.send(result)
+        })
+    }
+}
+
+<span class="doccomment">/// Sends a [query](UpstreamQuery) to the upstream and resolves the response.
+///
+/// The result of the query is resolved asynchronously as response to the message. The query will
+/// still be performed even if the response is not awaited.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SendQuery&lt;T: UpstreamQuery&gt;(<span class="kw">pub </span>T);
+
+<span class="doccomment">/// Communication with the upstream via HTTP.
+///
+/// This service can send two main types of requests to the upstream, which can in turn be a Relay
+/// or the Sentry webserver:
+///
+///  - [`SendRequest`] sends a plain HTTP request to the upstream that can be configured and handled
+///    freely. Request implementations specify their priority and whether they should be retried
+///    automatically by the upstream service.
+///  - [`SendQuery`] sends a higher-level request with a standardized JSON body and resolves to a
+///    JSON response. The upstream service will automatically sign the message with its private key
+///    for authentication.
+///
+/// The upstream is also responsible to maintain the connection with the upstream. There are two
+/// main messages to inquire about the connection state:
+///
+///  - [`IsAuthenticated`]
+///  - [`IsNetworkOutage`]
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub enum </span>UpstreamRelay {
+    <span class="doccomment">/// Checks the authentication state with the upstream.
+    </span>IsAuthenticated(IsAuthenticated, Sender&lt;bool&gt;),
+    <span class="doccomment">/// Returns whether Relay is in an outage state.
+    </span>IsNetworkOutage(IsNetworkOutage, Sender&lt;bool&gt;),
+    <span class="doccomment">/// Sends a [request](SendRequest) or [query](SendQuery) to the upstream.
+    </span>SendRequest(Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;),
+}
+
+<span class="kw">impl </span>UpstreamRelay {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().upstream_relay.clone()
+    }
+}
+
+<span class="kw">impl </span>Interface <span class="kw">for </span>UpstreamRelay {}
+
+<span class="kw">impl </span>FromMessage&lt;IsAuthenticated&gt; <span class="kw">for </span>UpstreamRelay {
+    <span class="kw">type </span>Response = AsyncResponse&lt;bool&gt;;
+
+    <span class="kw">fn </span>from_message(message: IsAuthenticated, sender: Sender&lt;bool&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::IsAuthenticated(message, sender)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;IsNetworkOutage&gt; <span class="kw">for </span>UpstreamRelay {
+    <span class="kw">type </span>Response = AsyncResponse&lt;bool&gt;;
+
+    <span class="kw">fn </span>from_message(message: IsNetworkOutage, sender: Sender&lt;bool&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::IsNetworkOutage(message, sender)
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; FromMessage&lt;SendRequest&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay
+<span class="kw">where
+    </span>T: UpstreamRequest + <span class="lifetime">&#39;static</span>,
+{
+    <span class="kw">type </span>Response = NoResponse;
+
+    <span class="kw">fn </span>from_message(message: SendRequest&lt;T&gt;, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>SendRequest(request) = message;
+        <span class="self">Self</span>::SendRequest(Box::new(request))
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; FromMessage&lt;SendQuery&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay
+<span class="kw">where
+    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+{
+    <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;&gt;;
+
+    <span class="kw">fn </span>from_message(message: SendQuery&lt;T&gt;, sender: QuerySender&lt;T&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>SendQuery(query) = message;
+        <span class="self">Self</span>::SendRequest(Box::new(UpstreamQueryRequest::new(query, sender)))
+    }
+}
+
+<span class="doccomment">/// Captures statsd metrics for a completed upstream request.
+</span><span class="kw">fn </span>emit_response_metrics(
+    send_start: Instant,
+    entry: <span class="kw-2">&amp;</span>Entry,
+    send_result: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
+) {
+    <span class="kw">let </span>description = <span class="kw">match </span>send_result {
+        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;success&quot;</span>,
+        <span class="prelude-val">Err</span>(e) =&gt; e.description(),
+    };
+    <span class="kw">let </span>status_code = <span class="kw">match </span>send_result {
+        <span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>response) =&gt; <span class="prelude-val">Some</span>(response.status()),
+        <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>error) =&gt; error.status_code(),
+    };
+    <span class="kw">let </span>status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or(<span class="string">&quot;-&quot;</span>);
+
+    <span class="macro">relay_statsd::metric!</span>(
+        timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
+        result = description,
+        status_code = status_str,
+        route = entry.request.route(),
+        retries = <span class="kw">match </span>entry.retries {
             <span class="number">0 </span>=&gt; <span class="string">&quot;0&quot;</span>,
             <span class="number">1 </span>=&gt; <span class="string">&quot;1&quot;</span>,
             <span class="number">2 </span>=&gt; <span class="string">&quot;2&quot;</span>,
             <span class="number">3</span>..=<span class="number">10 </span>=&gt; <span class="string">&quot;few&quot;</span>,
             <span class="kw">_ </span>=&gt; <span class="string">&quot;many&quot;</span>,
-        }
-    }
+        },
+    );
+
+    <span class="macro">relay_statsd::metric!</span>(
+        histogram(RelayHistograms::UpstreamRetries) = entry.retries <span class="kw">as </span>u64,
+        result = description,
+        status_code = status_str,
+        route = entry.request.route(),
+    );
 }
 
-<span class="doccomment">/// Handles a response returned from the upstream.
-///
-/// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
-/// the response is consumed and an error is returned. If intercept_status_errors is set to true,
-/// depending on the status code and details provided in the payload, one
-/// of the following errors is returned:
-///
-///  1. `RateLimited` for a `429` status code.
-///  2. `ResponseError` in all other cases.
-</span><span class="kw">fn </span>handle_response(
-    response: Response,
-    intercept_status_errors: bool,
-    max_response_size: usize,
-) -&gt; ResponseFuture&lt;Response, UpstreamRequestError&gt; {
-    <span class="kw">let </span>status = response.status();
-
-    <span class="kw">if </span>!intercept_status_errors || status.is_success() {
-        <span class="kw">return </span>Box::new(future::ok(response));
-    }
-
-    <span class="kw">let </span>upstream_limits = <span class="kw">if </span>status == StatusCode::TOO_MANY_REQUESTS {
-        <span class="kw">let </span>retry_after = response
-            .get_header(header::RETRY_AFTER)
-            .and_then(|v| str::from_utf8(v).ok());
-
-        <span class="kw">let </span>rate_limits = response
-            .get_all_headers(utils::RATE_LIMITS_HEADER)
-            .iter()
-            .filter_map(|v| str::from_utf8(v).ok())
-            .join(<span class="string">&quot;, &quot;</span>);
-
-        <span class="kw">let </span>upstream_limits = UpstreamRateLimits::new()
-            .retry_after(retry_after)
-            .rate_limits(rate_limits);
-
-        <span class="prelude-val">Some</span>(upstream_limits)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">None
-    </span>};
-
-    <span class="comment">// At this point, we consume the Response. This means we need to consume the response
-    // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
-    // non-fatal failure as the upstream is not expected to always include a valid JSON response.
-    </span><span class="kw">let </span>future = response
-        .json(max_response_size)
-        .then(<span class="kw">move </span>|json_result: <span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>, HttpError&gt;| {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream_limits) = upstream_limits {
-                <span class="prelude-val">Err</span>(UpstreamRequestError::RateLimited(upstream_limits))
-            } <span class="kw">else </span>{
-                <span class="comment">// Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
-                </span><span class="kw">let </span>api_response = json_result.unwrap_or_default();
-                <span class="prelude-val">Err</span>(UpstreamRequestError::ResponseError(status, api_response))
-            }
-        });
-
-    Box::new(future)
-}
-
-<span class="kw">pub struct </span>UpstreamRelay {
-    <span class="doccomment">/// backoff policy for the registration messages
-    </span>auth_backoff: RetryBackoff,
-    auth_state: AuthState,
-    <span class="doccomment">/// backoff policy for the network outage message
-    </span>outage_backoff: RetryBackoff,
-    <span class="doccomment">/// from this instant forward we only got network errors on all our http requests
-    /// (any request that is sent without causing a network error resets this back to None)
-    </span>first_error: <span class="prelude-ty">Option</span>&lt;Instant&gt;,
-    max_inflight_requests: usize,
-    num_inflight_requests: usize,
-    high_prio_requests: VecDeque&lt;EnqueuedRequest&gt;,
-    low_prio_requests: VecDeque&lt;EnqueuedRequest&gt;,
-    config: Arc&lt;Config&gt;,
-    reqwest_client: reqwest::Client,
-    <span class="doccomment">/// &quot;reqwest runtime&quot; as this tokio runtime is currently only spawned such that reqwest can
-    /// run.
-    </span>reqwest_runtime: tokio::runtime::Runtime,
-}
-
-<span class="kw">impl </span>UpstreamRelay {
-    <span class="doccomment">/// Creates a new `UpstreamRelay` instance.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>reqwest_runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(<span class="number">1</span>)
-            .enable_all()
-            .build()
-            .unwrap();
-
-        <span class="kw">let </span>reqwest_client = reqwest::ClientBuilder::new()
-            .connect_timeout(config.http_connection_timeout())
-            .timeout(config.http_timeout())
-            <span class="comment">// In actix-web client this option could be set on a per-request basis.  In reqwest
-            // this option can only be set per-client. For non-forwarded upstream requests that is
-            // desirable, so we have it enabled.
-            //
-            // In the forward endpoint, this means that content negotiation is done twice, and the
-            // response body is first decompressed by reqwest, then re-compressed by actix-web.
-            </span>.gzip(<span class="bool-val">true</span>)
-            .trust_dns(<span class="bool-val">true</span>)
-            .build()
-            .unwrap();
-
-        UpstreamRelay {
-            auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            auth_state: AuthState::Unknown,
-            outage_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            max_inflight_requests: config.max_concurrent_requests(),
-            num_inflight_requests: <span class="number">0</span>,
-            high_prio_requests: VecDeque::new(),
-            low_prio_requests: VecDeque::new(),
-            first_error: <span class="prelude-val">None</span>,
-            config,
-            reqwest_runtime,
-
-            reqwest_client,
-        }
-    }
-
-    <span class="doccomment">/// Predicate, checks if a Relay performs authentication.
-    </span><span class="kw">fn </span>should_authenticate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="comment">// only managed mode relays perform authentication
-        </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed
-    }
-
-    <span class="doccomment">/// Predicate, checks if a Relay does re-authentication.
-    </span><span class="kw">fn </span>should_renew_auth(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.renew_auth_interval().is_some()
-    }
-
-    <span class="doccomment">/// Returns the interval at which this Relay should renew authentication.
-    </span><span class="kw">fn </span>renew_auth_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::time::Duration&gt; {
-        <span class="comment">// only relays that authenticate also re-authenticate
-        </span><span class="kw">let </span>should_renew_auth = <span class="self">self</span>.should_authenticate()
-            <span class="comment">// processing relays do NOT re-authenticate
-            </span>&amp;&amp; !<span class="self">self</span>.config.processing_enabled()
-            <span class="comment">// the upstream did not ban us explicitly from trying to re-authenticate
-            </span>&amp;&amp; <span class="self">self</span>.auth_state != AuthState::Denied;
-
-        <span class="kw">if </span>should_renew_auth {
-            <span class="comment">// only relays the have a configured auth-interval reauthenticate
-            </span><span class="self">self</span>.config.http_auth_interval()
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
-    }
-
-    <span class="doccomment">/// Predicate, checks if we are in an network outage situation.
-    </span><span class="kw">fn </span>is_network_outage(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.outage_backoff.started()
-    }
-
-    <span class="doccomment">/// Returns an error message if an authentication is prohibited in this state and
-    /// None if it can authenticate.
-    </span><span class="kw">fn </span>get_auth_state_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
-        <span class="kw">if </span>!<span class="self">self</span>.should_authenticate() {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;Upstream actor trying to authenticate although it is not supposed to.&quot;</span>)
-        } <span class="kw">else if </span><span class="self">self</span>.auth_state == AuthState::Registered &amp;&amp; !<span class="self">self</span>.should_renew_auth() {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;Upstream actor trying to re-authenticate although it is not supposed to.&quot;</span>)
-        } <span class="kw">else if </span><span class="self">self</span>.auth_state == AuthState::Denied {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;Upstream actor trying to authenticate after authentication was denied.&quot;</span>)
-        } <span class="kw">else </span>{
-            <span class="comment">// Ok to authenticate
-            </span><span class="prelude-val">None
-        </span>}
-    }
-
-    <span class="doccomment">/// Returns `true` if the connection is ready to send requests to the upstream.
-    </span><span class="kw">fn </span>is_ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">if </span><span class="self">self</span>.is_network_outage() {
-            <span class="kw">return </span><span class="bool-val">false</span>;
-        }
-
-        <span class="kw">match </span><span class="self">self</span>.auth_state {
-            <span class="comment">// Relays that have auth errors cannot send messages
-            </span>AuthState::Registering | AuthState::Denied =&gt; <span class="bool-val">false</span>,
-            <span class="comment">// Non-managed mode Relays do not authenticate and are ready immediately
-            </span>AuthState::Unknown =&gt; !<span class="self">self</span>.should_authenticate(),
-            <span class="comment">// All good in managed mode
-            </span>AuthState::Registered | AuthState::Renewing =&gt; <span class="bool-val">true</span>,
-        }
-    }
-
-    <span class="doccomment">/// Called when a message to the upstream goes through without a network error.
-    </span><span class="kw">fn </span>reset_network_error(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span><span class="self">self</span>.outage_backoff.started() {
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;Recovering from network outage.&quot;</span>)
-        }
-
-        <span class="self">self</span>.first_error = <span class="prelude-val">None</span>;
-        <span class="self">self</span>.outage_backoff.reset();
-    }
-
-    <span class="kw">fn </span>schedule_connection_check(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) {
-        <span class="kw">let </span>next_backoff = <span class="self">self</span>.outage_backoff.next_backoff();
-        <span class="macro">relay_log::warn!</span>(
-            <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
-            next_backoff
-        );
-
-        ctx.run_later(next_backoff, |slf, ctx| {
-            <span class="kw">let </span>request = EnqueuedRequest::new(GetHealthCheck);
-            slf.enqueue(request, ctx, EnqueuePosition::Front);
-        });
-    }
-
-    <span class="doccomment">/// Records an occurrence of a network error.
-    ///
-    /// If the network errors persist throughout the http outage grace period, an outage is
-    /// triggered, which results in halting all network requests and starting a reconnect loop.
-    </span><span class="kw">fn </span>handle_network_error(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) {
-        <span class="kw">let </span>now = Instant::now();
-        <span class="kw">let </span>first_error = <span class="kw-2">*</span><span class="self">self</span>.first_error.get_or_insert(now);
-
-        <span class="comment">// Only take action if we exceeded the grace period.
-        </span><span class="kw">if </span>first_error + <span class="self">self</span>.config.http_outage_grace_period() &gt; now {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">if </span>!<span class="self">self</span>.outage_backoff.started() {
-            <span class="self">self</span>.schedule_connection_check(ctx);
-        }
-    }
-
-    <span class="kw">fn </span>send_request(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>request: EnqueuedRequest, ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) {
-        <span class="kw">let </span>uri = <span class="self">self
-            </span>.config
-            .upstream_descriptor()
-            .get_url(request.request.path().as_ref());
-
-        <span class="kw">let </span>host_header = <span class="self">self
-            </span>.config
-            .http_host_header()
-            .unwrap_or_else(|| <span class="self">self</span>.config.upstream_descriptor().host());
-
-        <span class="kw">let </span>method =
-            reqwest::Method::from_bytes(request.request.method().as_ref().as_bytes()).unwrap();
-
-        <span class="kw">let </span>builder = <span class="self">self</span>.reqwest_client.request(method, uri);
-        <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(builder);
-
-        builder.header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
-
-        <span class="kw">if </span>request.request.set_relay_id() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(credentials) = <span class="self">self</span>.config.credentials() {
-                builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
-            }
-        }
-
-        <span class="comment">//try to build a ClientRequest
-        </span><span class="kw">let </span>client_request = <span class="kw">match </span>request.request.build(builder) {
-            <span class="prelude-val">Err</span>(e) =&gt; {
-                request
-                    .request
-                    .respond(<span class="prelude-val">Err</span>(UpstreamRequestError::Http(e)))
-                    .into_actor(<span class="self">self</span>)
-                    .spawn(ctx);
-
-                <span class="kw">return</span>;
-            }
-            <span class="prelude-val">Ok</span>(client_request) =&gt; client_request,
-        };
-
-        <span class="comment">// we are about to send a HTTP message keep track of requests in flight
-        </span><span class="self">self</span>.num_inflight_requests += <span class="number">1</span>;
-
-        <span class="kw">let </span>intercept_status_errors = request.request.intercept_status_errors();
-        <span class="kw">let </span>send_start = Instant::now();
-        <span class="kw">let </span>client = <span class="self">self</span>.reqwest_client.clone();
-        <span class="kw">let </span>max_response_size = <span class="self">self</span>.config.max_api_payload_size();
-
-        <span class="kw">let </span>(tx, rx) = oneshot::channel();
-
-        <span class="self">self</span>.reqwest_runtime.spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>res = client
-                .execute(client_request.<span class="number">0</span>)
-                .<span class="kw">await
-                </span>.map_err(UpstreamRequestError::SendFailed);
-            tx.send(res)
-        });
-
-        <span class="kw">let </span>future = rx
-            .map_err(|<span class="kw">_</span>| UpstreamRequestError::ChannelClosed)
-            .flatten()
-            .map(Response);
-
-        future
-            .track(ctx.address().recipient())
-            .and_then(<span class="kw">move </span>|response| {
-                handle_response(response, intercept_status_errors, max_response_size)
-            })
-            .into_actor(<span class="self">self</span>)
-            .then(<span class="kw">move </span>|send_result, slf, ctx| {
-                slf.handle_http_response(send_start, request, send_result, ctx);
-                fut::ok(())
-            })
-            .spawn(ctx);
-    }
-
-    <span class="doccomment">/// Adds a metric for the upstream request.
-    </span><span class="kw">fn </span>meter_result(
-        send_start: Instant,
-        request: <span class="kw-2">&amp;</span>EnqueuedRequest,
-        send_result: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
-    ) {
-        <span class="kw">let </span>sc;
-        <span class="kw">let </span>sc2;
-
-        <span class="kw">let </span>(status_code, result) = <span class="kw">match </span>send_result {
-            <span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>client_response) =&gt; {
-                sc = client_response.status();
-                (sc.as_str(), <span class="string">&quot;success&quot;</span>)
-            }
-            <span class="prelude-val">Err</span>(UpstreamRequestError::ResponseError(status_code, <span class="kw">_</span>)) =&gt; {
-                (status_code.as_str(), <span class="string">&quot;response_error&quot;</span>)
-            }
-            <span class="prelude-val">Err</span>(UpstreamRequestError::Http(HttpError::Io(<span class="kw">_</span>))) =&gt; (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;payload_failed&quot;</span>),
-            <span class="prelude-val">Err</span>(UpstreamRequestError::Http(HttpError::Json(<span class="kw">_</span>))) =&gt; (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;invalid_json&quot;</span>),
-            <span class="prelude-val">Err</span>(UpstreamRequestError::Http(HttpError::Reqwest(error))) =&gt; {
-                sc2 = error.status();
-                (
-                    sc2.as_ref().map(|x| x.as_str()).unwrap_or(<span class="string">&quot;-&quot;</span>),
-                    <span class="string">&quot;reqwest_error&quot;</span>,
-                )
-            }
-
-            <span class="prelude-val">Err</span>(UpstreamRequestError::SendFailed(<span class="kw">_</span>)) =&gt; (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;send_failed&quot;</span>),
-            <span class="prelude-val">Err</span>(UpstreamRequestError::RateLimited(<span class="kw">_</span>)) =&gt; (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;rate_limited&quot;</span>),
-            <span class="prelude-val">Err</span>(UpstreamRequestError::NoCredentials)
-            | <span class="prelude-val">Err</span>(UpstreamRequestError::ChannelClosed)
-            | <span class="prelude-val">Err</span>(UpstreamRequestError::Http(HttpError::Overflow)) =&gt; {
-                <span class="comment">// these are not errors caused when sending to upstream so we don&#39;t need to log anything
-                </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;meter_result called for unsupported error&quot;</span>);
-                <span class="kw">return</span>;
-            }
-        };
-
-        <span class="macro">metric!</span>(
-            timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
-            result = result,
-            status_code = status_code,
-            route = request.route_name(),
-            retries = request.retries_bucket(),
-        );
-
-        <span class="macro">metric!</span>(
-            histogram(RelayHistograms::UpstreamRetries) = request.previous_retries <span class="kw">as </span>u64,
-            result = result,
-            status_code = status_code,
-            route = request.route_name(),
-        );
-    }
-
-    <span class="doccomment">/// Checks the result of an upstream request and takes appropriate action.
-    ///
-    /// 1. If the request was sent, notify the response sender.
-    /// 2. If the error is non-recoverable, notify the response sender.
-    /// 3. If the request can be retried, schedule a retry.
-    /// 4. Otherwise, ensure an authentication request is scheduled.
-    </span><span class="kw">fn </span>handle_http_response(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        send_start: Instant,
-        <span class="kw-2">mut </span>request: EnqueuedRequest,
-        send_result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
-        ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;,
-    ) {
-        UpstreamRelay::meter_result(send_start, <span class="kw-2">&amp;</span>request, <span class="kw-2">&amp;</span>send_result);
-        <span class="kw">if </span><span class="macro">matches!</span>(send_result, <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>err) <span class="kw">if </span>err.is_network_error()) {
-            <span class="self">self</span>.handle_network_error(ctx);
-
-            <span class="kw">if </span>request.request.retry() {
-                request.previous_retries += <span class="number">1</span>;
-                <span class="kw">return </span><span class="self">self</span>.enqueue(request, ctx, EnqueuePosition::Back);
-            }
-        } <span class="kw">else </span>{
-            <span class="comment">// we managed a request without a network error, reset the first time we got a network
-            // error and resume sending events.
-            </span><span class="self">self</span>.reset_network_error();
-        }
-
-        request
-            .request
-            .respond(send_result)
-            .into_actor(<span class="self">self</span>)
-            .spawn(ctx);
-    }
-
-    <span class="doccomment">/// Enqueues a request and ensures that the message queue advances.
-    </span><span class="kw">fn </span>enqueue(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        request: EnqueuedRequest,
-        ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;,
-        position: EnqueuePosition,
-    ) {
-        <span class="kw">let </span>name = request.request.priority().name();
-        <span class="kw">let </span>queue = <span class="kw">match </span>request.request.priority() {
-            <span class="comment">// Immediate is special and bypasses the queue. Directly send the request and return
-            // the response channel rather than waiting for `PumpHttpMessageQueue`.
-            </span>RequestPriority::Immediate =&gt; <span class="kw">return </span><span class="self">self</span>.send_request(request, ctx),
-            RequestPriority::Low =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.low_prio_requests,
-            RequestPriority::High =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.high_prio_requests,
-        };
-
-        <span class="kw">match </span>position {
-            EnqueuePosition::Front =&gt; queue.push_front(request),
-            EnqueuePosition::Back =&gt; queue.push_back(request),
-        }
-
-        <span class="macro">metric!</span>(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = queue.len() <span class="kw">as </span>u64,
-            priority = name
-        );
-
-        ctx.notify(PumpHttpMessageQueue);
-    }
-
-    <span class="kw">fn </span>enqueue_query&lt;Q: <span class="lifetime">&#39;static </span>+ UpstreamQuery&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        query: Q,
-        ctx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;,
-    ) -&gt; ResponseFuture&lt;Q::Response, UpstreamRequestError&gt; {
-        <span class="kw">let </span>credentials = <span class="macro">tryf!</span>(<span class="self">self
-            </span>.config
-            .credentials()
-            .ok_or(UpstreamRequestError::NoCredentials));
-
-        <span class="kw">let </span>(json, signature) = credentials.secret_key.pack(<span class="kw-2">&amp;</span>query);
-        <span class="kw">let </span>(tx, rx) = oneshot::channel();
-
-        <span class="kw">let </span>request = EnqueuedRequest::new(UpstreamQueryRequest {
-            query,
-            body: json,
-            signature,
-            max_response_size: <span class="self">self</span>.config.max_api_payload_size(),
-            sender: <span class="prelude-val">Some</span>(tx),
-        });
-
-        <span class="self">self</span>.enqueue(request, ctx, EnqueuePosition::Front);
-        <span class="kw">let </span>future = rx
-            .map_err(|<span class="kw">_</span>| UpstreamRequestError::ChannelClosed)
-            .flatten();
-
-        Box::new(future)
-    }
-}
-
-<span class="kw">impl </span>Actor <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
-
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;upstream relay started&quot;</span>);
-
-        <span class="self">self</span>.auth_backoff.reset();
-        <span class="self">self</span>.outage_backoff.reset();
-
-        <span class="kw">if </span><span class="self">self</span>.should_authenticate() {
-            context.notify(Authenticate);
-        }
-    }
-
-    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;upstream relay stopped&quot;</span>);
-    }
-}
-
-<span class="kw">impl </span>Supervised <span class="kw">for </span>UpstreamRelay {}
-
-<span class="kw">impl </span>SystemService <span class="kw">for </span>UpstreamRelay {}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
-    }
-}
-
-<span class="kw">struct </span>Authenticate;
-
-<span class="kw">impl </span>Message <span class="kw">for </span>Authenticate {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ()&gt;;
-}
-
-<span class="doccomment">/// The `Authenticate` message is sent to the UpstreamRelay at Relay startup and coordinates the
-/// authentication of the current Relay with the upstream server.
-///
-/// Any message the requires Relay authentication (i.e. `SendQuery&lt;T&gt;` messages) will be send only
-/// after Relay has successfully authenticated with the upstream server (i.e. an Authenticate
-/// message was successfully handled).
-///
-/// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
-/// messages until successful Authentication with the upstream server was achieved.
-</span><span class="kw">impl </span>Handler&lt;Authenticate&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseActFuture&lt;<span class="self">Self</span>, (), ()&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _msg: Authenticate, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="comment">// detect incorrect authentication requests, if we detect them we have a programming error
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(auth_state_error) = <span class="self">self</span>.get_auth_state_error() {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;{}&quot;</span>, auth_state_error);
-            <span class="kw">return </span>Box::new(fut::err(()));
-        }
-
-        <span class="kw">let </span>credentials = <span class="kw">match </span><span class="self">self</span>.config.credentials() {
-            <span class="prelude-val">Some</span>(x) =&gt; x,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>Box::new(fut::err(())),
-        };
-
-        <span class="macro">relay_log::info!</span>(
-            <span class="string">&quot;registering with upstream ({})&quot;</span>,
-            <span class="self">self</span>.config.upstream_descriptor()
-        );
-
-        <span class="self">self</span>.auth_state = <span class="kw">if </span><span class="self">self</span>.auth_state.is_authenticated() {
-            AuthState::Renewing
-        } <span class="kw">else </span>{
-            AuthState::Registering
-        };
-
-        <span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>credentials.id, <span class="kw-2">&amp;</span>credentials.public_key);
-        <span class="kw">let </span>interval = <span class="self">self</span>.auth_backoff.next_backoff();
-
-        <span class="kw">let </span>future = <span class="self">self
-            </span>.enqueue_query(request, ctx)
-            .into_actor(<span class="self">self</span>)
-            .and_then(|challenge, slf, ctx| {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;got register challenge (token = {})&quot;</span>, challenge.token());
-                <span class="kw">let </span>challenge_response = challenge.into_response();
-
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
-                slf.enqueue_query(challenge_response, ctx).into_actor(slf)
-            })
-            .map(|<span class="kw">_</span>, slf, ctx| {
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay successfully registered with upstream&quot;</span>);
-                slf.auth_state = AuthState::Registered;
-                slf.auth_backoff.reset();
-
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(renew_interval) = slf.renew_auth_interval() {
-                    ctx.notify_later(Authenticate, renew_interval);
-                }
-
-                <span class="comment">// Resume sending queued requests if we suspended due to dropped authentication
-                </span>ctx.notify(PumpHttpMessageQueue);
-            })
-            .map_err(<span class="kw">move </span>|err, slf, ctx| {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;authentication encountered error: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-
-                <span class="kw">if </span>err.is_permanent_rejection() {
-                    slf.auth_state = AuthState::Denied;
-                    <span class="kw">return</span>;
-                }
-
-                <span class="comment">// If the authentication request fails due to any reason other than a network error,
-                // go back to `Registering` which indicates that this Relay is not authenticated.
-                // Note that network errors are handled separately by the generic response handler.
-                </span><span class="kw">if </span>!err.is_network_error() {
-                    slf.auth_state = AuthState::Registering;
-                }
-
-                <span class="comment">// Even on network errors, retry authentication independently.
-                </span><span class="macro">relay_log::debug!</span>(
-                    <span class="string">&quot;scheduling authentication retry in {} seconds&quot;</span>,
-                    interval.as_secs()
-                );
-                ctx.notify_later(Authenticate, interval);
-            });
-
-        Box::new(future)
-    }
-}
-
-<span class="kw">pub struct </span>IsAuthenticated;
-
-<span class="kw">impl </span>Message <span class="kw">for </span>IsAuthenticated {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= bool;
-}
-
-<span class="doccomment">/// The `IsAuthenticated` message is an internal Relay message that is used to query the current
-/// state of authentication with the upstream sever.
-///
-/// Currently it is only used by the HealthCheck actor.
-</span><span class="kw">impl </span>Handler&lt;IsAuthenticated&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= bool;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _msg: IsAuthenticated, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.auth_state.is_authenticated()
-    }
-}
-
-<span class="kw">pub struct </span>IsNetworkOutage;
-
-<span class="kw">impl </span>Message <span class="kw">for </span>IsNetworkOutage {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= bool;
-}
-
-<span class="doccomment">/// The `IsNetworkOutage` message is an internal Relay message that is used to
-/// query the current state of network connection with the upstream server.
-///
-/// Currently it is only used by the HealthCheck actor to emit the
-/// `upstream.network_outage` metric.
-</span><span class="kw">impl </span>Handler&lt;IsNetworkOutage&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= bool;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _msg: IsNetworkOutage, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.is_network_outage()
-    }
-}
-
-<span class="doccomment">/// Message send to drive the HttpMessage queue
-</span><span class="kw">struct </span>PumpHttpMessageQueue;
-
-<span class="kw">impl </span>Message <span class="kw">for </span>PumpHttpMessageQueue {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="doccomment">/// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
-/// HttpMessageQueue. Requests that need to be sent over http are placed on queues with
-/// various priorities. At various points in time (when events are added to the queue or
-/// when HTTP ClientConnector finishes dealing with an HTTP request) `PumpHttpMessageQueue`
-/// messages are sent in order to take messages waiting in the queues and send them over
-/// HTTP.
-///
-/// `PumpHttpMessageQueue` will end up sending messages over HTTP only when there are free
-/// connections available.
-</span><span class="kw">impl </span>Handler&lt;PumpHttpMessageQueue&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _msg: PumpHttpMessageQueue, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="comment">// Skip sending requests while not ready. As soon as the Upstream becomes ready through
-        // authentication, `PumpHttpMessageQueue` will be emitted again.
-        </span><span class="kw">if </span>!<span class="self">self</span>.is_ready() {
-            <span class="kw">return</span>;
-        }
-
-        <span class="comment">// we are authenticated and there is no network outage, go ahead with the messages
-        </span><span class="kw">while </span><span class="self">self</span>.num_inflight_requests &lt; <span class="self">self</span>.max_inflight_requests {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(msg) = <span class="self">self</span>.high_prio_requests.pop_back() {
-                <span class="self">self</span>.send_request(msg, ctx);
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(msg) = <span class="self">self</span>.low_prio_requests.pop_back() {
-                <span class="self">self</span>.send_request(msg, ctx);
-            } <span class="kw">else </span>{
-                <span class="kw">break</span>; <span class="comment">// no more messages to send at this time stop looping
-            </span>}
-        }
-    }
-}
-
-<span class="kw">struct </span>ScheduleConnectionCheck;
-
-<span class="kw">impl </span>Message <span class="kw">for </span>ScheduleConnectionCheck {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;ScheduleConnectionCheck&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _msg: ScheduleConnectionCheck, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.schedule_connection_check(ctx);
-    }
-}
-
-<span class="doccomment">/// Checks the status of the network connection with the upstream server
+<span class="doccomment">/// Checks the status of the network connection with the upstream server.
+</span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">struct </span>GetHealthCheck;
 
 <span class="kw">impl </span>UpstreamRequest <span class="kw">for </span>GetHealthCheck {
@@ -2257,7 +2112,7 @@
     </span>}
 
     <span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
-        RequestPriority::Immediate
+        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
     }
 
     <span class="kw">fn </span>set_relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -2268,249 +2123,23 @@
         <span class="bool-val">true
     </span>}
 
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;check_live&quot;
+    </span>}
+
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Config, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
         builder.finish()
     }
 
     <span class="kw">fn </span>respond(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="self">self</span>: Box&lt;<span class="self">Self</span>&gt;,
         result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
-    ) -&gt; ResponseFuture&lt;(), ()&gt; {
-        <span class="kw">let </span>future: ResponseFuture&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(response) =&gt; Box::new(response.consume().map_err(UpstreamRequestError::Http)),
-            <span class="prelude-val">Err</span>(err) =&gt; Box::new(future::err(err)),
-        };
-
-        Box::new(future.then(|result| {
-            <span class="kw">if </span><span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(err) <span class="kw">if </span>err.is_network_error()) {
-                <span class="comment">// still network error, schedule another attempt
-                </span>UpstreamRelay::from_registry().do_send(ScheduleConnectionCheck);
-            } <span class="kw">else </span>{
-                <span class="comment">// resume normal messages
-                </span>UpstreamRelay::from_registry().do_send(PumpHttpMessageQueue);
+    ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = ()&gt; + Send + Sync&gt;&gt; {
+        Box::pin(<span class="kw">async </span>{
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>response) = result {
+                response.consume().<span class="kw">await</span>.ok();
             }
-
-            <span class="prelude-val">Ok</span>(())
-        }))
-    }
-}
-
-<span class="kw">pub trait </span>ResponseTransformer: <span class="lifetime">&#39;static </span>{
-    <span class="kw">type </span><span class="prelude-ty">Result</span>: <span class="lifetime">&#39;static </span>+ IntoFuture;
-
-    <span class="kw">fn </span>transform_response(<span class="self">self</span>, <span class="kw">_</span>: Response) -&gt; <span class="self">Self</span>::Result;
-}
-
-<span class="kw">impl </span>ResponseTransformer <span class="kw">for </span>() {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseFuture&lt;(), UpstreamRequestError&gt;;
-
-    <span class="kw">fn </span>transform_response(<span class="self">self</span>, response: Response) -&gt; <span class="self">Self</span>::Result {
-        Box::new(
-            response
-                .consume()
-                .map(|<span class="kw">_</span>| ())
-                .map_err(UpstreamRequestError::Http),
-        )
-    }
-}
-
-<span class="kw">impl</span>&lt;F, T&gt; ResponseTransformer <span class="kw">for </span>F
-<span class="kw">where
-    </span>F: <span class="lifetime">&#39;static </span>+ FnOnce(Response) -&gt; T,
-    T: <span class="lifetime">&#39;static </span>+ IntoFuture,
-{
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= T;
-
-    <span class="kw">fn </span>transform_response(<span class="self">self</span>, response: Response) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>(response)
-    }
-}
-
-<span class="doccomment">/// Represents an HTTP request to be sent by the Upstream actor.
-</span><span class="kw">pub trait </span>UpstreamRequest: Send {
-    <span class="doccomment">/// The HTTP method of the request.
-    </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
-
-    <span class="doccomment">/// The path relative to the upstream.
-    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;;
-
-    <span class="doccomment">/// Whether this request should retry on network errors.
-    </span><span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="bool-val">true
-    </span>}
-
-    <span class="doccomment">/// The queueing priority of the request. Defaults to `Low`.
-    </span><span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
-        RequestPriority::Low
-    }
-
-    <span class="doccomment">/// True if normal error processing should occur, false if
-    /// errors from the upstream should not be processed and returned as is
-    /// in the response.
-    </span><span class="kw">fn </span>intercept_status_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="bool-val">true
-    </span>}
-
-    <span class="doccomment">/// If set to True it will add the X-Sentry-Relay-Id header to the request
-    ///
-    /// This should be done (only) for calls to endpoints that use Relay authentication.
-    </span><span class="kw">fn </span>set_relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="bool-val">true
-    </span>}
-
-    <span class="doccomment">/// Called whenever the request will be send over HTTP (possible multiple times)
-    </span><span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt;;
-
-    <span class="doccomment">/// Called when the HTTP request completes, either with success or an error that will not
-    /// be retried.
-    </span><span class="kw">fn </span>respond(<span class="kw-2">&amp;mut </span><span class="self">self</span>, result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;)
-        -&gt; ResponseFuture&lt;(), ()&gt;;
-}
-
-<span class="kw">pub struct </span>SendRequest&lt;T: UpstreamRequest&gt;(<span class="kw">pub </span>T);
-
-<span class="kw">impl</span>&lt;T&gt; Message <span class="kw">for </span>SendRequest&lt;T&gt;
-<span class="kw">where
-    </span>T: UpstreamRequest,
-{
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl</span>&lt;T&gt; Handler&lt;SendRequest&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay
-<span class="kw">where
-    </span>T: UpstreamRequest + <span class="lifetime">&#39;static</span>,
-{
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: SendRequest&lt;T&gt;, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.enqueue(EnqueuedRequest::new(msg.<span class="number">0</span>), ctx, EnqueuePosition::Front);
-    }
-}
-
-<span class="doccomment">/// This handler handles messages that mark the end of an http request future.
-/// The handler decrements the counter of in-flight HTTP requests (since one was just
-/// finished) and tries to pump the http message queue by sending a `PumpHttpMessageQueue`
-///
-/// Every future representing an HTTP message sent by the ClientConnector is wrapped so that when
-/// it finishes or it is dropped a message is sent back to the actor to notify it that a http connection
-/// was freed.
-///
-/// **Note:** An alternative, simpler, implementation would have been to increment the in-flight
-/// requests counter just before sending an http message and to decrement it when the future
-/// representing the sent message completes (on the future .then() method).
-/// While this approach would have simplified the design, no need for wrapping, no need for
-/// the mpsc channel or this handler, it would have not dealt with dropped futures.
-/// Weather the added complexity of this design is justified by being able to handle dropped
-/// futures is not clear to me (RaduW) at this moment.
-</span><span class="kw">impl </span>Handler&lt;TrackedFutureFinished&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-    <span class="doccomment">/// handle notifications received from the tracked future stream
-    </span><span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _item: TrackedFutureFinished, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="comment">// an HTTP request has finished update the inflight requests and pump the message queue
-        </span><span class="self">self</span>.num_inflight_requests -= <span class="number">1</span>;
-        ctx.notify(PumpHttpMessageQueue)
-    }
-}
-
-<span class="kw">pub trait </span>UpstreamQuery: Serialize + Send + <span class="lifetime">&#39;static </span>{
-    <span class="kw">type </span>Response: DeserializeOwned + <span class="lifetime">&#39;static </span>+ Send;
-
-    <span class="doccomment">/// The HTTP method of the request.
-    </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
-
-    <span class="doccomment">/// The path relative to the upstream.
-    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;;
-
-    <span class="doccomment">/// Whether this request should retry on network errors.
-    </span><span class="kw">fn </span>retry() -&gt; bool;
-
-    <span class="doccomment">/// The queueing priority of the request. Defaults to `Low`.
-    </span><span class="kw">fn </span>priority() -&gt; RequestPriority {
-        RequestPriority::Low
-    }
-}
-
-<span class="kw">pub struct </span>SendQuery&lt;T: UpstreamQuery&gt;(<span class="kw">pub </span>T);
-
-<span class="kw">impl</span>&lt;T: UpstreamQuery&gt; Message <span class="kw">for </span>SendQuery&lt;T&gt; {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;;
-}
-
-<span class="kw">struct </span>UpstreamQueryRequest&lt;T: UpstreamQuery&gt; {
-    query: T,
-    body: Vec&lt;u8&gt;,
-    signature: String,
-    max_response_size: usize,
-    sender: <span class="prelude-ty">Option</span>&lt;oneshot::Sender&lt;<span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;&gt;&gt;,
-}
-
-<span class="kw">impl</span>&lt;T: UpstreamQuery&gt; UpstreamRequest <span class="kw">for </span>UpstreamQueryRequest&lt;T&gt; {
-    <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
-        <span class="self">self</span>.query.method()
-    }
-
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
-        <span class="self">self</span>.query.path()
-    }
-
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
-        builder.header(
-            <span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>,
-            <span class="self">self</span>.signature.as_str().as_bytes(),
-        );
-        builder.header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>);
-        <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamQueryBodySize) = <span class="self">self</span>.body.len() <span class="kw">as </span>u64);
-        builder.body(<span class="kw-2">&amp;</span><span class="self">self</span>.body)
-    }
-
-    <span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        T::retry()
-    }
-
-    <span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
-        T::priority()
-    }
-
-    <span class="kw">fn </span>respond(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
-    ) -&gt; ResponseFuture&lt;(), ()&gt; {
-        <span class="kw">let </span>sender = <span class="self">self</span>.sender.take();
-
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(response) =&gt; {
-                <span class="kw">let </span>future = response
-                    .json(<span class="self">self</span>.max_response_size)
-                    .map_err(UpstreamRequestError::Http)
-                    .then(|result| {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
-                            sender.send(result).ok();
-                        }
-                        <span class="prelude-val">Ok</span>(())
-                    });
-
-                Box::new(future)
-            }
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
-                    sender.send(<span class="prelude-val">Err</span>(error)).ok();
-                }
-                Box::new(future::err(()))
-            }
-        }
-    }
-}
-
-<span class="doccomment">/// `SendQuery&lt;T&gt;` messages represent messages that need to be sent to the upstream server
-/// and use Relay authentication.
-///
-/// The handler ensures that Relay is authenticated with the upstream server, adds the message
-/// to one of the message queues.
-</span><span class="kw">impl</span>&lt;T: UpstreamQuery&gt; Handler&lt;SendQuery&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseFuture&lt;T::Response, UpstreamRequestError&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: SendQuery&lt;T&gt;, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.enqueue_query(message.<span class="number">0</span>, ctx)
+        })
     }
 }
 
@@ -2526,11 +2155,15 @@
     }
 
     <span class="kw">fn </span>priority() -&gt; RequestPriority {
-        RequestPriority::Immediate
+        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
     }
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">false
+    </span>}
+
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;challenge&quot;
     </span>}
 }
 
@@ -2546,12 +2179,799 @@
     }
 
     <span class="kw">fn </span>priority() -&gt; RequestPriority {
-        RequestPriority::Immediate
+        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
     }
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">false
     </span>}
+
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;response&quot;
+    </span>}
+}
+
+<span class="doccomment">/// A shared, asynchronous client to build and execute requests.
+///
+/// The main way to send a request through this client is [`send`](Self::send).
+///
+/// This instance holds a shared reference internally and can be cloned directly, so it does not
+/// have to be placed in an `Arc`.
+</span><span class="attribute">#[derive(Debug, Clone)]
+</span><span class="kw">struct </span>SharedClient {
+    config: Arc&lt;Config&gt;,
+    reqwest: reqwest::Client,
+}
+
+<span class="kw">impl </span>SharedClient {
+    <span class="doccomment">/// Creates a new `SharedClient` instance.
+    </span><span class="kw">pub fn </span>build(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>reqwest = reqwest::ClientBuilder::new()
+            .connect_timeout(config.http_connection_timeout())
+            .timeout(config.http_timeout())
+            <span class="comment">// In actix-web client this option could be set on a per-request basis.  In reqwest
+            // this option can only be set per-client. For non-forwarded upstream requests that is
+            // desirable, so we have it enabled.
+            //
+            // In the forward endpoint, this means that content negotiation is done twice, and the
+            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            </span>.gzip(<span class="bool-val">true</span>)
+            .trust_dns(<span class="bool-val">true</span>)
+            .build()
+            .unwrap();
+
+        <span class="self">Self </span>{ config, reqwest }
+    }
+
+    <span class="doccomment">/// Builds the request in a non-blocking fashion.
+    ///
+    /// This creates the request, adds internal headers, and invokes [`UpstreamRequest::build`]. The
+    /// build is invoked in a non-blocking fashion internally, so it can be called from an
+    /// asynchronous runtime.
+    </span><span class="kw">fn </span>build_request(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        request: <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>UpstreamRequest,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;reqwest::Request, UpstreamRequestError&gt; {
+        tokio::task::block_in_place(|| {
+            <span class="kw">let </span>url = <span class="self">self
+                </span>.config
+                .upstream_descriptor()
+                .get_url(request.path().as_ref());
+
+            <span class="kw">let </span>host_header = <span class="self">self
+                </span>.config
+                .http_host_header()
+                .unwrap_or_else(|| <span class="self">self</span>.config.upstream_descriptor().host());
+
+            <span class="kw">let </span>method = request.method();
+
+            <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(<span class="self">self</span>.reqwest.request(method, url));
+            builder.header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
+
+            <span class="kw">if </span>request.set_relay_id() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(credentials) = <span class="self">self</span>.config.credentials() {
+                    builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
+                }
+            }
+
+            <span class="kw">match </span>request.build(<span class="kw-2">&amp;</span><span class="self">self</span>.config, builder) {
+                <span class="prelude-val">Ok</span>(Request(client_request)) =&gt; <span class="prelude-val">Ok</span>(client_request),
+                <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(e.into()),
+            }
+        })
+    }
+
+    <span class="doccomment">/// Handles an HTTP response returned from the upstream.
+    ///
+    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned.
+    /// Otherwise, the response is consumed and an error is returned. If `intercept_status_errors`
+    /// is set to `true` on the request, depending on the status code and details provided in the
+    /// payload, one of the following errors is returned:
+    ///
+    ///  1. `RateLimited` for a `429` status code.
+    ///  2. `ResponseError` in all other cases, containing the status and details.
+    </span><span class="kw">async fn </span>transform_response(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        request: <span class="kw-2">&amp;</span><span class="kw">dyn </span>UpstreamRequest,
+        response: Response,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt; {
+        <span class="kw">let </span>status = response.status();
+
+        <span class="kw">if </span>!request.intercept_status_errors() || status.is_success() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(response);
+        }
+
+        <span class="kw">let </span>upstream_limits = <span class="kw">if </span>status == StatusCode::TOO_MANY_REQUESTS {
+            <span class="kw">let </span>retry_after = response
+                .get_header(header::RETRY_AFTER)
+                .and_then(|v| std::str::from_utf8(v).ok());
+
+            <span class="kw">let </span>rate_limits = response
+                .get_all_headers(utils::RATE_LIMITS_HEADER)
+                .iter()
+                .filter_map(|v| std::str::from_utf8(v).ok())
+                .join(<span class="string">&quot;, &quot;</span>);
+
+            <span class="kw">let </span>upstream_limits = UpstreamRateLimits::new()
+                .retry_after(retry_after)
+                .rate_limits(rate_limits);
+
+            <span class="prelude-val">Some</span>(upstream_limits)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None </span><span class="comment">// TODO(ja): Check if we still need to consume responses
+        </span>};
+
+        <span class="comment">// At this point, we consume the Response. This means we need to consume the response
+        // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
+        // non-fatal failure as the upstream is not expected to always include a valid JSON
+        // response.
+        </span><span class="kw">let </span>json_result = response.json(<span class="self">self</span>.config.max_api_payload_size()).<span class="kw">await</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream_limits) = upstream_limits {
+            <span class="prelude-val">Err</span>(UpstreamRequestError::RateLimited(upstream_limits))
+        } <span class="kw">else </span>{
+            <span class="comment">// Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            </span><span class="kw">let </span>api_response = json_result.unwrap_or_default();
+            <span class="prelude-val">Err</span>(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    }
+
+    <span class="doccomment">/// Builds and sends a request to the upstream, returning either a response or the error.
+    </span><span class="kw">pub async fn </span>send(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        request: <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>UpstreamRequest,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt; {
+        <span class="kw">let </span>client_request = <span class="self">self</span>.build_request(request)<span class="question-mark">?</span>;
+        <span class="kw">let </span>response = <span class="self">self</span>.reqwest.execute(client_request).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="self">self</span>.transform_response(request, Response(response)).<span class="kw">await
+    </span>}
+
+    <span class="doccomment">/// Convenience method to send a query to the upstream and await the result.
+    </span><span class="kw">pub async fn </span>send_query&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, query: T) -&gt; <span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;
+    <span class="kw">where
+        </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+    {
+        <span class="kw">let </span>(sender, receiver) = AsyncResponse::channel();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Box::new(UpstreamQueryRequest::new(query, sender));
+        <span class="kw">let </span>result = <span class="self">self</span>.send(request.as_mut()).<span class="kw">await</span>;
+        request.respond(result).<span class="kw">await</span>;
+
+        receiver
+            .<span class="kw">await
+            </span>.unwrap_or(<span class="prelude-val">Err</span>(UpstreamRequestError::ChannelClosed))
+    }
+}
+
+<span class="doccomment">/// The position for enqueueing an upstream request.
+</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+</span><span class="kw">enum </span>EnqueuePosition {
+    <span class="doccomment">/// The default position for FIFO to be dequeued last.
+    </span>Back,
+
+    <span class="doccomment">/// Places an element at the front to be dequeued next.
+    </span>Front,
+}
+
+<span class="doccomment">/// An upstream request enqueued in the [`UpstreamQueue`].
+///
+/// This is the primary type with which requests are passed around the service.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>Entry {
+    <span class="doccomment">/// The inner request.
+    </span><span class="kw">pub </span>request: Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;,
+    <span class="doccomment">/// The number of retries.
+    ///
+    /// This starts with `0` and is incremented every time a request is placed back into the queue
+    /// following a network error.
+    </span><span class="kw">pub </span>retries: usize,
+}
+
+<span class="kw">impl </span>Entry {
+    <span class="doccomment">/// Creates a pristine queue `Entry`.
+    </span><span class="kw">pub fn </span>new(request: Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            request,
+            retries: <span class="number">0</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// Queue utility for the [`UpstreamRelayService`].
+///
+/// Requests are queued and delivered according to their [`UpstreamRequest::priority`]. This queue
+/// is synchronous and managed by the [`UpstreamBroker`].
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>UpstreamQueue {
+    high: VecDeque&lt;Entry&gt;,
+    low: VecDeque&lt;Entry&gt;,
+}
+
+<span class="kw">impl </span>UpstreamQueue {
+    <span class="doccomment">/// Creates an empty upstream queue.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            high: VecDeque::new(),
+            low: VecDeque::new(),
+        }
+    }
+
+    <span class="doccomment">/// Returns the number of entries in the queue.
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.high.len() + <span class="self">self</span>.low.len()
+    }
+
+    <span class="doccomment">/// Puts an entry into the queue at the given position.
+    </span><span class="kw">fn </span>put(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry, position: EnqueuePosition) {
+        <span class="kw">let </span>priority = entry.request.priority();
+
+        <span class="comment">// We can ignore send errors here. Once the channel closes, we drop all incoming requests
+        // here. The receiving end of the request will be notified of the drop if they are waiting
+        // for it.
+        </span><span class="kw">let </span>queue = <span class="kw">match </span>priority {
+            RequestPriority::High =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.high,
+            RequestPriority::Low =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.low,
+        };
+
+        <span class="kw">match </span>position {
+            EnqueuePosition::Front =&gt; queue.push_front(entry),
+            EnqueuePosition::Back =&gt; queue.push_back(entry),
+        }
+
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
+            priority = priority.name(),
+        );
+    }
+
+    <span class="doccomment">/// Places an entry at the back of the queue.
+    ///
+    /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
+    /// priority class.
+    </span><span class="kw">pub fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry) {
+        <span class="self">self</span>.put(entry, EnqueuePosition::Back)
+    }
+
+    <span class="doccomment">/// Place an entry at the front of the queue.
+    ///
+    /// This entry will be dequeued next within its priority class, unless another call to
+    /// `enqueue_immediate` follows.
+    </span><span class="kw">pub fn </span>enqueue_immediate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry) {
+        <span class="self">self</span>.put(entry, EnqueuePosition::Front)
+    }
+
+    <span class="doccomment">/// Removes the head of the queue with highest priority.
+    ///
+    /// This always returns entries with [high](RequestPriority::High) first before dequeueing
+    /// entries with low priority.
+    </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Entry&gt; {
+        <span class="self">self</span>.high.pop_front().or_else(|| <span class="self">self</span>.low.pop_front())
+    }
+}
+
+<span class="doccomment">/// Possible authentication states for Relay.
+</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+</span><span class="kw">enum </span>AuthState {
+    <span class="doccomment">/// Relay is not authenticated and authentication has not started.
+    </span>Unknown,
+
+    <span class="doccomment">/// Relay is not authenticated and authentication is in progress.
+    </span>Registering,
+
+    <span class="doccomment">/// The connection is healthy and authenticated in managed mode.
+    ///
+    /// This state is also used as default for Relays that do not require authentication based on
+    /// their configuration.
+    </span>Registered,
+
+    <span class="doccomment">/// Relay is authenticated and renewing the registration lease. During this process, Relay
+    /// remains authenticated, unless an error occurs.
+    </span>Renewing,
+
+    <span class="doccomment">/// Authentication has been permanently denied by the Upstream. Do not attempt to retry.
+    </span>Denied,
+}
+
+<span class="kw">impl </span>AuthState {
+    <span class="doccomment">/// Returns the initial `AuthState` based on configuration.
+    ///
+    /// - Relays in managed mode require authentication. The state is set to `AuthState::Unknown`.
+    /// - Other Relays do not require authentication. The state is set to `AuthState::Registered`.
+    </span><span class="kw">pub fn </span>init(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>config.relay_mode() {
+            RelayMode::Managed =&gt; AuthState::Unknown,
+            <span class="kw">_ </span>=&gt; AuthState::Registered,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the state is considered authenticated.
+    </span><span class="kw">pub fn </span>is_authenticated(<span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, AuthState::Registered | AuthState::Renewing)
+    }
+}
+
+<span class="doccomment">/// Indicates whether an request was sent to the upstream.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">enum </span>RequestOutcome {
+    <span class="doccomment">/// The request was dropped due to a network outage.
+    </span>Dropped,
+    <span class="doccomment">/// The request was received by the upstream.
+    ///
+    /// This does not automatically mean that the request was successfully accepted. It could also
+    /// have been rate limited or rejected as invalid.
+    </span>Received,
+}
+
+<span class="doccomment">/// Internal message of the upstream&#39;s [`UpstreamBroker`].
+///
+/// These messages are used to serialize state mutations to the broker&#39;s internals. They are emitted
+/// by the auth monitor, connection monitor, and internal tasks for request handling.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">enum </span>Action {
+    <span class="doccomment">/// A dropped needs to be retried.
+    ///
+    /// The entry is placed on the front of the [`UpstreamQueue`].
+    </span>Retry(Entry),
+    <span class="doccomment">/// Notifies completion of a request with a given outcome.
+    ///
+    /// Dropped request that need retries will additionally invoke the [`Retry`](Self::Retry)
+    /// action.
+    </span>Complete(RequestOutcome),
+    <span class="doccomment">/// Previously lost connection has been regained.
+    ///
+    /// This message is delivered to the [`ConnectionMonitor`] instance.
+    </span>Connected,
+    <span class="doccomment">/// The auth monitor indicates a change in the authentication state.
+    ///
+    /// The new auth state is mirrored in an internal field for immediate access.
+    </span>UpdateAuth(AuthState),
+}
+
+<span class="kw">type </span>ActionTx = mpsc::UnboundedSender&lt;Action&gt;;
+
+<span class="doccomment">/// Service that establishes and maintains authentication.
+///
+/// In regular intervals, the service checks for authentication and notifies the upstream if the key
+/// is no longer valid. This allows Sentry to reject registered Relays during runtim without
+/// restarts.
+///
+/// The monitor updates subscribers via the an `Action` channel of all changes to the authentication
+/// states.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>AuthMonitor {
+    config: Arc&lt;Config&gt;,
+    client: SharedClient,
+    state: AuthState,
+    tx: ActionTx,
+}
+
+<span class="kw">impl </span>AuthMonitor {
+    <span class="doccomment">/// Returns the interval at which this Relay should renew authentication.
+    ///
+    /// Returns `Some` if authentication should be retried. Returns `None` if authentication is
+    /// permanent.
+    </span><span class="kw">fn </span>renew_auth_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::time::Duration&gt; {
+        <span class="kw">if </span><span class="self">self</span>.config.processing_enabled() {
+            <span class="comment">// processing relays do NOT re-authenticate
+            </span><span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="comment">// only relays that have a configured auth-interval reauthenticate
+            </span><span class="self">self</span>.config.http_auth_interval()
+        }
+    }
+
+    <span class="doccomment">/// Updates the monitor&#39;s internal state and subscribers.
+    </span><span class="kw">fn </span>send_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: AuthState) -&gt; <span class="prelude-ty">Result</span>&lt;(), UpstreamRequestError&gt; {
+        <span class="self">self</span>.state = state;
+        <span class="self">self</span>.tx
+            .send(Action::UpdateAuth(state))
+            .map_err(|<span class="kw">_</span>| UpstreamRequestError::ChannelClosed)
+    }
+
+    <span class="doccomment">/// Performs a single authentication pass.
+    ///
+    /// Authentication consists of an initial request, a challenge, and a signed response including
+    /// the challenge. Throughout this sequence, the auth monitor transitions the authentication
+    /// state. If authentication succeeds, the state is set to [`AuthState::Registered`] at the end.
+    ///
+    /// If any of the requests fail, this method returns an `Err` and leaves the last authentication
+    /// state in place.
+    </span><span class="kw">async fn </span>authenticate(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        credentials: <span class="kw-2">&amp;</span>Credentials,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), UpstreamRequestError&gt; {
+        <span class="macro">relay_log::info!</span>(
+            <span class="string">&quot;registering with upstream ({})&quot;</span>,
+            <span class="self">self</span>.config.upstream_descriptor()
+        );
+
+        <span class="self">self</span>.send_state(<span class="kw">if </span><span class="self">self</span>.state.is_authenticated() {
+            AuthState::Renewing
+        } <span class="kw">else </span>{
+            AuthState::Registering
+        })<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>credentials.id, <span class="kw-2">&amp;</span>credentials.public_key);
+        <span class="kw">let </span>challenge = <span class="self">self</span>.client.send_query(request).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;got register challenge (token = {})&quot;</span>, challenge.token());
+
+        <span class="kw">let </span>response = challenge.into_response();
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
+        <span class="self">self</span>.client.send_query(response).<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay successfully registered with upstream&quot;</span>);
+        <span class="self">self</span>.send_state(AuthState::Registered)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Starts the authentication monitor&#39;s cycle.
+    ///
+    /// Authentication starts immediately and then enters a loop of recurring reauthentication until
+    /// one of the following conditions is met:
+    ///
+    ///  - Authentication is not required based on the Relay&#39;s mode configuration.
+    ///  - The upstream responded with a permanent rejection (auth denied).
+    ///  - All subscibers have shut down and the action channel is closed.
+    </span><span class="kw">pub async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.config.relay_mode() != RelayMode::Managed {
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
+        <span class="kw">let </span><span class="prelude-val">Some</span>(credentials) = config.credentials() <span class="kw">else </span>{
+            <span class="comment">// This is checked during setup by `check_config` and should never happen.
+            </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;authentication called without credentials&quot;</span>);
+            <span class="kw">return</span>;
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>backoff = RetryBackoff::new(<span class="self">self</span>.config.http_max_retry_interval());
+
+        <span class="kw">loop </span>{
+            <span class="kw">match </span><span class="self">self</span>.authenticate(credentials).<span class="kw">await </span>{
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                    backoff.reset();
+
+                    <span class="kw">match </span><span class="self">self</span>.renew_auth_interval() {
+                        <span class="prelude-val">Some</span>(interval) =&gt; tokio::time::sleep(interval).<span class="kw">await</span>,
+                        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
+                    }
+                }
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;authentication encountered error: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+
+                    <span class="comment">// ChannelClosed indicates that there are no more listeners, so we stop
+                    // authenticating.
+                    </span><span class="kw">if let </span>UpstreamRequestError::ChannelClosed = err {
+                        <span class="kw">return</span>;
+                    }
+
+                    <span class="kw">if </span>err.is_permanent_rejection() {
+                        <span class="self">self</span>.send_state(AuthState::Denied).ok();
+                        <span class="kw">return</span>;
+                    }
+
+                    <span class="comment">// If the authentication request fails due to any reason other than a network
+                    // error, go back to `Registering` which indicates that this Relay is not
+                    // authenticated, in case the state was `Renewing` before.
+                    </span><span class="kw">if </span>!err.is_network_error() {
+                        <span class="self">self</span>.send_state(AuthState::Registering).ok();
+                    }
+
+                    <span class="comment">// Even on network errors, retry authentication independently.
+                    </span><span class="kw">let </span>backoff = backoff.next_backoff();
+                    <span class="macro">relay_log::debug!</span>(
+                        <span class="string">&quot;scheduling authentication retry in {} seconds&quot;</span>,
+                        backoff.as_secs()
+                    );
+                    tokio::time::sleep(backoff).<span class="kw">await</span>;
+                }
+            };
+        }
+    }
+}
+
+<span class="doccomment">/// Internal state of the [`ConnectionMonitor`].
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">enum </span>ConnectionState {
+    <span class="doccomment">/// The connection is healthy.
+    </span>Connected,
+
+    <span class="doccomment">/// Network errors have been observed during the grace period.
+    ///
+    /// The connection is still considered healthy and requests should be made to the upstream.
+    </span>Interrupted(Instant),
+
+    <span class="doccomment">/// The connection is interrupted and reconnection is in progress.
+    ///
+    /// If the task has finished, connection should be considered `Connected`.
+    </span>Reconnecting(tokio::task::JoinHandle&lt;()&gt;),
+}
+
+<span class="doccomment">/// Maintains outage state of the connection to the upstream.
+///
+///  Use [`notify_error`](Self::notify_error) and [`reset_error`](Self::reset_error) to inform the
+/// monitor of successful and failed requests. If errors persist throughout a grace period, the
+/// monitor spawns a background task to re-establish connections. During this period,
+/// [`is_stable`](Self::is_stable) returns `false` and no other requests should be made to the
+/// upstream.
+///
+/// This state is synchronous and managed by the [`UpstreamBroker`].
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>ConnectionMonitor {
+    state: ConnectionState,
+    client: SharedClient,
+}
+
+<span class="kw">impl </span>ConnectionMonitor {
+    <span class="doccomment">/// Creates a new `ConnectionMonitor` in connected state.
+    </span><span class="kw">pub fn </span>new(client: SharedClient) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            state: ConnectionState::Connected,
+            client,
+        }
+    }
+
+    <span class="doccomment">/// Resets `Reconnecting` if the connection task has completed.
+    </span><span class="kw">fn </span>clean_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ConnectionState {
+        <span class="kw">if let </span>ConnectionState::Reconnecting(<span class="kw-2">ref </span>task) = <span class="self">self</span>.state {
+            <span class="kw">if </span>task.is_finished() {
+                <span class="self">self</span>.state = ConnectionState::Connected;
+            }
+        }
+
+        <span class="kw-2">&amp;</span><span class="self">self</span>.state
+    }
+
+    <span class="doccomment">/// Returns `true` if the connection is not in outage state.
+    </span><span class="kw">pub fn </span>is_stable(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self</span>.clean_state() {
+            ConnectionState::Connected =&gt; <span class="bool-val">true</span>,
+            ConnectionState::Interrupted(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            ConnectionState::Reconnecting(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the connection is in outage state.
+    </span><span class="kw">pub fn </span>is_outage(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.is_stable()
+    }
+
+    <span class="doccomment">/// Performs connection attempts with exponential backoff until successful.
+    </span><span class="kw">async fn </span>connect(client: SharedClient, tx: ActionTx) {
+        <span class="kw">let </span><span class="kw-2">mut </span>backoff = RetryBackoff::new(client.config.http_max_retry_interval());
+
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>next_backoff = backoff.next_backoff();
+            <span class="macro">relay_log::warn!</span>(
+                <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
+                next_backoff
+            );
+
+            tokio::time::sleep(next_backoff).<span class="kw">await</span>;
+            <span class="kw">match </span>client.send(<span class="kw-2">&amp;mut </span>GetHealthCheck).<span class="kw">await </span>{
+                <span class="comment">// All errors that are not connection errors are considered a successful attempt
+                </span><span class="prelude-val">Err</span>(e) <span class="kw">if </span>e.is_network_error() =&gt; <span class="kw">continue</span>,
+                <span class="kw">_ </span>=&gt; <span class="kw">break</span>,
+            }
+        }
+
+        tx.send(Action::Connected).ok();
+    }
+
+    <span class="doccomment">/// Notifies the monitor of a request that resulted in a network error.
+    ///
+    /// This starts a grace period if not already started. If a prior grace period has been
+    /// exceeded, the monitor spawns a background job to reestablish connection and notifies the
+    /// given `return_tx` on success.
+    ///
+    /// This method does not block.
+    </span><span class="kw">pub fn </span>notify_error(<span class="kw-2">&amp;mut </span><span class="self">self</span>, return_tx: <span class="kw-2">&amp;</span>ActionTx) {
+        <span class="kw">let </span>now = Instant::now();
+
+        <span class="kw">let </span>first_error = <span class="kw">match </span><span class="self">self</span>.clean_state() {
+            ConnectionState::Connected =&gt; now,
+            ConnectionState::Interrupted(first) =&gt; <span class="kw-2">*</span>first,
+            ConnectionState::Reconnecting(<span class="kw">_</span>) =&gt; <span class="kw">return</span>,
+        };
+
+        <span class="self">self</span>.state = ConnectionState::Interrupted(first_error);
+
+        <span class="comment">// Only take action if we exceeded the grace period.
+        </span><span class="kw">if </span>first_error + <span class="self">self</span>.client.config.http_outage_grace_period() &lt;= now {
+            <span class="kw">let </span>return_tx = return_tx.clone();
+            <span class="kw">let </span>task = tokio::spawn(<span class="self">Self</span>::connect(<span class="self">self</span>.client.clone(), return_tx));
+            <span class="self">self</span>.state = ConnectionState::Reconnecting(task);
+        }
+    }
+
+    <span class="doccomment">/// Notifies the monitor of a request that was delivered to the upstream.
+    ///
+    /// Resets the outage grace period and aborts connect background tasks.
+    </span><span class="kw">pub fn </span>reset_error(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span>ConnectionState::Reconnecting(<span class="kw-2">ref </span>task) = <span class="self">self</span>.state {
+            task.abort();
+        }
+
+        <span class="self">self</span>.state = ConnectionState::Connected;
+    }
+}
+
+<span class="doccomment">/// Main broker of the [`UpstreamRelayService`].
+///
+/// This handles incoming public messages, internal actions, and maintains the upstream queue.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>UpstreamBroker {
+    client: SharedClient,
+    queue: UpstreamQueue,
+    auth_state: AuthState,
+    conn: ConnectionMonitor,
+    permits: usize,
+    action_tx: ActionTx,
+}
+
+<span class="kw">impl </span>UpstreamBroker {
+    <span class="doccomment">/// Returns the next entry from the queue if the upstream is in a healthy state.
+    ///
+    /// This returns `None` in any of the following conditions:
+    ///  - Maximum request concurrency has been reached. A slot will be reclaimed through
+    ///    [`Action::Complete`].
+    ///  - The connection is in outage state and all outgoing requests are suspended. Outage state
+    ///    will be reset through [`Action::Connected`].
+    ///  - Relay is not authenticated, including failed renewals. Auth state will be updated through
+    ///    [`Action::UpdateAuth`].
+    ///  - The request queue is empty. New requests will be added through [`SendRequest`] or
+    ///    [`SendQuery`] in the main message loop.
+    </span><span class="kw">async fn </span>next_request(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Entry&gt; {
+        <span class="kw">if </span><span class="self">self</span>.permits == <span class="number">0 </span>|| <span class="self">self</span>.conn.is_outage() || !<span class="self">self</span>.auth_state.is_authenticated() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let </span>entry = <span class="self">self</span>.queue.dequeue()<span class="question-mark">?</span>;
+        <span class="self">self</span>.permits -= <span class="number">1</span>;
+        <span class="prelude-val">Some</span>(entry)
+    }
+
+    <span class="doccomment">/// Attempts to place a new request into the queue.
+    ///
+    /// If authentication is permanently denied, the request will be failed immediately. In all
+    /// other cases, the request is enqueued and will wait for submission.
+    </span><span class="kw">async fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;) {
+        <span class="kw">if let </span>AuthState::Denied = <span class="self">self</span>.auth_state {
+            <span class="comment">// This respond is near-instant because it should just send the error into the request&#39;s
+            // response channel. We do not expect that this blocks the broker.
+            </span>request.respond(<span class="prelude-val">Err</span>(UpstreamRequestError::AuthDenied)).<span class="kw">await</span>;
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.queue.enqueue(Entry::new(request));
+        }
+    }
+
+    <span class="doccomment">/// Handler of the main message loop.
+    </span><span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpstreamRelay) {
+        <span class="kw">match </span>message {
+            UpstreamRelay::IsAuthenticated(<span class="kw">_</span>, sender) =&gt; {
+                sender.send(<span class="self">self</span>.auth_state.is_authenticated())
+            }
+            UpstreamRelay::IsNetworkOutage(<span class="kw">_</span>, sender) =&gt; sender.send(<span class="self">self</span>.conn.is_outage()),
+            UpstreamRelay::SendRequest(request) =&gt; <span class="self">self</span>.enqueue(request).<span class="kw">await</span>,
+        }
+    }
+
+    <span class="doccomment">/// Spawns a request attempt.
+    ///
+    /// The request will run concurrently with other spawned requests and notify the action channel
+    /// on completion.
+    </span><span class="kw">fn </span>execute(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>entry: Entry) {
+        <span class="kw">let </span>client = <span class="self">self</span>.client.clone();
+        <span class="kw">let </span>action_tx = <span class="self">self</span>.action_tx.clone();
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>send_start = Instant::now();
+            <span class="kw">let </span>result = client.send(entry.request.as_mut()).<span class="kw">await</span>;
+            emit_response_metrics(send_start, <span class="kw-2">&amp;</span>entry, <span class="kw-2">&amp;</span>result);
+
+            <span class="kw">let </span>status = <span class="kw">match </span>result {
+                <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>err) <span class="kw">if </span>err.is_network_error() =&gt; RequestOutcome::Dropped,
+                <span class="kw">_ </span>=&gt; RequestOutcome::Received,
+            };
+
+            <span class="kw">match </span>status {
+                RequestOutcome::Dropped <span class="kw">if </span>entry.request.retry() =&gt; {
+                    entry.retries += <span class="number">1</span>;
+                    action_tx.send(Action::Retry(entry)).ok();
+                }
+                <span class="kw">_ </span>=&gt; entry.request.respond(result).<span class="kw">await</span>,
+            }
+
+            <span class="comment">// Send an action back to the action channel of the broker, which will invoke
+            // `handle_action`. This is to let the broker know in a synchronized fashion that the
+            // request has finished and may need to be retried (above).
+            </span>action_tx.send(Action::Complete(status)).ok();
+        });
+    }
+
+    <span class="doccomment">/// Marks completion of a running request and reclaims its slot.
+    </span><span class="kw">fn </span>complete(<span class="kw-2">&amp;mut </span><span class="self">self</span>, status: RequestOutcome) {
+        <span class="self">self</span>.permits += <span class="number">1</span>;
+
+        <span class="kw">match </span>status {
+            RequestOutcome::Dropped =&gt; <span class="self">self</span>.conn.notify_error(<span class="kw-2">&amp;</span><span class="self">self</span>.action_tx),
+            RequestOutcome::Received =&gt; <span class="self">self</span>.conn.reset_error(),
+        }
+    }
+
+    <span class="doccomment">/// Handler of the internal action channel.
+    </span><span class="kw">fn </span>handle_action(<span class="kw-2">&amp;mut </span><span class="self">self</span>, action: Action) {
+        <span class="kw">match </span>action {
+            Action::Retry(request) =&gt; <span class="self">self</span>.queue.enqueue_immediate(request),
+            Action::Complete(status) =&gt; <span class="self">self</span>.complete(status),
+            Action::Connected =&gt; <span class="self">self</span>.conn.reset_error(),
+            Action::UpdateAuth(state) =&gt; <span class="self">self</span>.auth_state = state,
+        }
+    }
+}
+
+<span class="doccomment">/// Implementation of the [`UpstreamRelay`] interface.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>UpstreamRelayService {
+    config: Arc&lt;Config&gt;,
+}
+
+<span class="kw">impl </span>UpstreamRelayService {
+    <span class="doccomment">/// Creates a new `UpstreamRelay` instance.
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        <span class="comment">// Broker and other actual components are implemented in the Service&#39;s `spawn_handler`.
+        </span><span class="self">Self </span>{ config }
+    }
+}
+
+<span class="kw">impl </span>Service <span class="kw">for </span>UpstreamRelayService {
+    <span class="kw">type </span>Interface = UpstreamRelay;
+
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span><span class="self">Self </span>{ config } = <span class="self">self</span>;
+
+        <span class="kw">let </span>client = SharedClient::build(config.clone());
+
+        <span class="comment">// Channel for serialized communication from the auth monitor, connection monitor, and
+        // concurrent requests back to the broker.
+        </span><span class="kw">let </span>(action_tx, <span class="kw-2">mut </span>action_rx) = mpsc::unbounded_channel();
+
+        <span class="comment">// Spawn a recurring background check for authentication. It terminates automatically if
+        // authentication is not required or rejected.
+        </span><span class="kw">let </span>auth = AuthMonitor {
+            config: config.clone(),
+            client: client.clone(),
+            state: AuthState::Unknown,
+            tx: action_tx.clone(),
+        };
+        tokio::spawn(auth.run());
+
+        <span class="comment">// Main broker that serializes public and internal messages, as well as maintains connection
+        // and authentication state.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>broker = UpstreamBroker {
+            client: client.clone(),
+            queue: UpstreamQueue::new(),
+            auth_state: AuthState::init(<span class="kw-2">&amp;</span>config),
+            conn: ConnectionMonitor::new(client),
+            permits: config.max_concurrent_requests(),
+            action_tx,
+        };
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    biased;
+
+                    <span class="prelude-val">Some</span>(action) = action_rx.recv() =&gt; broker.handle_action(action),
+                    <span class="prelude-val">Some</span>(request) = broker.next_request() =&gt; broker.execute(request),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message).<span class="kw">await</span>,
+
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+                }
+            }
+        });
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

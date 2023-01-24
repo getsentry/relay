@@ -371,10 +371,13 @@
 <span id="370">370</span>
 <span id="371">371</span>
 <span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix::Recipient;
 <span class="kw">use </span>actix_web::server::StopServer;
 <span class="kw">use </span>actix_web::{server, App};
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
@@ -398,7 +401,7 @@
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreService;
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{TestStore, TestStoreService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 <span class="kw">use </span><span class="kw">crate</span>::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
@@ -453,6 +456,7 @@
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
 
 <span class="kw">impl </span>Registry {
@@ -486,23 +490,23 @@
     _outcome_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _main_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _project_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
+    _upstream_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;tokio::runtime::Runtime&gt;&gt;,
 }
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
     </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>system = System::current();
-        <span class="kw">let </span>registry = system.registry();
-
         <span class="kw">let </span>main_runtime = utils::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
+        <span class="kw">let </span>upstream_runtime = utils::create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span>project_runtime = utils::create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
-        <span class="kw">let </span>upstream_relay = UpstreamRelay::new(config.clone());
-        registry.set(Arbiter::start(|<span class="kw">_</span>| upstream_relay));
+        <span class="kw">let </span>guard = upstream_runtime.enter();
+        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start();
+        drop(guard);
 
         <span class="kw">let </span>guard = outcome_runtime.enter();
         <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(config.clone())<span class="question-mark">?</span>.start();
@@ -567,6 +571,7 @@
                 test_store,
                 relay_cache,
                 project_cache,
+                upstream_relay,
             }))
             .unwrap();
 
@@ -577,6 +582,7 @@
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
             _project_runtime: Arc::new(project_runtime),
+            _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
         })
     }

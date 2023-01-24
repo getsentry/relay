@@ -931,6 +931,11 @@
 <span id="930">930</span>
 <span id="931">931</span>
 <span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -946,8 +951,6 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span>actix::prelude::SystemService;
-<span class="kw">use </span>actix_web::http::Method;
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
@@ -965,10 +968,10 @@
 <span class="kw">use </span>relay_quotas::{ReasonCode, Scoping};
 <span class="kw">use </span>relay_sampling::RuleId;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{compat, Addr, FromMessage, Service};
+<span class="kw">use </span>relay_system::{Addr, FromMessage, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendClientReports};
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::service::ServerError;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
@@ -995,6 +998,10 @@
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">true
+    </span>}
+
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;outcomes&quot;
     </span>}
 }
 
@@ -1490,7 +1497,10 @@
         };
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">match </span>compat::send(UpstreamRelay::from_registry(), SendQuery(request)).<span class="kw">await </span>{
+            <span class="kw">match </span>UpstreamRelay::from_registry()
+                .send(SendQuery(request))
+                .<span class="kw">await
+            </span>{
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>),
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, error)

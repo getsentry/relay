@@ -363,13 +363,14 @@
 <span id="362">362</span>
 <span id="363">363</span>
 <span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use </span>actix::SystemService;
-<span class="kw">use </span>actix_web::http::Method;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tokio::sync::mpsc;
 
@@ -378,11 +379,10 @@
 <span class="kw">use </span>relay_config::{Config, RelayInfo};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{
-    compat, Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface,
-    Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
 
@@ -492,6 +492,10 @@
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">false
+    </span>}
+
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;public_keys&quot;
     </span>}
 }
 
@@ -614,8 +618,10 @@
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            <span class="kw">let </span>upstream = UpstreamRelay::from_registry();
-            <span class="kw">let </span>query_result = <span class="kw">match </span>compat::send(upstream, SendQuery(request)).<span class="kw">await </span>{
+            <span class="kw">let </span>query_result = <span class="kw">match </span>UpstreamRelay::from_registry()
+                .send(SendQuery(request))
+                .<span class="kw">await
+            </span>{
                 <span class="prelude-val">Ok</span>(inner) =&gt; inner,
                 <span class="comment">// Drop the channels to propagate the `SendError` up.
                 </span><span class="prelude-val">Err</span>(_send_error) =&gt; <span class="kw">return</span>,

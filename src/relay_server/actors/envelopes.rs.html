@@ -412,20 +412,13 @@
 <span id="411">411</span>
 <span id="412">412</span>
 <span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::future::Future;
+<span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>actix::{ResponseFuture, SystemService};
-<span class="kw">use </span>actix_web::http::Method;
 <span class="kw">use </span>chrono::Utc;
-<span class="kw">use </span>futures::compat::Future01CompatExt;
-<span class="kw">use </span>futures01::{future, sync::oneshot, Future <span class="kw">as _</span>};
+<span class="kw">use </span>tokio::sync::oneshot;
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
@@ -440,7 +433,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, UpdateRateLimits};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
+    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response};
@@ -483,7 +478,7 @@
     <span class="kw">pub </span>envelope_meta: RequestMeta,
     <span class="kw">pub </span>scoping: Scoping,
     <span class="kw">pub </span>http_encoding: HttpEncoding,
-    <span class="kw">pub </span>response_sender: <span class="prelude-ty">Option</span>&lt;oneshot::Sender&lt;<span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt;&gt;&gt;,
+    <span class="kw">pub </span>response_sender: oneshot::Sender&lt;<span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt;&gt;,
     <span class="kw">pub </span>project_key: ProjectKey,
     partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
@@ -497,7 +492,11 @@
         <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.scoping.project_id).into()
     }
 
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;envelope&quot;
+    </span>}
+
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Config, <span class="kw-2">mut </span>builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_meta;
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
@@ -517,39 +516,28 @@
     }
 
     <span class="kw">fn </span>respond(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="self">self</span>: Box&lt;<span class="self">Self</span>&gt;,
         result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
-    ) -&gt; ResponseFuture&lt;(), ()&gt; {
-        <span class="kw">let </span>sender = <span class="self">self</span>.response_sender.take();
+    ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = ()&gt; + Send + Sync&gt;&gt; {
+        Box::pin(<span class="kw">async move </span>{
+            <span class="kw">let </span>result = <span class="kw">match </span>result {
+                <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>response) =&gt; response.consume().<span class="kw">await</span>.map_err(UpstreamRequestError::Http),
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="kw">if let </span>UpstreamRequestError::RateLimited(<span class="kw-2">ref </span>upstream_limits) = error {
+                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                            <span class="self">self</span>.project_key,
+                            upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
+                        ));
+                    }
 
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(response) =&gt; {
-                <span class="kw">let </span>future = response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-                    .map(|<span class="kw">_</span>| ())
-                    .then(<span class="kw">move </span>|body_result| {
-                        sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
-                        <span class="prelude-val">Ok</span>(())
-                    });
-
-                Box::new(future)
-            }
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="kw">if let </span>UpstreamRequestError::RateLimited(<span class="kw-2">ref </span>upstream_limits) = error {
-                    ProjectCache::from_registry().send(UpdateRateLimits::new(
-                        <span class="self">self</span>.project_key,
-                        upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
-                    ));
+                    <span class="prelude-val">Err</span>(error)
                 }
+            };
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
-                    sender.send(<span class="prelude-val">Err</span>(error.into())).ok();
-                }
-
-                Box::new(future::err(()))
-            }
-        }
+            <span class="self">self</span>.response_sender
+                .send(result.map_err(SendEnvelopeError::from))
+                .ok();
+        })
     }
 }
 
@@ -698,18 +686,18 @@
             envelope_meta: envelope.meta().clone(),
             scoping,
             http_encoding: <span class="self">self</span>.config.http_encoding(),
-            response_sender: <span class="prelude-val">Some</span>(tx),
+            response_sender: tx,
             project_key: scoping.project_key,
             partition_key,
         };
 
         <span class="kw">if let </span>HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().do_send(SendRequest(request));
+            UpstreamRelay::from_registry().send(SendRequest(request));
         } <span class="kw">else </span>{
             EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
-        <span class="kw">match </span>rx.compat().<span class="kw">await </span>{
+        <span class="kw">match </span>rx.<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(err)) =&gt; <span class="prelude-val">Err</span>(err),
             <span class="prelude-val">Err</span>(_canceled) =&gt; <span class="prelude-val">Err</span>(UpstreamRequestError::ChannelClosed.into()),

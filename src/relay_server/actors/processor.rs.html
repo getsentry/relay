@@ -3165,8 +3165,6 @@
 <span id="3164">3164</span>
 <span id="3165">3165</span>
 <span id="3166">3166</span>
-<span id="3167">3167</span>
-<span id="3168">3168</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -3176,7 +3174,6 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use </span>actix::SystemService;
 <span class="kw">use </span>brotli2::write::BrotliEncoder;
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
@@ -5530,15 +5527,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>request = message.request;
         <span class="kw">match </span><span class="self">Self</span>::encode_envelope_body(request.envelope_body, request.http_encoding) {
             <span class="prelude-val">Err</span>(e) =&gt; {
-                request.response_sender.map(|sender| {
-                    sender
-                        .send(<span class="prelude-val">Err</span>(SendEnvelopeError::BodyEncodingFailed(e)))
-                        .ok()
-                });
+                request
+                    .response_sender
+                    .send(<span class="prelude-val">Err</span>(SendEnvelopeError::BodyEncodingFailed(e)))
+                    .ok();
             }
             <span class="prelude-val">Ok</span>(envelope_body) =&gt; {
                 request.envelope_body = envelope_body;
-                UpstreamRelay::from_registry().do_send(SendRequest(request));
+                UpstreamRelay::from_registry().send(SendRequest(request));
             }
         }
     }

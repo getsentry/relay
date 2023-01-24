@@ -164,21 +164,6 @@
 <span id="163">163</span>
 <span id="164">164</span>
 <span id="165">165</span>
-<span id="166">166</span>
-<span id="167">167</span>
-<span id="168">168</span>
-<span id="169">169</span>
-<span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
-<span id="177">177</span>
-<span id="178">178</span>
-<span id="179">179</span>
-<span id="180">180</span>
 </pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.
 ///!
 ///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be
@@ -191,8 +176,6 @@
 ///! logic.
 </span><span class="kw">use </span>std::io;
 
-<span class="kw">use </span>futures::{FutureExt, TryFutureExt, TryStreamExt};
-<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 
 <span class="kw">use </span>relay_config::HttpEncoding;
@@ -204,6 +187,8 @@
 </span><span class="kw">pub enum </span>HttpError {
     <span class="attribute">#[error(<span class="string">&quot;payload too large&quot;</span>)]
     </span>Overflow,
+    <span class="attribute">#[error(<span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
+    </span>NoCredentials,
     <span class="attribute">#[error(<span class="string">&quot;could not send request&quot;</span>)]
     </span>Reqwest(<span class="attribute">#[from] </span>reqwest::Error),
     <span class="attribute">#[error(<span class="string">&quot;failed to stream payload&quot;</span>)]
@@ -222,6 +207,7 @@
             </span><span class="self">Self</span>::Reqwest(error) =&gt; error.is_timeout(),
             <span class="self">Self</span>::Json(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
             HttpError::Overflow =&gt; <span class="bool-val">false</span>,
+            HttpError::NoCredentials =&gt; <span class="bool-val">false</span>,
         }
     }
 }
@@ -286,17 +272,7 @@
         <span class="self">self</span>.<span class="number">0</span>.status()
     }
 
-    <span class="kw">pub fn </span>json&lt;T: <span class="lifetime">&#39;static </span>+ DeserializeOwned&gt;(
-        <span class="self">self</span>,
-        limit: usize,
-    ) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = T, Error = HttpError&gt;&gt; {
-        <span class="kw">let </span>future = <span class="self">self
-            </span>.bytes(limit)
-            .and_then(|bytes| serde_json::from_slice(<span class="kw-2">&amp;</span>bytes).map_err(HttpError::Json));
-        Box::new(future)
-    }
-
-    <span class="kw">pub fn </span>consume(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = <span class="self">Self</span>, Error = HttpError&gt;&gt; {
+    <span class="kw">pub async fn </span>consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), HttpError&gt; {
         <span class="comment">// Consume the request payload such that the underlying connection returns to a
         // &quot;clean state&quot;.
         //
@@ -305,16 +281,8 @@
         // but no testcase has been written for this and we are unsure on how to reproduce
         // outside of prod. I (markus) have not found code in reqwest that would explicitly
         // deal with this.
-        </span>Box::new(
-            <span class="comment">// Note: The reqwest codepath is impossible to write with streams due to
-            // borrowing issues. You *have* to use `chunk()`.
-            </span><span class="kw">async move </span>{
-                <span class="kw">while </span><span class="self">self</span>.<span class="number">0</span>.chunk().<span class="kw">await</span><span class="question-mark">?</span>.is_some() {}
-                <span class="prelude-val">Ok</span>(<span class="self">self</span>)
-            }
-            .boxed_local()
-            .compat(),
-        )
+        </span><span class="kw">while </span><span class="self">self</span>.<span class="number">0</span>.chunk().<span class="kw">await</span><span class="question-mark">?</span>.is_some() {}
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">pub fn </span>get_header(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
@@ -338,25 +306,27 @@
             .collect()
     }
 
-    <span class="kw">pub fn </span>bytes(<span class="self">self</span>, limit: usize) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = Vec&lt;u8&gt;, Error = HttpError&gt;&gt; {
-        Box::new(
-            <span class="self">self</span>.<span class="number">0
-                </span>.bytes_stream()
-                .map_err(HttpError::Reqwest)
-                .try_fold(
-                    Vec::with_capacity(<span class="number">8192</span>),
-                    <span class="kw">move </span>|<span class="kw-2">mut </span>body, chunk| <span class="kw">async move </span>{
-                        <span class="kw">if </span>(body.len() + chunk.len()) &gt; limit {
-                            <span class="prelude-val">Err</span>(HttpError::Overflow)
-                        } <span class="kw">else </span>{
-                            body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
-                            <span class="prelude-val">Ok</span>(body)
-                        }
-                    },
-                )
-                .boxed_local()
-                .compat(),
-        )
+    <span class="kw">pub async fn </span>bytes(<span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, HttpError&gt; {
+        <span class="kw">let </span><span class="self">Self</span>(<span class="kw-2">mut </span>request) = <span class="self">self</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>body = Vec::with_capacity(limit.min(<span class="number">8192</span>));
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = request.chunk().<span class="kw">await</span><span class="question-mark">? </span>{
+            <span class="kw">if </span>(body.len() + chunk.len()) &gt; limit {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(HttpError::Overflow);
+            }
+
+            body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
+        }
+
+        <span class="prelude-val">Ok</span>(body)
+    }
+
+    <span class="kw">pub async fn </span>json&lt;T&gt;(<span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;T, HttpError&gt;
+    <span class="kw">where
+        </span>T: <span class="lifetime">&#39;static </span>+ DeserializeOwned,
+    {
+        <span class="kw">let </span>bytes = <span class="self">self</span>.bytes(limit).<span class="kw">await</span><span class="question-mark">?</span>;
+        serde_json::from_slice(<span class="kw-2">&amp;</span>bytes).map_err(HttpError::Json)
     }
 }
 </code></pre></div>

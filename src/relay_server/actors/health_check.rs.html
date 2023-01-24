@@ -131,23 +131,13 @@
 <span id="130">130</span>
 <span id="131">131</span>
 <span id="132">132</span>
-<span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>actix::SystemService;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_metrics::AcceptsMetrics;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{
-    compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
-};
+<span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
@@ -212,7 +202,7 @@
         <span class="kw">let </span>upstream = UpstreamRelay::from_registry();
 
         <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
-            <span class="kw">let </span>fut = compat::send(upstream.clone(), IsNetworkOutage);
+            <span class="kw">let </span>fut = upstream.send(IsNetworkOutage);
             tokio::spawn(<span class="kw">async move </span>{
                 <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = fut.<span class="kw">await </span>{
                     <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
@@ -228,9 +218,7 @@
                 }
 
                 <span class="kw">if </span><span class="self">self</span>.config.requires_auth()
-                    &amp;&amp; !compat::send(upstream, IsAuthenticated)
-                        .<span class="kw">await
-                        </span>.unwrap_or(<span class="bool-val">false</span>)
+                    &amp;&amp; !upstream.send(IsAuthenticated).<span class="kw">await</span>.unwrap_or(<span class="bool-val">false</span>)
                 {
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
