@@ -3,7 +3,7 @@ use relay_general::processor::{
     FieldAttrs, Pii, ProcessingState, Processor, SelectorSpec, ValueType,
 };
 use relay_general::types::{Meta, ProcessingAction};
-use serde_json::{Error, Map, Value};
+use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
@@ -13,8 +13,6 @@ pub type ProcessingResult = Result<Value, ParseError>;
 #[derive(Debug)]
 pub enum ParseError {
     InvalidPayload(&'static str),
-    CouldNotSerialize(Error),
-    CouldNotDeserialize(Error),
     CouldNotScrub(ProcessingAction),
 }
 
@@ -22,12 +20,6 @@ impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseError::InvalidPayload(e) => write!(f, "{e}"),
-            ParseError::CouldNotSerialize(e) => {
-                write!(f, "could not serialize scrubbed output with error: {}", e)
-            }
-            ParseError::CouldNotDeserialize(e) => {
-                write!(f, "could not deserialize input data with error: {}", e)
-            }
             ParseError::CouldNotScrub(e) => {
                 write!(f, "could not scrub pii with error: {}", e)
             }
@@ -35,14 +27,14 @@ impl Display for ParseError {
     }
 }
 
-pub fn scrub_pii(rrweb_data: &[u8]) -> Result<Vec<u8>, ParseError> {
+pub fn scrub_pii(rrweb_data: Value) -> Result<Value, ParseError> {
     let mut pii_config = PiiConfig::default();
     pii_config.applications =
         BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
 
     let pii_processor = PiiProcessor::new(pii_config.compiled());
     let mut processor = RecordingProcessor::new(pii_processor);
-    processor.scrub_pii(rrweb_data)
+    processor.process_events(rrweb_data)
 }
 
 struct RecordingProcessor<'a> {
@@ -52,21 +44,6 @@ struct RecordingProcessor<'a> {
 impl RecordingProcessor<'_> {
     fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
         RecordingProcessor { pii_processor }
-    }
-
-    pub fn scrub_pii(&mut self, rrweb_data: &[u8]) -> Result<Vec<u8>, ParseError> {
-        let result: Result<Value, Error> = serde_json::from_slice(rrweb_data);
-
-        match result {
-            Ok(events) => {
-                let scrubbed_events = self.process_events(events)?;
-                match serde_json::to_vec(&scrubbed_events) {
-                    Ok(scrubbed_bytes) => Ok(scrubbed_bytes),
-                    Err(e) => Err(ParseError::CouldNotSerialize(e)),
-                }
-            }
-            Err(e) => Err(ParseError::CouldNotDeserialize(e)),
-        }
     }
 
     fn process_events(&mut self, events: Value) -> ProcessingResult {
@@ -513,14 +490,18 @@ impl RecordingProcessor<'_> {
 #[cfg(test)]
 mod tests {
     use crate::process_pii::scrub_pii;
+    use serde_json::Value;
     use std::str;
 
     #[test]
     fn test_scrub_custom_event() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
+        let payload: Value = serde_json::from_slice(payload).unwrap();
+
         let scrubbed_payload = scrub_pii(payload).unwrap();
 
-        let stringy_json = str::from_utf8(&scrubbed_payload).unwrap();
+        let scrubbed_result = serde_json::to_vec(&scrubbed_payload).unwrap();
+        let stringy_json = str::from_utf8(&scrubbed_result).unwrap();
         assert!(stringy_json.contains("\"description\":\"[creditcard]\""));
         assert!(stringy_json.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
         assert!(stringy_json.contains("\"message\":\"[email]\""));
@@ -529,18 +510,24 @@ mod tests {
     #[test]
     fn test_scrub_incremental_snapshot_event() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
+        let payload: Value = serde_json::from_slice(payload).unwrap();
+
         let scrubbed_payload = scrub_pii(payload).unwrap();
 
-        let stringy_json = str::from_utf8(&scrubbed_payload).unwrap();
+        let scrubbed_result = serde_json::to_vec(&scrubbed_payload).unwrap();
+        let stringy_json = str::from_utf8(&scrubbed_result).unwrap();
         assert!(stringy_json.contains("\"textContent\":\"[creditcard]\""));
     }
 
     #[test]
     fn test_scrub_full_snapshot_event() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-2.json");
+        let payload: Value = serde_json::from_slice(payload).unwrap();
+
         let scrubbed_payload = scrub_pii(payload).unwrap();
 
-        let stringy_json = str::from_utf8(&scrubbed_payload).unwrap();
+        let scrubbed_result = serde_json::to_vec(&scrubbed_payload).unwrap();
+        let stringy_json = str::from_utf8(&scrubbed_result).unwrap();
         assert!(stringy_json.contains("{\"attributes\":{\"src\":\"#\"}"));
         assert!(stringy_json.contains("\"textContent\":\"my ssn is ***********\""));
     }
