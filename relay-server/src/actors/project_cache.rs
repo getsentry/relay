@@ -570,7 +570,7 @@ impl ProjectCacheService {
             .flush_buckets(message.partition_key, message.buckets);
     }
 
-    async fn handle_message(&mut self, message: ProjectCache) {
+    fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
@@ -604,7 +604,7 @@ impl Service for ProjectCacheService {
 
                     Some(message) = self.state_rx.recv() => self.merge_state(message),
                     _ = ticker.tick() => self.evict_stale_project_caches(),
-                    Some(message) = rx.recv() => self.handle_message(message).await,
+                    Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
             }
