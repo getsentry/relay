@@ -172,8 +172,6 @@ impl DeviceContext {
     }
 }
 
-//"moto g31(w)"
-//"Mozilla/5.0 (Linux; Android 11; moto g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36"
 
 impl ContextFromUserAgentInfo for DeviceContext {
     fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
