@@ -103,11 +103,74 @@ impl Display for ProtocolError {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::serialize;
+    use crate::protocol::{deserialize, serialize};
     use serde_json::Value;
 
     #[test]
-    fn test_deserialization() {}
+    fn test_deserialize_compressed() {
+        // Valid compressed rrweb payload.  Contains a 16 byte header followed by a new line
+        // character and concludes with a gzipped rrweb payload.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 120,
+            156, 149, 144, 91, 106, 196, 32, 20, 64, 247, 114, 191, 237, 160, 241, 145, 234, 38,
+            102, 1, 195, 124, 152, 104, 6, 33, 169, 193, 40, 52, 4, 247, 94, 91, 103, 40, 20, 108,
+            59, 191, 247, 30, 207, 225, 122, 57, 32, 238, 171, 5, 69, 17, 24, 29, 53, 168, 3, 54,
+            159, 194, 88, 70, 4, 193, 234, 55, 23, 157, 127, 219, 64, 93, 14, 120, 7, 37, 100, 1,
+            119, 80, 29, 102, 8, 156, 1, 213, 11, 4, 209, 45, 246, 60, 77, 155, 141, 160, 94, 232,
+            43, 206, 232, 206, 118, 127, 176, 132, 177, 7, 203, 42, 75, 36, 175, 44, 231, 63, 88,
+            217, 229, 107, 174, 179, 45, 234, 101, 45, 172, 232, 49, 163, 84, 22, 191, 232, 63, 61,
+            207, 93, 130, 229, 189, 216, 53, 138, 84, 182, 139, 178, 199, 191, 22, 139, 179, 238,
+            196, 227, 244, 134, 137, 240, 158, 60, 101, 34, 255, 18, 241, 6, 116, 42, 212, 119, 35,
+            234, 27, 40, 24, 130, 213, 102, 12, 105, 25, 160, 252, 147, 222, 103, 175, 205, 215,
+            182, 45, 168, 17, 48, 118, 210, 105, 142, 229, 217, 168, 163, 189, 249, 80, 254, 19,
+            146, 59, 13, 115, 10, 144, 115, 190, 126, 0, 2, 68, 180, 16,
+        ];
+
+        let result = deserialize(payload, 9999999999);
+        assert!(!result.is_err());
+
+        let (headers, _) = result.unwrap();
+        let head: Value = serde_json::from_slice(headers).unwrap();
+        let output = serde_json::to_string(&head).unwrap();
+        assert_eq!(output, "{\"segment_id\":3}");
+    }
+
+    #[test]
+    fn test_deserialize_no_contents() {
+        let payload: &[u8] = &[];
+        let result = deserialize(payload, 100);
+        assert!(result.err().is_some());
+    }
+
+    #[test]
+    fn test_deserialize_no_headers() {
+        // No header delimiter.  Entire payload is consumed as headers.  The empty body fails.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
+        ];
+        let result = deserialize(payload, 100);
+        assert!(result.err().is_some());
+    }
+
+    #[test]
+    fn test_deserialize_no_body() {
+        // Empty bodies can not be decompressed and fail.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
+        ];
+        let result = deserialize(payload, 100);
+        assert!(result.err().is_some());
+    }
+
+    #[test]
+    fn test_deserialize_bad_body_data() {
+        // Invalid gzip body contents.  Can not deflate.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
+        ];
+        let result = deserialize(payload, 100);
+        assert!(&result.err().is_some());
+    }
 
     #[test]
     fn test_serialization() {
