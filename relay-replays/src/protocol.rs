@@ -91,9 +91,19 @@ impl Display for ProtocolError {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocol::{deserialize, serialize};
+    use serde_json::Value;
+
     #[test]
     fn test_deserialization() {}
 
     #[test]
-    fn test_serialization() {}
+    fn test_serialization() {
+        assert_eq!(
+            serialize(&[11], Value::String("t".to_string()))
+                .unwrap()
+                .as_slice(),
+            &[11, 10, 120, 156, 83, 42, 81, 2, 0, 1, 115, 0, 185]
+        );
+    }
 }
