@@ -319,8 +319,13 @@ impl Processor for TransactionsProcessor<'_> {
             event.transaction_info.value_mut(),
         )?;
 
-        // Normalize transaction names for URLs transaction sources only.
-        if event.get_transaction_source() == &TransactionSource::Url && self.normalize_names {
+        // Normalize transaction names for URLs and Sanitized transaction sources.
+        // This in addition to renaming rules can catch some high cardinality parts.
+        if matches!(
+            event.get_transaction_source(),
+            &TransactionSource::Url | &TransactionSource::Sanitized
+        ) && self.normalize_names
+        {
             normalize_transaction_name(&mut event.transaction)?;
         }
 
