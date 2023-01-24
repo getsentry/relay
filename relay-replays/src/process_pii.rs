@@ -470,12 +470,12 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn remove_pii_from_string(&mut self, string: &String) -> Result<String, ProcessingAction> {
+    fn remove_pii_from_string(&mut self, string: &str) -> Result<String, ProcessingAction> {
         let field_attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
         let processing_state =
             ProcessingState::root().enter_static("", Some(field_attrs), Some(ValueType::String));
 
-        let mut new_string = string.clone();
+        let mut new_string = string.to_owned();
 
         self.pii_processor.process_string(
             &mut new_string,
