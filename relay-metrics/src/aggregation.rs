@@ -2036,7 +2036,7 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct TestReceiver {
-        // TODO: Better way to communicate with Actor after it's started?
+        // TODO: Better way to communicate with service after it's started?
         // Messages, maybe?
         data: Arc<RwLock<ReceivedData>>,
         reject_all: bool,

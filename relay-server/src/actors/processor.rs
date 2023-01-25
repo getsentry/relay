@@ -407,7 +407,7 @@ pub struct ProcessMetrics {
 
 /// Applies HTTP content encoding to an envelope's payload.
 ///
-/// This message is a workaround for a single-threaded upstream actor.
+/// This message is a workaround for a single-threaded upstream service.
 #[derive(Debug)]
 pub struct EncodeEnvelope {
     request: SendEnvelope,
@@ -2577,8 +2577,11 @@ mod tests {
         let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
 
         // it really shouldn't be necessary to start an entire service for a unit test
-        // it was ported from a python integration test
+        // it was ported from a python integration test. Instead, we should inject dependencies
+        let runtime = crate::service::create_runtime("test-rt", 1);
+        let _guard = runtime.enter();
         ServiceState::start(arconfig).unwrap();
+
         let service = create_test_processor(config);
         let envelope = new_envelope(false, "foo");
 
@@ -2748,8 +2751,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
+    #[ignore = "The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr's hence this did
+                not fail."]
     fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
@@ -2791,8 +2795,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
+    #[ignore = "The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr's hence this did
+                not fail."]
     fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
@@ -2883,8 +2888,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
+    #[ignore = "The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr's hence this did
+                not fail."]
     fn test_client_report_removal() {
         relay_test::setup();
 
