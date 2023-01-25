@@ -1174,6 +1174,8 @@ impl EnvelopeProcessorService {
                 .map_err(relay_replays::ReplayError::ProtocolError)?
         });
 
+        metric!(histogram(RelayHistograms::ReplayDecompressedSize) = output.len() as u64);
+
         let output_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
             relay_replays::protocol::compress(output)
                 .map_err(relay_replays::ReplayError::ProtocolError)?
