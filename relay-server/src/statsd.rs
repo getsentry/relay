@@ -134,6 +134,12 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Replay histograms.
+    ReplayOriginalCompressedSize,
+    ReplayOriginalDecompressedSize,
+    ReplayCompressedSize,
+    ReplayDecompressedSize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -160,6 +166,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::ReplayOriginalCompressedSize => "replay.original_compressed_size",
+            RelayHistograms::ReplayOriginalDecompressedSize => "replay.original_decompressed_size",
+            RelayHistograms::ReplayCompressedSize => "replay.compressed_size",
+            RelayHistograms::ReplayDecompressedSize => "replay.decompressed_size",
         }
     }
 }
@@ -301,6 +311,11 @@ pub enum RelayTimers {
 
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    ReplayRecordingDecompress,
+    ReplayRecordingDeserialize,
+    ReplayRecordingScrubPII,
+    ReplayRecordingCompress,
+    ReplayRecordingSerialize,
 }
 
 impl TimerMetric for RelayTimers {
@@ -332,6 +347,11 @@ impl TimerMetric for RelayTimers {
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::ReplayRecordingDecompress => "replay.recording.decompress",
+            RelayTimers::ReplayRecordingDeserialize => "replay.recording.deserialize",
+            RelayTimers::ReplayRecordingScrubPII => "replay.recording.scrub_pii",
+            RelayTimers::ReplayRecordingCompress => "replay.recording.compress",
+            RelayTimers::ReplayRecordingSerialize => "replay.recording.serialize",
         }
     }
 }

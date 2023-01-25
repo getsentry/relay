@@ -33,7 +33,7 @@ pub fn serialize(headers: &[u8], body: Value) -> Result<Vec<u8>, ProtocolError> 
     Ok([headers.into(), vec![b'\n'], output_bytes].concat())
 }
 
-fn compress(output: Vec<u8>) -> Result<Vec<u8>, ProtocolError> {
+pub fn compress(output: Vec<u8>) -> Result<Vec<u8>, ProtocolError> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
         .write_all(&output)
@@ -41,7 +41,7 @@ fn compress(output: Vec<u8>) -> Result<Vec<u8>, ProtocolError> {
     encoder.finish().map_err(ProtocolError::EncodingError)
 }
 
-fn decompress(zipped_bytes: &[u8], limit: usize) -> Result<Vec<u8>, ProtocolError> {
+pub fn decompress(zipped_bytes: &[u8], limit: usize) -> Result<Vec<u8>, ProtocolError> {
     let mut buffer = Vec::new();
 
     let decoder = ZlibDecoder::new(zipped_bytes);
@@ -53,7 +53,7 @@ fn decompress(zipped_bytes: &[u8], limit: usize) -> Result<Vec<u8>, ProtocolErro
     Ok(buffer)
 }
 
-fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
+pub fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
     match bytes.is_empty() {
         true => Err(ProtocolError::MissingData),
         false => {

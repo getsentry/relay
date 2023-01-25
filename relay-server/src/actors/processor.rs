@@ -46,7 +46,7 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -1103,7 +1103,7 @@ impl EnvelopeProcessorService {
                     let limit = self.config.max_replay_size();
                     let parsed_recording =
                         metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::scrub_recording_pii(&item.payload(), limit)
+                            self.process_recording_timed(&item.payload(), limit)
                         });
 
                     match parsed_recording {
@@ -1131,6 +1131,57 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
+    }
+
+    fn process_recording_timed(
+        &self,
+        bytes: &[u8],
+        limit: usize,
+    ) -> Result<Vec<u8>, relay_replays::ReplayError> {
+        let (headers, body) = relay_replays::protocol::read(bytes)
+            .map_err(relay_replays::ReplayError::ProtocolError)?;
+
+        metric!(histogram(RelayHistograms::ReplayOriginalCompressedSize) = body.len() as u64);
+
+        let decompress_result = metric!(timer(RelayTimers::ReplayRecordingDecompress), {
+            relay_replays::protocol::decompress(body, limit)
+        });
+
+        let val = if let Ok(buf) = decompress_result {
+            metric!(histogram(RelayHistograms::ReplayOriginalDecompressedSize) = buf.len() as u64);
+
+            metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
+                serde_json::from_slice(&buf)
+                    .map_err(relay_replays::protocol::ProtocolError::InvalidBody)
+                    .map_err(relay_replays::ReplayError::ProtocolError)?
+            })
+        } else {
+            metric!(timer(RelayTimers::ReplayRecordingDeserialize), {
+                serde_json::from_slice(body)
+                    .map_err(relay_replays::protocol::ProtocolError::InvalidBody)
+                    .map_err(relay_replays::ReplayError::ProtocolError)?
+            })
+        };
+
+        let scrubbed_body = metric!(timer(RelayTimers::ReplayRecordingScrubPII), {
+            relay_replays::processor::scrub_pii(val)
+                .map_err(relay_replays::ReplayError::ProcessorError)?
+        });
+
+        let output = metric!(timer(RelayTimers::ReplayRecordingSerialize), {
+            serde_json::to_vec(&scrubbed_body)
+                .map_err(relay_replays::protocol::ProtocolError::InvalidBody)
+                .map_err(relay_replays::ReplayError::ProtocolError)?
+        });
+
+        let output_bytes = metric!(timer(RelayTimers::ReplayRecordingCompress), {
+            relay_replays::protocol::compress(output)
+                .map_err(relay_replays::ReplayError::ProtocolError)?
+        });
+
+        metric!(histogram(RelayHistograms::ReplayCompressedSize) = output_bytes.len() as u64);
+
+        Ok([headers.into(), vec![b'\n'], output_bytes].concat())
     }
 
     /// Validates, normalizes, and scrubs PII from a replay event.
