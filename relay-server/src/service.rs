@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use futures01::Future;
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
+use tokio::runtime::Runtime;
 
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
@@ -30,7 +31,6 @@ use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
 use crate::utils::BufferGuard;
-use crate::{endpoints, utils};
 
 pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
@@ -105,25 +105,35 @@ impl fmt::Debug for Registry {
     }
 }
 
+/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
+pub fn create_runtime(name: &str, threads: usize) -> Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .thread_name(name)
+        .worker_threads(threads)
+        .enable_all()
+        .build()
+        .unwrap()
+}
+
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    _aggregator_runtime: Arc<tokio::runtime::Runtime>,
-    _outcome_runtime: Arc<tokio::runtime::Runtime>,
-    _project_runtime: Arc<tokio::runtime::Runtime>,
-    _upstream_runtime: Arc<tokio::runtime::Runtime>,
-    _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
+    _aggregator_runtime: Arc<Runtime>,
+    _outcome_runtime: Arc<Runtime>,
+    _project_runtime: Arc<Runtime>,
+    _upstream_runtime: Arc<Runtime>,
+    _store_runtime: Option<Arc<Runtime>>,
 }
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub fn start(config: Arc<Config>) -> Result<Self> {
-        let upstream_runtime = utils::create_runtime("upstream-rt", 1);
-        let project_runtime = utils::create_runtime("project-rt", 1);
-        let aggregator_runtime = utils::create_runtime("aggregator-rt", 1);
-        let outcome_runtime = utils::create_runtime("outcome-rt", 1);
+        let upstream_runtime = create_runtime("upstream-rt", 1);
+        let project_runtime = create_runtime("project-rt", 1);
+        let aggregator_runtime = create_runtime("aggregator-rt", 1);
+        let outcome_runtime = create_runtime("outcome-rt", 1);
         let mut _store_runtime = None;
 
         let guard = upstream_runtime.enter();
@@ -149,7 +159,7 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
-            let rt = utils::create_runtime("store-rt", 1);
+            let rt = create_runtime("store-rt", 1);
             let _guard = rt.enter();
             let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);
@@ -230,7 +240,7 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers)
         .middleware(ReadRequestMiddleware)
-        .configure(endpoints::configure_app)
+        .configure(crate::endpoints::configure_app)
 }
 
 fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)

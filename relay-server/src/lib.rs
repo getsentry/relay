@@ -285,7 +285,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // `actors` module documentation for more information on all actors.
 
     // Spawn the main tokio runtime here since the controller cannot access the config.
-    let main_runtime = utils::create_runtime("main-rt", config.cpu_concurrency());
+    let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let _guard = main_runtime.enter();
 
     let shutdown_timeout = config.shutdown_timeout();
