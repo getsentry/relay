@@ -1,7 +1,7 @@
 use crate::protocol::{FromUserAgentInfo, LenientString};
 use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
-use crate::user_agent::{parse_os, RawUserAgentInfo};
+use crate::user_agent::{parse_os, ClientHints};
 
 /// Operating system information.
 ///
@@ -50,9 +50,9 @@ impl OsContext {
 }
 
 impl FromUserAgentInfo for OsContext {
-    fn from_client_hints(contexts: &RawUserAgentInfo) -> Option<Self> {
-        let platform = contexts.client_hints.sec_ch_ua_platform?;
-        let version = contexts.client_hints.sec_ch_ua_platform_version?;
+    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+        let platform = client_hints.sec_ch_ua_platform?;
+        let version = client_hints.sec_ch_ua_platform_version?;
 
         Some(Self {
             name: Annotated::new(platform.to_owned()),
@@ -80,6 +80,7 @@ impl FromUserAgentInfo for OsContext {
 mod tests {
     use super::*;
     use crate::protocol::{Headers, PairList};
+    use crate::user_agent::RawUserAgentInfo;
 
     #[test]
     fn test_choose_client_hints_for_os_context() {

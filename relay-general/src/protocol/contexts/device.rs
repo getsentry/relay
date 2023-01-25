@@ -1,7 +1,7 @@
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
-use crate::user_agent::{parse_device, RawUserAgentInfo};
+use crate::user_agent::{parse_device, ClientHints};
 
 /// Device information.
 ///
@@ -173,8 +173,8 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        let device = raw_contexts.client_hints.sec_ch_ua_model?.to_owned();
+    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+        let device = client_hints.sec_ch_ua_model?.to_owned();
         Some(Self {
             family: Annotated::new(device),
             ..Default::default()

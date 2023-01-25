@@ -1,7 +1,7 @@
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
-use crate::user_agent::{parse_user_agent, RawUserAgentInfo};
+use crate::user_agent::{parse_user_agent, ClientHints};
 
 /// Web browser information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -26,9 +26,9 @@ impl BrowserContext {
 }
 
 impl FromUserAgentInfo for BrowserContext {
-    fn from_client_hints(raw_contexts: &RawUserAgentInfo) -> Option<Self> {
-        let browser = parse_client_hint_browser(raw_contexts.client_hints.sec_ch_ua?)?;
-        let version = raw_contexts.client_hints.sec_ch_ua_full_version?.to_owned();
+    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+        let browser = parse_client_hint_browser(client_hints.sec_ch_ua?)?;
+        let version = client_hints.sec_ch_ua_full_version?.to_owned();
 
         Some(Self {
             name: Annotated::new(browser.to_string()),
@@ -132,6 +132,7 @@ fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
 mod tests {
     use super::*;
     use crate::protocol::{Headers, PairList};
+    use crate::user_agent::RawUserAgentInfo;
 
     #[test]
     fn test_client_hint_parser() {
