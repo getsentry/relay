@@ -38,12 +38,7 @@
 <span id="37">37</span>
 <span id="38">38</span>
 <span id="39">39</span>
-<span id="40">40</span>
-<span id="41">41</span>
-<span id="42">42</span>
-<span id="43">43</span>
-</pre><pre class="rust"><code><span class="kw">mod </span>actix;
-<span class="kw">mod </span>api;
+</pre><pre class="rust"><code><span class="kw">mod </span>api;
 <span class="kw">mod </span>buffer;
 <span class="kw">mod </span>dynamic_sampling;
 <span class="kw">mod </span>envelope_context;
@@ -57,14 +52,12 @@
 <span class="kw">mod </span>semaphore;
 <span class="kw">mod </span>sizes;
 <span class="kw">mod </span>sleep_handle;
-<span class="kw">mod </span>tracked_future;
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">mod </span>native;
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">mod </span>unreal;
 
-<span class="kw">pub use </span><span class="self">self</span>::actix::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::api::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::buffer::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::dynamic_sampling::<span class="kw-2">*</span>;
@@ -79,7 +72,6 @@
 <span class="kw">pub use </span><span class="self">self</span>::semaphore::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sizes::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sleep_handle::<span class="kw-2">*</span>;
-<span class="kw">pub use </span><span class="self">self</span>::tracked_future::<span class="kw-2">*</span>;
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">pub use </span><span class="self">self</span>::native::<span class="kw-2">*</span>;

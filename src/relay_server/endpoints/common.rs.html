@@ -642,7 +642,7 @@
                     .json(<span class="kw-2">&amp;</span>body)
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(<span class="kw">_</span>) =&gt; {
-                <span class="comment">// These errors indicate that something&#39;s wrong with our actor system, most likely
+                <span class="comment">// These errors indicate that something&#39;s wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
                 </span>HttpResponse::ServiceUnavailable().json(<span class="kw-2">&amp;</span>body)

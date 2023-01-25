@@ -298,12 +298,6 @@
 <span id="297">297</span>
 <span id="298">298</span>
 <span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -590,21 +584,15 @@
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.
 
-    // Create the old tokio 0.x runtime. It&#39;s required for old actix System to exist by `create_runtime` utiliy.
-    //
-    // TODO(actix): this can be removed once all the actors are on the new tokio. It looks like
-    // that this mostly needed for Upstream actor right now. ANd
-    </span><span class="kw">let </span>sys = actix::System::new(<span class="string">&quot;relay&quot;</span>);
-    <span class="comment">// We also need new tokio 1.x runtime. This cannot be created in the [`relay_system::Controller`] since
-    // it cannot access the `create_runtime` utilily function from there. This can be changed once
-    // the [`actix::System`] is removed.
-    </span><span class="kw">let </span>runtime = utils::create_runtime(<span class="string">&quot;http-server-handler&quot;</span>, <span class="number">1</span>);
-    <span class="kw">let </span>shutdown_timeout = config.shutdown_timeout();
+    // Spawn the main tokio runtime here since the controller cannot access the config.
+    </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
+    <span class="kw">let </span>_guard = main_runtime.enter();
 
-    Controller::run(runtime.handle(), sys, || ServerService::start(config))<span class="question-mark">?</span>;
+    <span class="kw">let </span>shutdown_timeout = config.shutdown_timeout();
+    Controller::run(|| ServerService::start(config))<span class="question-mark">?</span>;
 
     <span class="comment">// Properly shutdown the new tokio runtime.
-    </span>runtime.shutdown_timeout(shutdown_timeout);
+    </span>main_runtime.shutdown_timeout(shutdown_timeout);
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
 
     <span class="prelude-val">Ok</span>(())

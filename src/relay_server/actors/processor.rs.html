@@ -3165,6 +3165,12 @@
 <span id="3164">3164</span>
 <span id="3165">3165</span>
 <span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -3574,7 +3580,7 @@
 
 <span class="doccomment">/// Applies HTTP content encoding to an envelope&#39;s payload.
 ///
-/// This message is a workaround for a single-threaded upstream actor.
+/// This message is a workaround for a single-threaded upstream service.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EncodeEnvelope {
     request: SendEnvelope,
@@ -5744,8 +5750,11 @@
         <span class="kw">let </span>arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
 
         <span class="comment">// it really shouldn&#39;t be necessary to start an entire service for a unit test
-        // it was ported from a python integration test
-        </span>ServiceState::start(arconfig).unwrap();
+        // it was ported from a python integration test. Instead, we should inject dependencies
+        </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;test-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>_guard = runtime.enter();
+        ServiceState::start(arconfig).unwrap();
+
         <span class="kw">let </span>service = create_test_processor(config);
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>);
 
@@ -5915,8 +5924,9 @@
     }
 
     <span class="attribute">#[test]
-    #[ignore = <span class="string">&quot;The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr&#39;s hence this did not fail.&quot;</span>]
+    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
+                not fail.&quot;</span>]
     </span><span class="kw">fn </span>test_user_report_invalid() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>event_id = protocol::EventId::new();
@@ -5958,8 +5968,9 @@
     }
 
     <span class="attribute">#[test]
-    #[ignore = <span class="string">&quot;The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr&#39;s hence this did not fail.&quot;</span>]
+    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
+                not fail.&quot;</span>]
     </span><span class="kw">fn </span>test_browser_version_extraction_with_pii_like_data() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>event_id = protocol::EventId::new();
@@ -6050,8 +6061,9 @@
     }
 
     <span class="attribute">#[test]
-    #[ignore = <span class="string">&quot;The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr&#39;s hence this did not fail.&quot;</span>]
+    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
+                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
+                not fail.&quot;</span>]
     </span><span class="kw">fn </span>test_client_report_removal() {
         relay_test::setup();
 

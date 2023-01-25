@@ -10,7 +10,7 @@ instead they are defined by Sentry. Over time, there will be more namespaces as 
 new metrics-based products.</p>
 <p>Right now this successfully deserializes any kind of string, but in reality only <code>&quot;sessions&quot;</code>
 (for release health) and <code>&quot;transactions&quot;</code> (for metrics-enhanced performance) is supported.
-Everything else is dropped both in the metrics aggregator and in the store actor.</p>
+Everything else is dropped both in the metrics aggregator and in the store service.</p>
 </div></details><h2 id="variants" class="variants small-section-header">Variants<a href="#variants" class="anchor"></a></h2><h3 id="variant.Sessions" class="variant small-section-header"><a href="#variant.Sessions" class="anchor field"></a><code>Sessions</code></h3><div class="docblock"><p>Metrics extracted from sessions.</p>
 </div><h3 id="variant.Transactions" class="variant small-section-header"><a href="#variant.Transactions" class="anchor field"></a><code>Transactions</code></h3><div class="docblock"><p>Metrics extracted from transaction events.</p>
 </div><h3 id="variant.Unsupported" class="variant small-section-header"><a href="#variant.Unsupported" class="anchor field"></a><code>Unsupported</code></h3><div class="docblock"><p>Metrics that relay either doesn’t know or recognize the namespace of, will be dropped before

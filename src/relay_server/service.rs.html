@@ -374,6 +374,11 @@
 <span id="373">373</span>
 <span id="374">374</span>
 <span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -384,6 +389,7 @@
 <span class="kw">use </span>futures01::Future;
 <span class="kw">use </span>listenfd::ListenFd;
 <span class="kw">use </span>once_cell::race::OnceBox;
+<span class="kw">use </span>tokio::runtime::Runtime;
 
 <span class="kw">use </span>relay_aws_extension::AwsExtension;
 <span class="kw">use </span>relay_config::Config;
@@ -406,7 +412,6 @@
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
 <span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
-<span class="kw">use crate</span>::{endpoints, utils};
 
 <span class="kw">pub static </span>REGISTRY: OnceBox&lt;Registry&gt; = OnceBox::new();
 
@@ -481,27 +486,35 @@
     }
 }
 
+<span class="doccomment">/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
+</span><span class="kw">pub fn </span>create_runtime(name: <span class="kw-2">&amp;</span>str, threads: usize) -&gt; Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .thread_name(name)
+        .worker_threads(threads)
+        .enable_all()
+        .build()
+        .unwrap()
+}
+
 <span class="doccomment">/// Server state.
 </span><span class="attribute">#[derive(Clone)]
 </span><span class="kw">pub struct </span>ServiceState {
     config: Arc&lt;Config&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
-    _aggregator_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
-    _outcome_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
-    _main_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
-    _project_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
-    _upstream_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
-    _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;tokio::runtime::Runtime&gt;&gt;,
+    _aggregator_runtime: Arc&lt;Runtime&gt;,
+    _outcome_runtime: Arc&lt;Runtime&gt;,
+    _project_runtime: Arc&lt;Runtime&gt;,
+    _upstream_runtime: Arc&lt;Runtime&gt;,
+    _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;Runtime&gt;&gt;,
 }
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
     </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>main_runtime = utils::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
-        <span class="kw">let </span>upstream_runtime = utils::create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>project_runtime = utils::create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>upstream_runtime = create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>project_runtime = create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>aggregator_runtime = create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>outcome_runtime = create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>guard = upstream_runtime.enter();
@@ -520,8 +533,6 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let </span>_guard = main_runtime.enter();
-
         <span class="kw">let </span>buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         <span class="kw">let </span>processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())<span class="question-mark">?</span>.start();
         <span class="attribute">#[allow(unused_mut)]
@@ -529,7 +540,7 @@
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">if </span>config.processing_enabled() {
-            <span class="kw">let </span>rt = utils::create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
+            <span class="kw">let </span>rt = create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
             <span class="kw">let </span>_guard = rt.enter();
             <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start();
             envelope_manager.set_store_forwarder(store);
@@ -580,7 +591,6 @@
             config,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
-            _main_runtime: Arc::new(main_runtime),
             _project_runtime: Arc::new(project_runtime),
             _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
@@ -611,7 +621,7 @@
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers)
         .middleware(ReadRequestMiddleware)
-        .configure(endpoints::configure_app)
+        .configure(<span class="kw">crate</span>::endpoints::configure_app)
 }
 
 <span class="kw">fn </span>dump_listen_infos&lt;H, F&gt;(server: <span class="kw-2">&amp;</span>server::HttpServer&lt;H, F&gt;)

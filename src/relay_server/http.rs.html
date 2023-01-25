@@ -203,7 +203,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Io(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
             <span class="comment">// note: status codes are not handled here because we never call error_for_status. This
-            // logic is part of upstream actor.
+            // logic is part of upstream service.
             </span><span class="self">Self</span>::Reqwest(error) =&gt; error.is_timeout(),
             <span class="self">Self</span>::Json(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
             HttpError::Overflow =&gt; <span class="bool-val">false</span>,

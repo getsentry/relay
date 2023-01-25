@@ -2347,7 +2347,7 @@
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it&#39;s a noop, since if backoff is active
         //   we should never fetch
-        // * without backoff it would just panic, not able to call the ProjectCache actor
+        // * without backoff it would just panic, not able to call the ProjectCache service
         </span><span class="kw">let </span>channel = StateChannel::new();
         project.state_channel = <span class="prelude-val">Some</span>(channel);
         project.update_state(Arc::new(ProjectState::err()), <span class="bool-val">false</span>);

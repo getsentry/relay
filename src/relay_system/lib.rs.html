@@ -21,12 +21,11 @@
 <span id="20">20</span>
 <span id="21">21</span>
 <span id="22">22</span>
-<span id="23">23</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Foundational system components for Relay&#39;s services.
 //!
-//! Actors require an actix system to run. The system can be started using the [`Controller`] actor,
-//! which will also listen for shutdown signals and trigger a graceful shutdown. Note that actors
-//! must implement a handler for the [`Shutdown`] message and register with the controller to
+//! Services require a tokio system to run. The system can be started using the [`Controller`]
+//! service, which will also listen for shutdown signals and trigger a graceful shutdown. Note that
+//! actors must implement a handler for the [`Shutdown`] message and register with the controller to
 //! receive this signal. See the struct level documentation for more information.
 //!
 //! See the [`Controller`] struct for more information.
@@ -38,8 +37,7 @@
 </span>)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-</span><span class="kw">pub mod </span>compat;
-<span class="kw">mod </span>controller;
+</span><span class="kw">mod </span>controller;
 <span class="kw">mod </span>service;
 <span class="kw">mod </span>statsd;
 
