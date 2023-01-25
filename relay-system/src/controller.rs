@@ -46,8 +46,8 @@ impl ShutdownHandle {
 /// It starts with default configuration. To change this configuration, send the [`Configure`]
 /// message.
 ///
-/// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a
-/// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
+/// To shut down more gracefully, other actors can register with [`Controller::shutdown_handle`].
+/// When a shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
 /// optional timeout. They can respond with a future, after which they will be stopped. Once all
 /// registered actors have stopped successfully, the entire system will stop.
 ///
