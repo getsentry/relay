@@ -63,23 +63,31 @@ enum Browser {
     Other(String),
 }
 
-impl Browser {
-    fn as_str(&self) -> &str {
-        match self {
-            Self::Chrome => "chrome",
-            Self::Edge => "edge",
-            Self::Firefox => "firefox",
-            Self::Safari => "safari",
-            Self::Brave => "brave",
-            Self::Opera => "opera",
-            Self::Other(s) => s,
+impl std::convert::From<String> for Browser {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Google Chrome" => Browser::Chrome,
+            "Microsoft Edge" => Browser::Edge,
+            "Firefox" => Browser::Firefox,
+            "Safari" => Browser::Safari,
+            "Brave" => Browser::Brave,
+            "Opera" => Browser::Opera,
+            _ => Browser::Other(s.to_string()),
         }
     }
 }
 
 impl std::string::ToString for Browser {
     fn to_string(&self) -> String {
-        self.as_str().to_owned()
+        match self {
+            Browser::Chrome => "Google Chrome".to_string(),
+            Browser::Edge => "Microsoft Edge".to_string(),
+            Browser::Firefox => "Firefox".to_string(),
+            Browser::Safari => "Safari".to_string(),
+            Browser::Brave => "Brave".to_string(),
+            Browser::Opera => "Opera".to_string(),
+            Browser::Other(s) => s.clone(),
+        }
     }
 }
 
@@ -91,39 +99,25 @@ impl std::string::ToString for Browser {
 ///
 /// returns None if no browser field detected
 fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
-    for item in s.into().split(',').map(|s| s.to_lowercase()) {
+    for item in s.into().split(',') {
         // if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.
-        if item.contains("brand")
-            || item.contains("chromium")
-            || item.contains("gecko") // useless until firefox and safari support client hints
-            || item.contains("webkit")
+        if item.contains("Brand")
+            || item.contains("Chromium")
+            || item.contains("Gecko") // useless until firefox and safari support client hints
+            || item.contains("Webkit")
         {
             continue;
         }
 
-        if item.contains(Browser::Chrome.as_str()) {
-            return Some(Browser::Chrome);
-        } else if item.contains(Browser::Opera.as_str()) {
-            return Some(Browser::Opera);
-        } else if item.contains(Browser::Edge.as_str()) {
-            return Some(Browser::Edge);
-        } else if item.contains(Browser::Firefox.as_str()) {
-            return Some(Browser::Firefox);
-        } else if item.contains(Browser::Safari.as_str()) {
-            return Some(Browser::Safari);
-        } else if item.contains(Browser::Brave.as_str()) {
-            return Some(Browser::Brave);
-        } else {
-            // "\"foo-browser\";v=\"109\"" -> "foo-browser"
-            let cleaned: String = item
-                .split(';')
-                .take(1)
-                .map(|s| s.trim().to_owned().replace('\"', ""))
-                .collect();
+        // "\"foo-browser\";v=\"109\"" -> "foo-browser"
+        let browser: String = item
+            .split(';')
+            .take(1)
+            .map(|s| s.trim().to_owned().replace('\"', ""))
+            .collect();
 
-            return Some(Browser::Other(cleaned));
-        }
+        return Some(Browser::from(browser));
     }
     None
 }
@@ -187,7 +181,7 @@ mod tests {
         );
 
         assert_eq!(
-            Browser::Chrome.as_str(),
+            Browser::Chrome.to_string(),
             browser.unwrap().name.as_str().unwrap()
         );
     }
