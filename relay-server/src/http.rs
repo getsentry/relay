@@ -37,7 +37,7 @@ impl HttpError {
         match self {
             Self::Io(_) => true,
             // note: status codes are not handled here because we never call error_for_status. This
-            // logic is part of upstream actor.
+            // logic is part of upstream service.
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
