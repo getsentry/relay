@@ -251,8 +251,10 @@ impl RecordingProcessor<'_> {
             Value::Array(adds_values) => {
                 let new_adds_values = Value::Array(
                     adds_values
-                        .into_iter()
-                        .map(|child| self.process_incremental_snapshot_event_dom_add(child))
+                        .iter()
+                        .map(|child| {
+                            self.process_incremental_snapshot_event_dom_add(child.to_owned())
+                        })
                         .collect::<Result<Vec<Value>, ProcessorError>>()?,
                 );
                 Ok(new_adds_values)
@@ -360,7 +362,7 @@ impl RecordingProcessor<'_> {
                 Value::Array(children) => {
                     let new_children = Value::Array(
                         children
-                            .into_iter()
+                            .iter()
                             .map(|child| self.process_snapshot_node(child.to_owned()))
                             .collect::<Result<Vec<Value>, ProcessorError>>()?,
                     );
