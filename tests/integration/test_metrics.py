@@ -161,6 +161,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     assert metrics["c:transactions/foo@none"] == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 42.0,
         "type": "c",
@@ -170,6 +171,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     assert metrics["c:transactions/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/bar@second",
         "value": 17.0,
         "type": "c",
@@ -226,6 +228,7 @@ def test_metrics_with_sharded_kafka(
     assert metrics2["c:transactions/foo@none"] == {
         "org_id": 5,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 42.0,
         "type": "c",
@@ -235,6 +238,7 @@ def test_metrics_with_sharded_kafka(
     assert metrics2["c:transactions/bar@second"] == {
         "org_id": 5,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/bar@second",
         "value": 17.0,
         "type": "c",
@@ -272,6 +276,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 15.0,
         "type": "c",
@@ -470,6 +475,7 @@ def test_session_metrics_processing(
     assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "timestamp": expected_timestamp,
         "name": "c:sessions/session@none",
         "type": "c",
@@ -485,6 +491,7 @@ def test_session_metrics_processing(
     assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "timestamp": expected_timestamp,
         "name": "s:sessions/user@none",
         "type": "s",
@@ -613,6 +620,7 @@ def test_transaction_metrics(
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "tags": {
             "transaction": "/organizations/:orgId/performance/:eventSlug/",
             "platform": "other",

@@ -600,12 +600,14 @@ def test_rate_limit_metrics_buckets(
             "name": "d:sessions/duration@second",
             "org_id": 1,
             "project_id": 42,
+            "retention_days": 90,
             "type": "d",
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
             "name": "d:sessions/session@none",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "c",
             "value": 1.0,
@@ -613,6 +615,7 @@ def test_rate_limit_metrics_buckets(
         {
             "name": "d:sessions/session@user",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "s",
             "value": [1254],
@@ -620,6 +623,7 @@ def test_rate_limit_metrics_buckets(
         {
             "name": "d:transactions/duration@millisecond",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "d",
             "value": [1.0, 2.0, 3.0],
@@ -627,6 +631,7 @@ def test_rate_limit_metrics_buckets(
         {
             "name": "d:transactions/duration@millisecond",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "d",
             "value": violating_bucket,
@@ -634,6 +639,7 @@ def test_rate_limit_metrics_buckets(
         {
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "d",
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -641,6 +647,7 @@ def test_rate_limit_metrics_buckets(
         {
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
+            "retention_days": 90,
             "project_id": 42,
             "type": "d",
             "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
