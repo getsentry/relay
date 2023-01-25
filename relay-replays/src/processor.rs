@@ -50,8 +50,8 @@ impl RecordingProcessor<'_> {
         match events {
             Value::Array(values) => Ok(Value::Array(
                 values
-                    .into_iter()
-                    .map(|event| self.process_event(event))
+                    .iter()
+                    .map(|event| self.process_event(event.to_owned()))
                     .collect::<Result<Vec<Value>, ProcessorError>>()?,
             )),
             _ => Err(ProcessorError::InvalidPayload("expected vec of events")),
@@ -79,7 +79,7 @@ impl RecordingProcessor<'_> {
                         Some(2) => self.process_snapshot_event(event),
                         Some(3) => self.process_incremental_snapshot_event(event),
                         Some(5) => self.process_sentry_event(event),
-                        _ => Ok(v.to_owned()),
+                        _ => Ok(event),
                     },
                     _ => Err(ProcessorError::InvalidPayload(
                         "event type must be a number",
