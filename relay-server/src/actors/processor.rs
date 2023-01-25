@@ -2577,8 +2577,11 @@ mod tests {
         let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
 
         // it really shouldn't be necessary to start an entire service for a unit test
-        // it was ported from a python integration test
+        // it was ported from a python integration test. Instead, we should inject dependencies
+        let runtime = crate::service::create_runtime("test-rt", 1);
+        let _guard = runtime.enter();
         ServiceState::start(arconfig).unwrap();
+
         let service = create_test_processor(config);
         let envelope = new_envelope(false, "foo");
 
