@@ -58,6 +58,19 @@ impl RecordingProcessor<'_> {
         }
     }
 
+    /// Event Type Parser
+    ///
+    /// Events have an internally tagged variant on their "type" field. The type must be one of
+    /// seven values. For our purposes we only care about full snapshots, incremental snapshots,
+    /// and custom events.
+    ///
+    /// -> DOMCONTENTLOADED = 0
+    /// -> LOAD = 1
+    /// -> FULLSNAPSHOT = 2
+    /// -> INCREMENTALSNAPSHOT = 3
+    /// -> META = 4
+    /// -> CUSTOM = 5
+    /// -> PLUGIN = 6
     fn process_event(&mut self, event: Value) -> ProcessingResult {
         match &event {
             Value::Object(obj) => match obj.get("type") {
@@ -137,6 +150,25 @@ impl RecordingProcessor<'_> {
         }
     }
 
+    /// Incremental Source Parser
+    ///
+    /// Sources have an internally tagged variant on their "source" field. The only types which
+    /// are known to contain PII are type 0 and 5. All other types can be ignored.
+    ///
+    /// -> MUTATION = 0
+    /// -> MOUSEMOVE = 1
+    /// -> MOUSEINTERACTION = 2
+    /// -> SCROLL = 3
+    /// -> VIEWPORTRESIZE = 4
+    /// -> INPUT = 5
+    /// -> TOUCHMOVE = 6
+    /// -> MEDIAINTERACTION = 7
+    /// -> STYLESHEETRULE = 8
+    /// -> CANVASMUTATION = 9
+    /// -> FONT = 10
+    /// -> LOG = 11
+    /// -> DRAG = 12
+    /// -> STYLEDECLARATION = 13
     fn process_incremental_snapshot_event_data(&mut self, event: Value) -> ProcessingResult {
         match event {
             Value::Object(mut obj) => match obj.get("source") {
@@ -262,6 +294,17 @@ impl RecordingProcessor<'_> {
     //
     // ...
 
+    /// Node Type Parser
+    ///
+    /// Nodes have an internally tagged variant on their "type" field. The type must be one of
+    /// six values. We process every variant except DOCUMENTTYPE which does not contain PII.
+    ///
+    /// -> DOCUMENT = 0
+    /// -> DOCUMENTTYPE = 1
+    /// -> ELEMENT = 2
+    /// -> TEXT = 3
+    /// -> CDATA = 4
+    /// -> COMMENT = 5
     fn process_snapshot_node(&mut self, node: Value) -> ProcessingResult {
         match node {
             Value::Object(mut obj) => match obj.get("type") {
