@@ -127,7 +127,7 @@ mod tests {
         ];
 
         let result = deserialize(payload, 9999999999);
-        assert!(!result.is_err());
+        assert!(!result.is_ok());
 
         let (headers, _) = result.unwrap();
         let head: Value = serde_json::from_slice(headers).unwrap();
@@ -139,7 +139,7 @@ mod tests {
     fn test_deserialize_no_contents() {
         let payload: &[u8] = &[];
         let result = deserialize(payload, 100);
-        assert!(result.err().is_some());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
         ];
         let result = deserialize(payload, 100);
-        assert!(result.err().is_some());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -159,7 +159,7 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
         ];
         let result = deserialize(payload, 100);
-        assert!(result.err().is_some());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
         ];
         let result = deserialize(payload, 100);
-        assert!(&result.err().is_some());
+        assert!(&result.is_ok());
     }
 
     #[test]
