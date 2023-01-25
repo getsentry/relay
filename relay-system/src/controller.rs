@@ -17,6 +17,9 @@ type ShutdownChannel = (
 /// Global [`ShutdownChannel`] for all services.
 static SHUTDOWN: OnceCell<ShutdownChannel> = OnceCell::new();
 
+/// Global reference to the [`Controller`].
+static CONTROLLER: OnceCell<Addr<Controller>> = OnceCell::new();
+
 /// Notifies a service about an upcoming shutdown.
 // TODO: The receiver of this message can not yet signal they have completed
 // shutdown.
@@ -89,9 +92,22 @@ pub struct Controller {
 }
 
 impl Controller {
+    /// Private function to create a new controller.
+    ///
+    /// Use `from_registry` for public access.
+    fn new() -> Self {
+        Self {
+            timeout: Duration::from_secs(0),
+        }
+    }
+
     /// Get actor's address from system registry.
+    ///
+    /// # Panics
+    ///
+    /// This method panics when it is invoked outside of a controller context (`Controller::run`).
     pub fn from_registry() -> Addr<Self> {
-        SystemService::from_registry()
+        CONTROLLER.get().expect("No Controller running").clone()
     }
 
     /// Runs the `factory` to start actors.
@@ -112,14 +128,14 @@ impl Controller {
         // Spawn a legacy actix system for the controller's signals.
         let sys = actix::System::new("relay");
 
-        // Run the factory and exit early if an error happens. The return value of the factory is
-        // discarded for convenience, to allow shorthand notations.
-        factory()?;
-
         // Ensure that the controller starts if no service has started it yet. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
         // controller will not be instantiated and our system will not listen for signals.
-        Controller::from_registry();
+        CONTROLLER.set(Controller::new().start()).ok();
+
+        // Run the factory and exit early if an error happens. The return value of the factory is
+        // discarded for convenience, to allow shorthand notations.
+        factory()?;
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
@@ -157,14 +173,6 @@ impl Controller {
     }
 }
 
-impl Default for Controller {
-    fn default() -> Self {
-        Controller {
-            timeout: Duration::from_secs(0),
-        }
-    }
-}
-
 impl fmt::Debug for Controller {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Controller")
@@ -181,10 +189,6 @@ impl Actor for Controller {
             .do_send(signal::Subscribe(context.address().recipient()));
     }
 }
-
-impl Supervised for Controller {}
-
-impl SystemService for Controller {}
 
 impl Handler<signal::Signal> for Controller {
     type Result = ();
