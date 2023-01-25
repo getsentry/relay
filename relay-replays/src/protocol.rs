@@ -10,7 +10,7 @@ use std::io::{Error, Read, Write};
 pub fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Value), ProtocolError> {
     let (headers, body) = read(bytes)?;
 
-    // We always attempt to decompress the body value. If decompression fails we try tp JSON
+    // We always attempt to decompress the body value. If decompression fails we try to JSON
     // deserialize the body bytes as is.
     match decompress(body, limit) {
         Ok(buf) => {
@@ -25,8 +25,8 @@ pub fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Value), Protoco
 }
 
 /// Serializes the headers and body arguments into a single vec of bytes. The body value is
-/// compressed before being merged.  The final output is headers_bytes + "\n" (new-line
-/// character) + compressed_body_bytes.
+/// compressed before being concatenated.  The final output is headers-bytes + "\n" (new-line
+/// character) + compressed-body-bytes.
 pub fn serialize(headers: &[u8], body: Value) -> Result<Vec<u8>, ProtocolError> {
     let output = serde_json::to_vec(&body).map_err(ProtocolError::InvalidBody)?;
     let output_bytes = compress(output)?;
@@ -62,7 +62,7 @@ fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
 
             // Try to parse the headers to determine if they are valid JSON. This is a good sanity
             // check to determine if our headers extraction is working properly.
-            let _: Value = serde_json::from_slice(header).map_err(ProtocolError::InvalidHeaders)?;
+            serde_json::from_slice::<Value>(header).map_err(ProtocolError::InvalidHeaders)?;
 
             let body = match split.next() {
                 Some(b"") | None => return Err(ProtocolError::MissingBody),
