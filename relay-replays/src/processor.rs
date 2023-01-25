@@ -348,7 +348,7 @@ impl RecordingProcessor<'_> {
     /// Node children processor.
     ///
     /// We expect nodes which can have children to contain a key called "childNodes" whose value is
-    /// Array(Vec<Node>).
+    /// `Array<Vec<Node>>`.
     ///
     /// { "childNodes": [..., ...] }
     fn process_node_children(
