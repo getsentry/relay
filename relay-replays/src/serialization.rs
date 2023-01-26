@@ -158,41 +158,23 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
     where
         D: Deserializer<'de>,
     {
-        enum Source {
-            Mutation,
-            Input,
-            Default,
-        }
         struct SourceVisitor;
         impl<'de> Visitor<'de> for SourceVisitor {
-            type Value = Source;
+            type Value = u8;
             fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 ::std::fmt::Formatter::write_str(formatter, "source")
             }
-            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            fn visit_u8<E>(self, value: u8) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                match value {
-                    0 => Ok(Source::Mutation),
-                    5 => Ok(Source::Input),
-                    _ => Ok(Source::Default),
-                }
+                Ok(value)
             }
         }
 
-        impl<'de> serde::Deserialize<'de> for Source {
-            #[inline]
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                Deserializer::deserialize_any(deserializer, SourceVisitor)
-            }
-        }
         let tagged = match Deserializer::deserialize_any(
             d,
-            serde::__private::de::TaggedContentVisitor::<Source>::new(
+            serde::__private::de::TaggedContentVisitor::<u8>::new(
                 "source",
                 "internally tagged enum IncrementalSourceDataVariant",
             ),
@@ -205,22 +187,65 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
         let content_deserializer =
             serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
         match tagged.tag {
-            Source::Mutation => Result::map(
+            0 => Result::map(
                 <Box<MutationIncrementalSourceData> as serde::Deserialize>::deserialize(
                     content_deserializer,
                 ),
                 IncrementalSourceDataVariant::Mutation,
             ),
-            Source::Input => Result::map(
+            5 => Result::map(
                 <Box<InputIncrementalSourceData> as serde::Deserialize>::deserialize(
                     content_deserializer,
                 ),
                 IncrementalSourceDataVariant::Input,
             ),
-            Source::Default => Result::map(
+            source => Result::map(
                 <Value as serde::Deserialize>::deserialize(content_deserializer),
-                IncrementalSourceDataVariant::Default,
+                |value| {
+                    IncrementalSourceDataVariant::Default(Box::new(DefaultIncrementalSourceData {
+                        source,
+                        value,
+                    }))
+                },
             ),
         }
+    }
+}
+
+impl Serialize for IncrementalSourceDataVariant {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(untagged)]
+        enum Helper<'a> {
+            Mutation(&'a MutationIncrementalSourceData),
+            Input(&'a InputIncrementalSourceData),
+            Default(&'a Value),
+        }
+
+        #[derive(Serialize)]
+        struct Outer<'a> {
+            source: u8,
+            #[serde(flatten)]
+            _helper: Helper<'a>,
+        }
+
+        match self {
+            IncrementalSourceDataVariant::Mutation(m) => Outer {
+                source: 0,
+                _helper: Helper::Mutation(m.as_ref()),
+            },
+            IncrementalSourceDataVariant::Input(i) => Outer {
+                source: 5,
+                _helper: Helper::Input(i.as_ref()),
+            },
+            IncrementalSourceDataVariant::Default(v) => Outer {
+                source: v.source,
+                _helper: Helper::Default(&v.value),
+            },
+        }
+        .serialize(s)
     }
 }

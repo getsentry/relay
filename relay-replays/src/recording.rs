@@ -473,41 +473,12 @@ pub(crate) struct TextNode {
 /// -> DRAG = 12
 /// -> STYLEDECLARATION = 13
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[derive(Debug)]
 pub(crate) enum IncrementalSourceDataVariant {
     Mutation(Box<MutationIncrementalSourceData>),
     Input(Box<InputIncrementalSourceData>),
-    Default(Value),
+    Default(Box<DefaultIncrementalSourceData>),
 }
-
-// impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
-//     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-//         let value = Value::deserialize(d)?;
-
-//         match value.get("source") {
-//             Some(val) => match Value::as_u64(val) {
-//                 Some(v) => match v {
-//                     0 => match MutationIncrementalSourceData::deserialize(value) {
-//                         Ok(document) => {
-//                             Ok(IncrementalSourceDataVariant::Mutation(Box::new(document)))
-//                         }
-//                         Err(_) => Err(DError::custom("could not parse mutation object.")),
-//                     },
-//                     5 => match InputIncrementalSourceData::deserialize(value) {
-//                         Ok(document_type) => {
-//                             Ok(IncrementalSourceDataVariant::Input(Box::new(document_type)))
-//                         }
-//                         Err(_) => Err(DError::custom("could not parse input object")),
-//                     },
-//                     _ => Ok(IncrementalSourceDataVariant::Default(value)),
-//                 },
-//                 None => Err(DError::custom("type field must be an integer")),
-//             },
-//             None => Err(DError::missing_field("type")),
-//         }
-//     }
-// }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -529,6 +500,12 @@ pub(crate) struct MutationIncrementalSourceData {
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_attach_iframe: Option<Value>,
+}
+
+#[derive(Debug)]
+pub(crate) struct DefaultIncrementalSourceData {
+    pub source: u8,
+    pub value: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
