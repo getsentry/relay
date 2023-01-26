@@ -1045,6 +1045,12 @@
 <span id="1044">1044</span>
 <span id="1045">1045</span>
 <span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1218,9 +1224,12 @@
                         item,
                     )<span class="question-mark">?</span>;
                 }
-                ItemType::MetricBuckets =&gt; {
-                    <span class="self">self</span>.produce_metrics(scoping.organization_id, scoping.project_id, item)<span class="question-mark">?
-                </span>}
+                ItemType::MetricBuckets =&gt; <span class="self">self</span>.produce_metrics(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                    retention,
+                )<span class="question-mark">?</span>,
                 ItemType::Profile =&gt; <span class="self">self</span>.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -1545,6 +1554,7 @@
         org_id: u64,
         project_id: ProjectId,
         item: <span class="kw-2">&amp;</span>Item,
+        retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>payload = item.payload();
 
@@ -1558,6 +1568,7 @@
                     value: bucket.value,
                     timestamp: bucket.timestamp,
                     tags: bucket.tags,
+                    retention_days: retention,
                 },
             )<span class="question-mark">?</span>;
         }
@@ -1999,6 +2010,7 @@
     timestamp: UnixTimestamp,
     <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
     </span>tags: BTreeMap&lt;String, String&gt;,
+    retention_days: u16,
 }
 
 <span class="attribute">#[derive(Clone, Debug, Serialize)]
