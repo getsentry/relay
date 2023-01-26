@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add utility function for matching CODEOWNER paths against a stacktrace filepath ([#1746](https://github.com/getsentry/relay/pull/1746))
+
 ## 0.8.16
 
 - The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.
