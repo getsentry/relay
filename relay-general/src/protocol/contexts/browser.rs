@@ -105,7 +105,7 @@ fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
         if item.contains("Brand")
             || item.contains("Chromium")
             || item.contains("Gecko") // useless until firefox and safari support client hints
-            || item.contains("Webkit")
+            || item.contains("WebKit")
         {
             continue;
         }
