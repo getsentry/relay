@@ -163,7 +163,10 @@ def is_glob_match(
 def is_codeowners_path_match(value, pattern):
     if isinstance(value, text_type):
         value = value.encode("utf-8")
-    return rustcall(lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern))
+    return rustcall(
+        lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern)
+    )
+
 
 def validate_pii_config(config):
     """
