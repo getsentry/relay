@@ -171,9 +171,12 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => {
-                    self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
-                }
+                ItemType::MetricBuckets => self.produce_metrics(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                    retention,
+                )?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -498,6 +501,7 @@ impl StoreService {
         org_id: u64,
         project_id: ProjectId,
         item: &Item,
+        retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
@@ -511,6 +515,7 @@ impl StoreService {
                     value: bucket.value,
                     timestamp: bucket.timestamp,
                     tags: bucket.tags,
+                    retention_days: retention,
                 },
             )?;
         }
@@ -952,6 +957,7 @@ struct MetricKafkaMessage {
     timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     tags: BTreeMap<String, String>,
+    retention_days: u16,
 }
 
 #[derive(Clone, Debug, Serialize)]
