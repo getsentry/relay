@@ -10,7 +10,6 @@ use relay_general::processor::{
 use relay_general::types::{Meta, ProcessingAction};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use serde::de::Visitor;
 use serde::Deserializer;
 use serde::{de::Error as DError, Deserialize, Serialize};
 use serde_json::Value;
@@ -239,10 +238,10 @@ impl RecordingProcessor<'_> {
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum Event {
-    T2(FullSnapshotEvent),
-    T3(IncrementalSnapshotEvent),
-    T4(MetaEvent),
-    T5(CustomEvent),
+    T2(Box<FullSnapshotEvent>),
+    T3(Box<IncrementalSnapshotEvent>),
+    T4(Box<MetaEvent>),
+    T5(Box<CustomEvent>),
     Default(Value),
     // 0: DOMContentLoadedEvent,
     // 1: LoadEvent,
@@ -257,22 +256,22 @@ impl<'de> serde::Deserialize<'de> for Event {
             Some(val) => match Value::as_u64(val) {
                 Some(v) => match v {
                     2 => match FullSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T2(event)),
+                        Ok(event) => Ok(Event::T2(Box::new(event))),
                         Err(e) => {
                             dbg!(e);
                             Err(DError::custom("could not parse snapshot event"))
                         }
                     },
                     3 => match IncrementalSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T3(event)),
+                        Ok(event) => Ok(Event::T3(Box::new(event))),
                         Err(_) => Err(DError::custom("could not parse incremental snapshot event")),
                     },
                     4 => match MetaEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T4(event)),
+                        Ok(event) => Ok(Event::T4(Box::new(event))),
                         Err(_) => Err(DError::custom("could not parse meta event")),
                     },
                     5 => match CustomEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T5(event)),
+                        Ok(event) => Ok(Event::T5(Box::new(event))),
                         Err(e) => Err(DError::custom(e.to_string())),
                     },
                     0 | 1 | 6 => Ok(Event::Default(value)),
@@ -328,9 +327,9 @@ struct CustomEvent {
 #[serde(untagged)]
 enum CustomEventDataVariant {
     #[serde(rename = "breadcrumb")]
-    Breadcrumb(Breadcrumb),
+    Breadcrumb(Box<Breadcrumb>),
     #[serde(rename = "performanceSpan")]
-    PerformanceSpan(PerformanceSpan),
+    PerformanceSpan(Box<PerformanceSpan>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -401,12 +400,12 @@ struct Node {
 #[derive(Debug)]
 
 pub(crate) enum NodeVariant {
-    T0(DocumentNode),
-    T1(DocumentTypeNode),
-    T2(ElementNode),
-    T3(TextNode), // text
-    T4(TextNode), // cdata
-    T5(TextNode), // comment
+    T0(Box<DocumentNode>),
+    T1(Box<DocumentTypeNode>),
+    T2(Box<ElementNode>),
+    T3(Box<TextNode>), // text
+    T4(Box<TextNode>), // cdata
+    T5(Box<TextNode>), // comment
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -471,8 +470,8 @@ pub(crate) struct TextNode {
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum IncrementalSourceDataVariant {
-    Mutation(MutationIncrementalSourceData),
-    Input(InputIncrementalSourceData),
+    Mutation(Box<MutationIncrementalSourceData>),
+    Input(Box<InputIncrementalSourceData>),
     Default(Value),
 }
 
@@ -484,11 +483,15 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
             Some(val) => match Value::as_u64(val) {
                 Some(v) => match v {
                     0 => match MutationIncrementalSourceData::deserialize(value) {
-                        Ok(document) => Ok(IncrementalSourceDataVariant::Mutation(document)),
+                        Ok(document) => {
+                            Ok(IncrementalSourceDataVariant::Mutation(Box::new(document)))
+                        }
                         Err(_) => Err(DError::custom("could not parse mutation object.")),
                     },
                     5 => match InputIncrementalSourceData::deserialize(value) {
-                        Ok(document_type) => Ok(IncrementalSourceDataVariant::Input(document_type)),
+                        Ok(document_type) => {
+                            Ok(IncrementalSourceDataVariant::Input(Box::new(document_type)))
+                        }
                         Err(_) => Err(DError::custom("could not parse input object")),
                     },
                     _ => Ok(IncrementalSourceDataVariant::Default(value)),
