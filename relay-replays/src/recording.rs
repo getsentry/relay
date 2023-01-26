@@ -109,7 +109,7 @@ impl From<std::io::Error> for RecordingParseError {
 
 // Recording Processor
 
-struct RecordingProcessor<'a> {
+pub struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
 }
 
@@ -234,7 +234,7 @@ impl RecordingProcessor<'_> {
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-enum Event {
+pub enum Event {
     T2(FullSnapshotEvent),
     T3(IncrementalSnapshotEvent),
     T4(MetaEvent),
@@ -279,7 +279,7 @@ impl<'de> serde::Deserialize<'de> for Event {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEvent {
+pub struct FullSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -287,14 +287,14 @@ struct FullSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEventData {
+pub struct FullSnapshotEventData {
     node: Node,
     #[serde(rename = "initialOffset")]
     initial_offset: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct IncrementalSnapshotEvent {
+pub struct IncrementalSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -302,7 +302,7 @@ struct IncrementalSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MetaEvent {
+pub struct MetaEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -310,7 +310,7 @@ struct MetaEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct CustomEvent {
+pub struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: f64,
@@ -327,13 +327,13 @@ enum CustomEventDataVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Breadcrumb {
+pub struct Breadcrumb {
     tag: String,
     payload: BreadcrumbPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BreadcrumbPayload {
+pub struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
@@ -347,14 +347,14 @@ struct BreadcrumbPayload {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct PerformanceSpan {
+pub struct PerformanceSpan {
     tag: String,
     payload: PerformanceSpanPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PerformanceSpanPayload {
+pub struct PerformanceSpanPayload {
     op: String,
     description: String,
     start_timestamp: f64,
@@ -378,7 +378,7 @@ struct PerformanceSpanPayload {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Node {
+pub struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     root_id: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -433,7 +433,7 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DocumentNode {
+pub struct DocumentNode {
     id: i32,
     #[serde(rename = "type")]
     ty: u8,
@@ -443,7 +443,7 @@ struct DocumentNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DocumentTypeNode {
+pub struct DocumentTypeNode {
     #[serde(rename = "type")]
     ty: u8,
     id: Value,
@@ -454,7 +454,7 @@ struct DocumentTypeNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ElementNode {
+pub struct ElementNode {
     id: Value,
     #[serde(rename = "type")]
     ty: u8,
@@ -469,7 +469,7 @@ struct ElementNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TextNode {
+pub struct TextNode {
     id: Value,
     #[serde(rename = "type")]
     ty: u8,
@@ -533,7 +533,7 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InputIncrementalSourceData {
+pub struct InputIncrementalSourceData {
     source: u8,
     id: i32,
     text: String,
@@ -545,7 +545,7 @@ struct InputIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceData {
+pub struct MutationIncrementalSourceData {
     source: u8,
     texts: Vec<Value>,
     attributes: Vec<Value>,
@@ -557,7 +557,7 @@ struct MutationIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationAdditionIncrementalSourceData {
+pub struct MutationAdditionIncrementalSourceData {
     parent_id: Value,
     next_id: Value,
     node: Node,
