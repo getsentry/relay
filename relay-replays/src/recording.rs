@@ -153,16 +153,18 @@ impl RecordingProcessor<'_> {
     }
 
     fn recurse_snapshot_node(&mut self, node: &mut Node) -> Result<(), ProcessingAction> {
+        use NodeVariant::*;
         match &mut node.variant {
-            NodeVariant::T0(document) => {
+            T0(document) => {
                 for node in &mut document.child_nodes {
                     self.recurse_snapshot_node(node)?
                 }
             }
-            NodeVariant::T2(element) => self.recurse_element(element)?,
-            NodeVariant::Rest(text) => {
+            T2(element) => self.recurse_element(element)?,
+            T3(text) | T4(text) | T5(text) => {
                 self.strip_pii(&mut text.text_content)?;
             }
+
             _ => {}
         }
 
@@ -396,13 +398,15 @@ struct Node {
     variant: NodeVariant,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[derive(Debug)]
+
 enum NodeVariant {
     T0(DocumentNode),
     T1(DocumentTypeNode),
     T2(ElementNode),
-    Rest(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
+    T3(TextNode), // text
+    T4(TextNode), // cdata
+    T5(TextNode), // comment
 }
 
 impl<'de> Deserialize<'de> for NodeVariant {
@@ -414,7 +418,9 @@ impl<'de> Deserialize<'de> for NodeVariant {
             Document,
             DocumentType,
             Element,
-            Rest,
+            Text,
+            CData,
+            Comment,
         }
         struct NodeTypeVisitor;
         impl<'de> Visitor<'de> for NodeTypeVisitor {
@@ -430,10 +436,13 @@ impl<'de> Deserialize<'de> for NodeVariant {
                     0 => Ok(NodeType::Document),
                     1 => Ok(NodeType::DocumentType),
                     2 => Ok(NodeType::Element),
-                    3 | 4 | 5 => Ok(NodeType::Rest),
+                    3 => Ok(NodeType::Text),
+                    4 => Ok(NodeType::CData),
+                    5 => Ok(NodeType::Comment),
+
                     _ => Err(serde::de::Error::invalid_value(
                         serde::de::Unexpected::Unsigned(value),
-                        &"type id 0 <= i < 5",
+                        &"type id 0 <= i < 6",
                     )),
                 }
             }
@@ -475,11 +484,73 @@ impl<'de> Deserialize<'de> for NodeVariant {
                 <ElementNode as serde::Deserialize>::deserialize(content_deserializer),
                 NodeVariant::T2,
             ),
-            NodeType::Rest => Result::map(
+            NodeType::Text => Result::map(
                 <TextNode as serde::Deserialize>::deserialize(content_deserializer),
-                NodeVariant::Rest,
+                NodeVariant::T3,
+            ),
+            NodeType::CData => Result::map(
+                <TextNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::T4,
+            ),
+            NodeType::Comment => Result::map(
+                <TextNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::T5,
             ),
         }
+    }
+}
+
+impl Serialize for NodeVariant {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(untagged)]
+        enum Helper<'a> {
+            T0(&'a DocumentNode),
+            T1(&'a DocumentTypeNode),
+            T2(&'a ElementNode),
+            T3(&'a TextNode), // text
+            T4(&'a TextNode), // cdata
+            T5(&'a TextNode), // comment
+        }
+
+        #[derive(Serialize)]
+        struct Outer<'a> {
+            #[serde(rename = "type")]
+            ty: u8,
+            #[serde(flatten)]
+            _helper: Helper<'a>,
+        }
+
+        match self {
+            NodeVariant::T0(c) => Outer {
+                ty: 0,
+                _helper: Helper::T0(c),
+            },
+            NodeVariant::T1(c) => Outer {
+                ty: 1,
+                _helper: Helper::T1(c),
+            },
+            NodeVariant::T2(c) => Outer {
+                ty: 2,
+                _helper: Helper::T2(c),
+            },
+            NodeVariant::T3(c) => Outer {
+                ty: 3,
+                _helper: Helper::T3(c),
+            },
+            NodeVariant::T4(c) => Outer {
+                ty: 4,
+                _helper: Helper::T4(c),
+            },
+            NodeVariant::T5(c) => Outer {
+                ty: 5,
+                _helper: Helper::T5(c),
+            },
+        }
+        .serialize(s)
     }
 }
 
@@ -712,7 +783,7 @@ mod tests {
                 let dd = cc.adds.pop().unwrap();
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                    if let recording::NodeVariant::T3(gg) = ff.variant {
                         assert_eq!(gg.text_content, "[creditcard]");
                         return;
                     }
@@ -777,7 +848,7 @@ mod tests {
                 let dd = cc.adds.pop().unwrap();
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                    if let recording::NodeVariant::T3(gg) = ff.variant {
                         assert_eq!(gg.text_content, "[ip]");
                         return;
                     }
@@ -821,7 +892,8 @@ mod tests {
 
         let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
+        serde_json::to_string_pretty(&input_parsed).unwrap();
+        assert_json_eq!(input_parsed, input_raw);
     }
 
     // Event coverage
