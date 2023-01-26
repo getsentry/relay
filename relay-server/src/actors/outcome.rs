@@ -1,4 +1,4 @@
-//! This module contains the actor that tracks outcomes.
+//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this

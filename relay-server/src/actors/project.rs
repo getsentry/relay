@@ -1128,7 +1128,7 @@ mod tests {
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
         //   we should never fetch
-        // * without backoff it would just panic, not able to call the ProjectCache actor
+        // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
         project.update_state(Arc::new(ProjectState::err()), false);
