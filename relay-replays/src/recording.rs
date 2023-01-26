@@ -254,7 +254,10 @@ impl<'de> serde::Deserialize<'de> for Event {
                 Some(v) => match v {
                     2 => match FullSnapshotEvent::deserialize(value) {
                         Ok(event) => Ok(Event::T2(event)),
-                        Err(_) => Err(DError::custom("could not parse snapshot event")),
+                        Err(e) => {
+                            dbg!(e);
+                            Err(DError::custom("could not parse snapshot event"))
+                        }
                     },
                     3 => match IncrementalSnapshotEvent::deserialize(value) {
                         Ok(event) => Ok(Event::T3(event)),
@@ -400,43 +403,119 @@ enum NodeVariant {
     Rest(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
 }
 
-impl<'de> serde::Deserialize<'de> for NodeVariant {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
+impl<'de> Deserialize<'de> for NodeVariant {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        enum NodeType {
+            Document,
+            DocumentType,
+            Element,
+            Rest,
+        }
+        struct NodeTypeVisitor;
+        impl<'de> serde::de::Visitor<'de> for NodeTypeVisitor {
+            type Value = NodeType;
+            fn expecting(&self, __formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                serde::__private::Formatter::write_str(__formatter, "type id")
+            }
+            fn visit_u64<__E>(self, __value: u64) -> serde::__private::Result<Self::Value, __E>
+            where
+                __E: serde::de::Error,
+            {
+                match __value {
+                    0 => serde::__private::Ok(NodeType::Document),
+                    1 => serde::__private::Ok(NodeType::DocumentType),
+                    2 => serde::__private::Ok(NodeType::Element),
+                    3 | 4 | 5 => serde::__private::Ok(NodeType::Rest),
+                    _ => serde::__private::Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Unsigned(__value),
+                        &"type id 0 <= i < 5",
+                    )),
+                }
+            }
+        }
 
-        match value.get("type") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    0 => match DocumentNode::deserialize(value) {
-                        Ok(document) => Ok(NodeVariant::T0(document)),
-                        Err(_) => Err(DError::custom("could not parse document object.")),
-                    },
-                    1 => match DocumentTypeNode::deserialize(value) {
-                        Ok(document_type) => Ok(NodeVariant::T1(document_type)),
-                        Err(_) => Err(DError::custom("could not parse document-type object")),
-                    },
-                    2 => match ElementNode::deserialize(value) {
-                        Ok(element) => Ok(NodeVariant::T2(element)),
-                        Err(_) => Err(DError::custom("could not parse element object")),
-                    },
-                    3 | 4 | 5 => match TextNode::deserialize(value) {
-                        Ok(text) => Ok(NodeVariant::Rest(text)),
-                        Err(_) => Err(DError::custom("could not parse text object")),
-                    },
-                    _ => Err(DError::custom("invalid type value")),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
+        impl<'de> serde::Deserialize<'de> for NodeType {
+            #[inline]
+            fn deserialize<__D>(__deserializer: __D) -> serde::__private::Result<Self, __D::Error>
+            where
+                __D: serde::Deserializer<'de>,
+            {
+                serde::Deserializer::deserialize_any(__deserializer, NodeTypeVisitor)
+            }
+        }
+        let __tagged = match serde::Deserializer::deserialize_any(
+            d,
+            serde::__private::de::TaggedContentVisitor::<NodeType>::new(
+                "type",
+                "internally tagged enum NodeVariant",
+            ),
+        ) {
+            serde::__private::Ok(__val) => __val,
+            serde::__private::Err(__err) => {
+                return serde::__private::Err(dbg!(__err));
+            }
+        };
+        let content_deserializer =
+            serde::__private::de::ContentDeserializer::<D::Error>::new(__tagged.content);
+        match __tagged.tag {
+            NodeType::Document => serde::__private::Result::map(
+                <DocumentNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::T0,
+            ),
+            NodeType::DocumentType => serde::__private::Result::map(
+                <DocumentTypeNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::T1,
+            ),
+            NodeType::Element => serde::__private::Result::map(
+                <ElementNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::T2,
+            ),
+            NodeType::Rest => serde::__private::Result::map(
+                <TextNode as serde::Deserialize>::deserialize(content_deserializer),
+                NodeVariant::Rest,
+            ),
         }
     }
 }
 
+// impl<'de> serde::Deserialize<'de> for NodeVariant {
+//     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+//         let value = Value::deserialize(d)?;
+
+//         match value.get("type") {
+//             Some(val) => match Value::as_u64(val) {
+//                 Some(v) => match v {
+//                     0 => match DocumentNode::deserialize(value) {
+//                         Ok(document) => Ok(NodeVariant::T0(document)),
+//                         Err(_) => Err(DError::custom("could not parse document object.")),
+//                     },
+//                     1 => match DocumentTypeNode::deserialize(value) {
+//                         Ok(document_type) => Ok(NodeVariant::T1(document_type)),
+//                         Err(_) => Err(DError::custom("could not parse document-type object")),
+//                     },
+//                     2 => match ElementNode::deserialize(value) {
+//                         Ok(element) => Ok(NodeVariant::T2(element)),
+//                         Err(_) => Err(DError::custom("could not parse element object")),
+//                     },
+//                     3 | 4 | 5 => match TextNode::deserialize(value) {
+//                         Ok(text) => Ok(NodeVariant::Rest(text)),
+//                         Err(_) => Err(DError::custom("could not parse text object")),
+//                     },
+//                     _ => Err(DError::custom("invalid type value")),
+//                 },
+//                 None => Err(DError::custom("type field must be an integer")),
+//             },
+//             None => Err(DError::missing_field("type")),
+//         }
+//     }
+// }
+
 #[derive(Debug, Serialize, Deserialize)]
 struct DocumentNode {
     id: i32,
-    #[serde(rename = "type")]
-    ty: u8,
     #[serde(rename = "childNodes")]
     child_nodes: Vec<Node>,
 }
@@ -444,8 +523,6 @@ struct DocumentNode {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DocumentTypeNode {
-    #[serde(rename = "type")]
-    ty: u8,
     id: Value,
     public_id: Value,
     system_id: Value,
@@ -456,8 +533,6 @@ struct DocumentTypeNode {
 #[serde(rename_all = "camelCase")]
 struct ElementNode {
     id: Value,
-    #[serde(rename = "type")]
-    ty: u8,
     attributes: HashMap<String, Value>,
     tag_name: String,
     child_nodes: Vec<Node>,
@@ -471,8 +546,6 @@ struct ElementNode {
 #[serde(rename_all = "camelCase")]
 struct TextNode {
     id: Value,
-    #[serde(rename = "type")]
-    ty: u8,
     text_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_style: Option<Value>,
