@@ -123,9 +123,9 @@ impl fmt::Display for AwsExtensionError {
 
 impl std::error::Error for AwsExtensionError {}
 
-/// Actor implementing an AWS extension.
+/// Service implementing an AWS extension.
 ///
-/// Spawns an actor that:
+/// Spawns a service that:
 ///
 /// * registers with the AWS extensions API
 /// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation

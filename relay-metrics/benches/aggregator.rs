@@ -149,7 +149,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     },
                     |mut aggregator| {
                         // XXX: Ideally we'd want to test the entire try_flush here, but spawning
-                        // an actor is too much work here.
+                        // a service is too much work here.
                         aggregator.pop_flush_buckets();
                     },
                     BatchSize::SmallInput,
