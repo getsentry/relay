@@ -29,3 +29,4 @@ assert-json-diff = "2.0.2"
 [[bench]]
 name = "benchmarks"
 harness = false
+rustflags = ["bench"]

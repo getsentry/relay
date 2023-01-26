@@ -2,13 +2,13 @@ use criterion::BenchmarkId;
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 
-use relay_replays::recording::Event;
+use relay_replays::recording::_deserialize_event;
 
 fn bench_recording(c: &mut Criterion) {
     let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
 
     c.bench_with_input(BenchmarkId::new("rrweb", 1), &payload, |b, &_| {
-        b.iter(|| ::serde_json::from_slice::<Vec<Event>>(payload).unwrap());
+        b.iter(|| _deserialize_event(payload));
     });
 }
 
