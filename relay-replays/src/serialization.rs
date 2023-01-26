@@ -1,8 +1,11 @@
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
-use crate::recording::{DocumentNode, DocumentTypeNode, ElementNode, NodeVariant, TextNode};
+use crate::recording::*;
 
+/// Implementation tweaked from serde's `derive(Deserialize)` for internally tagged enums,
+/// in order to work with integer tags.
 impl<'de> Deserialize<'de> for NodeVariant {
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
@@ -145,5 +148,79 @@ impl Serialize for NodeVariant {
             },
         }
         .serialize(s)
+    }
+}
+
+/// Implementation tweaked from serde's `derive(Deserialize)` for internally tagged enums,
+/// in order to work with integer tags.
+impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Source {
+            Mutation,
+            Input,
+            Default,
+        }
+        struct SourceVisitor;
+        impl<'de> Visitor<'de> for SourceVisitor {
+            type Value = Source;
+            fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::Formatter::write_str(formatter, "source")
+            }
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    0 => Ok(Source::Mutation),
+                    5 => Ok(Source::Input),
+                    _ => Ok(Source::Default),
+                }
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for Source {
+            #[inline]
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                Deserializer::deserialize_any(deserializer, SourceVisitor)
+            }
+        }
+        let tagged = match Deserializer::deserialize_any(
+            d,
+            serde::__private::de::TaggedContentVisitor::<Source>::new(
+                "source",
+                "internally tagged enum IncrementalSourceDataVariant",
+            ),
+        ) {
+            Ok(val) => val,
+            Err(err) => {
+                return Err(dbg!(err));
+            }
+        };
+        let content_deserializer =
+            serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
+        match tagged.tag {
+            Source::Mutation => Result::map(
+                <Box<MutationIncrementalSourceData> as serde::Deserialize>::deserialize(
+                    content_deserializer,
+                ),
+                IncrementalSourceDataVariant::Mutation,
+            ),
+            Source::Input => Result::map(
+                <Box<InputIncrementalSourceData> as serde::Deserialize>::deserialize(
+                    content_deserializer,
+                ),
+                IncrementalSourceDataVariant::Input,
+            ),
+            Source::Default => Result::map(
+                <Value as serde::Deserialize>::deserialize(content_deserializer),
+                IncrementalSourceDataVariant::Default,
+            ),
+        }
     }
 }

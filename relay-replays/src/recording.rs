@@ -110,7 +110,7 @@ impl From<std::io::Error> for RecordingParseError {
 
 // Recording Processor
 
-struct RecordingProcessor<'a> {
+pub(crate) struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
 }
 
@@ -264,11 +264,17 @@ impl<'de> serde::Deserialize<'de> for Event {
                     },
                     3 => match IncrementalSnapshotEvent::deserialize(value) {
                         Ok(event) => Ok(Event::T3(Box::new(event))),
-                        Err(_) => Err(DError::custom("could not parse incremental snapshot event")),
+                        Err(e) => {
+                            dbg!(e);
+                            Err(DError::custom("could not parse incremental snapshot event"))
+                        }
                     },
                     4 => match MetaEvent::deserialize(value) {
                         Ok(event) => Ok(Event::T4(Box::new(event))),
-                        Err(_) => Err(DError::custom("could not parse meta event")),
+                        Err(e) => {
+                            dbg!(e);
+                            Err(DError::custom("could not parse meta event"))
+                        }
                     },
                     5 => match CustomEvent::deserialize(value) {
                         Ok(event) => Ok(Event::T5(Box::new(event))),
@@ -285,7 +291,7 @@ impl<'de> serde::Deserialize<'de> for Event {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEvent {
+pub(crate) struct FullSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -293,14 +299,14 @@ struct FullSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEventData {
+pub(crate) struct FullSnapshotEventData {
     node: Node,
     #[serde(rename = "initialOffset")]
     initial_offset: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct IncrementalSnapshotEvent {
+pub(crate) struct IncrementalSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -308,7 +314,7 @@ struct IncrementalSnapshotEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MetaEvent {
+pub(crate) struct MetaEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
@@ -316,7 +322,7 @@ struct MetaEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct CustomEvent {
+pub(crate) struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: f64,
@@ -333,13 +339,13 @@ enum CustomEventDataVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Breadcrumb {
+pub(crate) struct Breadcrumb {
     tag: String,
     payload: BreadcrumbPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BreadcrumbPayload {
+pub(crate) struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
@@ -353,14 +359,14 @@ struct BreadcrumbPayload {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct PerformanceSpan {
+pub(crate) struct PerformanceSpan {
     tag: String,
     payload: PerformanceSpanPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PerformanceSpanPayload {
+pub(crate) struct PerformanceSpanPayload {
     op: String,
     description: String,
     start_timestamp: f64,
@@ -384,7 +390,7 @@ struct PerformanceSpanPayload {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Node {
+pub(crate) struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     root_id: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -469,44 +475,43 @@ pub(crate) struct TextNode {
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-enum IncrementalSourceDataVariant {
+pub(crate) enum IncrementalSourceDataVariant {
     Mutation(Box<MutationIncrementalSourceData>),
     Input(Box<InputIncrementalSourceData>),
     Default(Value),
 }
 
-impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
+// impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
+//     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+//         let value = Value::deserialize(d)?;
 
-        match value.get("source") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    0 => match MutationIncrementalSourceData::deserialize(value) {
-                        Ok(document) => {
-                            Ok(IncrementalSourceDataVariant::Mutation(Box::new(document)))
-                        }
-                        Err(_) => Err(DError::custom("could not parse mutation object.")),
-                    },
-                    5 => match InputIncrementalSourceData::deserialize(value) {
-                        Ok(document_type) => {
-                            Ok(IncrementalSourceDataVariant::Input(Box::new(document_type)))
-                        }
-                        Err(_) => Err(DError::custom("could not parse input object")),
-                    },
-                    _ => Ok(IncrementalSourceDataVariant::Default(value)),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
-        }
-    }
-}
+//         match value.get("source") {
+//             Some(val) => match Value::as_u64(val) {
+//                 Some(v) => match v {
+//                     0 => match MutationIncrementalSourceData::deserialize(value) {
+//                         Ok(document) => {
+//                             Ok(IncrementalSourceDataVariant::Mutation(Box::new(document)))
+//                         }
+//                         Err(_) => Err(DError::custom("could not parse mutation object.")),
+//                     },
+//                     5 => match InputIncrementalSourceData::deserialize(value) {
+//                         Ok(document_type) => {
+//                             Ok(IncrementalSourceDataVariant::Input(Box::new(document_type)))
+//                         }
+//                         Err(_) => Err(DError::custom("could not parse input object")),
+//                     },
+//                     _ => Ok(IncrementalSourceDataVariant::Default(value)),
+//                 },
+//                 None => Err(DError::custom("type field must be an integer")),
+//             },
+//             None => Err(DError::missing_field("type")),
+//         }
+//     }
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InputIncrementalSourceData {
-    source: u8,
+pub(crate) struct InputIncrementalSourceData {
     id: i32,
     text: String,
     is_checked: Value,
@@ -517,8 +522,7 @@ struct InputIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceData {
-    source: u8,
+pub(crate) struct MutationIncrementalSourceData {
     texts: Vec<Value>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
@@ -529,7 +533,7 @@ struct MutationIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationAdditionIncrementalSourceData {
+pub(crate) struct MutationAdditionIncrementalSourceData {
     parent_id: Value,
     next_id: Value,
     node: Node,
