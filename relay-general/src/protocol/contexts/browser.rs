@@ -1,7 +1,7 @@
 use crate::protocol::FromUserAgentInfo;
-use crate::store::user_agent::{get_version, is_known};
+use crate::store;
 use crate::types::{Annotated, Object, Value};
-use crate::user_agent::{parse_user_agent, ClientHints};
+use crate::user_agent;
 
 /// Web browser information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -26,8 +26,8 @@ impl BrowserContext {
 }
 
 impl FromUserAgentInfo for BrowserContext {
-    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
-        let browser = parse_client_hint_browser(client_hints.sec_ch_ua?)?;
+    fn from_client_hints(client_hints: &user_agent::ClientHints) -> Option<Self> {
+        let browser = Browser::from_ua_client_hint(client_hints.sec_ch_ua?)?;
         let version = client_hints.sec_ch_ua_full_version?.to_owned();
 
         Some(Self {
@@ -38,15 +38,19 @@ impl FromUserAgentInfo for BrowserContext {
     }
 
     fn from_user_agent(user_agent: &str) -> Option<Self> {
-        let browser = parse_user_agent(user_agent);
+        let browser = user_agent::parse_user_agent(user_agent);
 
-        if !is_known(browser.family.as_str()) {
+        if !store::user_agent::is_known(&browser.family) {
             return None;
         }
 
         Some(Self {
             name: Annotated::from(browser.family),
-            version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
+            version: Annotated::from(store::user_agent::get_version(
+                &browser.major,
+                &browser.minor,
+                &browser.patch,
+            )),
             ..BrowserContext::default()
         })
     }
@@ -91,35 +95,37 @@ impl std::string::ToString for Browser {
     }
 }
 
-/// the sec-ch-ua field looks something like this:
-/// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
-///
-/// this function attempts to detect the field with the browser, parse it as a browser enum and
-/// return that. if it fails to parse it as a browser, it uses the "other" variant of browser enum
-///
-/// returns None if no browser field detected
-fn parse_client_hint_browser<S: Into<String>>(s: S) -> Option<Browser> {
-    for item in s.into().split(',') {
-        // if it contains one of these then we can know it isn't a browser field. atm chromium
-        // browsers are the only ones supporting client hints.
-        if item.contains("Brand")
+impl Browser {
+    /// the sec-ch-ua field looks something like this:
+    /// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
+    ///
+    /// this function attempts to detect the field with the browser, parse it as a browser enum and
+    /// return that. if it fails to parse it as a browser, it uses the "other" variant of browser enum
+    ///
+    /// returns None if no browser field detected
+    fn from_ua_client_hint(s: &str) -> Option<Self> {
+        for item in s.split(',') {
+            // if it contains one of these then we can know it isn't a browser field. atm chromium
+            // browsers are the only ones supporting client hints.
+            if item.contains("Brand")
             || item.contains("Chromium")
             || item.contains("Gecko") // useless until firefox and safari support client hints
             || item.contains("WebKit")
-        {
-            continue;
+            {
+                continue;
+            }
+
+            // "\"foo-browser\";v=\"109\"" -> "foo-browser"
+            let browser: String = item
+                .split(';')
+                .take(1)
+                .map(|s| s.trim().to_owned().replace('\"', ""))
+                .collect();
+
+            return Some(Self::from(browser));
         }
-
-        // "\"foo-browser\";v=\"109\"" -> "foo-browser"
-        let browser: String = item
-            .split(';')
-            .take(1)
-            .map(|s| s.trim().to_owned().replace('\"', ""))
-            .collect();
-
-        return Some(Browser::from(browser));
+        None
     }
-    None
 }
 
 #[cfg(test)]
@@ -130,17 +136,17 @@ mod tests {
 
     #[test]
     fn test_client_hint_parser() {
-        let chrome = parse_client_hint_browser(
+        let chrome = Browser::from_ua_client_hint(
             r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#,
         );
         assert_eq!(chrome.unwrap(), Browser::Chrome);
 
-        let opera = parse_client_hint_browser(
+        let opera = Browser::from_ua_client_hint(
             r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#,
         );
         assert_eq!(opera.unwrap(), Browser::Opera);
 
-        let mystery_browser = parse_client_hint_browser(
+        let mystery_browser = Browser::from_ua_client_hint(
             r#""Chromium";v="108", "mystery-browser";v="94", "Not)A;Brand";v="99""#,
         );
 
@@ -150,7 +156,7 @@ mod tests {
         );
 
         let missing_browser =
-            parse_client_hint_browser(r#""Chromium";v="108", "Not)A;Brand";v="99""#);
+            Browser::from_ua_client_hint(r#""Chromium";v="108", "Not)A;Brand";v="99""#);
         assert!(missing_browser.is_none());
     }
 

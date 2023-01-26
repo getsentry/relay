@@ -184,7 +184,7 @@ impl FromUserAgentInfo for DeviceContext {
     fn from_user_agent(user_agent: &str) -> Option<Self> {
         let device = parse_device(user_agent);
 
-        if !is_known(device.family.as_str()) {
+        if !is_known(&device.family) {
             return None;
         }
 

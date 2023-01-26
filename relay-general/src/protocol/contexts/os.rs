@@ -64,7 +64,7 @@ impl FromUserAgentInfo for OsContext {
     fn from_user_agent(user_agent: &str) -> Option<Self> {
         let os = parse_os(user_agent);
 
-        if !is_known(os.family.as_str()) {
+        if !is_known(&os.family) {
             return None;
         }
 

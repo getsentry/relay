@@ -83,13 +83,6 @@ impl<'a> RawUserAgentInfo<'a> {
 }
 
 /// Initializes the user agent parser.
-///
-/// This loads and compiles user agent patterns, which takes a few seconds to complete. The user
-/// agent parser initializes on-demand when using one of the parse methods. This function forces
-/// initialization at a convenient point without introducing unwanted delays.
-pub fn init_parser() {
-    Lazy::force(&UA_PARSER);
-}
 
 /// Gets the user agent string from request header type.
 pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str> {
