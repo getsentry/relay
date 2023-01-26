@@ -10,8 +10,7 @@ use relay_general::processor::{
 use relay_general::types::{Meta, ProcessingAction};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use serde::Deserializer;
-use serde::{de::Error as DError, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Parses compressed replay recording payloads and applies data scrubbers.
