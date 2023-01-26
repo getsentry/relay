@@ -235,65 +235,19 @@ impl RecordingProcessor<'_> {
 /// -> CUSTOM = 5
 /// -> PLUGIN = 6
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-enum Event {
+#[derive(Debug)]
+pub(crate) enum Event {
+    T0(Value), // 0: DOMContentLoadedEvent,
+    T1(Value), // 1: LoadEvent,
     T2(Box<FullSnapshotEvent>),
     T3(Box<IncrementalSnapshotEvent>),
     T4(Box<MetaEvent>),
     T5(Box<CustomEvent>),
-    Default(Value),
-    // 0: DOMContentLoadedEvent,
-    // 1: LoadEvent,
-    // 6: PluginEvent,
-}
-
-impl<'de> serde::Deserialize<'de> for Event {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-
-        match value.get("type") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    2 => match FullSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T2(Box::new(event))),
-                        Err(e) => {
-                            dbg!(e);
-                            Err(DError::custom("could not parse snapshot event"))
-                        }
-                    },
-                    3 => match IncrementalSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T3(Box::new(event))),
-                        Err(e) => {
-                            dbg!(e);
-                            Err(DError::custom("could not parse incremental snapshot event"))
-                        }
-                    },
-                    4 => match MetaEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T4(Box::new(event))),
-                        Err(e) => {
-                            dbg!(e);
-                            Err(DError::custom("could not parse meta event"))
-                        }
-                    },
-                    5 => match CustomEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T5(Box::new(event))),
-                        Err(e) => Err(DError::custom(e.to_string())),
-                    },
-                    0 | 1 | 6 => Ok(Event::Default(value)),
-                    _ => Err(DError::custom("invalid type value")),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
-        }
-    }
+    T6(Value), // 6: PluginEvent,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct FullSnapshotEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: FullSnapshotEventData,
 }
@@ -307,24 +261,18 @@ pub(crate) struct FullSnapshotEventData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct IncrementalSnapshotEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: IncrementalSourceDataVariant,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct MetaEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct CustomEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: f64,
     data: CustomEventDataVariant,
 }
