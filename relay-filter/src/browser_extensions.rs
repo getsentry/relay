@@ -65,6 +65,12 @@ static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
     .expect("Invalid browser extensions filter (Exec Sources) Regex")
 });
 
+/// Frames which do not have defined function, method or type name. Or frames which come from the
+/// native V8 code.
+///
+/// These frames do not give us any information about the exception source and can be ignored.
+const ANONYMOUS_FRAMES: [&str; 2] = ["<anonymous>", "[native code]"];
+
 /// Check if the event originates from known problematic browser extensions.
 pub fn matches(event: &Event) -> bool {
     if let Some(ex_val) = get_exception_value(event) {
@@ -107,8 +113,15 @@ fn get_exception_value(event: &Event) -> Option<&str> {
 fn get_exception_source(event: &Event) -> Option<&str> {
     let exception = get_first_exception(event)?;
     let frames = exception.stacktrace.value()?.frames.value()?;
-    let last_frame = frames.last()?.value()?;
-    Some(last_frame.abs_path.value()?.as_str())
+    // Iterate from the tail and get the first frame which is not anonymous.
+    for f in frames.iter().rev() {
+        let abs_path = f.value()?.abs_path.value()?;
+        let path = abs_path.as_str();
+        if !ANONYMOUS_FRAMES.contains(&path) {
+            return Some(path);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -138,10 +151,20 @@ mod tests {
     fn get_event_with_exception_source(src: &str) -> Event {
         let ex = Exception {
             stacktrace: Annotated::from(Stacktrace(RawStacktrace {
-                frames: Annotated::new(vec![Annotated::new(Frame {
-                    abs_path: Annotated::new(src.into()),
-                    ..Frame::default()
-                })]),
+                frames: Annotated::new(vec![
+                    Annotated::new(Frame {
+                        abs_path: Annotated::new(src.into()),
+                        ..Frame::default()
+                    }),
+                    Annotated::new(Frame {
+                        abs_path: Annotated::new("<anonymous>".into()),
+                        ..Frame::default()
+                    }),
+                    Annotated::new(Frame {
+                        abs_path: Annotated::new("<anonymous>".into()),
+                        ..Frame::default()
+                    }),
+                ]),
                 ..RawStacktrace::default()
             })),
             ..Exception::default()
