@@ -46,8 +46,6 @@ pub struct ClientHints<'a> {
     pub sec_ch_ua_platform_version: Option<&'a str>,
     /// web browser
     pub sec_ch_ua: Option<&'a str>,
-    /// web browser version
-    pub sec_ch_ua_full_version: Option<&'a str>,
     /// device model, e.g. samsung galaxy 3
     pub sec_ch_ua_model: Option<&'a str>,
 }
@@ -63,9 +61,6 @@ impl<'a> RawUserAgentInfo<'a> {
                         "user-agent" => contexts.user_agent = v.as_str(),
 
                         "sec-ch-ua" => contexts.client_hints.sec_ch_ua = v.as_str(),
-                        "sec-ch-ua-full-version" => {
-                            contexts.client_hints.sec_ch_ua_full_version = v.as_str()
-                        }
                         "sec-ch-ua-model" => contexts.client_hints.sec_ch_ua_model = v.as_str(),
                         "sec-ch-ua-platform" => {
                             contexts.client_hints.sec_ch_ua_platform = v.as_str()

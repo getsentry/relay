@@ -1,3 +1,6 @@
+use once_cell::sync::OnceCell;
+use regex::Regex;
+
 use crate::protocol::FromUserAgentInfo;
 use crate::store;
 use crate::types::{Annotated, Object, Value};
@@ -27,11 +30,10 @@ impl BrowserContext {
 
 impl FromUserAgentInfo for BrowserContext {
     fn from_client_hints(client_hints: &user_agent::ClientHints) -> Option<Self> {
-        let browser = Browser::from_ua_client_hint(client_hints.sec_ch_ua?)?;
-        let version = client_hints.sec_ch_ua_full_version?.to_owned();
+        let (browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
 
         Some(Self {
-            name: Annotated::new(browser.to_string()),
+            name: Annotated::new(browser),
             version: Annotated::new(version),
             ..Default::default()
         })
@@ -56,76 +58,37 @@ impl FromUserAgentInfo for BrowserContext {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum Browser {
-    Chrome,
-    Edge,
-    Safari,
-    Brave,
-    Opera,
-    Firefox,
-    Other(String),
-}
-
-impl std::convert::From<String> for Browser {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "Google Chrome" => Browser::Chrome,
-            "Microsoft Edge" => Browser::Edge,
-            "Firefox" => Browser::Firefox,
-            "Safari" => Browser::Safari,
-            "Brave" => Browser::Brave,
-            "Opera" => Browser::Opera,
-            _ => Browser::Other(s.to_string()),
-        }
-    }
-}
-
-impl std::string::ToString for Browser {
-    fn to_string(&self) -> String {
-        match self {
-            Browser::Chrome => "Google Chrome".to_string(),
-            Browser::Edge => "Microsoft Edge".to_string(),
-            Browser::Firefox => "Firefox".to_string(),
-            Browser::Safari => "Safari".to_string(),
-            Browser::Brave => "Brave".to_string(),
-            Browser::Opera => "Opera".to_string(),
-            Browser::Other(s) => s.clone(),
-        }
-    }
-}
-
-impl Browser {
-    /// the sec-ch-ua field looks something like this:
-    /// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
-    ///
-    /// this function attempts to detect the field with the browser, parse it as a browser enum and
-    /// return that. if it fails to parse it as a browser, it uses the "other" variant of browser enum
-    ///
-    /// returns None if no browser field detected
-    fn from_ua_client_hint(s: &str) -> Option<Self> {
-        for item in s.split(',') {
-            // if it contains one of these then we can know it isn't a browser field. atm chromium
-            // browsers are the only ones supporting client hints.
-            if item.contains("Brand")
+/// the sec-ch-ua field looks something like this:
+/// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
+/// The order of the items are randomly shuffled
+///
+/// this function attempts to detect the field with the browser, parse it as a browser enum and
+/// return that. if it fails to parse it as a browser, it uses the "other" variant of browser enum
+///
+/// returns None if no browser field detected
+fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
+    for item in s.split(',') {
+        // if it contains one of these then we can know it isn't a browser field. atm chromium
+        // browsers are the only ones supporting client hints.
+        if item.contains("Brand")
             || item.contains("Chromium")
             || item.contains("Gecko") // useless until firefox and safari support client hints
             || item.contains("WebKit")
-            {
-                continue;
-            }
-
-            // "\"foo-browser\";v=\"109\"" -> "foo-browser"
-            let browser: String = item
-                .split(';')
-                .take(1)
-                .map(|s| s.trim().to_owned().replace('\"', ""))
-                .collect();
-
-            return Some(Self::from(browser));
+        {
+            continue;
         }
-        None
+
+        static UA_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
+
+        let captures = regex.captures(item)?;
+
+        let browser = captures.get(1)?.as_str().to_owned();
+        let version = captures.get(2)?.as_str().to_owned();
+
+        return Some((browser, version));
     }
+    None
 }
 
 #[cfg(test)]
@@ -136,28 +99,27 @@ mod tests {
 
     #[test]
     fn test_client_hint_parser() {
-        let chrome = Browser::from_ua_client_hint(
+        let chrome = browser_from_client_hints(
             r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#,
-        );
-        assert_eq!(chrome.unwrap(), Browser::Chrome);
+        )
+        .unwrap();
+        assert_eq!(chrome.0, "Google Chrome".to_owned());
+        assert_eq!(chrome.1, "109".to_owned());
 
-        let opera = Browser::from_ua_client_hint(
+        let opera = browser_from_client_hints(
             r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#,
-        );
-        assert_eq!(opera.unwrap(), Browser::Opera);
+        )
+        .unwrap();
+        assert_eq!(opera.0, "Opera".to_owned());
+        assert_eq!(opera.1, "94".to_owned());
 
-        let mystery_browser = Browser::from_ua_client_hint(
+        let mystery_browser = browser_from_client_hints(
             r#""Chromium";v="108", "mystery-browser";v="94", "Not)A;Brand";v="99""#,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(
-            mystery_browser.unwrap(),
-            Browser::Other("mystery-browser".to_owned())
-        );
-
-        let missing_browser =
-            Browser::from_ua_client_hint(r#""Chromium";v="108", "Not)A;Brand";v="99""#);
-        assert!(missing_browser.is_none());
+        assert_eq!(mystery_browser.0, "mystery-browser".to_owned());
+        assert_eq!(mystery_browser.1, "94".to_owned());
     }
 
     #[test]
@@ -172,24 +134,14 @@ mod tests {
                 Annotated::new("SEC-CH-UA".to_string().into()),
                 Annotated::new(r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#.to_string().into()),
             )),
-            Annotated::new((
-                Annotated::new("SEC-CH-UA-FULL-VERSION".to_string().into()),
-                Annotated::new("109.0.5414.87".to_string().into()),
-            )),
         ];
             PairList(headers)
         });
 
         let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
-        assert_eq!(
-            browser.clone().unwrap().version.as_str().unwrap(),
-            "109.0.5414.87"
-        );
+        assert_eq!(browser.clone().unwrap().version.as_str().unwrap(), "109");
 
-        assert_eq!(
-            Browser::Chrome.to_string(),
-            browser.unwrap().name.as_str().unwrap()
-        );
+        assert_eq!("Google Chrome", browser.unwrap().name.as_str().unwrap());
     }
 
     #[test]
@@ -213,10 +165,7 @@ mod tests {
         });
 
         let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
-        assert_eq!(
-            browser.clone().unwrap().version.as_str().unwrap(),
-            "109.0.5414.87"
-        );
+        assert_eq!(browser.clone().unwrap().version.as_str().unwrap(), "109");
 
         assert_eq!("weird browser", browser.unwrap().name.as_str().unwrap());
     }

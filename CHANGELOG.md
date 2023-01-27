@@ -9,7 +9,6 @@
 - Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
 - Add SSL support to `relay-redis` crate. It is possible to use `rediss` scheme to connnect to Redis cluster using TLS. ([#1772](https://github.com/getsentry/relay/pull/1772))
 
-
 **Internal**:
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
