@@ -23,32 +23,21 @@ impl<'de> Deserialize<'de> for Event {
             ),
         ) {
             Ok(val) => val,
-            Err(err) => {
-                return Err(dbg!(err));
-            }
+            Err(err) => return Err(err),
         };
         let content_deserializer =
             serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
         match tagged.tag {
-            0 => Result::map(Value::deserialize(content_deserializer), Event::T0),
+            0 => Value::deserialize(content_deserializer).map(Event::T0),
             1 => Result::map(Value::deserialize(content_deserializer), Event::T1),
             2 => Result::map(
                 Box::<FullSnapshotEvent>::deserialize(content_deserializer),
                 Event::T2,
             ),
-            3 => Result::map(
-                Box::<IncrementalSnapshotEvent>::deserialize(content_deserializer),
-                Event::T3,
-            ),
-            4 => Result::map(
-                Box::<MetaEvent>::deserialize(content_deserializer),
-                Event::T4,
-            ),
-            5 => Result::map(
-                Box::<CustomEvent>::deserialize(content_deserializer),
-                Event::T5,
-            ),
-            6 => Result::map(Value::deserialize(content_deserializer), Event::T6),
+            3 => Box::<IncrementalSnapshotEvent>::deserialize(content_deserializer).map(Event::T3),
+            4 => Box::<MetaEvent>::deserialize(content_deserializer).map(Event::T4),
+            5 => Box::<CustomEvent>::deserialize(content_deserializer).map(Event::T5),
+            6 => Value::deserialize(content_deserializer).map(Event::T6),
             value => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::Unsigned(value as u64),
                 &"type id 0 <= i < 7",
@@ -76,41 +65,12 @@ struct OuterEvent<'a> {
     #[serde(rename = "type")]
     ty: u8,
     #[serde(flatten)]
-    _helper: InnerEvent<'a>,
+    inner: InnerEvent<'a>,
 }
 
 impl<'a> OuterEvent<'a> {
-    fn new(event: &'a Event) -> Self {
-        match event {
-            Event::T0(c) => Self {
-                ty: 0,
-                _helper: InnerEvent::T0(c),
-            },
-            Event::T1(c) => Self {
-                ty: 1,
-                _helper: InnerEvent::T1(c),
-            },
-            Event::T2(c) => Self {
-                ty: 2,
-                _helper: InnerEvent::T2(c),
-            },
-            Event::T3(c) => Self {
-                ty: 3,
-                _helper: InnerEvent::T3(c),
-            },
-            Event::T4(c) => Self {
-                ty: 4,
-                _helper: InnerEvent::T4(c),
-            },
-            Event::T5(c) => Self {
-                ty: 5,
-                _helper: InnerEvent::T5(c),
-            },
-            Event::T6(c) => Self {
-                ty: 6,
-                _helper: InnerEvent::T6(c),
-            },
-        }
+    fn new(ty: u8, inner: InnerEvent<'a>) -> Self {
+        Self { ty, inner }
     }
 }
 
@@ -119,7 +79,16 @@ impl Serialize for Event {
     where
         S: serde::Serializer,
     {
-        OuterEvent::new(self).serialize(s)
+        match self {
+            Event::T0(c) => OuterEvent::new(0, InnerEvent::T0(c)),
+            Event::T1(c) => OuterEvent::new(1, InnerEvent::T1(c)),
+            Event::T2(c) => OuterEvent::new(2, InnerEvent::T2(c)),
+            Event::T3(c) => OuterEvent::new(3, InnerEvent::T3(c)),
+            Event::T4(c) => OuterEvent::new(4, InnerEvent::T4(c)),
+            Event::T5(c) => OuterEvent::new(5, InnerEvent::T5(c)),
+            Event::T6(c) => OuterEvent::new(6, InnerEvent::T6(c)),
+        }
+        .serialize(s)
     }
 }
 
@@ -138,38 +107,18 @@ impl<'de> Deserialize<'de> for NodeVariant {
             ),
         ) {
             Ok(val) => val,
-            Err(err) => {
-                return Err(dbg!(err));
-            }
+            Err(err) => return Err(err),
         };
 
         let content_deserializer =
             serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
         match tagged.tag {
-            0 => Result::map(
-                Box::<DocumentNode>::deserialize(content_deserializer),
-                NodeVariant::T0,
-            ),
-            1 => Result::map(
-                Box::<DocumentTypeNode>::deserialize(content_deserializer),
-                NodeVariant::T1,
-            ),
-            2 => Result::map(
-                Box::<ElementNode>::deserialize(content_deserializer),
-                NodeVariant::T2,
-            ),
-            3 => Result::map(
-                Box::<TextNode>::deserialize(content_deserializer),
-                NodeVariant::T3,
-            ),
-            4 => Result::map(
-                Box::<TextNode>::deserialize(content_deserializer),
-                NodeVariant::T4,
-            ),
-            5 => Result::map(
-                Box::<TextNode>::deserialize(content_deserializer),
-                NodeVariant::T5,
-            ),
+            0 => Box::<DocumentNode>::deserialize(content_deserializer).map(NodeVariant::T0),
+            1 => Box::<DocumentTypeNode>::deserialize(content_deserializer).map(NodeVariant::T1),
+            2 => Box::<ElementNode>::deserialize(content_deserializer).map(NodeVariant::T2),
+            3 => Box::<TextNode>::deserialize(content_deserializer).map(NodeVariant::T3),
+            4 => Box::<TextNode>::deserialize(content_deserializer).map(NodeVariant::T4),
+            5 => Box::<TextNode>::deserialize(content_deserializer).map(NodeVariant::T5),
             value => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::Unsigned(value as u64),
                 &"type id 0 <= i < 6",
@@ -196,37 +145,12 @@ struct OuterNodeVariant<'a> {
     #[serde(rename = "type")]
     ty: u8,
     #[serde(flatten)]
-    _helper: InnerNodeVariant<'a>,
+    inner: InnerNodeVariant<'a>,
 }
 
 impl<'a> OuterNodeVariant<'a> {
-    fn new(nv: &'a NodeVariant) -> Self {
-        match nv {
-            NodeVariant::T0(c) => Self {
-                ty: 0,
-                _helper: InnerNodeVariant::T0(c),
-            },
-            NodeVariant::T1(c) => Self {
-                ty: 1,
-                _helper: InnerNodeVariant::T1(c),
-            },
-            NodeVariant::T2(c) => Self {
-                ty: 2,
-                _helper: InnerNodeVariant::T2(c),
-            },
-            NodeVariant::T3(c) => Self {
-                ty: 3,
-                _helper: InnerNodeVariant::T3(c),
-            },
-            NodeVariant::T4(c) => Self {
-                ty: 4,
-                _helper: InnerNodeVariant::T4(c),
-            },
-            NodeVariant::T5(c) => Self {
-                ty: 5,
-                _helper: InnerNodeVariant::T5(c),
-            },
-        }
+    fn new(ty: u8, inner: InnerNodeVariant<'a>) -> Self {
+        Self { ty, inner }
     }
 }
 
@@ -235,7 +159,15 @@ impl Serialize for NodeVariant {
     where
         S: serde::Serializer,
     {
-        OuterNodeVariant::new(self).serialize(s)
+        match self {
+            NodeVariant::T0(c) => OuterNodeVariant::new(0, InnerNodeVariant::T0(c)),
+            NodeVariant::T1(c) => OuterNodeVariant::new(1, InnerNodeVariant::T1(c)),
+            NodeVariant::T2(c) => OuterNodeVariant::new(2, InnerNodeVariant::T2(c)),
+            NodeVariant::T3(c) => OuterNodeVariant::new(3, InnerNodeVariant::T3(c)),
+            NodeVariant::T4(c) => OuterNodeVariant::new(4, InnerNodeVariant::T4(c)),
+            NodeVariant::T5(c) => OuterNodeVariant::new(5, InnerNodeVariant::T5(c)),
+        }
+        .serialize(s)
     }
 }
 
@@ -254,22 +186,16 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
             ),
         ) {
             Ok(val) => val,
-            Err(err) => {
-                return Err(dbg!(err));
-            }
+            Err(err) => return Err(err),
         };
         let content_deserializer =
             serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
         match tagged.tag {
-            0 => Result::map(
-                Box::<MutationIncrementalSourceData>::deserialize(content_deserializer),
-                IncrementalSourceDataVariant::Mutation,
-            ),
-            5 => Result::map(
-                Box::<InputIncrementalSourceData>::deserialize(content_deserializer),
-                IncrementalSourceDataVariant::Input,
-            ),
-            source => Result::map(Value::deserialize(content_deserializer), |value| {
+            0 => Box::<MutationIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::Mutation),
+            5 => Box::<InputIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::Input),
+            source => Value::deserialize(content_deserializer).map(|value| {
                 IncrementalSourceDataVariant::Default(Box::new(DefaultIncrementalSourceData {
                     source,
                     value,
@@ -293,25 +219,12 @@ enum InnerISDV<'a> {
 struct OuterISDV<'a> {
     source: u8,
     #[serde(flatten)]
-    _helper: InnerISDV<'a>,
+    inner: InnerISDV<'a>,
 }
 
 impl<'a> OuterISDV<'a> {
-    fn new(isdv: &'a IncrementalSourceDataVariant) -> Self {
-        match isdv {
-            IncrementalSourceDataVariant::Mutation(m) => Self {
-                source: 0,
-                _helper: InnerISDV::Mutation(m.as_ref()),
-            },
-            IncrementalSourceDataVariant::Input(i) => Self {
-                source: 5,
-                _helper: InnerISDV::Input(i.as_ref()),
-            },
-            IncrementalSourceDataVariant::Default(v) => Self {
-                source: v.source,
-                _helper: InnerISDV::Default(&v.value),
-            },
-        }
+    fn new(source: u8, inner: InnerISDV<'a>) -> Self {
+        Self { source, inner }
     }
 }
 
@@ -320,6 +233,17 @@ impl Serialize for IncrementalSourceDataVariant {
     where
         S: serde::Serializer,
     {
-        OuterISDV::new(self).serialize(s)
+        match self {
+            IncrementalSourceDataVariant::Mutation(m) => {
+                OuterISDV::new(0, InnerISDV::Mutation(m.as_ref()))
+            }
+            IncrementalSourceDataVariant::Input(i) => {
+                OuterISDV::new(5, InnerISDV::Input(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::Default(v) => {
+                OuterISDV::new(v.source, InnerISDV::Default(&v.value))
+            }
+        }
+        .serialize(s)
     }
 }
