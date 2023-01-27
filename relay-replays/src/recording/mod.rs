@@ -10,8 +10,10 @@ use relay_general::processor::{
 use relay_general::types::{Meta, ProcessingAction};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use serde::{de::Error as DError, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod serialization;
 
 /// Parses compressed replay recording payloads and applies data scrubbers.
 ///
@@ -158,9 +160,10 @@ impl RecordingProcessor<'_> {
                 }
             }
             NodeVariant::T2(element) => self.recurse_element(element)?,
-            NodeVariant::Rest(text) => {
+            NodeVariant::T3(text) | NodeVariant::T4(text) | NodeVariant::T5(text) => {
                 self.strip_pii(&mut text.text_content)?;
             }
+
             _ => {}
         }
 
@@ -232,56 +235,19 @@ impl RecordingProcessor<'_> {
 /// -> CUSTOM = 5
 /// -> PLUGIN = 6
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[derive(Debug)]
 enum Event {
-    T2(FullSnapshotEvent),
-    T3(IncrementalSnapshotEvent),
-    T4(MetaEvent),
-    T5(CustomEvent),
-    Default(Value),
-    // 0: DOMContentLoadedEvent,
-    // 1: LoadEvent,
-    // 6: PluginEvent,
-}
-
-impl<'de> serde::Deserialize<'de> for Event {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-
-        match value.get("type") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    2 => match FullSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T2(event)),
-                        Err(_) => Err(DError::custom("could not parse snapshot event")),
-                    },
-                    3 => match IncrementalSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T3(event)),
-                        Err(_) => Err(DError::custom("could not parse incremental snapshot event")),
-                    },
-                    4 => match MetaEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T4(event)),
-                        Err(_) => Err(DError::custom("could not parse meta event")),
-                    },
-                    5 => match CustomEvent::deserialize(value) {
-                        Ok(event) => Ok(Event::T5(event)),
-                        Err(e) => Err(DError::custom(e.to_string())),
-                    },
-                    0 | 1 | 6 => Ok(Event::Default(value)),
-                    _ => Err(DError::custom("invalid type value")),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
-        }
-    }
+    T0(Value), // 0: DOMContentLoadedEvent,
+    T1(Value), // 1: LoadEvent,
+    T2(Box<FullSnapshotEvent>),
+    T3(Box<IncrementalSnapshotEvent>),
+    T4(Box<MetaEvent>),
+    T5(Box<CustomEvent>),
+    T6(Value), // 6: PluginEvent,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FullSnapshotEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: FullSnapshotEventData,
 }
@@ -295,24 +261,18 @@ struct FullSnapshotEventData {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IncrementalSnapshotEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: IncrementalSourceDataVariant,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MetaEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: u64,
     data: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CustomEvent {
-    #[serde(rename = "type")]
-    ty: u8,
     timestamp: f64,
     data: CustomEventDataVariant,
 }
@@ -321,9 +281,9 @@ struct CustomEvent {
 #[serde(untagged)]
 enum CustomEventDataVariant {
     #[serde(rename = "breadcrumb")]
-    Breadcrumb(Breadcrumb),
+    Breadcrumb(Box<Breadcrumb>),
     #[serde(rename = "performanceSpan")]
-    PerformanceSpan(PerformanceSpan),
+    PerformanceSpan(Box<PerformanceSpan>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -391,52 +351,20 @@ struct Node {
     variant: NodeVariant,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[derive(Debug)]
+
 enum NodeVariant {
-    T0(DocumentNode),
-    T1(DocumentTypeNode),
-    T2(ElementNode),
-    Rest(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
-}
-
-impl<'de> serde::Deserialize<'de> for NodeVariant {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-
-        match value.get("type") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    0 => match DocumentNode::deserialize(value) {
-                        Ok(document) => Ok(NodeVariant::T0(document)),
-                        Err(_) => Err(DError::custom("could not parse document object.")),
-                    },
-                    1 => match DocumentTypeNode::deserialize(value) {
-                        Ok(document_type) => Ok(NodeVariant::T1(document_type)),
-                        Err(_) => Err(DError::custom("could not parse document-type object")),
-                    },
-                    2 => match ElementNode::deserialize(value) {
-                        Ok(element) => Ok(NodeVariant::T2(element)),
-                        Err(_) => Err(DError::custom("could not parse element object")),
-                    },
-                    3 | 4 | 5 => match TextNode::deserialize(value) {
-                        Ok(text) => Ok(NodeVariant::Rest(text)),
-                        Err(_) => Err(DError::custom("could not parse text object")),
-                    },
-                    _ => Err(DError::custom("invalid type value")),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
-        }
-    }
+    T0(Box<DocumentNode>),
+    T1(Box<DocumentTypeNode>),
+    T2(Box<ElementNode>),
+    T3(Box<TextNode>), // text
+    T4(Box<TextNode>), // cdata
+    T5(Box<TextNode>), // comment
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DocumentNode {
     id: i32,
-    #[serde(rename = "type")]
-    ty: u8,
     #[serde(rename = "childNodes")]
     child_nodes: Vec<Node>,
 }
@@ -444,8 +372,6 @@ struct DocumentNode {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DocumentTypeNode {
-    #[serde(rename = "type")]
-    ty: u8,
     id: Value,
     public_id: Value,
     system_id: Value,
@@ -456,8 +382,6 @@ struct DocumentTypeNode {
 #[serde(rename_all = "camelCase")]
 struct ElementNode {
     id: Value,
-    #[serde(rename = "type")]
-    ty: u8,
     attributes: HashMap<String, Value>,
     tag_name: String,
     child_nodes: Vec<Node>,
@@ -471,8 +395,6 @@ struct ElementNode {
 #[serde(rename_all = "camelCase")]
 struct TextNode {
     id: Value,
-    #[serde(rename = "type")]
-    ty: u8,
     text_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_style: Option<Value>,
@@ -499,42 +421,16 @@ struct TextNode {
 /// -> DRAG = 12
 /// -> STYLEDECLARATION = 13
 
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[derive(Debug)]
 enum IncrementalSourceDataVariant {
-    Mutation(MutationIncrementalSourceData),
-    Input(InputIncrementalSourceData),
-    Default(Value),
-}
-
-impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-
-        match value.get("source") {
-            Some(val) => match Value::as_u64(val) {
-                Some(v) => match v {
-                    0 => match MutationIncrementalSourceData::deserialize(value) {
-                        Ok(document) => Ok(IncrementalSourceDataVariant::Mutation(document)),
-                        Err(_) => Err(DError::custom("could not parse mutation object.")),
-                    },
-                    5 => match InputIncrementalSourceData::deserialize(value) {
-                        Ok(document_type) => Ok(IncrementalSourceDataVariant::Input(document_type)),
-                        Err(_) => Err(DError::custom("could not parse input object")),
-                    },
-                    _ => Ok(IncrementalSourceDataVariant::Default(value)),
-                },
-                None => Err(DError::custom("type field must be an integer")),
-            },
-            None => Err(DError::missing_field("type")),
-        }
-    }
+    Mutation(Box<MutationIncrementalSourceData>),
+    Input(Box<InputIncrementalSourceData>),
+    Default(Box<DefaultIncrementalSourceData>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct InputIncrementalSourceData {
-    source: u8,
     id: i32,
     text: String,
     is_checked: Value,
@@ -546,13 +442,18 @@ struct InputIncrementalSourceData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
-    source: u8,
     texts: Vec<Value>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_attach_iframe: Option<Value>,
+}
+
+#[derive(Debug)]
+struct DefaultIncrementalSourceData {
+    pub source: u8,
+    pub value: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -658,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_pii_credit_card_removal() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -669,7 +570,7 @@ mod tests {
                 let dd = cc.adds.pop().unwrap();
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                    if let recording::NodeVariant::T3(gg) = ff.variant {
                         assert_eq!(gg.text_content, "[creditcard]");
                         return;
                     }
@@ -681,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_navigation() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-performance-navigation.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-navigation.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -702,7 +603,7 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_resource() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-performance-resource.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-resource.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -723,7 +624,7 @@ mod tests {
 
     #[test]
     fn test_pii_ip_address_removal() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-pii-ip-address.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -734,7 +635,7 @@ mod tests {
                 let dd = cc.adds.pop().unwrap();
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                    if let recording::NodeVariant::T3(gg) = ff.variant {
                         assert_eq!(gg.text_content, "[ip]");
                         return;
                     }
@@ -746,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_snapshot_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -755,7 +656,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_incremental_source_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-diff.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-diff.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -765,7 +666,7 @@ mod tests {
     // Node coverage
     #[test]
     fn test_rrweb_node_2_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-node-2.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2.json");
 
         let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -774,18 +675,19 @@ mod tests {
 
     #[test]
     fn test_rrweb_node_2_style_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-node-2-style.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2-style.json");
 
         let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
+        serde_json::to_string_pretty(&input_parsed).unwrap();
+        assert_json_eq!(input_parsed, input_raw);
     }
 
     // Event coverage
 
     #[test]
     fn test_rrweb_event_3_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
 
         let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -794,10 +696,16 @@ mod tests {
 
     #[test]
     fn test_rrweb_event_5_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
 
         let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw);
     }
+}
+
+#[doc(hidden)]
+/// Only used in benchmarks.
+pub fn _deserialize_event(payload: &[u8]) {
+    let _: Vec<Event> = serde_json::from_slice(payload).unwrap();
 }
