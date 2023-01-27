@@ -3169,8 +3169,6 @@
 <a href="#3168" id="3168">3168</a>
 <a href="#3169" id="3169">3169</a>
 <a href="#3170" id="3170">3170</a>
-<a href="#3171" id="3171">3171</a>
-<a href="#3172" id="3172">3172</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4266,9 +4264,7 @@
                 }
             }
             ItemType::ReplayRecording =&gt; {
-                <span class="comment">// XXX: Temporarily, only the Sentry org will be allowed to parse replays while
-                // we measure the impact of this change.
-                </span><span class="kw">if </span>replays_enabled &amp;&amp; state.project_state.organization_id == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
+                <span class="kw">if </span>replays_enabled {
                     <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
                     // decompressed temporarily and then immediately re-compressed. However, to
                     // limit memory pressure, we use the replay limit as a good overall limit for

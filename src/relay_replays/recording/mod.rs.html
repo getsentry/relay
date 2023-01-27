@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recording.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../relay_replays/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../../relay_replays/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -709,98 +709,6 @@
 <a href="#709" id="709">709</a>
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt::Display;
@@ -813,8 +721,10 @@
 <span class="kw">use </span>relay_general::types::{Meta, ProcessingAction};
 
 <span class="kw">use </span>flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-<span class="kw">use </span>serde::{de::Error <span class="kw">as </span>DError, Deserialize, Serialize};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
+
+<span class="kw">mod </span>serialization;
 
 <span class="doccomment">/// Parses compressed replay recording payloads and applies data scrubbers.
 ///
@@ -961,9 +871,10 @@
                 </span>}
             }
             NodeVariant::T2(element) =&gt; <span class="self">self</span>.recurse_element(element)<span class="question-mark">?</span>,
-            NodeVariant::Rest(text) =&gt; {
+            NodeVariant::T3(text) | NodeVariant::T4(text) | NodeVariant::T5(text) =&gt; {
                 <span class="self">self</span>.strip_pii(<span class="kw-2">&amp;mut </span>text.text_content)<span class="question-mark">?</span>;
             }
+
             <span class="kw">_ </span>=&gt; {}
         }
 
@@ -1035,56 +946,19 @@
 /// -&gt; CUSTOM = 5
 /// -&gt; PLUGIN = 6
 
-</span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(untagged)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>Event {
-    T2(FullSnapshotEvent),
-    T3(IncrementalSnapshotEvent),
-    T4(MetaEvent),
-    T5(CustomEvent),
-    Default(Value),
-    <span class="comment">// 0: DOMContentLoadedEvent,
-    // 1: LoadEvent,
-    // 6: PluginEvent,
+    T0(Value), <span class="comment">// 0: DOMContentLoadedEvent,
+    </span>T1(Value), <span class="comment">// 1: LoadEvent,
+    </span>T2(Box&lt;FullSnapshotEvent&gt;),
+    T3(Box&lt;IncrementalSnapshotEvent&gt;),
+    T4(Box&lt;MetaEvent&gt;),
+    T5(Box&lt;CustomEvent&gt;),
+    T6(Value), <span class="comment">// 6: PluginEvent,
 </span>}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Event {
-    <span class="kw">fn </span>deserialize&lt;D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(d: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
-        <span class="kw">let </span>value = Value::deserialize(d)<span class="question-mark">?</span>;
-
-        <span class="kw">match </span>value.get(<span class="string">&quot;type&quot;</span>) {
-            <span class="prelude-val">Some</span>(val) =&gt; <span class="kw">match </span>Value::as_u64(val) {
-                <span class="prelude-val">Some</span>(v) =&gt; <span class="kw">match </span>v {
-                    <span class="number">2 </span>=&gt; <span class="kw">match </span>FullSnapshotEvent::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(event) =&gt; <span class="prelude-val">Ok</span>(Event::T2(event)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse snapshot event&quot;</span>)),
-                    },
-                    <span class="number">3 </span>=&gt; <span class="kw">match </span>IncrementalSnapshotEvent::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(event) =&gt; <span class="prelude-val">Ok</span>(Event::T3(event)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse incremental snapshot event&quot;</span>)),
-                    },
-                    <span class="number">4 </span>=&gt; <span class="kw">match </span>MetaEvent::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(event) =&gt; <span class="prelude-val">Ok</span>(Event::T4(event)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse meta event&quot;</span>)),
-                    },
-                    <span class="number">5 </span>=&gt; <span class="kw">match </span>CustomEvent::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(event) =&gt; <span class="prelude-val">Ok</span>(Event::T5(event)),
-                        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(DError::custom(e.to_string())),
-                    },
-                    <span class="number">0 </span>| <span class="number">1 </span>| <span class="number">6 </span>=&gt; <span class="prelude-val">Ok</span>(Event::Default(value)),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;invalid type value&quot;</span>)),
-                },
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;type field must be an integer&quot;</span>)),
-            },
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::missing_field(<span class="string">&quot;type&quot;</span>)),
-        }
-    }
-}
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>FullSnapshotEvent {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     timestamp: u64,
     data: FullSnapshotEventData,
 }
@@ -1098,24 +972,18 @@
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>IncrementalSnapshotEvent {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     timestamp: u64,
     data: IncrementalSourceDataVariant,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>MetaEvent {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     timestamp: u64,
     data: Value,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>CustomEvent {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     timestamp: f64,
     data: CustomEventDataVariant,
 }
@@ -1124,9 +992,9 @@
 #[serde(untagged)]
 </span><span class="kw">enum </span>CustomEventDataVariant {
     <span class="attr">#[serde(rename = <span class="string">&quot;breadcrumb&quot;</span>)]
-    </span>Breadcrumb(Breadcrumb),
+    </span>Breadcrumb(Box&lt;Breadcrumb&gt;),
     <span class="attr">#[serde(rename = <span class="string">&quot;performanceSpan&quot;</span>)]
-    </span>PerformanceSpan(PerformanceSpan),
+    </span>PerformanceSpan(Box&lt;PerformanceSpan&gt;),
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
@@ -1194,52 +1062,20 @@
     </span>variant: NodeVariant,
 }
 
-<span class="attr">#[derive(Debug, Serialize)]
-#[serde(untagged)]
+<span class="attr">#[derive(Debug)]
+
 </span><span class="kw">enum </span>NodeVariant {
-    T0(DocumentNode),
-    T1(DocumentTypeNode),
-    T2(ElementNode),
-    Rest(TextNode), <span class="comment">// types 3 (text), 4 (cdata), 5 (comment)
+    T0(Box&lt;DocumentNode&gt;),
+    T1(Box&lt;DocumentTypeNode&gt;),
+    T2(Box&lt;ElementNode&gt;),
+    T3(Box&lt;TextNode&gt;), <span class="comment">// text
+    </span>T4(Box&lt;TextNode&gt;), <span class="comment">// cdata
+    </span>T5(Box&lt;TextNode&gt;), <span class="comment">// comment
 </span>}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>NodeVariant {
-    <span class="kw">fn </span>deserialize&lt;D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(d: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
-        <span class="kw">let </span>value = Value::deserialize(d)<span class="question-mark">?</span>;
-
-        <span class="kw">match </span>value.get(<span class="string">&quot;type&quot;</span>) {
-            <span class="prelude-val">Some</span>(val) =&gt; <span class="kw">match </span>Value::as_u64(val) {
-                <span class="prelude-val">Some</span>(v) =&gt; <span class="kw">match </span>v {
-                    <span class="number">0 </span>=&gt; <span class="kw">match </span>DocumentNode::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(document) =&gt; <span class="prelude-val">Ok</span>(NodeVariant::T0(document)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse document object.&quot;</span>)),
-                    },
-                    <span class="number">1 </span>=&gt; <span class="kw">match </span>DocumentTypeNode::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(document_type) =&gt; <span class="prelude-val">Ok</span>(NodeVariant::T1(document_type)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse document-type object&quot;</span>)),
-                    },
-                    <span class="number">2 </span>=&gt; <span class="kw">match </span>ElementNode::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(element) =&gt; <span class="prelude-val">Ok</span>(NodeVariant::T2(element)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse element object&quot;</span>)),
-                    },
-                    <span class="number">3 </span>| <span class="number">4 </span>| <span class="number">5 </span>=&gt; <span class="kw">match </span>TextNode::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(text) =&gt; <span class="prelude-val">Ok</span>(NodeVariant::Rest(text)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse text object&quot;</span>)),
-                    },
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;invalid type value&quot;</span>)),
-                },
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;type field must be an integer&quot;</span>)),
-            },
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::missing_field(<span class="string">&quot;type&quot;</span>)),
-        }
-    }
-}
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>DocumentNode {
     id: i32,
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     <span class="attr">#[serde(rename = <span class="string">&quot;childNodes&quot;</span>)]
     </span>child_nodes: Vec&lt;Node&gt;,
 }
@@ -1247,8 +1083,6 @@
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>DocumentTypeNode {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     id: Value,
     public_id: Value,
     system_id: Value,
@@ -1259,8 +1093,6 @@
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>ElementNode {
     id: Value,
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     attributes: HashMap&lt;String, Value&gt;,
     tag_name: String,
     child_nodes: Vec&lt;Node&gt;,
@@ -1274,8 +1106,6 @@
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>TextNode {
     id: Value,
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
-    </span>ty: u8,
     text_content: String,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>is_style: <span class="prelude-ty">Option</span>&lt;Value&gt;,
@@ -1302,42 +1132,16 @@
 /// -&gt; DRAG = 12
 /// -&gt; STYLEDECLARATION = 13
 
-</span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(untagged)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>IncrementalSourceDataVariant {
-    Mutation(MutationIncrementalSourceData),
-    Input(InputIncrementalSourceData),
-    Default(Value),
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>IncrementalSourceDataVariant {
-    <span class="kw">fn </span>deserialize&lt;D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(d: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
-        <span class="kw">let </span>value = Value::deserialize(d)<span class="question-mark">?</span>;
-
-        <span class="kw">match </span>value.get(<span class="string">&quot;source&quot;</span>) {
-            <span class="prelude-val">Some</span>(val) =&gt; <span class="kw">match </span>Value::as_u64(val) {
-                <span class="prelude-val">Some</span>(v) =&gt; <span class="kw">match </span>v {
-                    <span class="number">0 </span>=&gt; <span class="kw">match </span>MutationIncrementalSourceData::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(document) =&gt; <span class="prelude-val">Ok</span>(IncrementalSourceDataVariant::Mutation(document)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse mutation object.&quot;</span>)),
-                    },
-                    <span class="number">5 </span>=&gt; <span class="kw">match </span>InputIncrementalSourceData::deserialize(value) {
-                        <span class="prelude-val">Ok</span>(document_type) =&gt; <span class="prelude-val">Ok</span>(IncrementalSourceDataVariant::Input(document_type)),
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;could not parse input object&quot;</span>)),
-                    },
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(IncrementalSourceDataVariant::Default(value)),
-                },
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::custom(<span class="string">&quot;type field must be an integer&quot;</span>)),
-            },
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DError::missing_field(<span class="string">&quot;type&quot;</span>)),
-        }
-    }
+    Mutation(Box&lt;MutationIncrementalSourceData&gt;),
+    Input(Box&lt;InputIncrementalSourceData&gt;),
+    Default(Box&lt;DefaultIncrementalSourceData&gt;),
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>InputIncrementalSourceData {
-    source: u8,
     id: i32,
     text: String,
     is_checked: Value,
@@ -1349,13 +1153,18 @@
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>MutationIncrementalSourceData {
-    source: u8,
     texts: Vec&lt;Value&gt;,
     attributes: Vec&lt;Value&gt;,
     removes: Vec&lt;Value&gt;,
     adds: Vec&lt;MutationAdditionIncrementalSourceData&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>is_attach_iframe: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>DefaultIncrementalSourceData {
+    <span class="kw">pub </span>source: u8,
+    <span class="kw">pub </span>value: Value,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
@@ -1461,7 +1270,7 @@
 
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_pii_credit_card_removal() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-pii.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-pii.json&quot;</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;Event&gt; = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
@@ -1472,7 +1281,7 @@
                 <span class="kw">let </span>dd = cc.adds.pop().unwrap();
                 <span class="kw">if let </span>recording::NodeVariant::T2(<span class="kw-2">mut </span>ee) = dd.node.variant {
                     <span class="kw">let </span>ff = ee.child_nodes.pop().unwrap();
-                    <span class="kw">if let </span>recording::NodeVariant::Rest(gg) = ff.variant {
+                    <span class="kw">if let </span>recording::NodeVariant::T3(gg) = ff.variant {
                         <span class="macro">assert_eq!</span>(gg.text_content, <span class="string">&quot;[creditcard]&quot;</span>);
                         <span class="kw">return</span>;
                     }
@@ -1484,7 +1293,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_navigation() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-performance-navigation.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-performance-navigation.json&quot;</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;Event&gt; = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
@@ -1505,7 +1314,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_resource() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-performance-resource.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-performance-resource.json&quot;</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;Event&gt; = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
@@ -1526,7 +1335,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_pii_ip_address_removal() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-pii-ip-address.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-pii-ip-address.json&quot;</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;Event&gt; = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
@@ -1537,7 +1346,7 @@
                 <span class="kw">let </span>dd = cc.adds.pop().unwrap();
                 <span class="kw">if let </span>recording::NodeVariant::T2(<span class="kw-2">mut </span>ee) = dd.node.variant {
                     <span class="kw">let </span>ff = ee.child_nodes.pop().unwrap();
-                    <span class="kw">if let </span>recording::NodeVariant::Rest(gg) = ff.variant {
+                    <span class="kw">if let </span>recording::NodeVariant::T3(gg) = ff.variant {
                         <span class="macro">assert_eq!</span>(gg.text_content, <span class="string">&quot;[ip]&quot;</span>);
                         <span class="kw">return</span>;
                     }
@@ -1549,7 +1358,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_snapshot_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed = loads(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -1558,7 +1367,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_incremental_source_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-diff.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-diff.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed = loads(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -1568,7 +1377,7 @@
     <span class="comment">// Node coverage
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_node_2_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-node-2.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-node-2.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -1577,18 +1386,19 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_node_2_style_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-node-2-style.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-node-2-style.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
-        <span class="macro">assert_json_eq!</span>(input_parsed, input_raw)
+        serde_json::to_string_pretty(<span class="kw-2">&amp;</span>input_parsed).unwrap();
+        <span class="macro">assert_json_eq!</span>(input_parsed, input_raw);
     }
 
     <span class="comment">// Event coverage
 
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_event_3_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-event-3.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-3.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -1597,12 +1407,18 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_event_5_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-event-5.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-5.json&quot;</span>);
 
         <span class="kw">let </span>input_parsed: Vec&lt;recording::Event&gt; = serde_json::from_slice(payload).unwrap();
         <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
         <span class="macro">assert_json_eq!</span>(input_parsed, input_raw);
     }
 }
+
+<span class="attr">#[doc(hidden)]
+</span><span class="doccomment">/// Only used in benchmarks.
+</span><span class="kw">pub fn </span>_deserialize_event(payload: <span class="kw-2">&amp;</span>[u8]) {
+    <span class="kw">let _</span>: Vec&lt;Event&gt; = serde_json::from_slice(payload).unwrap();
+}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_replays" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_replays" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
