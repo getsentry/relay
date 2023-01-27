@@ -29,7 +29,7 @@ impl Default for ReplaceRedaction {
 }
 
 /// Defines how replacements happen.
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum Redaction {
     /// The default redaction for this operation (normally equivalent to `Remove`).
@@ -37,6 +37,7 @@ pub enum Redaction {
     /// The main difference to `Remove` is that if the redaction is explicitly
     /// set to `Remove` it also applies in situations where a default
     /// redaction is therwise not passed down (for instance with `Multiple`).
+    #[default]
     Default,
     /// Removes the value and puts nothing in its place.
     Remove,
@@ -46,10 +47,4 @@ pub enum Redaction {
     Mask,
     /// Replaces the value with a hash
     Hash,
-}
-
-impl Default for Redaction {
-    fn default() -> Redaction {
-        Redaction::Default
-    }
 }

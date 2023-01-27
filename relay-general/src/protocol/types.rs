@@ -641,13 +641,14 @@ impl fmt::Display for ParseLevelError {
 impl std::error::Error for ParseLevelError {}
 
 /// Severity level of an event or breadcrumb.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum Level {
     /// Indicates very spammy debug information.
     Debug,
     /// Informational messages.
+    #[default]
     Info,
     /// A warning.
     Warning,
@@ -655,12 +656,6 @@ pub enum Level {
     Error,
     /// Similar to error but indicates a critical event that usually causes a shutdown.
     Fatal,
-}
-
-impl Default for Level {
-    fn default() -> Self {
-        Level::Info
-    }
 }
 
 impl Level {
