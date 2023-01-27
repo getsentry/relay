@@ -62,8 +62,8 @@ impl FromUserAgentInfo for BrowserContext {
 /// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
 /// The order of the items are randomly shuffled
 ///
-/// this function attempts to detect the field with the browser, parse it as a browser enum and
-/// return that. if it fails to parse it as a browser, it uses the "other" variant of browser enum
+/// It tries to detect the "not a brand" item and the browser engine, if it's neither its assumed
+/// to be a browser and gets returend as such
 ///
 /// returns None if no browser field detected
 fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
