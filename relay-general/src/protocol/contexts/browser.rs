@@ -180,11 +180,7 @@ mod tests {
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA".to_string().into()),
-                Annotated::new(r#"Not_A Brand";v="99", "Chromium";v="109"#.to_string().into()), // no browser field here
-            )),
-            Annotated::new((
-                Annotated::new("SEC-CH-UA-FULL-VERSION".to_string().into()),
-                Annotated::new("109.0.5414.87".to_string().into()),
+                Annotated::new(r#"Not_A Brand";v="99", "Chromium";v="108"#.to_string().into()), // no browser field here
             )),
         ];
             PairList(headers)
