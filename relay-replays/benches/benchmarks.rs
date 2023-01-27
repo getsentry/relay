@@ -1,6 +1,4 @@
-use criterion::BenchmarkId;
-use criterion::Criterion;
-use criterion::{criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use relay_replays::recording::_deserialize_event;
 

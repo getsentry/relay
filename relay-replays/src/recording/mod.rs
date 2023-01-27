@@ -13,6 +13,8 @@ use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod serialization;
+
 /// Parses compressed replay recording payloads and applies data scrubbers.
 ///
 /// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
@@ -109,7 +111,7 @@ impl From<std::io::Error> for RecordingParseError {
 
 // Recording Processor
 
-pub(crate) struct RecordingProcessor<'a> {
+struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
 }
 
@@ -151,15 +153,14 @@ impl RecordingProcessor<'_> {
     }
 
     fn recurse_snapshot_node(&mut self, node: &mut Node) -> Result<(), ProcessingAction> {
-        use NodeVariant::*;
         match &mut node.variant {
-            T0(document) => {
+            NodeVariant::T0(document) => {
                 for node in &mut document.child_nodes {
                     self.recurse_snapshot_node(node)?
                 }
             }
-            T2(element) => self.recurse_element(element)?,
-            T3(text) | T4(text) | T5(text) => {
+            NodeVariant::T2(element) => self.recurse_element(element)?,
+            NodeVariant::T3(text) | NodeVariant::T4(text) | NodeVariant::T5(text) => {
                 self.strip_pii(&mut text.text_content)?;
             }
 
@@ -235,7 +236,7 @@ impl RecordingProcessor<'_> {
 /// -> PLUGIN = 6
 
 #[derive(Debug)]
-pub(crate) enum Event {
+enum Event {
     T0(Value), // 0: DOMContentLoadedEvent,
     T1(Value), // 1: LoadEvent,
     T2(Box<FullSnapshotEvent>),
@@ -246,32 +247,32 @@ pub(crate) enum Event {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct FullSnapshotEvent {
+struct FullSnapshotEvent {
     timestamp: u64,
     data: FullSnapshotEventData,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct FullSnapshotEventData {
+struct FullSnapshotEventData {
     node: Node,
     #[serde(rename = "initialOffset")]
     initial_offset: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct IncrementalSnapshotEvent {
+struct IncrementalSnapshotEvent {
     timestamp: u64,
     data: IncrementalSourceDataVariant,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct MetaEvent {
+struct MetaEvent {
     timestamp: u64,
     data: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct CustomEvent {
+struct CustomEvent {
     timestamp: f64,
     data: CustomEventDataVariant,
 }
@@ -286,13 +287,13 @@ enum CustomEventDataVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Breadcrumb {
+struct Breadcrumb {
     tag: String,
     payload: BreadcrumbPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct BreadcrumbPayload {
+struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
@@ -306,14 +307,14 @@ pub(crate) struct BreadcrumbPayload {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct PerformanceSpan {
+struct PerformanceSpan {
     tag: String,
     payload: PerformanceSpanPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PerformanceSpanPayload {
+struct PerformanceSpanPayload {
     op: String,
     description: String,
     start_timestamp: f64,
@@ -337,7 +338,7 @@ pub(crate) struct PerformanceSpanPayload {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Node {
+struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     root_id: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -352,7 +353,7 @@ pub(crate) struct Node {
 
 #[derive(Debug)]
 
-pub(crate) enum NodeVariant {
+enum NodeVariant {
     T0(Box<DocumentNode>),
     T1(Box<DocumentTypeNode>),
     T2(Box<ElementNode>),
@@ -362,7 +363,7 @@ pub(crate) enum NodeVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct DocumentNode {
+struct DocumentNode {
     id: i32,
     #[serde(rename = "childNodes")]
     child_nodes: Vec<Node>,
@@ -370,7 +371,7 @@ pub(crate) struct DocumentNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct DocumentTypeNode {
+struct DocumentTypeNode {
     id: Value,
     public_id: Value,
     system_id: Value,
@@ -379,7 +380,7 @@ pub(crate) struct DocumentTypeNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ElementNode {
+struct ElementNode {
     id: Value,
     attributes: HashMap<String, Value>,
     tag_name: String,
@@ -392,7 +393,7 @@ pub(crate) struct ElementNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct TextNode {
+struct TextNode {
     id: Value,
     text_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -421,7 +422,7 @@ pub(crate) struct TextNode {
 /// -> STYLEDECLARATION = 13
 
 #[derive(Debug)]
-pub(crate) enum IncrementalSourceDataVariant {
+enum IncrementalSourceDataVariant {
     Mutation(Box<MutationIncrementalSourceData>),
     Input(Box<InputIncrementalSourceData>),
     Default(Box<DefaultIncrementalSourceData>),
@@ -429,7 +430,7 @@ pub(crate) enum IncrementalSourceDataVariant {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct InputIncrementalSourceData {
+struct InputIncrementalSourceData {
     id: i32,
     text: String,
     is_checked: Value,
@@ -440,7 +441,7 @@ pub(crate) struct InputIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct MutationIncrementalSourceData {
+struct MutationIncrementalSourceData {
     texts: Vec<Value>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
@@ -450,14 +451,14 @@ pub(crate) struct MutationIncrementalSourceData {
 }
 
 #[derive(Debug)]
-pub(crate) struct DefaultIncrementalSourceData {
+struct DefaultIncrementalSourceData {
     pub source: u8,
     pub value: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct MutationAdditionIncrementalSourceData {
+struct MutationAdditionIncrementalSourceData {
     parent_id: Value,
     next_id: Value,
     node: Node,
@@ -558,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_pii_credit_card_removal() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -581,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_navigation() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-performance-navigation.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-navigation.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -602,7 +603,7 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_resource() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-performance-resource.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-resource.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -623,7 +624,7 @@ mod tests {
 
     #[test]
     fn test_pii_ip_address_removal() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-pii-ip-address.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
@@ -646,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_snapshot_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -655,7 +656,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_incremental_source_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-diff.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-diff.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -665,7 +666,7 @@ mod tests {
     // Node coverage
     #[test]
     fn test_rrweb_node_2_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-node-2.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2.json");
 
         let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -674,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_node_2_style_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-node-2-style.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2-style.json");
 
         let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -686,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_event_3_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
 
         let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
@@ -695,7 +696,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_event_5_parsing() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
 
         let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
