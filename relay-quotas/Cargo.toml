@@ -4,13 +4,14 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry quotas and rate limiting"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.11.0"
+version = "23.1.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [features]
 default = []
+tls = ["relay-redis/tls"]
 redis = [
     "thiserror",
     "relay-log",

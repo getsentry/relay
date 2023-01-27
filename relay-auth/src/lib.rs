@@ -7,6 +7,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use data_encoding::BASE64URL_NOPAD;
 use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, thread_rng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -201,11 +202,11 @@ impl SecretKey {
     pub fn sign_with_header(&self, data: &[u8], header: &SignatureHeader) -> String {
         let mut header =
             serde_json::to_vec(&header).expect("attempted to pack non json safe header");
-        let header_encoded = base64::encode_config(&header[..], base64::URL_SAFE_NO_PAD);
+        let header_encoded = BASE64URL_NOPAD.encode(&header);
         header.push(b'\x00');
         header.extend_from_slice(data);
         let sig = self.inner.sign::<Sha512>(&header);
-        let mut sig_encoded = base64::encode_config(&sig.to_bytes()[..], base64::URL_SAFE_NO_PAD);
+        let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
         sig_encoded
@@ -242,7 +243,7 @@ impl FromStr for SecretKey {
     type Err = KeyParseError;
 
     fn from_str(s: &str) -> Result<SecretKey, KeyParseError> {
-        let bytes = match base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+        let bytes = match BASE64URL_NOPAD.decode(s.as_bytes()) {
             Ok(bytes) => bytes,
             _ => return Err(KeyParseError::BadEncoding),
         };
@@ -263,16 +264,12 @@ impl FromStr for SecretKey {
 impl fmt::Display for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
-            write!(
-                f,
-                "{}",
-                base64::encode_config(&self.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
-            )
+            write!(f, "{}", BASE64URL_NOPAD.encode(&self.inner.to_bytes()))
         } else {
             write!(
                 f,
                 "{}",
-                base64::encode_config(&self.inner.secret.to_bytes()[..], base64::URL_SAFE_NO_PAD)
+                BASE64URL_NOPAD.encode(&self.inner.secret.to_bytes())
             )
         }
     }
@@ -280,7 +277,7 @@ impl fmt::Display for SecretKey {
 
 impl fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SecretKey(\"{}\")", self)
+        write!(f, "SecretKey(\"{self}\")")
     }
 }
 
@@ -292,17 +289,13 @@ impl PublicKey {
     pub fn verify_meta(&self, data: &[u8], sig: &str) -> Option<SignatureHeader> {
         let mut iter = sig.splitn(2, '.');
         let sig_bytes = match iter.next() {
-            Some(sig_encoded) => {
-                base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()?
-            }
+            Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()?,
             None => return None,
         };
         let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes).ok()?;
 
         let header = match iter.next() {
-            Some(header_encoded) => {
-                base64::decode_config(header_encoded, base64::URL_SAFE_NO_PAD).ok()?
-            }
+            Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?,
             None => return None,
         };
         let mut to_verify = header.clone();
@@ -373,7 +366,7 @@ impl FromStr for PublicKey {
     type Err = KeyParseError;
 
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
-        let bytes = match base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+        let bytes = match BASE64URL_NOPAD.decode(s.as_bytes()) {
             Ok(bytes) => bytes,
             _ => return Err(KeyParseError::BadEncoding),
         };
@@ -386,17 +379,13 @@ impl FromStr for PublicKey {
 
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            base64::encode_config(&self.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
-        )
+        write!(f, "{}", BASE64URL_NOPAD.encode(&self.inner.to_bytes()))
     }
 }
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PublicKey(\"{}\")", self)
+        write!(f, "PublicKey(\"{self}\")")
     }
 }
 
@@ -445,13 +434,13 @@ impl SignedRegisterState {
     /// Signs the given `RegisterState` and serializes it into a single string.
     fn sign(state: RegisterState, secret: &[u8]) -> Self {
         let json = serde_json::to_string(&state).expect("relay register state serializes to JSON");
-        let token = base64::encode_config(&json, base64::URL_SAFE_NO_PAD);
+        let token = BASE64URL_NOPAD.encode(json.as_bytes());
 
         let mut mac = Self::mac(secret);
         mac.input(token.as_bytes());
-        let signature = base64::encode_config(&mac.result().code(), base64::URL_SAFE_NO_PAD);
+        let signature = BASE64URL_NOPAD.encode(&mac.result().code());
 
-        Self(format!("{}:{}", token, signature))
+        Self(format!("{token}:{signature}"))
     }
 
     /// Splits the signed state into the encoded state and encoded signature.
@@ -475,14 +464,16 @@ impl SignedRegisterState {
         max_age: Option<Duration>,
     ) -> Result<RegisterState, UnpackError> {
         let (token, signature) = self.split();
-        let code = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)
+        let code = BASE64URL_NOPAD
+            .decode(signature.as_bytes())
             .map_err(|_| UnpackError::BadEncoding)?;
 
         let mut mac = Self::mac(secret);
         mac.input(token.as_bytes());
         mac.verify(&code).map_err(|_| UnpackError::BadSignature)?;
 
-        let json = base64::decode_config(token, base64::URL_SAFE_NO_PAD)
+        let json = BASE64URL_NOPAD
+            .decode(token.as_bytes())
             .map_err(|_| UnpackError::BadEncoding)?;
         let state =
             serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
@@ -539,7 +530,7 @@ fn nonce() -> String {
     let mut rng = thread_rng();
     let mut bytes = vec![0u8; 64];
     rng.fill_bytes(&mut bytes);
-    base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD)
+    BASE64URL_NOPAD.encode(&bytes)
 }
 
 /// Represents a request for registration with the upstream.
@@ -702,7 +693,7 @@ mod tests {
             "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
         );
         assert_eq!(
-        format!("{:#}", sk),
+        format!("{sk:#}"),
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
     );
         assert_eq!(
@@ -819,9 +810,9 @@ mod tests {
 
         // initial setup
         let relay_id = generate_relay_id();
-        println!("RELAY_ID = b\"{}\"", relay_id);
+        println!("RELAY_ID = b\"{relay_id}\"");
         let (sk, pk) = generate_key_pair();
-        println!("RELAY_KEY = b\"{}\"", pk);
+        println!("RELAY_KEY = b\"{pk}\"");
 
         // create a register request
         let request = RegisterRequest::new(&relay_id, &pk);
@@ -829,7 +820,7 @@ mod tests {
 
         // sign it
         let (request_bytes, request_sig) = sk.pack(&request);
-        println!("REQUEST_SIG = \"{}\"", request_sig);
+        println!("REQUEST_SIG = \"{request_sig}\"");
 
         // attempt to get the data through bootstrap unpacking.
         let request =
@@ -840,15 +831,15 @@ mod tests {
         // create a challenge
         let challenge = request.into_challenge(upstream_secret);
         let challenge_token = challenge.token().to_owned();
-        println!("TOKEN = \"{}\"", challenge_token);
+        println!("TOKEN = \"{challenge_token}\"");
 
         // create a response from the challenge
         let response = challenge.into_response();
         let serialized_response = serde_json::to_string(&response).unwrap();
         let (_, response_sig) = sk.pack(&response);
 
-        println!("RESPONSE = b'{}'", serialized_response);
-        println!("RESPONSE_SIG = \"{}\"", response_sig);
+        println!("RESPONSE = b'{serialized_response}'");
+        println!("RESPONSE_SIG = \"{response_sig}\"");
 
         println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
     }

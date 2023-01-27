@@ -1,11 +1,14 @@
 use std::fmt;
 use std::sync::Arc;
 
-use actix::prelude::*;
+use actix::Recipient;
+use actix_web::server::StopServer;
 use actix_web::{server, App};
 use anyhow::{Context, Result};
+use futures01::Future;
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
+use tokio::runtime::Runtime;
 
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
@@ -23,12 +26,11 @@ use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
-use crate::actors::upstream::UpstreamRelay;
+use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
 use crate::utils::BufferGuard;
-use crate::{endpoints, utils};
 
 pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
@@ -78,6 +80,7 @@ pub struct Registry {
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub project_cache: Addr<ProjectCache>,
+    pub upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl Registry {
@@ -102,32 +105,40 @@ impl fmt::Debug for Registry {
     }
 }
 
+/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
+pub fn create_runtime(name: &str, threads: usize) -> Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .thread_name(name)
+        .worker_threads(threads)
+        .enable_all()
+        .build()
+        .unwrap()
+}
+
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    _aggregator_runtime: Arc<tokio::runtime::Runtime>,
-    _outcome_runtime: Arc<tokio::runtime::Runtime>,
-    _main_runtime: Arc<tokio::runtime::Runtime>,
-    _project_runtime: Arc<tokio::runtime::Runtime>,
-    _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
+    _aggregator_runtime: Arc<Runtime>,
+    _outcome_runtime: Arc<Runtime>,
+    _project_runtime: Arc<Runtime>,
+    _upstream_runtime: Arc<Runtime>,
+    _store_runtime: Option<Arc<Runtime>>,
 }
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub fn start(config: Arc<Config>) -> Result<Self> {
-        let system = System::current();
-        let registry = system.registry();
-
-        let main_runtime = utils::create_runtime(config.cpu_concurrency());
-        let project_runtime = utils::create_runtime(1);
-        let aggregator_runtime = utils::create_runtime(1);
-        let outcome_runtime = utils::create_runtime(1);
+        let upstream_runtime = create_runtime("upstream-rt", 1);
+        let project_runtime = create_runtime("project-rt", 1);
+        let aggregator_runtime = create_runtime("aggregator-rt", 1);
+        let outcome_runtime = create_runtime("outcome-rt", 1);
         let mut _store_runtime = None;
 
-        let upstream_relay = UpstreamRelay::new(config.clone());
-        registry.set(Arbiter::start(|_| upstream_relay));
+        let guard = upstream_runtime.enter();
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
+        drop(guard);
 
         let guard = outcome_runtime.enter();
         let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
@@ -141,8 +152,6 @@ impl ServiceState {
             _ => None,
         };
 
-        let _guard = main_runtime.enter();
-
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
         #[allow(unused_mut)]
@@ -150,7 +159,7 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
-            let rt = utils::create_runtime(1);
+            let rt = create_runtime("store-rt", 1);
             let _guard = rt.enter();
             let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);
@@ -192,6 +201,7 @@ impl ServiceState {
                 test_store,
                 relay_cache,
                 project_cache,
+                upstream_relay,
             }))
             .unwrap();
 
@@ -200,8 +210,8 @@ impl ServiceState {
             config,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
-            _main_runtime: Arc::new(main_runtime),
             _project_runtime: Arc::new(project_runtime),
+            _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
         })
     }
@@ -230,7 +240,7 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers)
         .middleware(ReadRequestMiddleware)
-        .configure(endpoints::configure_app)
+        .configure(crate::endpoints::configure_app)
 }
 
 fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)
@@ -320,29 +330,51 @@ where
     }
 }
 
-/// Given a relay config spawns the server together with all actors and lets them run forever.
-///
-/// Effectively this boots the server.
-pub fn start(config: Config) -> Result<Recipient<server::StopServer>> {
-    let config = Arc::new(config);
+/// Keeps the address to the running http servers and helps with start/stop handling.
+pub struct HttpServer(Recipient<StopServer>);
 
-    Controller::from_registry().do_send(Configure {
-        shutdown_timeout: config.shutdown_timeout(),
-    });
+impl HttpServer {
+    /// Given a relay config spawns the server together with all actors and lets them run forever.
+    ///
+    /// Effectively this boots the server.
+    pub fn start(config: Config) -> Result<Self> {
+        let config = Arc::new(config);
 
-    let state = ServiceState::start(config.clone())?;
-    let mut server = server::new(move || make_app(state.clone()));
-    server = server
-        .workers(config.cpu_concurrency())
-        .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
-        .maxconn(config.max_connections())
-        .maxconnrate(config.max_connection_rate())
-        .backlog(config.max_pending_connections())
-        .disable_signals();
+        Controller::from_registry().do_send(Configure {
+            shutdown_timeout: config.shutdown_timeout(),
+        });
 
-    server = listen(server, &config)?;
-    server = listen_ssl(server, &config)?;
+        let state = ServiceState::start(config.clone())?;
+        let mut server = server::new(move || make_app(state.clone()));
+        server = server
+            .workers(config.cpu_concurrency())
+            .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
+            .keep_alive(config.keepalive_timeout().as_secs() as usize)
+            .maxconn(config.max_connections())
+            .maxconnrate(config.max_connection_rate())
+            .backlog(config.max_pending_connections())
+            .disable_signals();
 
-    dump_listen_infos(&server);
-    Ok(server.start().recipient())
+        server = listen(server, &config)?;
+        server = listen_ssl(server, &config)?;
+
+        dump_listen_infos(&server);
+        let recipient = server.start().recipient();
+        Ok(Self(recipient))
+    }
+
+    /// Triggers the shutdown process by sending [`actix_web::server::StopServer`] to the running http server.
+    pub fn shutdown(&self, graceful: bool) {
+        let Self(recipient) = self;
+        relay_log::info!("Shutting down HTTP server");
+        recipient.send(StopServer { graceful }).wait().ok();
+    }
+}
+
+impl fmt::Debug for HttpServer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("HttpServer")
+            .field(&"actix::Recipient<actix_web::server::StopServer>")
+            .finish()
+    }
 }

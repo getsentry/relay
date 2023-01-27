@@ -1,11 +1,10 @@
 use std::borrow::Cow;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use actix::{ResponseFuture, SystemService};
-use actix_web::http::Method;
 use chrono::Utc;
-use futures::compat::Future01CompatExt;
-use futures01::{future, sync::oneshot, Future as _};
+use tokio::sync::oneshot;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
@@ -20,7 +19,9 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{
+    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
@@ -63,7 +64,7 @@ pub struct SendEnvelope {
     pub envelope_meta: RequestMeta,
     pub scoping: Scoping,
     pub http_encoding: HttpEncoding,
-    pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    pub response_sender: oneshot::Sender<Result<(), SendEnvelopeError>>,
     pub project_key: ProjectKey,
     partition_key: Option<String>,
 }
@@ -77,7 +78,11 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn route(&self) -> &'static str {
+        "envelope"
+    }
+
+    fn build(&mut self, _: &Config, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -97,46 +102,35 @@ impl UpstreamRequest for SendEnvelope {
     }
 
     fn respond(
-        &mut self,
+        self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
-        let sender = self.response_sender.take();
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
+                Err(error) => {
+                    if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
+                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                            self.project_key,
+                            upstream_limits.clone().scope(&self.scoping),
+                        ));
+                    }
 
-        match result {
-            Ok(response) => {
-                let future = response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-                    .map(|_| ())
-                    .then(move |body_result| {
-                        sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
-                        Ok(())
-                    });
-
-                Box::new(future)
-            }
-            Err(error) => {
-                if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-                    ProjectCache::from_registry().send(UpdateRateLimits::new(
-                        self.project_key,
-                        upstream_limits.clone().scope(&self.scoping),
-                    ));
+                    Err(error)
                 }
+            };
 
-                if let Some(sender) = sender {
-                    sender.send(Err(error.into())).ok();
-                }
-
-                Box::new(future::err(()))
-            }
-        }
+            self.response_sender
+                .send(result.map_err(SendEnvelopeError::from))
+                .ok();
+        })
     }
 }
 
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
 }
 
@@ -237,7 +231,7 @@ impl EnvelopeManagerService {
     /// Sends an envelope to the upstream or Kafka.
     async fn submit_envelope(
         &self,
-        mut envelope: Envelope,
+        mut envelope: Box<Envelope>,
         scoping: Scoping,
         partition_key: Option<String>,
     ) -> Result<(), SendEnvelopeError> {
@@ -278,18 +272,18 @@ impl EnvelopeManagerService {
             envelope_meta: envelope.meta().clone(),
             scoping,
             http_encoding: self.config.http_encoding(),
-            response_sender: Some(tx),
+            response_sender: tx,
             project_key: scoping.project_key,
             partition_key,
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().do_send(SendRequest(request));
+            UpstreamRelay::from_registry().send(SendRequest(request));
         } else {
             EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
-        match rx.compat().await {
+        match rx.await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(err)) => Err(err),
             Err(_canceled) => Err(UpstreamRequestError::ChannelClosed.into()),

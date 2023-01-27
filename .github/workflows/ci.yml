@@ -103,7 +103,7 @@ jobs:
           args: --workspace --all-targets --no-deps -- -D warnings
 
   test:
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -360,41 +360,20 @@ jobs:
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
 
-
   self-hosted-end-to-end:
-    needs: []
     runs-on: ubuntu-latest
-    # temporary, remove once we are confident the action is working
-    continue-on-error: true
+    timeout-minutes: 30
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      # TODO: move image build to its own step once we can push them
-      - name: Checkout Relay
+      - name: Checkout repo
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
-      - name: Try pulling Relay images
-        shell: bash
-        # We don't need these but they might make things faster
-        continue-on-error: true
-        run: |
-          docker pull us.gcr.io/getsentry/relay:nightly
-          docker pull us.gcr.io/getsentry/relay:deps
-      - name: Build Relay first stage
-        run: |
-          docker build --target relay-deps -t ghcr.io/getsentry/relay:deps \
-            --cache-from us.gcr.io/getsentry/relay:deps \
-            .
-      - name: Build Relay final image
-        run: |
-          docker build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:${{ github.sha }} \
-            --cache-from us.gcr.io/$PROJECT_ID/relay:deps \
-            --cache-from us.gcr.io/$PROJECT_ID/relay:nightly \
-            .
-      # TODO: push the image here
       - name: Run Sentry self-hosted e2e CI
-        uses: getsentry/action-self-hosted-e2e-tests@5bbd3d6725bbe4bf5cc12f8a3291ce87df6a891f
+        uses: getsentry/action-self-hosted-e2e-tests@627c9b50cb168c546ed6e2c461dae76d5d0c7cdb
         with:
           project_name: relay
-          local_image: ghcr.io/getsentry/relay:${{ github.sha }}
-          docker_repo: ghcr.io/getsentry/relay
+          image_url: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          docker_repo: getsentry/relay
+          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}

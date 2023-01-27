@@ -1,9 +1,7 @@
 use std::sync::Arc;
-use std::time::Instant;
 
-use actix::{Actor, Message};
-use actix_web::ResponseError;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -11,28 +9,20 @@ use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
 use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::LocalProjectSource;
-use crate::actors::project_upstream::UpstreamProjectSource;
+use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 
 #[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
-
-#[derive(Clone, Debug, thiserror::Error)]
-pub enum ProjectError {
-    #[error("could not schedule project fetching")]
-    ScheduleFailed,
-}
-
-impl ResponseError for ProjectError {}
+use crate::actors::project_redis::RedisProjectSource;
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -109,7 +99,7 @@ impl GetCachedProjectState {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
+    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
     pub rate_limits: RateLimits,
 }
 
@@ -124,13 +114,13 @@ pub struct CheckedEnvelope {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    envelope: Envelope,
+    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
         Self { envelope, context }
     }
 }
@@ -147,12 +137,12 @@ impl CheckEnvelope {
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 pub struct ValidateEnvelope {
-    envelope: Envelope,
+    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl ValidateEnvelope {
-    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
         Self { envelope, context }
     }
 }
@@ -323,27 +313,19 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 #[derive(Clone, Debug)]
 struct ProjectSource {
     config: Arc<Config>,
-    local_source: actix::Addr<LocalProjectSource>,
-    upstream_source: actix::Addr<UpstreamProjectSource>,
+    local_source: Addr<LocalProjectSource>,
+    upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
-    redis_source: Option<actix::Addr<RedisProjectSource>>,
+    redis_source: Option<RedisProjectSource>,
 }
 
 impl ProjectSource {
     pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
-        let local_source = LocalProjectSource::new(config.clone()).start();
-        let upstream_source = UpstreamProjectSource::new(config.clone()).start();
+        let local_source = LocalProjectSourceService::new(config.clone()).start();
+        let upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
 
         #[cfg(feature = "processing")]
-        let redis_source = _redis.map(|pool| {
-            SyncArbiter::start(
-                config.cpu_concurrency(),
-                clone!(config, || RedisProjectSource::new(
-                    config.clone(),
-                    pool.clone()
-                )),
-            )
-        });
+        let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
             config,
@@ -355,7 +337,9 @@ impl ProjectSource {
     }
 
     async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
-        let state_opt = compat::send(self.local_source, FetchOptionalProjectState { project_key })
+        let state_opt = self
+            .local_source
+            .send(FetchOptionalProjectState { project_key })
             .await
             .map_err(|_| ())?;
 
@@ -372,24 +356,34 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
-            let state_opt = compat::send(redis_source, FetchOptionalProjectState { project_key })
-                .await
-                .map_err(|_| ())?;
+            let state_fetch_result =
+                tokio::task::spawn_blocking(move || redis_source.get_config(project_key))
+                    .await
+                    .map_err(|_| ())?;
+
+            let state_opt = match state_fetch_result {
+                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Err(e) => {
+                    relay_log::error!(
+                        "Failed to fetch project from Redis: {}",
+                        relay_log::LogError(&e)
+                    );
+                    None
+                }
+            };
 
             if let Some(state) = state_opt {
                 return Ok(state);
             }
         };
 
-        compat::send(
-            self.upstream_source,
-            FetchProjectState {
+        self.upstream_source
+            .send(FetchProjectState {
                 project_key,
                 no_cache,
-            },
-        )
-        .await
-        .map_err(|_| ())?
+            })
+            .await
+            .map_err(|_| ())
     }
 }
 
@@ -576,7 +570,7 @@ impl ProjectCacheService {
             .flush_buckets(message.partition_key, message.buckets);
     }
 
-    async fn handle_message(&mut self, message: ProjectCache) {
+    fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
@@ -610,7 +604,7 @@ impl Service for ProjectCacheService {
 
                     Some(message) = self.state_rx.recv() => self.merge_state(message),
                     _ = ticker.tick() => self.evict_stale_project_caches(),
-                    Some(message) = rx.recv() => self.handle_message(message).await,
+                    Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
             }
@@ -620,18 +614,13 @@ impl Service for ProjectCacheService {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FetchProjectState {
     /// The public key to fetch the project by.
     pub project_key: ProjectKey,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,
-}
-
-// TODO: Remove once `UpstreamProjectSource` was moved to tokio
-impl Message for FetchProjectState {
-    type Result = Result<Arc<ProjectState>, ()>;
 }
 
 #[derive(Clone, Debug)]
@@ -643,9 +632,4 @@ impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
     }
-}
-
-// TODO: Remove once `RedisProjectSource` and `LocalProjectSource` were moved to tokio
-impl Message for FetchOptionalProjectState {
-    type Result = Option<Arc<ProjectState>>;
 }

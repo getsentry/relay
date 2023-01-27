@@ -10,7 +10,7 @@ use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 
 /// Either a captured envelope or an error that occured during processing.
-pub type CapturedEnvelope = Result<Envelope, String>;
+pub type CapturedEnvelope = Result<Box<Envelope>, String>;
 
 /// Inserts an envelope or failure into internal captures.
 ///
@@ -32,7 +32,7 @@ impl Capture {
     }
 
     /// Captures an accepted envelope.
-    pub fn accepted(envelope: Envelope) -> Self {
+    pub fn accepted(envelope: Box<Envelope>) -> Self {
         Self {
             event_id: envelope.event_id(),
             capture: Ok(envelope),

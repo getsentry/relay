@@ -123,9 +123,9 @@ impl fmt::Display for AwsExtensionError {
 
 impl std::error::Error for AwsExtensionError {}
 
-/// Actor implementing an AWS extension.
+/// Service implementing an AWS extension.
 ///
-/// Spawns an actor that:
+/// Spawns a service that:
 ///
 /// * registers with the AWS extensions API
 /// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation
@@ -150,7 +150,7 @@ pub struct AwsExtension {
 impl AwsExtension {
     /// Creates a new `AwsExtension` instance.
     pub fn new(aws_runtime_api: &str) -> Result<Self, AwsExtensionError> {
-        let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api)
+        let base_url = format!("http://{aws_runtime_api}/2020-01-01/extension")
             .parse()
             .map_err(|_| AwsExtensionError(()))?;
 

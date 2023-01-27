@@ -232,6 +232,10 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
         | TransactionSource::Component
         | TransactionSource::Task => true,
 
+        // We know now that the rules to remove high cardinality were applied, so we assume
+        // low-cardinality now.
+        TransactionSource::Sanitized => true,
+
         // "unknown" is the value for old SDKs that do not send a transaction source yet.
         // Caller decides how to treat this.
         TransactionSource::Unknown => treat_unknown_as_low_cardinality,
@@ -433,7 +437,7 @@ fn extract_transaction_metrics_inner(
 
             metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                format!("measurements.{}", name),
+                format!("measurements.{name}"),
                 measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
                 timestamp,
@@ -467,7 +471,7 @@ fn extract_transaction_metrics_inner(
 
                     metrics.push(Metric::new_mri(
                         METRIC_NAMESPACE,
-                        format!("breakdowns.{}.{}", breakdown, measurement_name),
+                        format!("breakdowns.{breakdown}.{measurement_name}"),
                         unit.copied().unwrap_or(MetricUnit::None),
                         MetricValue::Distribution(value),
                         timestamp,
@@ -830,7 +834,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
         extract_transaction_metrics(
@@ -918,7 +922,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
         extract_transaction_metrics(
@@ -1264,7 +1268,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1512,7 +1516,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+        assert_eq!(metrics.len(), 1, "{metrics:?}");
 
         assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
         assert_eq!(
@@ -1547,7 +1551,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+        assert_eq!(metrics.len(), 1, "{metrics:?}");
 
         assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
         assert_eq!(

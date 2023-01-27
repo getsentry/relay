@@ -1,19 +1,20 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
+use tokio::time::Instant;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey, RetryBackoff};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
+use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
 use relay_general::types::SpanAttribute;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -136,9 +137,12 @@ pub struct ProjectConfig {
     pub span_attributes: BTreeSet<SpanAttribute>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
-    /// Exposable features enabled for this project
+    /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
+    /// Transaction renaming rules.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx_name_rules: Vec<TransactionNameRule>,
 }
 
 impl Default for ProjectConfig {
@@ -160,6 +164,7 @@ impl Default for ProjectConfig {
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
+            tx_name_rules: Vec::new(),
         }
     }
 }
@@ -193,6 +198,8 @@ pub struct LimitedProjectConfig {
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx_name_rules: Vec<TransactionNameRule>,
 }
 
 /// The project state is a cached server state of a project.
@@ -524,12 +531,14 @@ enum GetOrFetch<'a> {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
+    backoff: RetryBackoff,
+    next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
-    pending_validations: VecDeque<(Envelope, EnvelopeContext)>,
+    pending_validations: VecDeque<(Box<Envelope>, EnvelopeContext)>,
     pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -539,6 +548,8 @@ impl Project {
     /// Creates a new `Project`.
     pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
             config,
@@ -653,15 +664,24 @@ impl Project {
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
-        // If there is a running request and we do not need to upgrade it to no_cache, skip
+        // If there is a running request and we do not need to upgrade it to no_cache, or if the
+        // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
-        let should_fetch =
-            !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache);
+        let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
+            && self
+                .next_fetch_attempt
+                .map(|next_attempt_at| next_attempt_at <= Instant::now())
+                .unwrap_or(true);
+
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
         if should_fetch {
             channel.no_cache(no_cache);
-            relay_log::debug!("project {} state requested", self.project_key);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
         }
 
@@ -761,13 +781,13 @@ impl Project {
     ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
     fn flush_validation(
         &mut self,
-        envelope: Envelope,
+        envelope: Box<Envelope>,
         envelope_context: EnvelopeContext,
         project_state: Arc<ProjectState>,
     ) {
         if let Ok(checked) = self.check_envelope(envelope, envelope_context) {
             if let Some((envelope, envelope_context)) = checked.envelope {
-                let process = ProcessEnvelope {
+                let mut process = ProcessEnvelope {
                     envelope,
                     envelope_context,
                     project_state,
@@ -775,8 +795,18 @@ impl Project {
                 };
 
                 if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
-                    ProjectCache::from_registry()
-                        .send(AddSamplingState::new(sampling_key, process));
+                    let own_key = process
+                        .project_state
+                        .get_public_key_config()
+                        .map(|c| c.public_key);
+
+                    if Some(sampling_key) == own_key {
+                        process.sampling_project_state = Some(process.project_state.clone());
+                        EnvelopeProcessor::from_registry().send(process);
+                    } else {
+                        ProjectCache::from_registry()
+                            .send(AddSamplingState::new(sampling_key, process));
+                    }
                 } else {
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -786,12 +816,12 @@ impl Project {
 
     /// Enqueues an envelope for validation.
     ///
-    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// If the project state is up to date, the message will be immediately sent to the next stage.
     /// Otherwise, this queues the envelope and flushes it when the project has been updated.
     ///
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
-    pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
+    pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
             Some(state) => self.flush_validation(envelope, context, state),
             None => self.pending_validations.push_back((envelope, context)),
@@ -800,8 +830,14 @@ impl Project {
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
-        // Intentionally ignore all errors and leave the envelope unsampled.
-        message.sampling_project_state = self.valid_state();
+        // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
+        if let Some(state) = self.valid_state() {
+            // Never use rules from another organization.
+            if state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = Some(state);
+            }
+        }
+
         EnvelopeProcessor::from_registry().send(message);
     }
 
@@ -830,6 +866,14 @@ impl Project {
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
     pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
+        // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
+        if state.invalid() {
+            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
+        } else {
+            self.next_fetch_attempt = None;
+            self.backoff.reset();
+        }
+
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -884,7 +928,7 @@ impl Project {
 
     pub fn check_envelope(
         &mut self,
-        mut envelope: Envelope,
+        mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state();
@@ -1069,11 +1113,26 @@ mod tests {
 
         // The project ID must be set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(project.next_fetch_attempt.is_some());
+
+        // This tests that we actually initiate the backoff and the backoff mechanism works:
+        // * first call to `update_state` with invalid ProjectState starts the backoff, but since
+        //   it's the first attemt, we get Duration of 0.
+        // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
+        //   like ~ 1s
+        // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
+        //   we should never fetch
+        // * without backoff it would just panic, not able to call the ProjectCache service
+        let channel = StateChannel::new();
+        project.state_channel = Some(channel);
+        project.update_state(Arc::new(ProjectState::err()), false);
+        project.fetch_state(false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {

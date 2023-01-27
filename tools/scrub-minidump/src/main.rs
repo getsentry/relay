@@ -96,11 +96,11 @@ impl Cli {
 }
 
 fn print_error(error: &anyhow::Error) {
-    eprintln!("Error: {}", error);
+    eprintln!("Error: {error}");
 
     let mut cause = error.source();
     while let Some(ref e) = cause {
-        eprintln!("  caused by: {}", e);
+        eprintln!("  caused by: {e}");
         cause = e.source();
     }
 }

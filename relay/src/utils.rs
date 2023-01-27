@@ -36,7 +36,7 @@ where
                 return Ok(());
             }
             Err(err) => {
-                println!("  invalid input: {}", err);
+                println!("  invalid input: {err}");
                 continue;
             }
         }
@@ -57,7 +57,7 @@ where
                 return Ok(value);
             }
             Err(err) => {
-                println!("  invalid input: {}", err);
+                println!("  invalid input: {err}");
                 continue;
             }
         }

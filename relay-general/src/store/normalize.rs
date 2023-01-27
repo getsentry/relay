@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
-use super::{schema, transactions, BreakdownsConfig};
+use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
@@ -34,7 +34,7 @@ mod request;
 mod spans;
 mod stacktrace;
 
-mod user_agent;
+pub mod user_agent;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -664,6 +664,7 @@ pub struct LightNormalizationConfig<'a> {
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
     pub normalize_transaction_name: bool,
+    pub tx_name_rules: &'a [TransactionNameRule],
     pub is_renormalize: bool,
 }
 
@@ -680,8 +681,10 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction
-        let mut transactions_processor =
-            transactions::TransactionsProcessor::new(config.normalize_transaction_name);
+        let mut transactions_processor = transactions::TransactionsProcessor::new(
+            config.normalize_transaction_name,
+            config.tx_name_rules,
+        );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
@@ -2338,11 +2341,6 @@ mod tests {
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
             }"#,
             r#"{
-              "start_timestamp": 946684800.0,
-              "span_id": "fa90fdead5f74053",
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
-            }"#,
-            r#"{
               "timestamp": 946684810.0,
               "span_id": "fa90fdead5f74053",
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
@@ -2366,7 +2364,7 @@ mod tests {
 
             let res = light_normalize_event(&mut modified_event, &Default::default());
 
-            assert!(res.is_err(), "{:?}", span);
+            assert!(res.is_err(), "{span:?}");
         }
     }
 
