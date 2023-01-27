@@ -77,14 +77,14 @@ impl<'a> RawUserAgentInfo<'a> {
     }
 }
 
-/// Initializes the user agent parser.
-
-/// Gets the user agent string from request header type.
-pub fn get_user_agent_from_request(request: &Annotated<Request>) -> Option<&str> {
-    request
-        .value()
-        .and_then(|request| request.headers.value())
-        .and_then(|headers| get_user_agent_from_headers(headers))
+/// Returns the user agent string from a `Request`.
+///
+/// Returns `Some` if the event's request interface contains a `user-agent` header. Returns `None`
+/// otherwise.
+pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
+    let request = request.value()?;
+    let headers = request.headers.value()?;
+    get_user_agent_from_headers(headers)
 }
 
 /// Should we merge it with get_user_agent_from_request?
