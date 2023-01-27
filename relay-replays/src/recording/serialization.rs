@@ -29,11 +29,8 @@ impl<'de> Deserialize<'de> for Event {
             serde::__private::de::ContentDeserializer::<D::Error>::new(tagged.content);
         match tagged.tag {
             0 => Value::deserialize(content_deserializer).map(Event::T0),
-            1 => Result::map(Value::deserialize(content_deserializer), Event::T1),
-            2 => Result::map(
-                Box::<FullSnapshotEvent>::deserialize(content_deserializer),
-                Event::T2,
-            ),
+            1 => Value::deserialize(content_deserializer).map(Event::T1),
+            2 => Box::<FullSnapshotEvent>::deserialize(content_deserializer).map(Event::T2),
             3 => Box::<IncrementalSnapshotEvent>::deserialize(content_deserializer).map(Event::T3),
             4 => Box::<MetaEvent>::deserialize(content_deserializer).map(Event::T4),
             5 => Box::<CustomEvent>::deserialize(content_deserializer).map(Event::T5),
