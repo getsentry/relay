@@ -100,6 +100,7 @@ pub fn to_pii_config(
             ValueType::String.into(),
             ValueType::Number.into(),
             ValueType::Array.into(),
+            ValueType::Object.into(),
         ]),
         SelectorSpec::Not(Box::new(DATASCRUBBER_IGNORE.clone())),
     ];
@@ -219,7 +220,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -245,7 +246,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -280,7 +281,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -320,7 +321,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -348,7 +349,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
@@ -1238,7 +1239,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -1407,6 +1408,34 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_scrub_object() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "url": "https://www.bitumequebec.ca/fr/adhesions/authentication",
+                    "method": "POST",
+                    "data": {
+                      "password": "test",
+                      "profile": {
+                        "email": "testing@example.com",
+                        "password": {
+                          "$eq": "u{}{}{}]H[[[]]ww6KrA9F.x-F%%"
+                        }
+                      },
+                      "submit": "Se connecter"
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
