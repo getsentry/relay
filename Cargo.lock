@@ -189,9 +189,6 @@ name = "anyhow"
 version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
-dependencies = [
- "backtrace",
-]
 
 [[package]]
 name = "anylog"
@@ -399,9 +396,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.10.0"
+version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ccbd214614c6783386c1af30caf03192f17891059cecc394b4fb119e363de3"
+checksum = "0d261e256854913907f67ed06efbc3338dfe6179796deefc1ff763fc1aee5535"
 
 [[package]]
 name = "byte-tools"
@@ -3226,24 +3223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-cabi"
-version = "0.8.17"
-dependencies = [
- "anyhow",
- "chrono",
- "json-forensics",
- "once_cell",
- "relay-auth",
- "relay-common",
- "relay-ffi",
- "relay-general",
- "relay-sampling",
- "sentry-release-parser",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "relay-common"
 version = "23.1.1"
 dependencies = [
@@ -3287,22 +3266,6 @@ version = "23.1.1"
 dependencies = [
  "bindgen",
  "cmake",
-]
-
-[[package]]
-name = "relay-ffi"
-version = "23.1.1"
-dependencies = [
- "anyhow",
- "relay-ffi-macros",
-]
-
-[[package]]
-name = "relay-ffi-macros"
-version = "23.1.1"
-dependencies = [
- "quote 1.0.18",
- "syn 1.0.96",
 ]
 
 [[package]]
@@ -3968,7 +3931,6 @@ checksum = "96c337b2564b136475f056ca1e5c958a58acdc3a6c48a6a02064f749f87acb18"
 dependencies = [
  "lazy_static",
  "regex",
- "serde",
 ]
 
 [[package]]
