@@ -74,34 +74,24 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Represents an action requested by the Upstream sent in an error message.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub enum </span>RelayErrorAction {
     Stop,
     <span class="attr">#[serde(other)]
+    #[default]
     </span><span class="prelude-val">None</span>,
 }
 
 <span class="kw">impl </span>RelayErrorAction {
     <span class="kw">fn </span>is_none(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw-2">*</span><span class="self">self </span>== <span class="self">Self</span>::None
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>RelayErrorAction {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        RelayErrorAction::None
     }
 }
 
