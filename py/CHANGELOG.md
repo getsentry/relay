@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.17
 
 - Add utility function for matching CODEOWNER paths against a stacktrace filepath ([#1746](https://github.com/getsentry/relay/pull/1746))
 
