@@ -176,7 +176,7 @@ impl FromUserAgentInfo for DeviceContext {
     fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
         let device = client_hints.sec_ch_ua_model?.to_owned();
         Some(Self {
-            family: Annotated::new(device),
+            model: Annotated::new(device),
             ..Default::default()
         })
     }
@@ -240,7 +240,7 @@ mod tests {
         });
 
         let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
-        assert_eq!(device.unwrap().family.as_str().unwrap(), "moto g31(w)");
+        assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
     }
 
     #[test]

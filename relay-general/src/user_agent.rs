@@ -40,6 +40,9 @@ fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
     None
 }
 
+/// Initializes the user agent parser.
+///
+/// This loads and compiles user agent patterns, which takes a few seconds to complete. The user
 /// agent parser initializes on-demand when using one of the parse methods. This function forces
 /// initialization at a convenient point without introducing unwanted delays.
 pub fn init_parser() {
@@ -84,20 +87,21 @@ pub fn parse_os(user_agent: &str) -> OS {
 pub struct RawUserAgentInfo<'a> {
     /// The "old style" of a single UA string.
     pub user_agent: Option<&'a str>,
+    /// User-Agent client hints.
     pub client_hints: ClientHints<'a>,
 }
 
-/// The client hint variable names mirror the name of the headers.
+/// The client hint variable names mirror the name of the "SEC-CH" headers
 /// '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
 #[derive(Default, Debug)]
 pub struct ClientHints<'a> {
-    /// your OS, e.g. macos, android ..
+    /// The client's OS, e.g. macos, android...
     pub sec_ch_ua_platform: Option<&'a str>,
-    /// the version number of your OS
+    /// The version number of the client's OS.
     pub sec_ch_ua_platform_version: Option<&'a str>,
-    /// name of web browser and its version
+    /// Name of the client's web browser and its version.
     pub sec_ch_ua: Option<&'a str>,
-    /// device model, e.g. samsung galaxy 3
+    /// Device model, e.g. samsung galaxy 3.
     pub sec_ch_ua_model: Option<&'a str>,
 }
 

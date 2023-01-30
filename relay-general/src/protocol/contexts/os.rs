@@ -82,6 +82,7 @@ mod tests {
     use crate::protocol::{Headers, PairList};
     use crate::user_agent::RawUserAgentInfo;
 
+    /// Verifies that client hints are chosen over ua string when available.
     #[test]
     fn test_choose_client_hints_for_os_context() {
         let headers = Headers({
@@ -102,10 +103,19 @@ mod tests {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
 
-        assert_eq!(os.clone().unwrap().name.as_str().unwrap(), "macOS");
-        assert_eq!(os.unwrap().version.as_str().unwrap(), "13.1.0");
+        insta::assert_debug_snapshot!(os, @r###"
+OsContext {
+    name: "macOS",
+    version: "13.1.0",
+    build: ~,
+    kernel_version: ~,
+    rooted: ~,
+    raw_description: ~,
+    other: {},
+}
+        "###);
     }
 
     #[test]
@@ -128,10 +138,19 @@ mod tests {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
 
-        assert_eq!(os.clone().unwrap().name.as_str().unwrap(), "Mac OS X");
-        assert_eq!(os.unwrap().version.as_str().unwrap(), "10.15.7");
+        insta::assert_debug_snapshot!(os, @r###"
+OsContext {
+    name: "Mac OS X",
+    version: "10.15.7",
+    build: ~,
+    kernel_version: ~,
+    rooted: ~,
+    raw_description: ~,
+    other: {},
+}
+        "###);
     }
 
     #[test]

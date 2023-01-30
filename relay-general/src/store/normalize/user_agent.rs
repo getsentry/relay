@@ -22,25 +22,25 @@ pub fn normalize_user_agent(event: &mut Event) {
         None => return,
     };
 
-    let raw_ua_contexts = RawUserAgentInfo::new(headers);
+    let user_agent_info = RawUserAgentInfo::new(headers);
 
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
-    normalize_user_agent_info_generic(contexts, &event.platform, &raw_ua_contexts);
+    normalize_user_agent_info_generic(contexts, &event.platform, &user_agent_info);
 }
 
 pub fn normalize_user_agent_info_generic(
     contexts: &mut Contexts,
     platform: &Annotated<String>,
-    raw_contexts: &RawUserAgentInfo,
+    user_agent_info: &RawUserAgentInfo,
 ) {
     if !contexts.contains_key(BrowserContext::default_key()) {
-        if let Some(browser_context) = BrowserContext::from_hints_or_ua(raw_contexts) {
+        if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
     if !contexts.contains_key(DeviceContext::default_key()) {
-        if let Some(device_context) = DeviceContext::from_hints_or_ua(raw_contexts) {
+        if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
     }
@@ -56,7 +56,7 @@ pub fn normalize_user_agent_info_generic(
         _ => "client_os",
     };
     if !contexts.contains_key(os_context_key) {
-        if let Some(os_context) = OsContext::from_hints_or_ua(raw_contexts) {
+        if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
             contexts.insert(
                 os_context_key.to_owned(),
                 Annotated::new(Context::Os(Box::new(os_context)).into()),
