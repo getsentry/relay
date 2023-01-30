@@ -368,6 +368,14 @@ pub enum SamplingStrategy {
     Factor { value: f64 },
 }
 
+impl Default for SamplingStrategy {
+    fn default() -> Self {
+        // This default implementation aims at handling backward compatibility with old sampling
+        // rules that do not have the "sampling_strategy" field.
+        SamplingStrategy::SampleRate { value: 0.0 }
+    }
+}
+
 /// A decaying function definition.
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
@@ -446,6 +454,7 @@ impl ActiveRule {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
     pub condition: RuleCondition,
+    #[serde(default)]
     pub sampling_strategy: SamplingStrategy,
     #[serde(rename = "type")]
     pub ty: RuleType,
@@ -2017,8 +2026,30 @@ mod tests {
     }
 
     #[test]
-    ///Test SamplingRule deserialization
-    fn test_nondecaying_sampling_rule_deserialization() {
+    fn test_non_decaying_sampling_rule_deserialization_with_no_strategy() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "type": "trace",
+            "id": 1
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+
+        assert!(rule.is_ok());
+        let rule = rule.unwrap();
+        assert_eq!(
+            rule.sampling_strategy,
+            SamplingStrategy::SampleRate { value: 0.0 }
+        );
+        assert_eq!(rule.ty, RuleType::Trace);
+    }
+
+    #[test]
+    fn test_non_decaying_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -2042,7 +2073,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sampling_rule_with_none_decaying_function_deserialization() {
+    fn test_non_decaying_sampling_rule_deserialization_with_factor() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -2050,7 +2081,31 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
+            "samplingStrategy": {"type": "factor", "value": 5.0},
+            "type": "trace",
+            "id": 1
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+
+        assert!(rule.is_ok());
+        let rule = rule.unwrap();
+        assert_eq!(
+            rule.sampling_strategy,
+            SamplingStrategy::Factor { value: 5.0 }
+        );
+        assert_eq!(rule.ty, RuleType::Trace);
+    }
+
+    #[test]
+    fn test_sampling_rule_with_constant_decaying_function_deserialization() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "samplingStrategy": {"type": "factor", "value": 5.0},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2080,7 +2135,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
+            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2208,11 +2263,6 @@ mod tests {
             condition.matches(&dsc, None),
             "did not match with missing release, user segment, environment and transaction"
         );
-    }
-
-    fn approx_eq(left: f64, right: f64) -> bool {
-        let diff = left - right;
-        diff < 0.001 && diff > -0.001
     }
 
     #[test]

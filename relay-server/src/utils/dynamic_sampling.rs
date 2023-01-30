@@ -192,7 +192,7 @@ mod tests {
     use relay_general::types::Annotated;
     use relay_sampling::{
         DecayingFunction, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig,
-        SamplingRule, TimeRange,
+        SamplingRule, SamplingStrategy, TimeRange,
     };
 
     use crate::testutils::create_sampling_context;
@@ -214,7 +214,7 @@ mod tests {
         let rules = match sample_rate {
             Some(sample_rate) => vec![SamplingRule {
                 condition: RuleCondition::all(),
-                sample_rate,
+                sampling_strategy: SamplingStrategy::SampleRate { value: sample_rate },
                 ty: rule_type,
                 id: RuleId(1),
                 time_range: TimeRange { start, end },
@@ -289,7 +289,7 @@ mod tests {
         // adds a rule which should always match (meaning the event will be dropped)
         let mut rules = vec![SamplingRule {
             condition: RuleCondition::all(),
-            sample_rate: 0.0,
+            sampling_strategy: SamplingStrategy::SampleRate { value: 0.0 },
             ty: RuleType::Transaction,
             id: RuleId(1),
             time_range: Default::default(),
@@ -305,7 +305,7 @@ mod tests {
 
         rules.push(SamplingRule {
             condition: RuleCondition::Unsupported,
-            sample_rate: 0.0,
+            sampling_strategy: SamplingStrategy::SampleRate { value: 0.0 },
             ty: RuleType::Transaction,
             id: RuleId(1),
             time_range: Default::default(),
