@@ -11,7 +11,7 @@
 **Internal**:
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
-- Add support for uncompressed recording payloads. ([#1793](https://github.com/getsentry/relay/pull/1793))
+- Add support for scrubbing uncompressed recording payloads. ([#1793](https://github.com/getsentry/relay/pull/1793))
 
 ## 23.1.0
 
