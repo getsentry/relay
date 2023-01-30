@@ -473,7 +473,7 @@ struct MutationAdditionIncrementalSourceData {
 #[cfg(test)]
 mod tests {
     use crate::recording;
-    use crate::recording::Event;
+    use crate::recording::{strip_pii, Event};
     use assert_json_diff::assert_json_eq;
     use serde_json::{Error, Value};
 
@@ -678,24 +678,39 @@ mod tests {
         assert_json_eq!(input_parsed, input_raw);
     }
 
-    // Event coverage
+    // Event Parsing and Scrubbing.
 
     #[test]
-    fn test_rrweb_event_3_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
+    fn test_scrub_pii_full_snapshot_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-2.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        strip_pii(&mut events).unwrap();
 
-        let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
+        assert!(scrubbed_result.contains("\"textContent\":\"my ssn is ***********\""));
     }
 
     #[test]
-    fn test_rrweb_event_5_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
+    fn test_scrub_pii_incremental_snapshot_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        strip_pii(&mut events).unwrap();
 
-        let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw);
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
+    }
+
+    #[test]
+    fn test_scrub_pii_custom_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        strip_pii(&mut events).unwrap();
+
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));
+        assert!(scrubbed_result.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
+        assert!(scrubbed_result.contains("\"message\":\"[email]\""));
     }
 }
 
