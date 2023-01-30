@@ -700,9 +700,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
         );
@@ -726,9 +724,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             Some(now - DateDuration::days(1)),
             None,
         );
@@ -743,9 +739,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             None,
             Some(now + DateDuration::days(1)),
         );
@@ -764,9 +758,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             None,
             None,
         );
@@ -785,9 +777,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             Some(now),
             Some(now + DateDuration::days(1)),
         );
@@ -808,9 +798,7 @@ mod tests {
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.2,
-            },
+            DecayingFunction::Linear { decayed_value: 0.2 },
             Some(now - DateDuration::days(1)),
             Some(now),
         );
@@ -829,9 +817,7 @@ mod tests {
             Some(0.3),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.7,
-            },
+            DecayingFunction::Linear { decayed_value: 0.7 },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
         );

@@ -357,6 +357,17 @@ impl TimeRange {
     }
 }
 
+/// A sampling strategy definition.
+///
+/// A sampling strategy refers to the strategy that we want to use for sampling a specific rule.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum SamplingStrategy {
+    SampleRate { value: f64 },
+    Factor { value: f64 },
+}
+
 /// A decaying function definition.
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
@@ -366,46 +377,51 @@ impl TimeRange {
 #[serde(tag = "type")]
 pub enum DecayingFunction {
     #[serde(rename_all = "camelCase")]
-    Linear { decayed_sample_rate: f64 },
+    Linear { decayed_value: f64 },
     #[default]
     Constant,
 }
 
 /// A struct representing the evaluation context of a sample rate.
 #[derive(Debug, Clone, Copy)]
-enum SampleRateEvaluator {
+enum SamplingStrategyValueEvaluator {
     Linear {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
-        sample_rate: f64,
-        decayed_sample_rate: f64,
+        initial_value: f64,
+        decayed_value: f64,
+        use_factor: bool,
     },
     Constant {
-        sample_rate: f64,
+        initial_value: f64,
     },
 }
 
-impl SampleRateEvaluator {
-    /// Evaluates the sample rate given the decaying function and the current time.
+impl SamplingStrategyValueEvaluator {
+    /// Evaluates the value of the sampling strategy given a the current time.
     fn evaluate(&self, now: DateTime<Utc>) -> f64 {
         match self {
-            SampleRateEvaluator::Linear {
+            SamplingStrategyValueEvaluator::Linear {
                 start,
                 end,
-                sample_rate,
-                decayed_sample_rate,
+                initial_value,
+                decayed_value,
+                use_factor,
             } => {
                 let now_timestamp = now.timestamp() as f64;
                 let start_timestamp = start.timestamp() as f64;
                 let end_timestamp = end.timestamp() as f64;
-                let progress_ratio = ((now_timestamp - start_timestamp)
-                    / (end_timestamp - start_timestamp))
-                    .clamp(0.0, 1.0);
+                let mut progress_ratio =
+                    (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
+                if !use_factor {
+                    // In case we don't use factors, we want to clamp the value between 0 and 1.
+                    progress_ratio = progress_ratio.clamp(0.0, 1.0)
+                }
 
-                let interval = decayed_sample_rate - sample_rate;
-                sample_rate + (interval * progress_ratio)
+                let interval = decayed_value - initial_value;
+                initial_value + (interval * progress_ratio)
             }
-            SampleRateEvaluator::Constant { sample_rate } => *sample_rate,
+            SamplingStrategyValueEvaluator::Constant { initial_value } => *initial_value,
         }
     }
 }
@@ -415,7 +431,7 @@ impl SampleRateEvaluator {
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveRule {
     pub id: RuleId,
-    evaluator: SampleRateEvaluator,
+    evaluator: SamplingStrategyValueEvaluator,
 }
 
 impl ActiveRule {
@@ -430,7 +446,7 @@ impl ActiveRule {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
     pub condition: RuleCondition,
-    pub sample_rate: f64,
+    pub sampling_strategy: SamplingStrategy,
     #[serde(rename = "type")]
     pub ty: RuleType,
     pub id: RuleId,
@@ -456,7 +472,7 @@ impl SamplingRule {
     fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
         match self.decaying_fn {
             DecayingFunction::Linear {
-                decayed_sample_rate,
+                decayed_value: decayed_sample_rate,
             } => {
                 if let TimeRange {
                     start: Some(start),
@@ -464,14 +480,18 @@ impl SamplingRule {
                 } = self.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if self.sample_rate > decayed_sample_rate && start <= now && now < end {
+                    if self.get_sampling_strategy_base_value() > decayed_sample_rate
+                        && start <= now
+                        && now < end
+                    {
                         return Some(ActiveRule {
                             id: self.id,
-                            evaluator: SampleRateEvaluator::Linear {
+                            evaluator: SamplingStrategyValueEvaluator::Linear {
                                 start,
                                 end,
-                                sample_rate: self.sample_rate,
-                                decayed_sample_rate,
+                                initial_value: self.get_sampling_strategy_base_value(),
+                                decayed_value: decayed_sample_rate,
+                                use_factor: true,
                             },
                         });
                     }
@@ -481,8 +501,8 @@ impl SamplingRule {
                 if self.time_range.contains(now) {
                     return Some(ActiveRule {
                         id: self.id,
-                        evaluator: SampleRateEvaluator::Constant {
-                            sample_rate: self.sample_rate,
+                        evaluator: SamplingStrategyValueEvaluator::Constant {
+                            initial_value: self.get_sampling_strategy_base_value(),
                         },
                     });
                 }
@@ -490,6 +510,13 @@ impl SamplingRule {
         }
 
         None
+    }
+
+    fn get_sampling_strategy_base_value(&self) -> f64 {
+        match self.sampling_strategy {
+            SamplingStrategy::SampleRate { value: sample_rate } => sample_rate,
+            SamplingStrategy::Factor { value: factor } => factor,
+        }
     }
 }
 
@@ -1999,7 +2026,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1
         }"#;
@@ -2007,7 +2034,10 @@ mod tests {
 
         assert!(rule.is_ok());
         let rule = rule.unwrap();
-        assert!(approx_eq(rule.sample_rate, 0.7f64));
+        assert_eq!(
+            rule.sampling_strategy,
+            SamplingStrategy::SampleRate { value: 0.7f64 }
+        );
         assert_eq!(rule.ty, RuleType::Trace);
     }
 
@@ -2020,7 +2050,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2050,7 +2080,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2059,7 +2089,7 @@ mod tests {
             },
             "decayingFn": {
                 "type": "linear",
-                "decayedSampleRate": 0.9
+                "decayedValue": 0.9
             }
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
@@ -2068,9 +2098,7 @@ mod tests {
 
         assert_eq!(
             decaying_function,
-            DecayingFunction::Linear {
-                decayed_sample_rate: 0.9
-            }
+            DecayingFunction::Linear { decayed_value: 0.9 }
         );
     }
 
@@ -2199,7 +2227,7 @@ mod tests {
                         eq("trace.environment", &["debug"], true),
                         eq("trace.user.segment", &["vip"], true),
                     ]),
-                    sample_rate: 0.1,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.1 },
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: Default::default(),
@@ -2211,7 +2239,7 @@ mod tests {
                         glob("trace.release", &["1.1.2"]),
                         eq("trace.environment", &["debug"], true),
                     ]),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: Default::default(),
@@ -2223,7 +2251,7 @@ mod tests {
                         eq("trace.environment", &["debug"], true),
                         eq("trace.user.segment", &["vip"], true),
                     ]),
-                    sample_rate: 0.3,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.3 },
                     ty: RuleType::Trace,
                     id: RuleId(3),
                     time_range: Default::default(),
@@ -2235,7 +2263,7 @@ mod tests {
                         glob("trace.release", &["1.1.1"]),
                         eq("trace.user.segment", &["vip"], true),
                     ]),
-                    sample_rate: 0.4,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.4 },
                     ty: RuleType::Trace,
                     id: RuleId(4),
                     time_range: Default::default(),
@@ -2244,7 +2272,7 @@ mod tests {
                 // no user segments releases or environments
                 SamplingRule {
                     condition: RuleCondition::And(AndCondition { inner: vec![] }),
-                    sample_rate: 0.5,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(5),
                     time_range: Default::default(),
@@ -2421,7 +2449,7 @@ mod tests {
                 // Expired
                 SamplingRule {
                     condition: eq(&release_condition, &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: *rule_type,
                     id: RuleId(1),
                     time_range: TimeRange {
@@ -2433,7 +2461,7 @@ mod tests {
                 // Idle
                 SamplingRule {
                     condition: eq(&release_condition, &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: *rule_type,
                     id: RuleId(2),
                     time_range: TimeRange {
@@ -2445,7 +2473,7 @@ mod tests {
                 // Start after finishing
                 SamplingRule {
                     condition: eq(&release_condition, &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: *rule_type,
                     id: RuleId(3),
                     time_range: TimeRange {
@@ -2457,7 +2485,7 @@ mod tests {
                 // Rule is ok
                 SamplingRule {
                     condition: eq(&release_condition, &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: *rule_type,
                     id: RuleId(4),
                     time_range: TimeRange {
@@ -2470,7 +2498,7 @@ mod tests {
                 SamplingRule {
                     // Environment matching all contexts, so that everyone can fallback
                     condition: eq(&env_condition, &["testing"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: *rule_type,
                     id: RuleId(5),
                     time_range: Default::default(),
@@ -2545,7 +2573,7 @@ mod tests {
             let config = SamplingConfig {
                 rules: vec![SamplingRule {
                     condition: eq("trace.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: range,
@@ -2566,7 +2594,7 @@ mod tests {
             let config = SamplingConfig {
                 rules: vec![SamplingRule {
                     condition: eq("event.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: range,
@@ -2801,7 +2829,7 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "trace",
-            "sampleRate": 1,
+            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
         .unwrap();
@@ -2813,7 +2841,7 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "new_rule_type_unknown_to_this_relay",
-            "sampleRate": 1,
+            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
         .unwrap();
