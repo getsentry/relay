@@ -60,12 +60,12 @@ impl FromUserAgentInfo for BrowserContext {
 
 /// The sec-ch-ua field looks something like this:
 /// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
-/// The order of the items are randomly shuffled
+/// The order of the items are randomly shuffled.
 ///
 /// It tries to detect the "not a brand" item and the browser engine, if it's neither its assumed
-/// to be a browser and gets returend as such
+/// to be a browser and gets returned as such.
 ///
-/// returns None if no browser field detected
+/// Returns None if no browser field detected.
 fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
     for item in s.split(',') {
         // if it contains one of these then we can know it isn't a browser field. atm chromium
