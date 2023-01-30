@@ -20,46 +20,13 @@ mod serialization;
 /// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
 /// if decompressed contents exceed the limit.
 pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
-    // Check for null byte condition.
-    if bytes.is_empty() {
-        return Err(RecordingParseError::Message("no data found"));
-    }
+    let (headers, mut body) = deserialize(bytes, limit)?;
 
-    let mut split = bytes.splitn(2, |b| b == &b'\n');
-    let header = split
-        .next()
-        .ok_or(RecordingParseError::Message("no headers found"))?;
+    // Walk recording scrubbing PII as we go.
+    strip_pii(&mut body).map_err(RecordingParseError::ProcessingAction)?;
 
-    let body = match split.next() {
-        Some(b"") | None => return Err(RecordingParseError::Message("no body found")),
-        Some(body) => body,
-    };
-
-    let mut events = deserialize_compressed(body, limit)?;
-    strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
-    let out_bytes = serialize_compressed(events)?;
-    Ok([header.into(), vec![b'\n'], out_bytes].concat())
-}
-
-fn deserialize_compressed(
-    zipped_input: &[u8],
-    limit: usize,
-) -> Result<Vec<Event>, RecordingParseError> {
-    let decoder = ZlibDecoder::new(zipped_input);
-
-    let mut buffer = Vec::new();
-    decoder.take(limit as u64).read_to_end(&mut buffer)?;
-
-    Ok(serde_json::from_slice(&buffer)?)
-}
-
-fn serialize_compressed(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
-    let buffer = serde_json::to_vec(&rrweb)?;
-
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&buffer)?;
-    let result = encoder.finish()?;
-    Ok(result)
+    let out_bytes = serialize(headers, body)?;
+    Ok([headers.into(), vec![b'\n'], out_bytes].concat())
 }
 
 fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
@@ -74,11 +41,90 @@ fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     Ok(())
 }
 
+// Protocol.
+//
+// The following section includes the behaviors responsible for deserializing a recording from
+// its HTTP transport schema and serializing a recording to its Kafka transport schema.
+//
+// We expect recordings to come in the format of plaintext headers (JSON encoded), then a new
+// line character, then an optionally compressed RRWeb recording data.  Failure to inclue any
+// component of this schema results in an error.
+
+fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Vec<Event>), RecordingParseError> {
+    let (headers, body) = read(bytes)?;
+
+    // We always attempt to decompress the body value. If decompression fails we try to JSON
+    // deserialize the body bytes as is.
+    match decompress(body, limit) {
+        Ok(buf) => {
+            let events: Vec<Event> =
+                serde_json::from_slice(&buf).map_err(RecordingParseError::InvalidBody)?;
+            Ok((headers, events))
+        }
+        Err(_) => {
+            let events: Vec<Event> =
+                serde_json::from_slice(body).map_err(RecordingParseError::InvalidBody)?;
+            Ok((headers, events))
+        }
+    }
+}
+
+fn serialize(headers: &[u8], body: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
+    let output = serde_json::to_vec(&body).map_err(RecordingParseError::InvalidBody)?;
+    let output_bytes = compress(output)?;
+    Ok([headers.into(), vec![b'\n'], output_bytes].concat())
+}
+
+fn compress(output: Vec<u8>) -> Result<Vec<u8>, RecordingParseError> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(&output)
+        .map_err(RecordingParseError::Compression)?;
+    encoder.finish().map_err(RecordingParseError::Compression)
+}
+
+fn decompress(zipped_bytes: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
+    let mut buffer = Vec::new();
+
+    let decoder = ZlibDecoder::new(zipped_bytes);
+    decoder
+        .take(limit as u64)
+        .read_to_end(&mut buffer)
+        .map_err(RecordingParseError::Compression)?;
+
+    Ok(buffer)
+}
+
+fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), RecordingParseError> {
+    match bytes.is_empty() {
+        true => Err(RecordingParseError::MissingData),
+        false => {
+            let mut split = bytes.splitn(2, |b| b == &b'\n');
+            let header = split.next().ok_or(RecordingParseError::MissingHeaders)?;
+
+            // Try to parse the headers to determine if they are valid JSON. This is a good sanity
+            // check to determine if our headers extraction is working properly.
+            serde_json::from_slice::<Value>(header).map_err(RecordingParseError::InvalidHeaders)?;
+
+            let body = match split.next() {
+                Some(b"") | None => return Err(RecordingParseError::MissingBody),
+                Some(body) => body,
+            };
+
+            Ok((header, body))
+        }
+    }
+}
+
 // Error
 
 #[derive(Debug)]
 pub enum RecordingParseError {
-    Json(serde_json::Error),
+    MissingData,
+    MissingHeaders,
+    MissingBody,
+    InvalidBody(serde_json::Error),
+    InvalidHeaders(serde_json::Error),
     Compression(std::io::Error),
     Message(&'static str),
     ProcessingAction(ProcessingAction),
@@ -87,7 +133,11 @@ pub enum RecordingParseError {
 impl Display for RecordingParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordingParseError::Json(serde_error) => write!(f, "{serde_error}"),
+            RecordingParseError::MissingData => write!(f, "no recording found"),
+            RecordingParseError::MissingHeaders => write!(f, "no recording headers found"),
+            RecordingParseError::MissingBody => write!(f, "no recording body found"),
+            RecordingParseError::InvalidHeaders(serde_error) => write!(f, "{serde_error}"),
+            RecordingParseError::InvalidBody(serde_error) => write!(f, "{serde_error}"),
             RecordingParseError::Compression(io_error) => write!(f, "{io_error}"),
             RecordingParseError::Message(message) => write!(f, "{message}"),
             RecordingParseError::ProcessingAction(action) => write!(f, "{action}"),
@@ -99,7 +149,7 @@ impl std::error::Error for RecordingParseError {}
 
 impl From<serde_json::Error> for RecordingParseError {
     fn from(err: serde_json::Error) -> Self {
-        RecordingParseError::Json(err)
+        RecordingParseError::InvalidBody(err)
     }
 }
 
@@ -511,7 +561,7 @@ mod tests {
         let result = recording::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no body found"),
+            recording::RecordingParseError::MissingBody,
         ));
     }
 
@@ -525,7 +575,8 @@ mod tests {
         let result = recording::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Compression(_),
+            // Compression errors on deserialize are suppressed and appear as InvalidBody types.
+            recording::RecordingParseError::InvalidBody(_),
         ));
     }
 
@@ -539,7 +590,7 @@ mod tests {
         let result = recording::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no body found"),
+            recording::RecordingParseError::MissingBody,
         ));
     }
 
@@ -551,7 +602,7 @@ mod tests {
         let result = recording::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no data found"),
+            recording::RecordingParseError::MissingData,
         ));
     }
 
