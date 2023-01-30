@@ -138,11 +138,11 @@ impl RecordingProcessor<'_> {
     ) -> Result<(), ProcessingAction> {
         match variant {
             IncrementalSourceDataVariant::Mutation(mutation) => {
+                for text in &mut mutation.texts {
+                    self.strip_pii(&mut text.value)?
+                }
                 for addition in &mut mutation.adds {
-                    match self.recurse_snapshot_node(&mut addition.node) {
-                        Ok(_) => {}
-                        Err(e) => return Err(e),
-                    }
+                    self.recurse_snapshot_node(&mut addition.node)?
                 }
             }
             IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text)?,
@@ -442,12 +442,18 @@ struct InputIncrementalSourceData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
-    texts: Vec<Value>,
+    texts: Vec<Text>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_attach_iframe: Option<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Text {
+    id: i32,
+    value: String,
 }
 
 #[derive(Debug)]
@@ -629,20 +635,9 @@ mod tests {
 
         recording::strip_pii(&mut events).unwrap();
 
-        let aa = events.pop().unwrap();
-        if let recording::Event::T3(bb) = aa {
-            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
-                let dd = cc.adds.pop().unwrap();
-                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
-                    let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::T3(gg) = ff.variant {
-                        assert_eq!(gg.text_content, "[ip]");
-                        return;
-                    }
-                }
-            }
-        }
-        unreachable!();
+        let parsed = serde_json::to_string(&events).unwrap();
+        assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
+        assert!(parsed.contains("\"textContent\":\"[ip]\"")) // Assert text node was mutated.
     }
 
     #[test]
