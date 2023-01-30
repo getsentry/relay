@@ -581,6 +581,18 @@ mod tests {
     }
 
     #[test]
+    fn test_process_recording_invalid_headers() {
+        // Invalid headers.  Validation should fail.
+        let payload: &[u8] = &[101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(matches!(
+            result.unwrap_err(),
+            recording::RecordingParseError::InvalidHeaders(_),
+        ));
+    }
+
+    #[test]
     fn test_process_recording_no_headers() {
         // No header delimiter.  Entire payload is consumed as headers.  The empty body fails.
         let payload: &[u8] = &[
