@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMG_CACHE: ghcr.io/getsentry/relay:${{ matrix.arch }}-latest
-      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.sha }}
+      # GITHUB_SHA in pull requests points to the merge commit
+      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
     steps:
     - uses: actions/checkout@v3
     - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
@@ -50,9 +51,9 @@ jobs:
 
         # for now arm64 is too slow so just retag this with "latest" and current SHA
         docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
-        docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:${{ github.sha }}
+        docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
         docker push ghcr.io/getsentry/relay:latest
-        docker push ghcr.io/getsentry/relay:${{ github.sha }}
+        docker push ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
         
       # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
       #
@@ -389,8 +390,6 @@ jobs:
           snuba: true
           kafka: true
 
-      # We wait on GCB producing the Docker image because it can built it faster than the GH runners
-      # If the GCB fails to push the image, this job will keep pulling until it times out
       - name: Pull the image
         env:
           RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
