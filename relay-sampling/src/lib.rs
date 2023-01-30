@@ -2734,12 +2734,11 @@ mod tests {
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
         assert!(matches!(result, Some(SamplingSpecification { .. })));
-        match result {
-            Some(spec) => assert!(
+        if let Some(spec) = result {
+            assert!(
                 (spec.sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
                 "did not use the sample rate of the second rule"
-            ),
-            None => {}
+            )
         }
 
         // early return third rule
