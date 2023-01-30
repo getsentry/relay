@@ -58,7 +58,7 @@ impl FromUserAgentInfo for BrowserContext {
     }
 }
 
-/// the sec-ch-ua field looks something like this:
+/// The sec-ch-ua field looks something like this:
 /// "Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"
 /// The order of the items are randomly shuffled
 ///
