@@ -56,16 +56,14 @@ fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Vec<Event>), Record
     // We always attempt to decompress the body value. If decompression fails we try to JSON
     // deserialize the body bytes as is.
     match decompress(body, limit) {
-        Ok(buf) => {
-            let events: Vec<Event> =
-                serde_json::from_slice(&buf).map_err(RecordingParseError::InvalidBody)?;
-            Ok((headers, events))
-        }
-        Err(_) => {
-            let events: Vec<Event> =
-                serde_json::from_slice(body).map_err(RecordingParseError::InvalidBody)?;
-            Ok((headers, events))
-        }
+        Ok(buf) => Ok((
+            headers,
+            serde_json::from_slice(&buf).map_err(RecordingParseError::InvalidBody)?,
+        )),
+        Err(_) => Ok((
+            headers,
+            serde_json::from_slice(body).map_err(RecordingParseError::InvalidBody)?,
+        )),
     }
 }
 
