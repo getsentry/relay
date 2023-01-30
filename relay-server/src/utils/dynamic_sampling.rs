@@ -70,8 +70,8 @@ fn get_trace_sampling_rule(
 
     let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr, now));
     let sample_rate = match sampling_config.mode {
-        SamplingMode::Received => rule.get_sample_rate(now),
-        SamplingMode::Total => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
+        SamplingMode::Received => rule.get_sampling_strategy_value(now),
+        SamplingMode::Total => dsc.adjusted_sample_rate(rule.get_sampling_strategy_value(now)),
         SamplingMode::Unsupported => {
             if processing_enabled {
                 relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
@@ -103,8 +103,10 @@ fn get_event_sampling_rule(
 
     let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr, now));
     let sample_rate = match (dsc, sampling_config.mode) {
-        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
-        _ => rule.get_sample_rate(now),
+        (Some(dsc), SamplingMode::Total) => {
+            dsc.adjusted_sample_rate(rule.get_sampling_strategy_value(now))
+        }
+        _ => rule.get_sampling_strategy_value(now),
     };
 
     Ok(Some(SamplingSpec {
@@ -129,6 +131,9 @@ pub fn should_keep_event(
     // requires it.
     let now = Utc::now();
 
+    // /hello release: 1.0
+    // /world TKT
+    // /hello -> /world
     let matching_trace_rule = match get_trace_sampling_rule(
         processing_enabled,
         sampling_project_state,
@@ -497,7 +502,7 @@ mod tests {
             {
                 "rules": [
                     {
-                        "sampleRate": 0,
+                        "samplingStrategy": {"type": "sampleRate", "value": 0},
                         "type": "trace",
                         "active": true,
                         "condition": {
@@ -507,7 +512,7 @@ mod tests {
                         "id": 1000
                     },
                     {
-                        "sampleRate": 1,
+                        "samplingStrategy": {"type": "sampleRate", "value": 1},
                         "type": "transaction",
                         "condition": {
                             "op": "or",

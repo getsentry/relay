@@ -444,7 +444,7 @@ pub struct ActiveRule {
 
 impl ActiveRule {
     /// Gets the sample rate for the specific rule.
-    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
+    pub fn get_sampling_strategy_value(&self, now: DateTime<Utc>) -> f64 {
         self.evaluator.evaluate(now)
     }
 }
@@ -480,16 +480,14 @@ impl SamplingRule {
     /// based on the specified DecayingFunction, which defaults to constant.
     fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
         match self.decaying_fn {
-            DecayingFunction::Linear {
-                decayed_value: decayed_sample_rate,
-            } => {
+            DecayingFunction::Linear { decayed_value } => {
                 if let TimeRange {
                     start: Some(start),
                     end: Some(end),
                 } = self.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if self.get_sampling_strategy_base_value() > decayed_sample_rate
+                    if self.get_sampling_strategy_base_value() > decayed_value
                         && start <= now
                         && now < end
                     {
@@ -499,7 +497,7 @@ impl SamplingRule {
                                 start,
                                 end,
                                 initial_value: self.get_sampling_strategy_base_value(),
-                                decayed_value: decayed_sample_rate,
+                                decayed_value,
                                 use_factor: true,
                             },
                         });
@@ -519,6 +517,13 @@ impl SamplingRule {
         }
 
         None
+    }
+
+    fn is_sample_rate_rule(&self) -> bool {
+        match self.sampling_strategy {
+            SamplingStrategy::SampleRate { value: _ } => true,
+            SamplingStrategy::Factor { value: _ } => false,
+        }
     }
 
     fn get_sampling_strategy_base_value(&self) -> f64 {
@@ -845,6 +850,13 @@ impl Default for SamplingMode {
     }
 }
 
+/// Represents the specification for sampling an incoming event.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SamplingSpecification {
+    sample_rate: f64,
+    seed: Uuid,
+}
+
 /// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
@@ -864,6 +876,40 @@ pub struct SamplingConfig {
 impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules.iter().all(SamplingRule::supported)
+    }
+
+    pub fn get_matching_sampling_specification(
+        &self,
+        event: &Event,
+        sampling_context: &DynamicSamplingContext,
+        ip_addr: Option<IpAddr>,
+        now: DateTime<Utc>,
+    ) -> Option<SamplingSpecification> {
+        let mut accumulated_factors = 1.0;
+
+        for rule in self.rules.iter() {
+            if rule.condition.matches(sampling_context, ip_addr)
+                || rule.condition.matches(event, ip_addr)
+            {
+                if let Some(active_rule) = rule.is_active(now) {
+                    let value = active_rule.get_sampling_strategy_value(now);
+
+                    if rule.is_sample_rate_rule() {
+                        println!("Matching sample rate {}", rule.id.0);
+                        return Some(SamplingSpecification {
+                            // We need to perform clamping here, in order to avoid sample rates outside of [0.0, 1.0].
+                            sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
+                            seed: sampling_context.trace_id,
+                        });
+                    } else {
+                        accumulated_factors *= value
+                    }
+                }
+            }
+        }
+
+        // In case no match is available, we won't return any specification.
+        None
     }
 
     /// Get the first rule of type [`RuleType::Trace`] whose conditions match on the given sampling
@@ -1799,7 +1845,7 @@ mod tests {
     }
 
     #[test]
-    // /// test various rules that do not match
+    /// test various rules that do not match
     fn test_does_not_match() {
         let conditions = [
             (
@@ -2266,65 +2312,26 @@ mod tests {
     }
 
     #[test]
-    /// test that the first rule that matches is selected
-    fn test_nondecaying_rule_precedence() {
+    /// test that the multi-matching returns none in case there is no match.
+    fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
         let rules = SamplingConfig {
             rules: vec![
-                //everything specified
                 SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user.segment", &["vip"], true),
-                    ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.1 },
-                    ty: RuleType::Trace,
+                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
-                // no user segments
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.2"]),
-                        eq("trace.environment", &["debug"], true),
-                    ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                // no releases
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user.segment", &["vip"], true),
-                    ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.3 },
-                    ty: RuleType::Trace,
-                    id: RuleId(3),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                // no environments
                 SamplingRule {
                     condition: and(vec![
                         glob("trace.release", &["1.1.1"]),
-                        eq("trace.user.segment", &["vip"], true),
+                        eq("trace.environment", &["prod"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.4 },
-                    ty: RuleType::Trace,
-                    id: RuleId(4),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                // no user segments releases or environments
-                SamplingRule {
-                    condition: RuleCondition::And(AndCondition { inner: vec![] }),
                     sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
-                    id: RuleId(5),
+                    id: RuleId(2),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
@@ -2333,6 +2340,13 @@ mod tests {
             next_id: None,
         };
 
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("healthcheck".to_string()),
+            ..Default::default()
+        };
         let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -2342,63 +2356,183 @@ mod tests {
                 user_id: "user-id".to_owned(),
             },
             environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
+            transaction: Some("root_transaction".into()),
             sample_rate: None,
             other: BTreeMap::new(),
         };
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        assert_eq!(result, None, "did not return none for no match");
+    }
 
-        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
-        // complete match with first rule
+    #[test]
+    /// test that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
+    fn test_multi_matching_with_transaction_event_non_decaying_rules_and_matches() {
+        let rules = SamplingConfig {
+            rules: vec![
+                SamplingRule {
+                    condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.1 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![glob("trace.environment", &["*dev*"])]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 1.0 },
+                    ty: RuleType::Trace,
+                    id: RuleId(2),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(3),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.user.segment", &["vip"], true),
+                    ]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(4),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![
+                        eq("trace.release", &["1.1.1"], true),
+                        eq("trace.environment", &["prod"], true),
+                    ]),
+                    sampling_strategy: SamplingStrategy::Factor { value: 1.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(5),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.02 },
+                    ty: RuleType::Trace,
+                    id: RuleId(6),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+            ],
+            mode: SamplingMode::Received,
+            next_id: None,
+        };
+
+        // earl return of first rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("healthcheck".to_string()),
+            ..Default::default()
+        };
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("debug".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
         assert_eq!(
-            result.unwrap().id,
-            RuleId(1),
-            "did not match the expected first rule"
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.1, // 0.1
+                seed: trace_context.trace_id
+            }),
+            "did not use the sample rate of the first rule"
         );
 
+        // early return of second rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("foo".to_string()),
+            ..Default::default()
+        };
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("dev".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        assert_eq!(
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 1.0, // 1.0
+                seed: trace_context.trace_id
+            }),
+            "did not use the sample rate of the second rule"
+        );
+
+        // factor match third rule and early return sixth rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("foo".to_string()),
+            ..Default::default()
+        };
         let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
             user: TraceUserContext {
-                user_segment: "vip".to_owned(),
+                user_segment: "non-vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
+            environment: Some("testing".to_string()),
+            transaction: Some("root_transaction".into()),
             sample_rate: None,
             other: BTreeMap::new(),
         };
-
-        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
-        // should mach the second rule because of the release
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
         assert_eq!(
-            result.unwrap().id,
-            RuleId(2),
-            "did not match the expected second rule"
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.04, // 0.02 * 2.0
+                seed: trace_context.trace_id
+            }),
+            "did not use the factor of the third rule and the sample rate of the sixth rule"
         );
 
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.3".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
+        // factor match third rule and early return fourth rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("foo".to_string()),
+            ..Default::default()
         };
-
-        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
-        // should match the third rule because of the unknown release
-        assert_eq!(
-            result.unwrap().id,
-            RuleId(3),
-            "did not match the expected third rule"
-        );
-
         let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -2407,180 +2541,243 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
-            environment: Some("production".to_string()),
-            transaction: Some("transaction1".into()),
+            environment: Some("prod".to_string()),
+            transaction: Some("root_transaction".into()),
             sample_rate: None,
             other: BTreeMap::new(),
         };
-
-        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
-        // should match the fourth rule because of the unknown environment
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
         assert_eq!(
-            result.unwrap().id,
-            RuleId(4),
-            "did not match the expected fourth rule"
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 1.0, // 0.5 * 2.0
+                seed: trace_context.trace_id
+            }),
+            "did not use the factor of the third rule and the sample rate of the fourth rule"
         );
 
+        // factor match third, fifth rule and early return sixth rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("foo".to_string()),
+            ..Default::default()
+        };
         let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: TraceUserContext {
-                user_segment: "all".to_owned(),
+                user_segment: "non-vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
+            environment: Some("prod".to_string()),
+            transaction: Some("root_transaction".into()),
             sample_rate: None,
             other: BTreeMap::new(),
         };
-
-        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
-        // should match the fourth rule because of the unknown user segment
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
         assert_eq!(
-            result.unwrap().id,
-            RuleId(5),
-            "did not match the expected fourth rule"
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.06, // 0.02 * 1.5 * 2.0
+                seed: trace_context.trace_id
+            }),
+            "did not use the factor of the third, fifth rule and the sample rate of the sixth rule"
         );
+
+        // factor match fifth and early return sixth rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("transaction".to_string()),
+            ..Default::default()
+        };
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "non-vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("prod".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result =
+            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        assert_eq!(
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.03, // 0.02 * 1.5
+                seed: trace_context.trace_id
+            }),
+            "did not use the factor of the fifth rule and the sample rate of the sixth rule"
+        )
     }
 
     #[test]
-    fn test_decaying_trace_rule_precedence() {
-        let rules = decaying_sampling_config(&RuleType::Trace);
-
-        let new_release = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("testing".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.get_matching_trace_rule(&new_release, None, Utc::now());
-        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
-
-        let old_release = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.0".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("testing".to_string()),
-            transaction: Some("transaction2".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.get_matching_trace_rule(&old_release, None, Utc::now());
-        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
-    }
-
-    fn decaying_sampling_config(rule_type: &RuleType) -> SamplingConfig {
-        let rule_prefix = match rule_type {
-            RuleType::Trace => "trace",
-            RuleType::Transaction => "event",
-            // For the Error variant, the prefix is also `event`. However, it's not
-            // supported in the code, so intentionally not implementing any logic for
-            // that. This whole helper method should be revisited when the Error variant
-            // is supported.
-            RuleType::Error | RuleType::Unsupported => unimplemented!(),
-        };
-        let release_condition = format!("{rule_prefix}.release");
-        let env_condition = format!("{rule_prefix}.environment");
-
-        SamplingConfig {
+    /// test that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
+    fn test_multi_matching_with_transaction_event_decaying_rules_and_matches() {
+        let rules = SamplingConfig {
             rules: vec![
-                // Expired
                 SamplingRule {
-                    condition: eq(&release_condition, &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: *rule_type,
+                    condition: and(vec![
+                        eq("trace.release", &["1.1.1"], true),
+                        eq("trace.environment", &["dev"], true),
+                    ]),
+                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: TimeRange {
                         start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Constant,
+                    decaying_fn: DecayingFunction::Linear { decayed_value: 1.0 },
                 },
-                // Idle
                 SamplingRule {
-                    condition: eq(&release_condition, &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: *rule_type,
+                    condition: and(vec![
+                        eq("trace.release", &["1.1.1"], true),
+                        eq("trace.environment", &["prod"], true),
+                    ]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.6 },
+                    ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: TimeRange {
-                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
+                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Constant,
+                    decaying_fn: DecayingFunction::Linear { decayed_value: 0.3 },
                 },
-                // Start after finishing
                 SamplingRule {
-                    condition: eq(&release_condition, &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: *rule_type,
+                    condition: and(vec![]),
+                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.02 },
+                    ty: RuleType::Trace,
                     id: RuleId(3),
-                    time_range: TimeRange {
-                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
-                    },
-                    decaying_fn: DecayingFunction::Constant,
-                },
-                // Rule is ok
-                SamplingRule {
-                    condition: eq(&release_condition, &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: *rule_type,
-                    id: RuleId(4),
-                    time_range: TimeRange {
-                        start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-                    },
-                    decaying_fn: DecayingFunction::Constant,
-                },
-                // Fallback to non-decaying rule
-                SamplingRule {
-                    // Environment matching all contexts, so that everyone can fallback
-                    condition: eq(&env_condition, &["testing"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: *rule_type,
-                    id: RuleId(5),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
             ],
             mode: SamplingMode::Received,
             next_id: None,
-        }
-    }
+        };
 
-    #[test]
-    fn test_decaying_transaction_rule_precedence() {
-        let rules = decaying_sampling_config(&RuleType::Transaction);
-
-        let new_release = Event {
+        // factor match first rule and early return third rule
+        let event = Event {
             ty: Annotated::new(EventType::Transaction),
             release: Annotated::new("1.1.1".to_string().into()),
             environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("transaction".to_string()),
             ..Default::default()
         };
-        let result = rules.get_matching_event_rule(&new_release, None, Utc::now());
-        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("dev".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        // We will use a time in the middle of 10th and 11th.
+        let result = rules.get_matching_sampling_specification(
+            &event,
+            &trace_context,
+            None,
+            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+        );
+        assert_eq!(
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.03, // 0.02 * 1.5
+                seed: trace_context.trace_id
+            }),
+            "did not use the factor of the first rule and the sample rate of the third rule"
+        );
 
-        let old_release = Event {
+        // early return second rule
+        let event = Event {
             ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.0".to_string().into()),
+            release: Annotated::new("1.1.1".to_string().into()),
             environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("transaction".to_string()),
             ..Default::default()
         };
-        let result = rules.get_matching_event_rule(&old_release, None, Utc::now());
-        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("prod".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        // We will use a time in the middle of 10th and 11th.
+        let result = rules.get_matching_sampling_specification(
+            &event,
+            &trace_context,
+            None,
+            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+        );
+        assert!(matches!(result, Some(SamplingSpecification { .. })));
+        match result {
+            Some(spec) => assert!(
+                (spec.sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
+                "did not use the sample rate of the second rule"
+            ),
+            None => {}
+        }
+
+        // early return third rule
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            transaction: Annotated::new("transaction".to_string()),
+            ..Default::default()
+        };
+        let trace_context = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("root_transaction".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        // We will use a time in the middle of 10th and 11th.
+        let result = rules.get_matching_sampling_specification(
+            &event,
+            &trace_context,
+            None,
+            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+        );
+        assert_eq!(
+            result,
+            Some(SamplingSpecification {
+                sample_rate: 0.02, // 0.02
+                seed: trace_context.trace_id
+            }),
+            "did not use the sample rate of the third rule"
+        );
     }
 
     #[test]
