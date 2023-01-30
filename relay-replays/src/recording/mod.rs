@@ -297,7 +297,8 @@ struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
-    category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -647,7 +648,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_snapshot_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb2.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
