@@ -19,6 +19,7 @@ jobs:
       matrix:
         # the arm64 build takes too long, so disable for now
         arch: [amd64]
+    name: Build Docker Image (${{ matrix.arch }})
     runs-on: ubuntu-latest
     env:
       IMG_CACHE: ghcr.io/getsentry/relay:${{ matrix.arch }}-latest
