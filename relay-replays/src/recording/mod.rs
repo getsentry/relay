@@ -25,8 +25,7 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, Recordin
     // Walk recording scrubbing PII as we go.
     strip_pii(&mut body).map_err(RecordingParseError::ProcessingAction)?;
 
-    let out_bytes = serialize(headers, body)?;
-    Ok([headers.into(), vec![b'\n'], out_bytes].concat())
+    serialize(headers, body)
 }
 
 fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
