@@ -1933,7 +1933,7 @@ impl EnvelopeProcessorService {
         let transaction_from_dsc = state
             .envelope
             .dsc()
-            .and_then(|dsc| dsc.transaction.to_owned());
+            .and_then(|dsc| dsc.transaction.as_deref());
 
         if let Some(event) = state.event.value() {
             let result;

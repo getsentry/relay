@@ -378,7 +378,7 @@ pub fn extract_transaction_metrics(
     event: &Event,
     project_metrics: &mut Vec<Metric>,
     sampling_metrics: &mut Vec<Metric>,
-    transaction_from_dsc: Option<String>,
+    transaction_from_dsc: Option<&str>,
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
@@ -402,7 +402,7 @@ fn extract_transaction_metrics_inner(
     event: &Event,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
-    transaction_from_dsc: Option<String>,
+    transaction_from_dsc: Option<&str>,
 ) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
@@ -518,7 +518,7 @@ fn extract_transaction_metrics_inner(
         MetricValue::Counter(1.0),
         timestamp,
         match transaction_from_dsc {
-            Some(x) => BTreeMap::from([("transaction".to_owned(), x)]),
+            Some(name) => BTreeMap::from([("transaction".to_owned(), name.to_owned())]),
             None => BTreeMap::new(),
         },
     ));
@@ -732,6 +732,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -871,6 +872,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -961,6 +963,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1038,6 +1041,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1105,6 +1109,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         assert_eq!(metrics.len(), 2);
@@ -1166,6 +1171,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
@@ -1237,6 +1243,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1320,6 +1327,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1428,6 +1436,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1513,6 +1522,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
@@ -1559,6 +1569,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1596,6 +1607,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1642,6 +1654,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         );
 
         assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
@@ -1665,6 +1678,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -2023,6 +2037,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
             &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 

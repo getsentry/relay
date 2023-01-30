@@ -659,6 +659,7 @@ def test_transaction_metrics(
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "tags": {},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
