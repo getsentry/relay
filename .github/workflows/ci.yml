@@ -13,6 +13,58 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  build:
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        # the arm64 build takes too long, so disable for now
+        arch: [amd64]
+    runs-on: ubuntu-latest
+    env:
+      IMG_CACHE: ghcr.io/getsentry/relay:${{ matrix.arch }}-latest
+      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.sha }}
+    steps:
+    - uses: actions/checkout@v3
+    - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
+      if: matrix.arch == 'arm64'
+    - name: build
+      run: |
+        set -euxo pipefail
+        args=()
+        if docker pull -q "$IMG_CACHE"; then
+          args+=(--cache-from "$IMG_CACHE")
+        fi
+        docker buildx build \
+            "${args[@]}" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --platform linux/${{ matrix.arch }} \
+            --tag "$IMG_VERSIONED" \
+            .
+        docker tag "$IMG_VERSIONED" "$IMG_CACHE"
+    - name: push ghcr.io
+      run: |
+        set -euxo pipefail
+        docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+        docker push "$IMG_VERSIONED"
+        docker push "$IMG_CACHE"
+
+        # for now arm64 is too slow so just retag this with "latest" and current SHA
+        docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
+        docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:${{ github.sha }}
+        docker push ghcr.io/getsentry/relay:latest
+        docker push ghcr.io/getsentry/relay:${{ github.sha }}
+        
+      # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
+      #
+      # - name: push gcr.io
+      #   # TODO: this actually should be the same like in cloudbuild now, build and push on every commit in PR as well.
+      #   if: github.event_name != 'pull_request'
+      #   run: |
+      #     set -euxo pipefail
+      #     # TODO: get creadentials for pushing this and remove ./cloudbuild.yaml so they won't conflict
+      #     # docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' us.gcr.io
+      #     docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.sha }}"
+      #     docker push "us.gcr.io/sentryio/relay:${{ github.sha }}"
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -299,6 +351,7 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: build
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -320,7 +373,7 @@ jobs:
         id: setup
         run: |
           # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          RELAY_TEST_IMAGE=ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
           echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
           # We cannot execute actions that are not placed under .github of the main repo
@@ -363,6 +416,7 @@ jobs:
   self-hosted-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: build
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -374,6 +428,6 @@ jobs:
         uses: getsentry/action-self-hosted-e2e-tests@627c9b50cb168c546ed6e2c461dae76d5d0c7cdb
         with:
           project_name: relay
-          image_url: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           docker_repo: getsentry/relay
           docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}

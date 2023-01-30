@@ -1,0 +1,67 @@
+steps:
+  # GCB only fetches a source archive, but the build requires an actual git repo. Note that the
+  # clone behavior changed multiple times between 2017 and 2019 and might not be stable.
+  # See: https://github.com/GoogleCloudPlatform/cloud-builders/issues/236#issuecomment-558991730
+  - name: "gcr.io/cloud-builders/git"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        git init
+        git remote add origin https://github.com/getsentry/$REPO_NAME.git
+        git fetch --depth=1 origin $COMMIT_SHA
+        git reset --hard FETCH_HEAD
+        git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
+
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args: ["-c", "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"]
+
+  # Pull the image with the first build stage
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args: ["-c", "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"]
+
+  # Build the first stage
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "--target",
+        "relay-deps",
+        "-t",
+        "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from",
+        "us.gcr.io/$PROJECT_ID/relay:deps",
+        ".",
+      ]
+
+    # Build everything
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "us.gcr.io/$PROJECT_ID/relay:nightly",
+        "-t",
+        "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+        "--cache-from",
+        "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from",
+        "us.gcr.io/$PROJECT_ID/relay:nightly",
+        ".",
+      ]
+
+  # We push the image to GCR since the Sentry integration tests are polling
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"]
+
+images:
+  [
+    "us.gcr.io/$PROJECT_ID/relay:deps",
+    "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+  ]
+timeout: 3600s
+options:
+  # Run on bigger machines
+  machineType: "E2_HIGHCPU_8"
