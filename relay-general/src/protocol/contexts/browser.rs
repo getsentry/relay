@@ -93,6 +93,8 @@ fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
+
     use super::*;
     use crate::protocol::{Headers, PairList};
     use crate::user_agent::RawUserAgentInfo;
@@ -138,10 +140,15 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
-        assert_eq!(browser.clone().unwrap().version.as_str().unwrap(), "109");
+        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
 
-        assert_eq!("Google Chrome", browser.unwrap().name.as_str().unwrap());
+        assert_debug_snapshot!(browser, @r###"
+        BrowserContext {
+            name: "Google Chrome",
+            version: "109",
+            other: {},
+        }
+        "###);
     }
 
     #[test]
@@ -164,10 +171,15 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
-        assert_eq!(browser.clone().unwrap().version.as_str().unwrap(), "109");
+        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
 
-        assert_eq!("weird browser", browser.unwrap().name.as_str().unwrap());
+        assert_debug_snapshot!(browser, @r###"
+        BrowserContext {
+            name: "weird browser",
+            version: "109",
+            other: {},
+        }
+        "###);
     }
 
     #[test]
@@ -186,12 +198,12 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
         assert_eq!(
-            browser.clone().unwrap().version.as_str().unwrap(),
+            browser.version.as_str().unwrap(),
             "109.0.0" // notice the version number is from UA string not from client hints
         );
 
-        assert_eq!("Chrome", browser.unwrap().name.as_str().unwrap());
+        assert_eq!("Chrome", browser.name.as_str().unwrap());
     }
 }

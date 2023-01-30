@@ -26,7 +26,6 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
     )
 });
 
-/// Should we merge it with get_user_agent_from_request?
 fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
     for item in headers.iter() {
         if let Some((ref o_k, ref v)) = item.value() {
