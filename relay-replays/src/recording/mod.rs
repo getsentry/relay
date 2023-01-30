@@ -648,7 +648,7 @@ mod tests {
 
     #[test]
     fn test_rrweb_snapshot_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb2.json");
+        let payload = include_bytes!("../../tests/fixtures/rrweb.json");
 
         let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
