@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "request": {
-    "url": "https://www.bitumequebec.ca/fr/adhesions/authentication",
+    "url": "https://www.example.com/fr/testing/authenticate",
     "method": "POST",
     "data": {
       "password": "[Filtered]",

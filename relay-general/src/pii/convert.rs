@@ -1417,7 +1417,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(
             serde_json::json!({
                 "request": {
-                    "url": "https://www.bitumequebec.ca/fr/adhesions/authentication",
+                    "url": "https://www.example.com/fr/testing/authenticate",
                     "method": "POST",
                     "data": {
                       "password": "test",
