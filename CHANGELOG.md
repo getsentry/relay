@@ -12,6 +12,7 @@
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
 - Add support for scrubbing uncompressed recording payloads. ([#1793](https://github.com/getsentry/relay/pull/1793))
+- Remove error and session sample rate fields from replay-event parser. ([#1791](https://github.com/getsentry/relay/pull/1791))
 
 ## 23.1.0
 
