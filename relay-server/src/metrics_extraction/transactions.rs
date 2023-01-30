@@ -378,6 +378,7 @@ pub fn extract_transaction_metrics(
     event: &Event,
     project_metrics: &mut Vec<Metric>,
     sampling_metrics: &mut Vec<Metric>,
+    transaction_from_dsc: Option<String>,
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
@@ -387,6 +388,7 @@ pub fn extract_transaction_metrics(
         event,
         project_metrics,
         sampling_metrics,
+        transaction_from_dsc,
     )?;
 
     let added_slice = &mut project_metrics[before_len..];
@@ -399,7 +401,8 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     event: &Event,
     metrics: &mut Vec<Metric>,          // output parameter
-    sampling_metrics: &mut Vec<Metric>, // output parmater
+    sampling_metrics: &mut Vec<Metric>, // output parameter
+    transaction_from_dsc: Option<String>,
 ) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
@@ -514,7 +517,10 @@ fn extract_transaction_metrics_inner(
         MetricUnit::None,
         MetricValue::Counter(1.0),
         timestamp,
-        BTreeMap::new(),
+        match transaction_from_dsc {
+            Some(x) => BTreeMap::from([("transaction".to_owned(), x)]),
+            None => BTreeMap::new(),
+        },
     ));
 
     // User

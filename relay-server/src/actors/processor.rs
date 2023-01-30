@@ -1930,6 +1930,10 @@ impl EnvelopeProcessorService {
         if !extraction_config.is_enabled() {
             return Ok(());
         }
+        let transaction_from_dsc = state
+            .envelope
+            .dsc()
+            .and_then(|dsc| dsc.transaction.to_owned());
 
         if let Some(event) = state.event.value() {
             let result;
@@ -1945,6 +1949,7 @@ impl EnvelopeProcessorService {
                         event,
                         &mut state.extracted_metrics.project_metrics,
                         &mut state.extracted_metrics.sampling_metrics,
+                        transaction_from_dsc,
                     );
                 }
             );
