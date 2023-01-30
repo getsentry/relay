@@ -45,10 +45,10 @@ pub enum ReplayError {
 impl Display for ReplayError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ReplayError::CouldNotParse(e) => write!(f, "{}", e),
+            ReplayError::CouldNotParse(e) => write!(f, "{e}"),
             ReplayError::NoContent => write!(f, "No data found.",),
-            ReplayError::InvalidPayload(e) => write!(f, "{}", e),
-            ReplayError::CouldNotScrub(e) => write!(f, "{}", e),
+            ReplayError::InvalidPayload(e) => write!(f, "{e}"),
+            ReplayError::CouldNotScrub(e) => write!(f, "{e}"),
         }
     }
 }

@@ -96,12 +96,13 @@ impl fmt::Display for ParseSessionStatusError {
 
 impl std::error::Error for ParseSessionStatusError {}
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AbnormalMechanism {
     AnrForeground,
     AnrBackground,
     #[serde(other)]
+    #[default]
     None,
 }
 
@@ -119,12 +120,6 @@ derive_fromstr_and_display!(AbnormalMechanism, ParseAbnormalMechanismError, {
     AbnormalMechanism::AnrBackground => "anr_background",
     AbnormalMechanism::None => "none",
 });
-
-impl Default for AbnormalMechanism {
-    fn default() -> Self {
-        AbnormalMechanism::None
-    }
-}
 
 impl AbnormalMechanism {
     fn is_none(&self) -> bool {

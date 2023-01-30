@@ -756,8 +756,9 @@ impl FieldAttrs {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 enum SkipSerialization {
+    #[default]
     Never,
     Null(bool),
     Empty(bool),
@@ -770,12 +771,6 @@ impl SkipSerialization {
             SkipSerialization::Null(deep) => quote!(crate::types::SkipSerialization::Null(#deep)),
             SkipSerialization::Empty(deep) => quote!(crate::types::SkipSerialization::Empty(#deep)),
         }
-    }
-}
-
-impl Default for SkipSerialization {
-    fn default() -> SkipSerialization {
-        SkipSerialization::Never
     }
 }
 
