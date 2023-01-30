@@ -26,6 +26,57 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
     )
 });
 
+/// Should we merge it with get_user_agent_from_request?
+fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
+    for item in headers.iter() {
+        if let Some((ref o_k, ref v)) = item.value() {
+            if let Some(k) = o_k.as_str() {
+                if k.to_lowercase() == "user-agent" {
+                    return v.as_str();
+                }
+            }
+        }
+    }
+    None
+}
+
+/// agent parser initializes on-demand when using one of the parse methods. This function forces
+/// initialization at a convenient point without introducing unwanted delays.
+pub fn init_parser() {
+    Lazy::force(&UA_PARSER);
+}
+
+/// Returns the user agent string from a `Request`.
+///
+/// Returns `Some` if the event's request interface contains a `user-agent` header. Returns `None`
+/// otherwise.
+pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
+    let request = request.value()?;
+    let headers = request.headers.value()?;
+    get_user_agent_from_headers(headers)
+}
+
+/// Returns the family and version of a user agent client.
+///
+/// Defaults to an empty user agent.
+pub fn parse_user_agent(user_agent: &str) -> UserAgent {
+    UA_PARSER.parse_user_agent(user_agent)
+}
+
+/// Returns the family, brand, and model of the device of the requesting client.
+///
+/// Defaults to an empty device.
+pub fn parse_device(user_agent: &str) -> Device {
+    UA_PARSER.parse_device(user_agent)
+}
+
+/// Returns the family and version of the operating system of the requesting client.
+///
+/// Defaults to an empty operating system.
+pub fn parse_os(user_agent: &str) -> OS {
+    UA_PARSER.parse_os(user_agent)
+}
+
 /// This has both the user agent string and the client hints, useful for the scenarios where
 /// you will use either information from client hints if it exists and if not fall back to
 /// user agent string.
@@ -75,49 +126,4 @@ impl<'a> RawUserAgentInfo<'a> {
         }
         contexts
     }
-}
-
-/// Returns the user agent string from a `Request`.
-///
-/// Returns `Some` if the event's request interface contains a `user-agent` header. Returns `None`
-/// otherwise.
-pub fn get_user_agent(request: &Annotated<Request>) -> Option<&str> {
-    let request = request.value()?;
-    let headers = request.headers.value()?;
-    get_user_agent_from_headers(headers)
-}
-
-/// Should we merge it with get_user_agent_from_request?
-fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
-    for item in headers.iter() {
-        if let Some((ref o_k, ref v)) = item.value() {
-            if let Some(k) = o_k.as_str() {
-                if k.to_lowercase() == "user-agent" {
-                    return v.as_str();
-                }
-            }
-        }
-    }
-    None
-}
-
-/// Returns the family and version of a user agent client.
-///
-/// Defaults to an empty user agent.
-pub fn parse_user_agent(user_agent: &str) -> UserAgent {
-    UA_PARSER.parse_user_agent(user_agent)
-}
-
-/// Returns the family, brand, and model of the device of the requesting client.
-///
-/// Defaults to an empty device.
-pub fn parse_device(user_agent: &str) -> Device {
-    UA_PARSER.parse_device(user_agent)
-}
-
-/// Returns the family and version of the operating system of the requesting client.
-///
-/// Defaults to an empty operating system.
-pub fn parse_os(user_agent: &str) -> OS {
-    UA_PARSER.parse_os(user_agent)
 }
