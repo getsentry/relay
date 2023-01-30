@@ -699,6 +699,7 @@ mod tests {
 
         let scrubbed_result = serde_json::to_string(&events).unwrap();
         assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
+        assert!(scrubbed_result.contains("\"value\":\"***********\""));
     }
 
     #[test]
