@@ -46,14 +46,14 @@ fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
 // its HTTP transport schema and serializing a recording to its Kafka transport schema.
 //
 // We expect recordings to come in the format of plaintext headers (JSON encoded), then a new
-// line character, then an optionally compressed RRWeb recording data.  Failure to inclue any
+// line character, then an optionally compressed RRWeb recording.  Failure to include any
 // component of this schema results in an error.
 
 fn deserialize(bytes: &[u8], limit: usize) -> Result<(&[u8], Vec<Event>), RecordingParseError> {
     let (headers, body) = read(bytes)?;
 
-    // We always attempt to decompress the body value. If decompression fails we try to JSON
-    // deserialize the body bytes as is.
+    // We always attempt to decompress the body value. If decompression fails we forward the raw
+    // payload to the next processing step for further validation.
     match decompress(body, limit) {
         Ok(buf) => Ok((
             headers,
