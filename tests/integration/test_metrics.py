@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 import json
 import signal
@@ -667,6 +668,69 @@ def test_transaction_metrics(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
+    }
+
+
+def test_transaction_metrics_count_per_root_project(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+):
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    timestamp = datetime.now(tz=timezone.utc)
+
+    config["sessionMetrics"] = {"version": 1}
+    config["breakdownsV2"] = {
+        "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
+    }
+
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "bar": {"value": 1.3},
+    }
+    for _ in range(3):
+        relay.send_transaction(
+            42, transaction, transaction_from_dsc="transaction_which_starts_trace"
+        )
+        time.sleep(0.3)
+    relay.send_transaction(42, transaction)
+
+    event, _ = transactions_consumer.get_event()
+    span_time = 9.910106
+
+    assert event["breakdowns"] == {
+        "span_ops": {
+            "ops.react.mount": {"value": span_time, "unit": "millisecond"},
+            "total.time": {"value": span_time, "unit": "millisecond"},
+        }
+    }
+
+    metrics = metrics_by_name(metrics_consumer, 6)
+
+    assert metrics["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "tags": {"transaction": "transaction_which_starts_trace"},
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 3.0,
     }
 
 
