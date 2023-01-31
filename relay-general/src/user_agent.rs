@@ -84,11 +84,11 @@ pub fn parse_os(user_agent: &str) -> OS {
 /// Useful for the scenarios where you will use either information from client hints if it exists,
 /// and if not fall back to user agent string.
 #[derive(Default, Debug)]
-pub struct RawUserAgentInfo<'a> {
+pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
     /// The "old style" of a single UA string.
-    pub user_agent: Option<&'a str>,
+    pub user_agent: Option<S>,
     /// User-Agent client hints.
-    pub client_hints: ClientHints<'a>,
+    pub client_hints: ClientHints<S>,
 }
 
 /// The client hint variable names mirror the name of the "SEC-CH" headers, see
