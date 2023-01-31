@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_with_version() {
-        let data = r#"{"version": "1", "platform": "cocoa"}"#;
+        let data = r#"{"version":"1","platform":"cocoa","event_id:"5D4714BF-CBD8-4BAC-B796-FDE61B3C17D1"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, Version::V1);
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_without_version() {
-        let data = r#"{"platform": "cocoa"}"#;
+        let data = r#"{"platform":"cocoa","event_id":"5D4714BF-CBD8-4BAC-B796-FDE61B3C17D1"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, Version::Unknown);
