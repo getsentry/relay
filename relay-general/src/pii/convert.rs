@@ -1439,4 +1439,36 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
+
+    #[test]
+    fn test_no_scrub_object_with_safe_fields() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "url": "https://www.example.com/fr/testing/authenticate",
+                    "method": "POST",
+                    "data": {
+                      "password": "test",
+                      "credentials": {
+                        "email": "testing@example.com",
+                        "password": "test",
+                      },
+                      "submit": "Se connecter"
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec![],
+            exclude_fields: vec!["credentials".to_owned()],
+            ..simple_enabled_config()
+        })
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
 }
