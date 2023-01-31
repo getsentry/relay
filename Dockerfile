@@ -54,7 +54,7 @@ RUN : \
 # Collect source bundle
 RUN : \
     && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
-    make collect-source-bundle \
+    && make collect-source-bundle \
     TARGET=${BUILD_TARGET}
 
 ###################

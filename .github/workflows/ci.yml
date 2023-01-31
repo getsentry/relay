@@ -64,6 +64,7 @@ jobs:
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
             BUILD_TARGET="aarch64-unknown-linux-gnu"
           fi
+
           docker run \
               -v "$(pwd):/work" \
               --platform linux/${{ matrix.arch }} \
@@ -75,7 +76,7 @@ jobs:
               --platform linux/${{ matrix.arch }} \
               --tag "$IMG_VERSIONED" \
               --push \
-              --file Dockerfile.release
+              --file Dockerfile.release \
               .
 
       - name: ghcr.io push
