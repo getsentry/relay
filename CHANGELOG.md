@@ -8,7 +8,7 @@
 
 **Internal**:
 
-- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/issues/1797))
+- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
 
 ## 23.1.1
 
