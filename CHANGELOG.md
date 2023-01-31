@@ -12,6 +12,7 @@
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
 - Remove error and session sample rate fields from replay-event parser. ([#1791](https://github.com/getsentry/relay/pull/1791))
+- Scrub replay recording PII from mutation "texts" vector. ([#1796](https://github.com/getsentry/relay/pull/1796))
 
 ## 23.1.0
 
