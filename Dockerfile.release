@@ -20,7 +20,7 @@ WORKDIR /work
 
 EXPOSE 3000
 
-COPY ./relay /bin/relay
+COPY ./relay-bin /bin/relay
 COPY relay-debug.zip relay.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /
