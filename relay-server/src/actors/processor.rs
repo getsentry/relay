@@ -1109,7 +1109,7 @@ impl EnvelopeProcessorService {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         Err(e) => {
-                            relay_log::warn!("replay-recording-event: {} {:?}", e, event_id);
+                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
