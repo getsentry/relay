@@ -81,7 +81,7 @@ pub fn parse_os(user_agent: &str) -> OS {
 
 /// The data container, which has both the user agent string and the client hints.
 ///
-/// Useful for the scenarios where you will use either information from client hints if it exists 
+/// Useful for the scenarios where you will use either information from client hints if it exists,
 /// and if not fall back to user agent string.
 #[derive(Default, Debug)]
 pub struct RawUserAgentInfo<'a> {
