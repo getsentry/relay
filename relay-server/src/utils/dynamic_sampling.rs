@@ -374,22 +374,15 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests_new {
-    use chrono::DateTime;
-    use chrono::Duration as DateDuration;
-
     use relay_common::EventType;
     use relay_general::protocol::{EventId, LenientString};
     use relay_general::types::Annotated;
     use relay_sampling::{
-        AndCondition, DecayingFunction, EqCondOptions, EqCondition, RuleCondition, RuleId,
-        RuleType, SamplingConfig, SamplingRule, SamplingStrategy, TimeRange,
+        EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule,
+        SamplingStrategy,
     };
 
-    use crate::testutils::create_sampling_context;
-    use crate::testutils::new_envelope;
     use crate::testutils::project_state_with_config;
-    use crate::testutils::state_with_rule;
-    use crate::testutils::state_with_rule_and_condition;
 
     use super::*;
 
@@ -854,7 +847,7 @@ mod tests_new {
     #[test]
     /// Tests that an override is raised in case we have an unsupported sampling mode and a match.
     fn test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
-        let mut project_state = mocked_project_state(SamplingMode::Unsupported);
+        let project_state = mocked_project_state(SamplingMode::Unsupported);
         let root_project_state = mocked_root_project_state(SamplingMode::Unsupported);
 
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
@@ -1016,6 +1009,8 @@ mod tests_new {
 
         assert_eq!(result, SamplingResult::Keep)
     }
+
+    // TODO: we need to add also decaying fn tests?
 }
 
 #[cfg(test)]

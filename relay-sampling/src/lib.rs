@@ -899,6 +899,7 @@ impl SamplingConfig {
                     _ => false,
                 },
                 RuleType::Error => match event.ty.0 {
+                    // TODO: do we want to match an error rule only with error events?
                     Some(EventType::Error) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 },
