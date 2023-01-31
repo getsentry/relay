@@ -20,7 +20,7 @@ mod serialization;
 /// if decompressed contents exceed the limit.
 pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
     let (headers, body) =
-        protocol::deserialize(bytes, limit).map_err(RecordingParseError::ProtocolError)?;
+        protocol::load(bytes, limit).map_err(RecordingParseError::ProtocolError)?;
 
     let mut events: Vec<Event> =
         serde_json::from_slice(&body).map_err(RecordingParseError::InvalidBody)?;
@@ -29,7 +29,7 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, Recordin
     strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
 
     let output_bytes = serde_json::to_vec(&events)?;
-    protocol::serialize(headers, output_bytes).map_err(RecordingParseError::ProtocolError)
+    protocol::dump(headers, output_bytes.as_slice()).map_err(RecordingParseError::ProtocolError)
 }
 
 fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
