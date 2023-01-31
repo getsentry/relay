@@ -3165,10 +3165,6 @@
 <a href="#3164" id="3164">3164</a>
 <a href="#3165" id="3165">3165</a>
 <a href="#3166" id="3166">3166</a>
-<a href="#3167" id="3167">3167</a>
-<a href="#3168" id="3168">3168</a>
-<a href="#3169" id="3169">3169</a>
-<a href="#3170" id="3170">3170</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4280,11 +4276,7 @@
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         <span class="prelude-val">Err</span>(e) =&gt; {
-                            <span class="macro">relay_log::warn!</span>(
-                                <span class="string">&quot;replay-recording-event: failed to parse {:?} with message {}&quot;</span>,
-                                event_id,
-                                e
-                            );
+                            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
