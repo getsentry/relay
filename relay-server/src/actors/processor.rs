@@ -2037,6 +2037,7 @@ impl EnvelopeProcessorService {
             self.config.processing_enabled(),
         ) {
             SamplingResult::Drop(rule_id) => {
+                // TODO: how do we deal with this?
                 state
                     .envelope_context
                     .reject(Outcome::FilteredSampling(rule_id));

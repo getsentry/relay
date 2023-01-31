@@ -5,7 +5,7 @@ use std::net::IpAddr;
 
 use relay_common::{ProjectKey, Uuid};
 use relay_general::protocol::Event;
-use relay_sampling::{DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode};
+use relay_sampling::{DynamicSamplingContext, RuleId, RuleType, SamplingConfig, SamplingMode};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -33,7 +33,7 @@ fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: &SamplingConfig,
 ) -> Result<(), SamplingResult> {
-    // when we have unsupported rules disable sampling for non processing relays
+    // When we have unsupported rules disable sampling for non processing relays.
     if sampling_config.has_unsupported_rules() {
         if !processing_enabled {
             return Err(SamplingResult::Keep);
@@ -50,6 +50,7 @@ struct SamplingSpec {
     sample_rate: f64,
     rule_id: RuleId,
     seed: Uuid,
+    matched_trace: bool,
 }
 
 fn get_trace_sampling_rule(
@@ -84,6 +85,7 @@ fn get_trace_sampling_rule(
         sample_rate,
         rule_id: rule.id,
         seed: dsc.trace_id,
+        matched_trace: false,
     }))
 }
 
@@ -113,7 +115,81 @@ fn get_event_sampling_rule(
         sample_rate,
         rule_id: rule.id,
         seed: event_id.0,
+        matched_trace: false,
     }))
+}
+
+#[derive(Clone, Debug)]
+enum SamplingMatchResult {
+    Match {
+        sample_rate: f64,
+        rule_id: RuleId,
+        seed: Uuid,
+    },
+    NoMatch,
+    Override {
+        sampling_result: SamplingResult,
+    },
+}
+
+macro_rules! no_match_if_none {
+    ($e:expr) => {
+        match $e {
+            Some(x) => x,
+            None => return SamplingMatchResult::NoMatch,
+        }
+    };
+}
+
+struct SamplingConfigs {
+    sampling_config: SamplingConfig,
+    root_sampling_config: Option<SamplingConfig>,
+}
+
+impl SamplingConfigs {
+    fn new(sampling_config: &SamplingConfig) -> SamplingConfigs {
+        SamplingConfigs {
+            sampling_config: sampling_config.clone(),
+            root_sampling_config: None,
+        }
+    }
+
+    fn add_root_config(&mut self, root_project_state: Option<&ProjectState>) -> &mut Self {
+        if let Some(root_project_state) = root_project_state {
+            self.root_sampling_config = root_project_state.config.dynamic_sampling.clone()
+        } else {
+            relay_log::trace!("found sampling context, but no corresponding project state");
+        }
+
+        self
+    }
+
+    fn get_merged_config(&self) -> SamplingConfig {
+        // We get all the transaction rules of the sampling config of the project to which
+        // the incoming transaction belongs.
+        let event_rules = self
+            .sampling_config
+            .rules
+            .clone()
+            .into_iter()
+            .filter(|rule| rule.ty == RuleType::Transaction);
+
+        let parent_rules = self
+            .root_sampling_config
+            .clone()
+            .map_or(vec![], |config| config.rules)
+            .into_iter()
+            .filter(|rule| rule.ty == RuleType::Trace);
+
+        SamplingConfig {
+            rules: event_rules.chain(parent_rules).collect(),
+            // We want to take field priority on the fields from the sampling config of the project
+            // to which the incoming transaction belongs.
+            mode: self.sampling_config.mode,
+            // TODO: plan to delete this field.
+            next_id: self.sampling_config.next_id,
+        }
+    }
 }
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
@@ -172,6 +248,102 @@ pub fn should_keep_event(
     SamplingResult::Keep
 }
 
+fn get_sampling_rule(
+    processing_enabled: bool,
+    project_state: &ProjectState,
+    root_project_state: Option<&ProjectState>,
+    dsc: Option<&DynamicSamplingContext>,
+    event: Option<&Event>,
+    ip_addr: Option<IpAddr>,
+    now: DateTime<Utc>,
+) -> SamplingMatchResult {
+    // We get all the required data for transaction-based dynamic sampling.
+    let event = no_match_if_none!(event);
+    let event_id = no_match_if_none!(event.id.value());
+    let sampling_config = no_match_if_none!(&project_state.config.dynamic_sampling);
+
+    // We obtain the merged sampling configuration with a concatenation of transaction rules
+    // of the current project and trace rules of the root project.
+    let merged_config = SamplingConfigs::new(sampling_config)
+        .add_root_config(root_project_state)
+        .get_merged_config();
+
+    if let Err(sampling_result) = check_unsupported_rules(processing_enabled, &merged_config) {
+        return SamplingMatchResult::Override { sampling_result };
+    }
+
+    let result = no_match_if_none!(merged_config.match_against_rules(event, dsc, ip_addr, now));
+
+    let sample_rate = match sampling_config.mode {
+        SamplingMode::Received => result.sample_rate,
+        SamplingMode::Total => match dsc {
+            Some(dsc) => dsc.adjusted_sample_rate(result.sample_rate),
+            None => result.sample_rate,
+        },
+        SamplingMode::Unsupported => {
+            if processing_enabled {
+                relay_log::error!("found unsupported sampling mode even as processing Relay, keep");
+            }
+
+            return SamplingMatchResult::Override {
+                sampling_result: SamplingResult::Keep,
+            };
+        }
+    };
+    let seed = if result.has_matched_trace_rule {
+        if let Some(dsc) = dsc {
+            dsc.trace_id
+        } else {
+            event_id.0
+        }
+    } else {
+        event_id.0
+    };
+
+    SamplingMatchResult::Match {
+        sample_rate,
+        seed,
+        // TODO: decide what to do with rule ids.
+        rule_id: RuleId(1),
+    }
+}
+
+pub fn should_keep_event_new(
+    dsc: Option<&DynamicSamplingContext>,
+    event: Option<&Event>,
+    ip_addr: Option<IpAddr>,
+    project_state: &ProjectState,
+    sampling_project_state: Option<&ProjectState>,
+    processing_enabled: bool,
+) -> SamplingResult {
+    match get_sampling_rule(
+        processing_enabled,
+        project_state,
+        sampling_project_state,
+        dsc,
+        event,
+        ip_addr,
+        // For consistency reasons we take a snapshot in time and use that time across all code that
+        // requires it.
+        Utc::now(),
+    ) {
+        SamplingMatchResult::Match {
+            sample_rate,
+            rule_id,
+            seed,
+        } => {
+            let random_number = relay_sampling::pseudo_random_from_uuid(seed);
+            if random_number >= sample_rate {
+                SamplingResult::Drop(rule_id)
+            } else {
+                SamplingResult::Keep
+            }
+        }
+        SamplingMatchResult::NoMatch => SamplingResult::Keep,
+        SamplingMatchResult::Override { sampling_result } => sampling_result,
+    }
+}
+
 /// Returns the project key defined in the `trace` header of the envelope.
 ///
 /// This function returns `None` if:
@@ -188,7 +360,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-
     use chrono::DateTime;
 
     use chrono::Duration as DateDuration;
@@ -388,7 +559,7 @@ mod tests {
             healthcheck_envelope.dsc(),
             Some(&healthcheck_event),
             None,
-            now
+            now,
         )
         .unwrap()
         .is_some());
@@ -400,7 +571,7 @@ mod tests {
             other_envelope.dsc(),
             Some(&other_event),
             None,
-            now
+            now,
         )
         .unwrap()
         .is_none());
@@ -698,6 +869,7 @@ mod tests {
 
         assert!(matches!(should_keep, SamplingResult::Keep));
     }
+
     #[test]
     fn test_event_decaying_rule_with_linear_function() {
         let now = Utc::now();

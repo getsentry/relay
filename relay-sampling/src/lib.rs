@@ -852,9 +852,9 @@ impl Default for SamplingMode {
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SamplingSpecification {
-    sample_rate: f64,
-    seed: Uuid,
+pub struct SamplingConfigMatchResult {
+    pub sample_rate: f64,
+    pub has_matched_trace_rule: bool,
 }
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -878,28 +878,36 @@ impl SamplingConfig {
         !self.rules.iter().all(SamplingRule::supported)
     }
 
-    pub fn get_matching_sampling_specification(
+    pub fn match_against_rules(
         &self,
         event: &Event,
-        sampling_context: &DynamicSamplingContext,
+        dsc: Option<&DynamicSamplingContext>,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<SamplingSpecification> {
+    ) -> Option<SamplingConfigMatchResult> {
+        let mut has_matched_trace_rule = false;
         let mut accumulated_factors = 1.0;
 
         for rule in self.rules.iter() {
-            if rule.condition.matches(sampling_context, ip_addr)
-                || rule.condition.matches(event, ip_addr)
-            {
+            let matches_event = rule.condition.matches(event, ip_addr);
+            let matches_dsc = match dsc {
+                Some(dsc) => rule.condition.matches(dsc, ip_addr),
+                None => false,
+            };
+
+            if matches_event || matches_dsc {
                 if let Some(active_rule) = rule.is_active(now) {
                     let value = active_rule.get_sampling_strategy_value(now);
 
+                    if rule.ty == RuleType::Trace {
+                        has_matched_trace_rule = true
+                    }
+
                     if rule.is_sample_rate_rule() {
-                        println!("Matching sample rate {}", rule.id.0);
-                        return Some(SamplingSpecification {
+                        return Some(SamplingConfigMatchResult {
                             // We need to perform clamping here, in order to avoid sample rates outside of [0.0, 1.0].
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
-                            seed: sampling_context.trace_id,
+                            has_matched_trace_rule,
                         });
                     } else {
                         accumulated_factors *= value
@@ -2360,8 +2368,7 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(result, None, "did not return none for no match");
     }
 
@@ -2450,13 +2457,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.1, // 0.1
-                seed: trace_context.trace_id
+                has_matched_trace_rule: false
             }),
             "did not use the sample rate of the first rule"
         );
@@ -2482,13 +2488,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
-                sample_rate: 1.0, // 1.0
-                seed: trace_context.trace_id
+            Some(SamplingConfigMatchResult {
+                sample_rate: 1.0, // 1.0,
+                has_matched_trace_rule: true
             }),
             "did not use the sample rate of the second rule"
         );
@@ -2514,13 +2519,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.04, // 0.02 * 2.0
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the factor of the third rule and the sample rate of the sixth rule"
         );
@@ -2546,13 +2550,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 1.0, // 0.5 * 2.0
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the factor of the third rule and the sample rate of the fourth rule"
         );
@@ -2578,13 +2581,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.06, // 0.02 * 1.5 * 2.0
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the factor of the third, fifth rule and the sample rate of the sixth rule"
         );
@@ -2610,13 +2612,12 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result =
-            rules.get_matching_sampling_specification(&event, &trace_context, None, Utc::now());
+        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the factor of the fifth rule and the sample rate of the sixth rule"
         )
@@ -2690,17 +2691,17 @@ mod tests {
             other: BTreeMap::new(),
         };
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.get_matching_sampling_specification(
+        let result = rules.match_against_rules(
             &event,
-            &trace_context,
+            Some(&trace_context),
             None,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the factor of the first rule and the sample rate of the third rule"
         );
@@ -2727,13 +2728,13 @@ mod tests {
             other: BTreeMap::new(),
         };
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.get_matching_sampling_specification(
+        let result = rules.match_against_rules(
             &event,
-            &trace_context,
+            Some(&trace_context),
             None,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        assert!(matches!(result, Some(SamplingSpecification { .. })));
+        assert!(matches!(result, Some(SamplingConfigMatchResult { .. })));
         if let Some(spec) = result {
             assert!(
                 (spec.sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
@@ -2763,17 +2764,17 @@ mod tests {
             other: BTreeMap::new(),
         };
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.get_matching_sampling_specification(
+        let result = rules.match_against_rules(
             &event,
-            &trace_context,
+            Some(&trace_context),
             None,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
         assert_eq!(
             result,
-            Some(SamplingSpecification {
+            Some(SamplingConfigMatchResult {
                 sample_rate: 0.02, // 0.02
-                seed: trace_context.trace_id
+                has_matched_trace_rule: true
             }),
             "did not use the sample rate of the third rule"
         );
