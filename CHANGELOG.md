@@ -6,6 +6,10 @@
 
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
 
+**Internal**:
+
+- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
+
 ## 23.1.1
 
 **Features**:
