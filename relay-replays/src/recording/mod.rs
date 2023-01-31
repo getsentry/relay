@@ -531,9 +531,9 @@ struct MouseInteractionIncrementalSourceData {
 struct ScrollIncrementalSourceData {
     id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    x: Option<u64>,
+    x: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    y: Option<u64>,
+    y: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
