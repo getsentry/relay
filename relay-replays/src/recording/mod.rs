@@ -472,10 +472,10 @@ struct MutationAdditionIncrementalSourceData {
 
 #[cfg(test)]
 mod tests {
-    use crate::recording;
-    use crate::recording::{strip_pii, Event};
     use assert_json_diff::assert_json_eq;
     use serde_json::{Error, Value};
+
+    use crate::recording::{self, Event};
 
     fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
         serde_json::from_slice(bytes)
@@ -684,7 +684,7 @@ mod tests {
     fn test_scrub_pii_full_snapshot_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-2.json");
         let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        strip_pii(&mut events).unwrap();
+        recording::strip_pii(&mut events).unwrap();
 
         let scrubbed_result = serde_json::to_string(&events).unwrap();
         assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
@@ -695,7 +695,7 @@ mod tests {
     fn test_scrub_pii_incremental_snapshot_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
         let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        strip_pii(&mut events).unwrap();
+        recording::strip_pii(&mut events).unwrap();
 
         let scrubbed_result = serde_json::to_string(&events).unwrap();
         assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
@@ -706,7 +706,7 @@ mod tests {
     fn test_scrub_pii_custom_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
         let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        strip_pii(&mut events).unwrap();
+        recording::strip_pii(&mut events).unwrap();
 
         let scrubbed_result = serde_json::to_string(&events).unwrap();
         assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));
