@@ -14,7 +14,7 @@ env:
 
 jobs:
   build:
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       matrix:
         # the arm64 build takes too long, so disable for now
@@ -22,6 +22,7 @@ jobs:
     name: Build Docker Image (${{ matrix.arch }})
     runs-on: ubuntu-latest
     env:
+      IMG_DEPS: ghcr.io/getsentry/relay-deps:${{ matrix.arch }}
       IMG_CACHE: ghcr.io/getsentry/relay:${{ matrix.arch }}-latest
       # GITHUB_SHA in pull requests points to the merge commit
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
@@ -33,28 +34,44 @@ jobs:
       - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
         if: matrix.arch == 'arm64'
 
+      - run: docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+
+      - name: build-deps
+        run: |
+          set -euxo pipefail
+          args=()
+          if docker pull -q "$IMG_DEPS"; then
+            args+=(--cache-from "$IMG_DEPS")
+          fi
+          docker buildx build \
+              "${args[@]}" \
+              --cache-to type=inline \
+              --platform linux/${{ matrix.arch }} \
+              --tag "$IMG_DEPS" \
+              --push \
+              .
+
       - name: build
         run: |
           set -euxo pipefail
           args=()
-          if docker pull -q "$IMG_CACHE"; then
-            args+=(--cache-from "$IMG_CACHE")
-          fi
+          for IMG in "$IMG_DEPS" "$IMG_CACHE"; do
+            if docker pull -q "$IMG"; then
+              args+=(--cache-from "$IMG")
+            fi
+          done
           docker buildx build \
               "${args[@]}" \
               --cache-to type=inline \
               --platform linux/${{ matrix.arch }} \
               --tag "$IMG_VERSIONED" \
               --tag "$IMG_CACHE" \
+              --push \
               .
 
       - name: push ghcr.io
         run: |
           set -euxo pipefail
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-          docker push "$IMG_VERSIONED"
-          docker push "$IMG_CACHE"
-
           # for now arm64 is too slow so just retag this with "latest" and current SHA
           docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
           docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
