@@ -892,9 +892,16 @@ impl SamplingConfig {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
-                    None => false,
+                    _ => false,
                 },
-                RuleType::Transaction => rule.condition.matches(event, ip_addr),
+                RuleType::Transaction => match event.ty.0 {
+                    Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
+                    _ => false,
+                },
+                RuleType::Error => match event.ty.0 {
+                    Some(EventType::Error) => rule.condition.matches(event, ip_addr),
+                    _ => false,
+                },
                 _ => false,
             };
 
