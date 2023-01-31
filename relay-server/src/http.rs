@@ -10,8 +10,6 @@
 ///! logic.
 use std::io;
 
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
-use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
 use relay_config::HttpEncoding;
@@ -23,6 +21,8 @@ pub use reqwest::StatusCode;
 pub enum HttpError {
     #[error("payload too large")]
     Overflow,
+    #[error("attempted to send upstream request without credentials configured")]
+    NoCredentials,
     #[error("could not send request")]
     Reqwest(#[from] reqwest::Error),
     #[error("failed to stream payload")]
@@ -37,10 +37,11 @@ impl HttpError {
         match self {
             Self::Io(_) => true,
             // note: status codes are not handled here because we never call error_for_status. This
-            // logic is part of upstream actor.
+            // logic is part of upstream service.
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
+            HttpError::NoCredentials => false,
         }
     }
 }
@@ -105,17 +106,7 @@ impl Response {
         self.0.status()
     }
 
-    pub fn json<T: 'static + DeserializeOwned>(
-        self,
-        limit: usize,
-    ) -> Box<dyn Future<Item = T, Error = HttpError>> {
-        let future = self
-            .bytes(limit)
-            .and_then(|bytes| serde_json::from_slice(&bytes).map_err(HttpError::Json));
-        Box::new(future)
-    }
-
-    pub fn consume(mut self) -> Box<dyn Future<Item = Self, Error = HttpError>> {
+    pub async fn consume(&mut self) -> Result<(), HttpError> {
         // Consume the request payload such that the underlying connection returns to a
         // "clean state".
         //
@@ -124,16 +115,8 @@ impl Response {
         // but no testcase has been written for this and we are unsure on how to reproduce
         // outside of prod. I (markus) have not found code in reqwest that would explicitly
         // deal with this.
-        Box::new(
-            // Note: The reqwest codepath is impossible to write with streams due to
-            // borrowing issues. You *have* to use `chunk()`.
-            async move {
-                while self.0.chunk().await?.is_some() {}
-                Ok(self)
-            }
-            .boxed_local()
-            .compat(),
-        )
+        while self.0.chunk().await?.is_some() {}
+        Ok(())
     }
 
     pub fn get_header(&self, key: impl AsRef<str>) -> Option<&[u8]> {
@@ -157,24 +140,26 @@ impl Response {
             .collect()
     }
 
-    pub fn bytes(self, limit: usize) -> Box<dyn Future<Item = Vec<u8>, Error = HttpError>> {
-        Box::new(
-            self.0
-                .bytes_stream()
-                .map_err(HttpError::Reqwest)
-                .try_fold(
-                    Vec::with_capacity(8192),
-                    move |mut body, chunk| async move {
-                        if (body.len() + chunk.len()) > limit {
-                            Err(HttpError::Overflow)
-                        } else {
-                            body.extend_from_slice(&chunk);
-                            Ok(body)
-                        }
-                    },
-                )
-                .boxed_local()
-                .compat(),
-        )
+    pub async fn bytes(self, limit: usize) -> Result<Vec<u8>, HttpError> {
+        let Self(mut request) = self;
+
+        let mut body = Vec::with_capacity(limit.min(8192));
+        while let Some(chunk) = request.chunk().await? {
+            if (body.len() + chunk.len()) > limit {
+                return Err(HttpError::Overflow);
+            }
+
+            body.extend_from_slice(&chunk);
+        }
+
+        Ok(body)
+    }
+
+    pub async fn json<T>(self, limit: usize) -> Result<T, HttpError>
+    where
+        T: 'static + DeserializeOwned,
+    {
+        let bytes = self.bytes(limit).await?;
+        serde_json::from_slice(&bytes).map_err(HttpError::Json)
     }
 }

@@ -549,6 +549,14 @@ bool relay_is_glob_match(const struct RelayBuf *value,
                          GlobFlags flags);
 
 /**
+ * Converts a codeowners path into a regex and searches for match against the provided value.
+ *
+ * Returns `true` if the regex matches, `false` otherwise.
+ */
+bool relay_is_codeowners_path_match(const struct RelayBuf *value,
+                         const struct RelayStr *pat);
+
+/**
  * Parse a sentry release structure from a string.
  */
 struct RelayStr relay_parse_release(const struct RelayStr *value);

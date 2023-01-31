@@ -1,4 +1,3 @@
-mod actix;
 mod api;
 mod buffer;
 mod dynamic_sampling;
@@ -13,15 +12,12 @@ mod request;
 mod semaphore;
 mod sizes;
 mod sleep_handle;
-mod timer;
-mod tracked_future;
 
 #[cfg(feature = "processing")]
 mod native;
 #[cfg(feature = "processing")]
 mod unreal;
 
-pub use self::actix::*;
 pub use self::api::*;
 pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
@@ -36,8 +32,6 @@ pub use self::request::*;
 pub use self::semaphore::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
-pub use self::timer::*;
-pub use self::tracked_future::*;
 
 #[cfg(feature = "processing")]
 pub use self::native::*;

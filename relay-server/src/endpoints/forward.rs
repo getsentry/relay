@@ -5,21 +5,25 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 
 use ::actix::prelude::*;
-use actix_web::error::ResponseError;
+use actix_web::error::{ParseError, ResponseError};
 use actix_web::http::header::{self, HeaderName, HeaderValue};
-use actix_web::http::{uri::PathAndQuery, HeaderMap, Method, StatusCode};
+use actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures01::{future, prelude::*, sync::oneshot};
+use futures01::{future, sync::oneshot, Future as _};
 use once_cell::sync::Lazy;
 
 use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{
+    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::body::RequestBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -71,6 +75,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 }
                 HttpError::Io(_) => HttpResponse::BadGateway().finish(),
                 HttpError::Json(e) => e.error_response(),
+                HttpError::NoCredentials => HttpResponse::InternalServerError().finish(),
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
@@ -130,7 +135,7 @@ struct ForwardRequest {
     forwarded_for: ForwardedFor,
     data: Bytes,
     max_response_size: usize,
-    sender: Option<oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>>,
+    sender: oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>,
 }
 
 impl fmt::Debug for ForwardRequest {
@@ -163,7 +168,15 @@ impl UpstreamRequest for ForwardRequest {
         false
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn route(&self) -> &'static str {
+        "forward"
+    }
+
+    fn build(
+        &mut self,
+        _: &Config,
+        mut builder: RequestBuilder,
+    ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
@@ -182,36 +195,25 @@ impl UpstreamRequest for ForwardRequest {
     }
 
     fn respond(
-        &mut self,
+        self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
-        let sender = self.sender.take();
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(response) => {
+                    let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
+                    let headers = response.clone_headers();
 
-        match result {
-            Ok(response) => {
-                let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
-                let headers = response.clone_headers();
-
-                let future = response
-                    .bytes(self.max_response_size)
-                    .and_then(move |body| Ok((status, headers, body)))
-                    .map_err(UpstreamRequestError::Http)
-                    .then(|result| {
-                        if let Some(sender) = sender {
-                            sender.send(result).ok();
-                        }
-                        Ok(())
-                    });
-
-                Box::new(future)
-            }
-            Err(e) => {
-                if let Some(sender) = sender {
-                    sender.send(Err(e)).ok();
+                    match response.bytes(self.max_response_size).await {
+                        Ok(body) => Ok((status, headers, body)),
+                        Err(error) => Err(UpstreamRequestError::Http(error)),
+                    }
                 }
-                Box::new(future::err(()))
-            }
-        }
+                Err(error) => Err(error),
+            };
+
+            self.sender.send(result).ok();
+        })
     }
 }
 
@@ -234,7 +236,10 @@ pub fn forward_upstream(
         .unwrap_or("")
         .to_owned();
 
-    let method = request.method().clone();
+    let Ok(method) = Method::from_bytes(request.method().as_ref().as_bytes()) else {
+        return Box::new(future::err(Error::from(ParseError::Method)))
+    };
+
     let headers = request.headers().clone();
     let forwarded_for = ForwardedFor::from(request);
 
@@ -250,10 +255,10 @@ pub fn forward_upstream(
                 forwarded_for,
                 data,
                 max_response_size,
-                sender: Some(tx),
+                sender: tx,
             };
 
-            UpstreamRelay::from_registry().do_send(SendRequest(forward_request));
+            UpstreamRelay::from_registry().send(SendRequest(forward_request));
 
             rx.map_err(|_| UpstreamRequestError::ChannelClosed)
                 .flatten()

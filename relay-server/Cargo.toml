@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.12.0"
+version = "23.1.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -12,26 +12,18 @@ publish = false
 
 [features]
 default = []
-ssl = ["native-tls", "actix-web/tls"]
-processing = [
-    "minidump",
-    "relay-config/processing",
-    "relay-kafka/producer",
-    "relay-quotas/redis",
-    "relay-redis/impl",
-    "symbolic-unreal",
-    "symbolic-common",
-]
+ssl = ["native-tls", "actix-web/tls", "relay-redis/tls", "relay-quotas/tls"]
+processing = ["minidump", "relay-config/processing", "relay-kafka/producer", "relay-quotas/redis", "relay-redis/impl", "symbolic-unreal", "symbolic-common"]
 
 [dependencies]
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false }
 anyhow = "1.0.66"
-base64 = "0.10.1"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
+data-encoding = "2.3.3"
 failure = "0.1.8"
 flate2 = "1.0.19"
 fragile = { version = "2.0.0", features = ["slab"] } # used for vendoring sentry-actix

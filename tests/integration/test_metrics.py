@@ -161,6 +161,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     assert metrics["c:transactions/foo@none"] == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 42.0,
         "type": "c",
@@ -170,6 +171,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     assert metrics["c:transactions/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/bar@second",
         "value": 17.0,
         "type": "c",
@@ -226,6 +228,7 @@ def test_metrics_with_sharded_kafka(
     assert metrics2["c:transactions/foo@none"] == {
         "org_id": 5,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 42.0,
         "type": "c",
@@ -235,6 +238,7 @@ def test_metrics_with_sharded_kafka(
     assert metrics2["c:transactions/bar@second"] == {
         "org_id": 5,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/bar@second",
         "value": 17.0,
         "type": "c",
@@ -272,6 +276,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
+        "retention_days": 90,
         "name": "c:transactions/foo@none",
         "value": 15.0,
         "type": "c",
@@ -366,19 +371,6 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "d:sessions/duration@second",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                    "session.status": "exited",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "d",
-                "value": [1947.49],
-            },
-            {
                 "name": "s:sessions/user@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
@@ -437,13 +429,10 @@ def test_session_metrics_extracted_only_once(
 
     relay_chain.send_session(project_id, session_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, 2, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
     assert metrics["c:sessions/session@none"]["value"] == 1.0
-
-    # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["d:sessions/duration@second"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -480,12 +469,13 @@ def test_session_metrics_processing(
         metrics_consumer.assert_empty(timeout=2)
         return
 
-    metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 2)
 
     expected_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "timestamp": expected_timestamp,
         "name": "c:sessions/session@none",
         "type": "c",
@@ -501,6 +491,7 @@ def test_session_metrics_processing(
     assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "timestamp": expected_timestamp,
         "name": "s:sessions/user@none",
         "type": "s",
@@ -509,21 +500,6 @@ def test_session_metrics_processing(
             "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
-        },
-    }
-
-    assert metrics["d:sessions/duration@second"] == {
-        "org_id": 1,
-        "project_id": 42,
-        "timestamp": expected_timestamp,
-        "name": "d:sessions/duration@second",
-        "type": "d",
-        "value": [1947.49],
-        "tags": {
-            "sdk": "raven-node/2.6.3",
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-            "session.status": "exited",
         },
     }
 
@@ -644,6 +620,7 @@ def test_transaction_metrics(
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
+        "retention_days": 90,
         "tags": {
             "transaction": "/organizations/:orgId/performance/:eventSlug/",
             "platform": "other",

@@ -10,6 +10,8 @@ mod monitor;
 pub use monitor::*;
 mod os;
 pub use os::*;
+mod profile;
+pub use profile::*;
 mod reprocessing;
 pub use reprocessing::*;
 mod response;
@@ -22,6 +24,7 @@ mod otel;
 pub use otel::*;
 
 use crate::types::{Annotated, FromValue, Object, Value};
+use crate::user_agent::{ClientHints, RawUserAgentInfo};
 
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
@@ -46,6 +49,8 @@ pub enum Context {
     Gpu(Box<GpuContext>),
     /// Information related to Tracing.
     Trace(Box<TraceContext>),
+    /// Information related to Profiling.
+    Profile(Box<ProfileContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
@@ -74,11 +79,25 @@ impl Context {
             Context::Reprocessing(_) => Some(ReprocessingContext::default_key()),
             Context::Gpu(_) => Some(GpuContext::default_key()),
             Context::Trace(_) => Some(TraceContext::default_key()),
+            Context::Profile(_) => Some(ProfileContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Otel(_) => Some(OtelContext::default_key()),
             Context::Other(_) => None,
         }
+    }
+}
+
+/// Trait to get the Context both from the user agent string and also the new client hints.
+/// With an automatically derived function which tries to first get the context from client hints,
+/// if that fails it tries for the user agent string.
+pub trait FromUserAgentInfo: Sized {
+    fn from_client_hints(client_hints: &ClientHints) -> Option<Self>;
+    fn from_user_agent(user_agent: &str) -> Option<Self>;
+
+    fn from_hints_or_ua(raw_info: &RawUserAgentInfo) -> Option<Self> {
+        Self::from_client_hints(&raw_info.client_hints)
+            .or_else(|| raw_info.user_agent.and_then(Self::from_user_agent))
     }
 }
 

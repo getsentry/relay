@@ -1,8 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.8.17
 
-The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.
+- Add utility function for matching CODEOWNER paths against a stacktrace filepath ([#1746](https://github.com/getsentry/relay/pull/1746))
+
+## 0.8.16
+
+- The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.
+- Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
+- Add Profiling Context to event protocol. ([#1748](https://github.com/getsentry/relay/pull/1748))
+- Add OpenTelemetry Context to event protocol. ([#1617](https://github.com/getsentry/relay/pull/1617))
+- Add `app.in_foreground` and `thread.main` flag to event protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
+- Scrub all fields with IP addresses rather than only known IP address fields. ([#1725](https://github.com/getsentry/relay/pull/1725))
+- Disallow `-` in measurement and breakdown names. These items are converted to metrics, which do not allow `-` in their name. ([#1571](https://github.com/getsentry/relay/pull/1571))
+- Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+- Use correct meta object for logentry in light normalization. ([#1577](https://github.com/getsentry/relay/pull/1577))
 
 ## 0.8.15
 

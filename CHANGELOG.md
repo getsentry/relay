@@ -2,10 +2,32 @@
 
 ## Unreleased
 
+**Features**
+
+- Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+
+## 23.1.1
+
+**Features**:
+
+- Add error and sample rate fields to the replay event parser. ([#1745](https://github.com/getsentry/relay/pull/1745))
+- Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
+- Add SSL support to `relay-redis` crate. It is possible to use `rediss` scheme to connnect to Redis cluster using TLS. ([#1772](https://github.com/getsentry/relay/pull/1772))
+
+**Internal**:
+
+- Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
+- Remove error and session sample rate fields from replay-event parser. ([#1791](https://github.com/getsentry/relay/pull/1791))
+- Scrub replay recording PII from mutation "texts" vector. ([#1796](https://github.com/getsentry/relay/pull/1796))
+
+## 23.1.0
+
 **Features**:
 
 - Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 - Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
+- Stop extracting duration metric for session payloads. ([#1739](https://github.com/getsentry/relay/pull/1739))
+- Add Profiling Context ([#1748](https://github.com/getsentry/relay/pull/1748))
 
 **Internal**:
 
@@ -30,6 +52,7 @@
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
 - Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
 - Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
+- Add replay-event normalization and PII scrubbing. ([#1582](https://github.com/getsentry/relay/pull/1582))
 - Scrub all fields with IP addresses rather than only known IP address fields. ([#1725](https://github.com/getsentry/relay/pull/1725))
 
 **Bug Fixes**:

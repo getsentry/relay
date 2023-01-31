@@ -1,4 +1,4 @@
-//! This module contains the actor that tracks outcomes.
+//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
@@ -13,8 +13,6 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::prelude::SystemService;
-use actix_web::http::Method;
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -32,10 +30,10 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, FromMessage, Service};
+use relay_system::{Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServerError;
 use crate::service::REGISTRY;
@@ -62,6 +60,10 @@ impl UpstreamQuery for SendOutcomes {
 
     fn retry() -> bool {
         true
+    }
+
+    fn route(&self) -> &'static str {
+        "outcomes"
     }
 }
 
@@ -358,6 +360,8 @@ pub enum DiscardReason {
 
     /// (Relay) We failed to parse the replay so we discard it.
     InvalidReplayEvent,
+    InvalidReplayEventNoPayload,
+    InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
 
     /// (Relay) Profiling related discard reasons
@@ -400,6 +404,8 @@ impl DiscardReason {
             DiscardReason::TransactionSampled => "transaction_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
+            DiscardReason::InvalidReplayEventNoPayload => "invalid_replay_no_payload",
+            DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::Profiling(reason) => reason,
         }
@@ -553,7 +559,10 @@ impl HttpOutcomeProducer {
         };
 
         tokio::spawn(async move {
-            match compat::send(UpstreamRelay::from_registry(), SendQuery(request)).await {
+            match UpstreamRelay::from_registry()
+                .send(SendQuery(request))
+                .await
+            {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
                     relay_log::error!("outcome batch sending failed with: {}", error)

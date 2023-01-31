@@ -6,45 +6,43 @@
 
 use std::fmt::Write;
 
-use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
+use crate::protocol::{
+    BrowserContext, Context, Contexts, DeviceContext, Event, FromUserAgentInfo, OsContext,
+};
 use crate::types::Annotated;
-use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
+use crate::user_agent::RawUserAgentInfo;
 
 pub fn normalize_user_agent(event: &mut Event) {
-    let user_agent = match get_user_agent(event) {
-        Some(ua) => ua,
+    let headers = match event
+        .request
+        .value()
+        .and_then(|request| request.headers.value())
+    {
+        Some(headers) => headers,
         None => return,
     };
 
-    let device = parse_device(user_agent);
-    let os = parse_os(user_agent);
-    let ua = parse_user_agent(user_agent);
-
-    if !is_known(ua.family.as_str())
-        && !is_known(device.family.as_str())
-        && !is_known(os.family.as_str())
-    {
-        return; // no useful information in the user agent
-    }
+    let user_agent_info = RawUserAgentInfo::new(headers);
 
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
+    normalize_user_agent_info_generic(contexts, &event.platform, &user_agent_info);
+}
 
-    if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::default_key()) {
-        let version = get_version(&ua.major, &ua.minor, &ua.patch);
-        contexts.add(Context::Browser(Box::new(BrowserContext {
-            name: Annotated::from(ua.family),
-            version: Annotated::from(version),
-            ..BrowserContext::default()
-        })));
+pub fn normalize_user_agent_info_generic(
+    contexts: &mut Contexts,
+    platform: &Annotated<String>,
+    user_agent_info: &RawUserAgentInfo,
+) {
+    if !contexts.contains_key(BrowserContext::default_key()) {
+        if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
+            contexts.add(Context::Browser(Box::new(browser_context)));
+        }
     }
 
-    if is_known(device.family.as_str()) && !contexts.contains_key(DeviceContext::default_key()) {
-        contexts.add(Context::Device(Box::new(DeviceContext {
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
-            ..DeviceContext::default()
-        })));
+    if !contexts.contains_key(DeviceContext::default_key()) {
+        if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
+            contexts.add(Context::Device(Box::new(device_context)));
+        }
     }
 
     // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
@@ -53,32 +51,25 @@ pub fn normalize_user_agent(event: &mut Event) {
     //
     // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
     // want to index (derive tags from) the SDK-sent context.
-    let os_context_key = match event.platform.as_str() {
+    let os_context_key = match platform.as_str() {
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
-
-    if is_known(os.family.as_str()) && !contexts.contains_key(os_context_key) {
-        let version = get_version(&os.major, &os.minor, &os.patch);
-        contexts.insert(
-            os_context_key.to_owned(),
-            Annotated::new(
-                Context::Os(Box::new(OsContext {
-                    name: Annotated::from(os.family),
-                    version: Annotated::from(version),
-                    ..OsContext::default()
-                }))
-                .into(),
-            ),
-        );
+    if !contexts.contains_key(os_context_key) {
+        if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
+            contexts.insert(
+                os_context_key.to_owned(),
+                Annotated::new(Context::Os(Box::new(os_context)).into()),
+            );
+        }
     }
 }
 
-fn is_known(family: &str) -> bool {
+pub fn is_known(family: &str) -> bool {
     family != "Other"
 }
 
-fn get_version(
+pub fn get_version(
     major: &Option<String>,
     minor: &Option<String>,
     patch: &Option<String>,
@@ -152,7 +143,7 @@ mod tests {
     fn test_skip_unrecognizable_user_agent() {
         let mut event = testutils::get_event_with_user_agent("a dont no");
         normalize_user_agent(&mut event);
-        assert_eq!(event.contexts.value(), None);
+        assert!(event.contexts.value().unwrap().is_empty());
     }
 
     #[test]

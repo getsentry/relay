@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use actix::{Actor, Message};
-use actix_web::ResponseError;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -11,13 +9,13 @@ use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
-use crate::actors::project_upstream::UpstreamProjectSource;
+use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
@@ -25,14 +23,6 @@ use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
-
-#[derive(Clone, Debug, thiserror::Error)]
-pub enum ProjectError {
-    #[error("could not schedule project fetching")]
-    ScheduleFailed,
-}
-
-impl ResponseError for ProjectError {}
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -324,7 +314,7 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 struct ProjectSource {
     config: Arc<Config>,
     local_source: Addr<LocalProjectSource>,
-    upstream_source: actix::Addr<UpstreamProjectSource>,
+    upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<RedisProjectSource>,
 }
@@ -332,7 +322,7 @@ struct ProjectSource {
 impl ProjectSource {
     pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source = UpstreamProjectSource::new(config.clone()).start();
+        let upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
 
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
@@ -387,15 +377,13 @@ impl ProjectSource {
             }
         };
 
-        compat::send(
-            self.upstream_source,
-            FetchProjectState {
+        self.upstream_source
+            .send(FetchProjectState {
                 project_key,
                 no_cache,
-            },
-        )
-        .await
-        .map_err(|_| ())?
+            })
+            .await
+            .map_err(|_| ())
     }
 }
 
@@ -582,7 +570,7 @@ impl ProjectCacheService {
             .flush_buckets(message.partition_key, message.buckets);
     }
 
-    async fn handle_message(&mut self, message: ProjectCache) {
+    fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
@@ -616,7 +604,7 @@ impl Service for ProjectCacheService {
 
                     Some(message) = self.state_rx.recv() => self.merge_state(message),
                     _ = ticker.tick() => self.evict_stale_project_caches(),
-                    Some(message) = rx.recv() => self.handle_message(message).await,
+                    Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
             }
@@ -626,18 +614,13 @@ impl Service for ProjectCacheService {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FetchProjectState {
     /// The public key to fetch the project by.
     pub project_key: ProjectKey,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,
-}
-
-// TODO: Remove once `UpstreamProjectSource` was moved to tokio
-impl Message for FetchProjectState {
-    type Result = Result<Arc<ProjectState>, ()>;
 }
 
 #[derive(Clone, Debug)]
@@ -649,9 +632,4 @@ impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
     }
-}
-
-// TODO: Remove once `RedisProjectSource` and `LocalProjectSource` were moved to tokio
-impl Message for FetchOptionalProjectState {
-    type Result = Option<Arc<ProjectState>>;
 }
