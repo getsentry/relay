@@ -173,16 +173,16 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?.to_owned();
+    fn from_client_hints<S: Default + AsRef<str>>(client_hints: &ClientHints<S>) -> Option<Self> {
+        let device = client_hints.sec_ch_ua_model?.as_ref().to_string();
         Some(Self {
             model: Annotated::new(device),
             ..Default::default()
         })
     }
 
-    fn from_user_agent(user_agent: &str) -> Option<Self> {
-        let device = parse_device(user_agent);
+    fn from_user_agent<S: Default + AsRef<str>>(user_agent: S) -> Option<Self> {
+        let device = parse_device(user_agent.as_ref());
 
         if !is_known(&device.family) {
             return None;
@@ -220,7 +220,7 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().family.as_str().unwrap(), "foo g31(w)");
     }
     #[test]
@@ -239,7 +239,7 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
     }
 

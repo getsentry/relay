@@ -50,7 +50,7 @@ impl OsContext {
 }
 
 impl FromUserAgentInfo for OsContext {
-    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+    fn from_client_hints<S: Default + AsRef<str>>(client_hints: &ClientHints<S>) -> Option<Self> {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 
@@ -103,7 +103,7 @@ mod tests {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         insta::assert_debug_snapshot!(os, @r###"
 OsContext {
@@ -138,7 +138,7 @@ OsContext {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         insta::assert_debug_snapshot!(os, @r###"
 OsContext {

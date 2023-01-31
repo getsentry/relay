@@ -94,37 +94,41 @@ pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
 /// The client hint variable names mirror the name of the "SEC-CH" headers, see
 /// '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
 #[derive(Default, Debug)]
-pub struct ClientHints<'a> {
+pub struct ClientHints<S: Default + AsRef<str>> {
     /// The client's OS, e.g. macos, android...
-    pub sec_ch_ua_platform: Option<&'a str>,
+    pub sec_ch_ua_platform: Option<S>,
     /// The version number of the client's OS.
-    pub sec_ch_ua_platform_version: Option<&'a str>,
+    pub sec_ch_ua_platform_version: Option<S>,
     /// Name of the client's web browser and its version.
-    pub sec_ch_ua: Option<&'a str>,
+    pub sec_ch_ua: Option<S>,
     /// Device model, e.g. samsung galaxy 3.
-    pub sec_ch_ua_model: Option<&'a str>,
+    pub sec_ch_ua_model: Option<S>,
 }
 
-impl<'a> RawUserAgentInfo<'a> {
-    pub fn new(headers: &'a Headers) -> Self {
+impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+    fn extract_header(&mut self, key: &str, value: Option<S>) {
+        match key.to_lowercase().as_str() {
+            "user-agent" => self.user_agent = value,
+
+            "sec-ch-ua" => self.client_hints.sec_ch_ua = value,
+            "sec-ch-ua-model" => self.client_hints.sec_ch_ua_model = value,
+            "sec-ch-ua-platform" => self.client_hints.sec_ch_ua_platform = value,
+            "sec-ch-ua-platform-version" => {
+                self.client_hints.sec_ch_ua_platform_version = value;
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+    pub fn from_headers(headers: &Headers) -> Self {
         let mut contexts = Self::default();
 
         for item in headers.iter() {
             if let Some((ref o_k, ref v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
-                    match k.to_lowercase().as_str() {
-                        "user-agent" => contexts.user_agent = v.as_str(),
-
-                        "sec-ch-ua" => contexts.client_hints.sec_ch_ua = v.as_str(),
-                        "sec-ch-ua-model" => contexts.client_hints.sec_ch_ua_model = v.as_str(),
-                        "sec-ch-ua-platform" => {
-                            contexts.client_hints.sec_ch_ua_platform = v.as_str()
-                        }
-                        "sec-ch-ua-platform-version" => {
-                            contexts.client_hints.sec_ch_ua_platform_version = v.as_str()
-                        }
-                        _ => {}
-                    }
+                    contexts.extract_header();
                 }
             }
         }
