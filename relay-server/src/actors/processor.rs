@@ -23,9 +23,10 @@ use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    self, Breadcrumb, ClientReport, Context as SentryContext, Contexts, Csp, Event, EventType,
+    ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, Metrics, ProfileContext, RelayInfo,
+    Replay, ReplayError, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus,
+    SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -976,13 +977,25 @@ impl EnvelopeProcessorService {
             return;
         }
 
+        let event = state.event.get_or_insert_with(Event::default);
+        let event_type = event.ty.value();
+        let contexts = event.contexts.get_or_insert_with(Contexts::new);
+
         envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok(payload) => {
+                (Some(profile_id), Ok(payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
+                        if event_type == Some(&EventType::Transaction) {
+                            contexts.add(SentryContext::Profile(Box::new(ProfileContext {
+                                profile_id: Annotated::new(profile_id),
+                            })));
+                        }
                         item.set_payload(ContentType::Json, payload);
                         true
                     } else {
+                        if event_type == Some(&EventType::Transaction) {
+                            contexts.remove(ProfileContext::default_key());
+                        }
                         state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
@@ -995,14 +1008,16 @@ impl EnvelopeProcessorService {
                         false
                     }
                 }
-                Err(err) => {
+                (None, Err(err)) => {
+                    if event_type == Some(&EventType::Transaction) {
+                        contexts.remove(ProfileContext::default_key());
+                    }
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
                             relay_log::warn!("invalid profile: {}", LogError(&err));
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-
                     state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -1012,6 +1027,7 @@ impl EnvelopeProcessorService {
                     );
                     false
                 }
+                (_, _) => false,
             },
             _ => true,
         });
@@ -2083,7 +2099,6 @@ impl EnvelopeProcessorService {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_profiles(state);
         self.process_replays(state);
 
         if state.creates_event() {
@@ -2113,6 +2128,9 @@ impl EnvelopeProcessorService {
                 self.store_process_event(state)?;
             });
         }
+
+        // We need the event parsed in order to set the profile context on it
+        self.process_profiles(state);
 
         if_processing!({
             self.enforce_quotas(state)?;
