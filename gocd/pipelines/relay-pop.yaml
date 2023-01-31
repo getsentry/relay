@@ -6,8 +6,6 @@ pipelines:
     deploy-relay-pop:
         environment_variables:
             GCP_PROJECT: internal-sentry
-            # Required for checkruns.
-            GITHUB_TOKEN: "{{SECRET:[devinfra-github][token]}}"
         group: relay
         lock_behavior: unlockWhenFinished
         materials:
@@ -22,7 +20,7 @@ pipelines:
                 pipeline: deploy-relay
                 stage: mark-as-complete
         stages:
-            # checks isn't needed because it's implied by pipeline-deploy-relay-completed.
+            # checks aren't needed because it's implied by pipeline-deploy-relay-completed.
             - deploy:
                   approval:
                       type: manual
@@ -36,14 +34,13 @@ pipelines:
                               # Temporary; self-service encrypted secrets aren't implemented yet.
                               # This should really be rotated to an internal integration token.
                               SENTRY_AUTH_TOKEN: "{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}"
-                          timeout: 1800 # 30 mins
+                          timeout: 1200
                           elastic_profile_id: relay-pop
                           tasks:
                               - script: |
                                     ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
-                  # TODO: need to provision all these bastions
                       deploy-pop-europe-1:
-                          timeout: 1800 # 30 mins
+                          timeout: 1200
                           elastic_profile_id: relay-pop
                           environment_variables:
                               GKE_CLUSTER: pop-europe-1
@@ -52,26 +49,13 @@ pipelines:
                               GKE_BASTION_ZONE: b
                           tasks:
                               - script: |
-                                    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
-                                        gcloud --project "$GCP_PROJECT" \
-                                        container clusters get-credentials "$GKE_CLUSTER" \
-                                        --zone "${GKE_REGION}-${GKE_CLUSTER_ZONE}" \
-                                    && tmpdir=$(mktemp -d) \
-                                    && ssh-keygen -q -t ed25519 -N '' -f "${tmpdir}/google_compute_engine" \
-                                    && gcloud compute ssh "dicd-gkehop-${GKE_CLUSTER}" \
-                                      --ssh-key-file="${tmpdir}/google_compute_engine" \
-                                      --tunnel-through-iap \
-                                      "--project=${GCP_PROJECT}" \
-                                      "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
-                                      -- -4 -L8888:127.0.0.1:8888 -N -q -f
-                              - script: |
-                                    /devinfra/scripts/k8s/k8sdeploy.py \
-                                    --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
+                                    /devinfra/scripts/k8s/k8stunnel \
+                                    && /devinfra/scripts/k8s/k8sdeploy.py \
                                     --label-selector="service=relay-pop" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
                       deploy-pop-us-1:
-                          timeout: 1800 # 30 mins
+                          timeout: 1200
                           elastic_profile_id: relay-pop
                           environment_variables:
                               GKE_CLUSTER: pop-us-1
@@ -80,26 +64,13 @@ pipelines:
                               GKE_BASTION_ZONE: f
                           tasks:
                               - script: |
-                                    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
-                                        gcloud --project "$GCP_PROJECT" \
-                                        container clusters get-credentials "$GKE_CLUSTER" \
-                                        --zone "${GKE_REGION}-${GKE_CLUSTER_ZONE}" \
-                                    && tmpdir=$(mktemp -d) \
-                                    && ssh-keygen -q -t ed25519 -N '' -f "${tmpdir}/google_compute_engine" \
-                                    && gcloud compute ssh "dicd-gkehop-${GKE_CLUSTER}" \
-                                      --ssh-key-file="${tmpdir}/google_compute_engine" \
-                                      --tunnel-through-iap \
-                                      "--project=${GCP_PROJECT}" \
-                                      "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
-                                      -- -4 -L8888:127.0.0.1:8888 -N -q -f
-                              - script: |
-                                    /devinfra/scripts/k8s/k8sdeploy.py \
-                                    --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
+                                    /devinfra/scripts/k8s/k8stunnel \
+                                    && /devinfra/scripts/k8s/k8sdeploy.py \
                                     --label-selector="service=relay-pop" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
                       deploy-pop-asia-1:
-                          timeout: 1800 # 30 mins
+                          timeout: 1200
                           elastic_profile_id: relay-pop
                           environment_variables:
                               GKE_CLUSTER: pop-asia-1
@@ -108,26 +79,13 @@ pipelines:
                               GKE_BASTION_ZONE: b
                           tasks:
                               - script: |
-                                    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
-                                        gcloud --project "$GCP_PROJECT" \
-                                        container clusters get-credentials "$GKE_CLUSTER" \
-                                        --zone "${GKE_REGION}-${GKE_CLUSTER_ZONE}" \
-                                    && tmpdir=$(mktemp -d) \
-                                    && ssh-keygen -q -t ed25519 -N '' -f "${tmpdir}/google_compute_engine" \
-                                    && gcloud compute ssh "dicd-gkehop-${GKE_CLUSTER}" \
-                                      --ssh-key-file="${tmpdir}/google_compute_engine" \
-                                      --tunnel-through-iap \
-                                      "--project=${GCP_PROJECT}" \
-                                      "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
-                                      -- -4 -L8888:127.0.0.1:8888 -N -q -f
-                              - script: |
-                                    /devinfra/scripts/k8s/k8sdeploy.py \
-                                    --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
+                                    /devinfra/scripts/k8s/k8stunnel \
+                                    && /devinfra/scripts/k8s/k8sdeploy.py \
                                     --label-selector="service=relay-pop" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
                       deploy-pop-australia-1:
-                          timeout: 1800 # 30 mins
+                          timeout: 1200
                           elastic_profile_id: relay-pop
                           environment_variables:
                               GKE_CLUSTER: pop-australia-1
@@ -136,21 +94,8 @@ pipelines:
                               GKE_BASTION_ZONE: b
                           tasks:
                               - script: |
-                                    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
-                                        gcloud --project "$GCP_PROJECT" \
-                                        container clusters get-credentials "$GKE_CLUSTER" \
-                                        --zone "${GKE_REGION}-${GKE_CLUSTER_ZONE}" \
-                                    && tmpdir=$(mktemp -d) \
-                                    && ssh-keygen -q -t ed25519 -N '' -f "${tmpdir}/google_compute_engine" \
-                                    && gcloud compute ssh "dicd-gkehop-${GKE_CLUSTER}" \
-                                      --ssh-key-file="${tmpdir}/google_compute_engine" \
-                                      --tunnel-through-iap \
-                                      "--project=${GCP_PROJECT}" \
-                                      "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
-                                      -- -4 -L8888:127.0.0.1:8888 -N -q -f
-                              - script: |
-                                    /devinfra/scripts/k8s/k8sdeploy.py \
-                                    --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
+                                    /devinfra/scripts/k8s/k8stunnel \
+                                    && /devinfra/scripts/k8s/k8sdeploy.py \
                                     --label-selector="service=relay-pop" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
