@@ -25,7 +25,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION}
+    | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
+    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
@@ -45,23 +46,16 @@ COPY . .
 # Build with the modern compiler toolchain enabled
 RUN : \
     && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
-    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
     && scl enable devtoolset-10 llvm-toolset-7.0 -- \
     make build-linux-release \
     TARGET=${BUILD_TARGET} \
     RELAY_FEATURES=${RELAY_FEATURES}
 
-RUN : \
-    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
-    && cp ./target/$BUILD_TARGET/release/relay /bin/relay \
-    && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
-
 # Collect source bundle
 RUN : \
     && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
-    && sentry-cli --version \
-    && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/relay.debug \
-    && mv ./target/$BUILD_TARGET/release/relay.src.zip /opt/relay.src.zip
+    make collect-source-bundle \
+    TARGET=${BUILD_TARGET}
 
 ###################
 ### Final stage ###
@@ -89,8 +83,8 @@ WORKDIR /work
 
 EXPOSE 3000
 
-COPY --from=relay-builder /bin/relay /bin/relay
-COPY --from=relay-builder /opt/relay-debug.zip /opt/relay.src.zip /opt/
+COPY --from=relay-builder /work/relay /bin/relay
+COPY --from=relay-builder /work/relay-debug.zip /work/relay.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]

@@ -30,6 +30,17 @@ build-linux-release: setup-git ## build linux release of the relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
 .PHONY: build-linux-release
 
+collect-source-bundle: setup-git ## copy the built relay binary to current folder and collects debug bundles
+	mv target/${TARGET}/release/relay ./relay
+	zip relay-debug.zip target/${TARGET}/release/relay.debug
+	sentry-cli --version
+	sentry-cli difutil bundle-sources target/${TARGET}/release/relay.debug
+	mv target/${TARGET}/release/relay.src.zip ./relay.src.zip
+.PHONY: collect-source-bundle
+
+build-release-with-bundles: build-linux-release collect-source-bundle
+.PHONY: build-relase-with-bundles
+
 sdist: setup-git setup-venv ## create a sdist of the Python library
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
 .PHONY: sdist
