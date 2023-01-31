@@ -324,53 +324,6 @@
 <a href="#323" id="323">323</a>
 <a href="#324" id="324">324</a>
 <a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains the user agent normalization code
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
@@ -379,45 +332,41 @@
 
 </span><span class="kw">use </span>std::fmt::Write;
 
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{
+    BrowserContext, Context, Contexts, DeviceContext, Event, FromUserAgentInfo, OsContext,
+};
 <span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
-<span class="kw">use </span><span class="kw">crate</span>::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
+<span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
 
 <span class="kw">pub fn </span>normalize_user_agent(event: <span class="kw-2">&amp;mut </span>Event) {
-    <span class="kw">let </span>user_agent = <span class="kw">match </span>get_user_agent(<span class="kw-2">&amp;</span>event.request) {
-        <span class="prelude-val">Some</span>(ua) =&gt; ua,
+    <span class="kw">let </span>headers = <span class="kw">match </span>event
+        .request
+        .value()
+        .and_then(|request| request.headers.value())
+    {
+        <span class="prelude-val">Some</span>(headers) =&gt; headers,
         <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value_mut() {
-        <span class="comment">// If a contexts object exists we modify in place.
-        </span>normalize_user_agent_generic(contexts, <span class="kw-2">&amp;</span>event.platform, user_agent);
-    } <span class="kw">else </span>{
-        <span class="comment">// If a contexts object does not exist we create a new one and attempt to populate
-        // it.  If we didn&#39;t write any data to our new contexts instance we can throw it out
-        // and leave the existing contexts value as &quot;None&quot;.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
-        normalize_user_agent_generic(<span class="kw-2">&amp;mut </span>contexts, <span class="kw-2">&amp;</span>event.platform, user_agent);
+    <span class="kw">let </span>user_agent_info = RawUserAgentInfo::new(headers);
 
-        <span class="kw">if </span>!contexts.is_empty() {
-            event.contexts.set_value(<span class="prelude-val">Some</span>(contexts));
-        }
-    }
+    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(|| Contexts::new());
+    normalize_user_agent_info_generic(contexts, <span class="kw-2">&amp;</span>event.platform, <span class="kw-2">&amp;</span>user_agent_info);
 }
 
-<span class="kw">pub fn </span>normalize_user_agent_generic(
+<span class="kw">pub fn </span>normalize_user_agent_info_generic(
     contexts: <span class="kw-2">&amp;mut </span>Contexts,
     platform: <span class="kw-2">&amp;</span>Annotated&lt;String&gt;,
-    user_agent: <span class="kw-2">&amp;</span>str,
+    user_agent_info: <span class="kw-2">&amp;</span>RawUserAgentInfo,
 ) {
     <span class="kw">if </span>!contexts.contains_key(BrowserContext::default_key()) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_context) = user_agent_as_browser_context(user_agent) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
     <span class="kw">if </span>!contexts.contains_key(DeviceContext::default_key()) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(device_context) = user_agent_as_device_context(user_agent) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
     }
@@ -433,7 +382,7 @@
         <span class="kw">_ </span>=&gt; <span class="string">&quot;client_os&quot;</span>,
     };
     <span class="kw">if </span>!contexts.contains_key(os_context_key) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(os_context) = user_agent_as_os_context(user_agent) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
             contexts.insert(
                 os_context_key.to_owned(),
                 Annotated::new(Context::Os(Box::new(os_context)).into()),
@@ -442,54 +391,11 @@
     }
 }
 
-<span class="kw">fn </span>user_agent_as_browser_context(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BrowserContext&gt; {
-    <span class="kw">let </span>browser = parse_user_agent(user_agent);
-
-    <span class="kw">if </span>!is_known(browser.family.as_str()) {
-        <span class="kw">return </span><span class="prelude-val">None</span>;
-    }
-
-    <span class="prelude-val">Some</span>(BrowserContext {
-        name: Annotated::from(browser.family),
-        version: Annotated::from(get_version(<span class="kw-2">&amp;</span>browser.major, <span class="kw-2">&amp;</span>browser.minor, <span class="kw-2">&amp;</span>browser.patch)),
-        ..BrowserContext::default()
-    })
-}
-
-<span class="kw">fn </span>user_agent_as_device_context(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;DeviceContext&gt; {
-    <span class="kw">let </span>device = parse_device(user_agent);
-
-    <span class="kw">if </span>!is_known(device.family.as_str()) {
-        <span class="kw">return </span><span class="prelude-val">None</span>;
-    }
-
-    <span class="prelude-val">Some</span>(DeviceContext {
-        family: Annotated::from(device.family),
-        model: Annotated::from(device.model),
-        brand: Annotated::from(device.brand),
-        ..DeviceContext::default()
-    })
-}
-
-<span class="kw">fn </span>user_agent_as_os_context(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;OsContext&gt; {
-    <span class="kw">let </span>os = parse_os(user_agent);
-
-    <span class="kw">if </span>!is_known(os.family.as_str()) {
-        <span class="kw">return </span><span class="prelude-val">None</span>;
-    }
-
-    <span class="prelude-val">Some</span>(OsContext {
-        name: Annotated::from(os.family),
-        version: Annotated::from(get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch)),
-        ..OsContext::default()
-    })
-}
-
-<span class="kw">fn </span>is_known(family: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<span class="kw">pub fn </span>is_known(family: <span class="kw-2">&amp;</span>str) -&gt; bool {
     family != <span class="string">&quot;Other&quot;
 </span>}
 
-<span class="kw">fn </span>get_version(
+<span class="kw">pub fn </span>get_version(
     major: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
     minor: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
     patch: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -563,7 +469,7 @@
     </span><span class="kw">fn </span>test_skip_unrecognizable_user_agent() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(<span class="string">&quot;a dont no&quot;</span>);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_eq!</span>(event.contexts.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert!</span>(event.contexts.value().unwrap().is_empty());
     }
 
     <span class="attr">#[test]

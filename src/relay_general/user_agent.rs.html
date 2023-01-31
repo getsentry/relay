@@ -80,6 +80,58 @@
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility functions for working with user agents.
 //!
 //! NOTICE:
@@ -118,7 +170,6 @@
             }
         }
     }
-
     <span class="prelude-val">None
 </span>}
 
@@ -160,6 +211,59 @@
 /// Defaults to an empty operating system.
 </span><span class="kw">pub fn </span>parse_os(user_agent: <span class="kw-2">&amp;</span>str) -&gt; OS {
     UA_PARSER.parse_os(user_agent)
+}
+
+<span class="doccomment">/// The data container, which has both the user agent string and the client hints.
+///
+/// Useful for the scenarios where you will use either information from client hints if it exists,
+/// and if not fall back to user agent string.
+</span><span class="attr">#[derive(Default, Debug)]
+</span><span class="kw">pub struct </span>RawUserAgentInfo&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The &quot;old style&quot; of a single UA string.
+    </span><span class="kw">pub </span>user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="doccomment">/// User-Agent client hints.
+    </span><span class="kw">pub </span>client_hints: ClientHints&lt;<span class="lifetime">&#39;a</span>&gt;,
+}
+
+<span class="doccomment">/// The client hint variable names mirror the name of the &quot;SEC-CH&quot; headers, see
+/// &#39;&lt;https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints&gt;&#39;
+</span><span class="attr">#[derive(Default, Debug)]
+</span><span class="kw">pub struct </span>ClientHints&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The client&#39;s OS, e.g. macos, android...
+    </span><span class="kw">pub </span>sec_ch_ua_platform: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="doccomment">/// The version number of the client&#39;s OS.
+    </span><span class="kw">pub </span>sec_ch_ua_platform_version: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="doccomment">/// Name of the client&#39;s web browser and its version.
+    </span><span class="kw">pub </span>sec_ch_ua: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="doccomment">/// Device model, e.g. samsung galaxy 3.
+    </span><span class="kw">pub </span>sec_ch_ua_model: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RawUserAgentInfo&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub fn </span>new(headers: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Headers) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = <span class="self">Self</span>::default();
+
+        <span class="kw">for </span>item <span class="kw">in </span>headers.iter() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw-2">ref </span>o_k, <span class="kw-2">ref </span>v)) = item.value() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = o_k.as_str() {
+                    <span class="kw">match </span>k.to_lowercase().as_str() {
+                        <span class="string">&quot;user-agent&quot; </span>=&gt; contexts.user_agent = v.as_str(),
+
+                        <span class="string">&quot;sec-ch-ua&quot; </span>=&gt; contexts.client_hints.sec_ch_ua = v.as_str(),
+                        <span class="string">&quot;sec-ch-ua-model&quot; </span>=&gt; contexts.client_hints.sec_ch_ua_model = v.as_str(),
+                        <span class="string">&quot;sec-ch-ua-platform&quot; </span>=&gt; {
+                            contexts.client_hints.sec_ch_ua_platform = v.as_str()
+                        }
+                        <span class="string">&quot;sec-ch-ua-platform-version&quot; </span>=&gt; {
+                            contexts.client_hints.sec_ch_ua_platform_version = v.as_str()
+                        }
+                        <span class="kw">_ </span>=&gt; {}
+                    }
+                }
+            }
+        }
+        contexts
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
