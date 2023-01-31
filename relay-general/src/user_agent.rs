@@ -90,7 +90,7 @@ pub struct RawUserAgentInfo<'a> {
     pub client_hints: ClientHints<'a>,
 }
 
-/// The client hint variable names mirror the name of the "SEC-CH" headers
+/// The client hint variable names mirror the name of the "SEC-CH" headers, see
 /// '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
 #[derive(Default, Debug)]
 pub struct ClientHints<'a> {
