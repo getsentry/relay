@@ -109,28 +109,6 @@ pub struct Replay {
     /// ```
     pub replay_type: Annotated<String>,
 
-    /// The sample rate used to make a recording decision when an error has been detected.
-    ///
-    /// Example:
-    ///
-    /// ```json
-    /// {
-    ///     "error_sample_rate": 0.75
-    /// }
-    /// ```
-    pub error_sample_rate: Annotated<f64>,
-
-    /// The sample rate used to make a recording decision
-    ///
-    /// Example:
-    ///
-    /// ```json
-    /// {
-    ///     "session_sample_rate": 0.125
-    /// }
-    /// ```
-    pub session_sample_rate: Annotated<f64>,
-
     /// Segment identifier.
     ///
     /// A number representing a unique segment identifier in the chain of replay segments.
@@ -403,8 +381,6 @@ mod tests {
                 uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )),
             replay_type: Annotated::new("session".to_string()),
-            error_sample_rate: Annotated::new(0.5),
-            session_sample_rate: Annotated::new(0.5),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             replay_start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
