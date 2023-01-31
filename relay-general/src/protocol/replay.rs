@@ -551,6 +551,43 @@ mod tests {
         assert_eq!(maybe_credit_card, Some("[Filtered]"));
     }
 
+    #[test]
+    fn test_ip_address_scrubbing_disabled() {
+        // Scrubbing is explicitly disabled.
+        let mut scrub_config = simple_enabled_config();
+        scrub_config.scrub_ip_addresses = false;
+
+        let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        // Disabled scrubbing preserves ip-addresses.
+        let payload = include_str!("../../tests/fixtures/replays/replay.json");
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        // Ip-address was preserved in the response.
+        let ip_address = get_value!(replay.user.ip_address);
+        assert!(ip_address.is_some());
+    }
+
+    #[test]
+    fn test_ip_address_scrubbing_enabled() {
+        // Scrubbing ip-addresses is explicitly enabled.
+        let mut scrub_config = simple_enabled_config();
+        scrub_config.scrub_ip_addresses = true;
+
+        let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        let payload = include_str!("../../tests/fixtures/replays/replay.json");
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        // Ip-address was removed from the response.
+        let ip_address = get_value!(replay.user.ip_address);
+        assert!(ip_address.is_none());
+    }
+
     fn simple_enabled_config() -> DataScrubbingConfig {
         let mut scrub_config = DataScrubbingConfig::default();
         scrub_config.scrub_data = true;
