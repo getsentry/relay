@@ -27,14 +27,14 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    state_with_config(SamplingConfig {
+    project_state_with_config(SamplingConfig {
         rules,
         mode,
         next_id: None,
     })
 }
 
-pub fn state_with_config(sampling_config: SamplingConfig) -> ProjectState {
+pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectState {
     let mut state = ProjectState::allowed();
     state.config.dynamic_sampling = Some(sampling_config);
     state
@@ -58,7 +58,7 @@ pub fn state_with_rule(
         None => Vec::new(),
     };
 
-    state_with_config(SamplingConfig {
+    project_state_with_config(SamplingConfig {
         rules,
         mode,
         next_id: None,

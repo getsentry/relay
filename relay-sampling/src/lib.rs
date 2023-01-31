@@ -889,13 +889,16 @@ impl SamplingConfig {
         let mut accumulated_factors = 1.0;
 
         for rule in self.rules.iter() {
-            let matches_event = rule.condition.matches(event, ip_addr);
-            let matches_dsc = match dsc {
-                Some(dsc) => rule.condition.matches(dsc, ip_addr),
-                None => false,
+            let matches = match rule.ty {
+                RuleType::Trace => match dsc {
+                    Some(dsc) => rule.condition.matches(dsc, ip_addr),
+                    None => false,
+                },
+                RuleType::Transaction => rule.condition.matches(event, ip_addr),
+                _ => false,
             };
 
-            if matches_event || matches_dsc {
+            if matches {
                 if let Some(active_rule) = rule.is_active(now) {
                     let value = active_rule.get_sampling_strategy_value(now);
 
