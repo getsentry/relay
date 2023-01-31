@@ -93,12 +93,12 @@ impl Display for ProtocolError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProtocolError::InvalidHeaders(e) => {
-                write!(f, "recording headers could not be parsed {:?}", e)
+                write!(f, "recording headers could not be parsed {e:?}")
             }
             ProtocolError::MissingData => write!(f, "no recording found"),
             ProtocolError::MissingHeaders => write!(f, "no recording headers found"),
             ProtocolError::MissingBody => write!(f, "not recording body found"),
-            ProtocolError::EncodingError(e) => write!(f, "{:?}", e),
+            ProtocolError::EncodingError(e) => write!(f, "{e:?}"),
         }
     }
 }
