@@ -34,7 +34,7 @@ impl<'de> Deserialize<'de> for Event {
             3 => Box::<IncrementalSnapshotEvent>::deserialize(content_deserializer).map(Event::T3),
             4 => Box::<MetaEvent>::deserialize(content_deserializer).map(Event::T4),
             5 => Box::<CustomEvent>::deserialize(content_deserializer).map(Event::T5),
-            6 => Value::deserialize(content_deserializer).map(Event::T6),
+            6 => Box::<PluginEvent>::deserialize(content_deserializer).map(Event::T6),
             value => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::Unsigned(value as u64),
                 &"type id 0 <= i < 7",
@@ -53,7 +53,7 @@ enum InnerEvent<'a> {
     T3(&'a IncrementalSnapshotEvent),
     T4(&'a MetaEvent),
     T5(&'a CustomEvent),
-    T6(&'a Value), // 6: PluginEvent,
+    T6(&'a PluginEvent),
 }
 
 /// Helper for [`Event`] serialization.
@@ -190,8 +190,22 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
         match tagged.tag {
             0 => Box::<MutationIncrementalSourceData>::deserialize(content_deserializer)
                 .map(IncrementalSourceDataVariant::Mutation),
+            1 => Box::<MouseMoveIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::MouseMove),
+            2 => Box::<MouseInteractionIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::MouseInteraction),
+            3 => Box::<ScrollIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::Scroll),
+            4 => Box::<ViewPortResizeIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::ViewPortResize),
             5 => Box::<InputIncrementalSourceData>::deserialize(content_deserializer)
                 .map(IncrementalSourceDataVariant::Input),
+            6 => Box::<TouchMoveIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::TouchMove),
+            7 => Box::<MediaInteractionIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::MediaInteraction),
+            12 => Box::<DragIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::Drag),
             source => Value::deserialize(content_deserializer).map(|value| {
                 IncrementalSourceDataVariant::Default(Box::new(DefaultIncrementalSourceData {
                     source,
@@ -207,7 +221,14 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
 #[serde(untagged)]
 enum InnerISDV<'a> {
     Mutation(&'a MutationIncrementalSourceData),
+    MouseMove(&'a MouseMoveIncrementalSourceData),
+    MouseInteraction(&'a MouseInteractionIncrementalSourceData),
+    Scroll(&'a ScrollIncrementalSourceData),
+    ViewPortResize(&'a ViewPortResizeIncrementalSourceData),
     Input(&'a InputIncrementalSourceData),
+    TouchMove(&'a TouchMoveIncrementalSourceData),
+    MediaInteraction(&'a MediaInteractionIncrementalSourceData),
+    Drag(&'a DragIncrementalSourceData),
     Default(&'a Value),
 }
 
@@ -234,8 +255,29 @@ impl Serialize for IncrementalSourceDataVariant {
             IncrementalSourceDataVariant::Mutation(m) => {
                 OuterISDV::new(0, InnerISDV::Mutation(m.as_ref()))
             }
+            IncrementalSourceDataVariant::MouseMove(i) => {
+                OuterISDV::new(1, InnerISDV::MouseMove(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::MouseInteraction(i) => {
+                OuterISDV::new(2, InnerISDV::MouseInteraction(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::Scroll(i) => {
+                OuterISDV::new(3, InnerISDV::Scroll(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::ViewPortResize(i) => {
+                OuterISDV::new(4, InnerISDV::ViewPortResize(i.as_ref()))
+            }
             IncrementalSourceDataVariant::Input(i) => {
                 OuterISDV::new(5, InnerISDV::Input(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::TouchMove(i) => {
+                OuterISDV::new(6, InnerISDV::TouchMove(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::MediaInteraction(i) => {
+                OuterISDV::new(7, InnerISDV::MediaInteraction(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::Drag(i) => {
+                OuterISDV::new(12, InnerISDV::Drag(i.as_ref()))
             }
             IncrementalSourceDataVariant::Default(v) => {
                 OuterISDV::new(v.source, InnerISDV::Default(&v.value))

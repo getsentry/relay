@@ -243,7 +243,7 @@ enum Event {
     T3(Box<IncrementalSnapshotEvent>),
     T4(Box<MetaEvent>),
     T5(Box<CustomEvent>),
-    T6(Value), // 6: PluginEvent,
+    T6(Box<PluginEvent>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -256,7 +256,13 @@ struct FullSnapshotEvent {
 struct FullSnapshotEventData {
     node: Node,
     #[serde(rename = "initialOffset")]
-    initial_offset: Value,
+    initial_offset: InitialOffset,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InitialOffset {
+    top: u64,
+    left: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -268,7 +274,14 @@ struct IncrementalSnapshotEvent {
 #[derive(Debug, Serialize, Deserialize)]
 struct MetaEvent {
     timestamp: u64,
-    data: Value,
+    data: MetaEventData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MetaEventData {
+    href: String,
+    width: u64,
+    height: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -323,6 +336,18 @@ struct PerformanceSpanPayload {
     data: Option<Value>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PluginEvent {
+    timestamp: u64,
+    data: PluginEventData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PluginEventData {
+    plugin: String,
+    payload: Value,
+}
+
 /// Node Type Parser
 ///
 /// Nodes have an internally tagged variant on their "type" field. The type must be one of six
@@ -372,16 +397,16 @@ struct DocumentNode {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DocumentTypeNode {
-    id: Value,
-    public_id: Value,
-    system_id: Value,
-    name: Value,
+    id: i32,
+    public_id: String,
+    system_id: String,
+    name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ElementNode {
-    id: Value,
+    id: i32,
     attributes: HashMap<String, Value>,
     tag_name: String,
     child_nodes: Vec<Node>,
@@ -394,10 +419,10 @@ struct ElementNode {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TextNode {
-    id: Value,
+    id: i32,
     text_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    is_style: Option<Value>,
+    is_style: Option<bool>,
 }
 
 /// Incremental Source Parser
@@ -407,24 +432,45 @@ struct TextNode {
 /// deserailization behavior.
 ///
 /// -> MUTATION = 0
+///     ... not documented
 /// -> MOUSEMOVE = 1
+///     {"source": 1, "positions": [{"id": 32258, "timeOffset": 0, "x": 243, "y": 597}]}
 /// -> MOUSEINTERACTION = 2
+///     {"source": 2, "id": 37960, "type": 9, "x": 286, "y": 491}
 /// -> SCROLL = 3
+///     {"source": 3, "id": 1, "x": 0, "y": 17}
 /// -> VIEWPORTRESIZE = 4
+///     {"source": 4, "height": 667, "width": 390}
 /// -> INPUT = 5
+///     {"source": 5, "id": 2331, "text": "*", "isChecked": false}
 /// -> TOUCHMOVE = 6
+///     {"source": 6, "positions": [{"id": 32258, "timeOffset": 0, "x": 243, "y": 597}]}
 /// -> MEDIAINTERACTION = 7
+///     {
+///         "source" 7, "id": 2011, "currentTime": 12597196711, "volume": 100, "muted": false,
+///         "playbackRate": 1
+///     }
 /// -> STYLESHEETRULE = 8
 /// -> CANVASMUTATION = 9
 /// -> FONT = 10
 /// -> LOG = 11
 /// -> DRAG = 12
+///     {"source": 12, "positions": [{"id": 32258, "timeOffset": 0, "x": 243, "y": 597}]}
 /// -> STYLEDECLARATION = 13
+/// -> SELECTION = 14
+/// -> ADOPTEDSTYLESHEET = 15
 
 #[derive(Debug)]
 enum IncrementalSourceDataVariant {
     Mutation(Box<MutationIncrementalSourceData>),
+    MouseMove(Box<MouseMoveIncrementalSourceData>),
+    MouseInteraction(Box<MouseInteractionIncrementalSourceData>),
+    Scroll(Box<ScrollIncrementalSourceData>),
+    ViewPortResize(Box<ViewPortResizeIncrementalSourceData>),
     Input(Box<InputIncrementalSourceData>),
+    TouchMove(Box<TouchMoveIncrementalSourceData>),
+    MediaInteraction(Box<MediaInteractionIncrementalSourceData>),
+    Drag(Box<DragIncrementalSourceData>),
     Default(Box<DefaultIncrementalSourceData>),
 }
 
@@ -433,21 +479,110 @@ enum IncrementalSourceDataVariant {
 struct InputIncrementalSourceData {
     id: i32,
     text: String,
-    is_checked: Value,
+    is_checked: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    user_triggered: Option<Value>,
+    user_triggered: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MouseMoveIncrementalSourceData {
+    positions: Vec<Position>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TouchMoveIncrementalSourceData {
+    positions: Vec<Position>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DragIncrementalSourceData {
+    positions: Vec<Position>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Position {
+    x: u64,
+    y: u64,
+    id: i32,
+    time_offset: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MouseInteractionIncrementalSourceData {
+    #[serde(rename = "type")]
+    type_: u8,
+    id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    y: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ScrollIncrementalSourceData {
+    id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    y: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ViewPortResizeIncrementalSourceData {
+    height: u64,
+    width: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaInteractionIncrementalSourceData {
+    id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current_time: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    volume: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    muted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    playback_rate: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
-    texts: Vec<Value>,
+    texts: Vec<MutationIncrementalSourceDataText>,
     attributes: Vec<Value>,
-    removes: Vec<Value>,
+    removes: Vec<MutationIncrementalSourceDataRemove>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    is_attach_iframe: Option<Value>,
+    is_attach_iframe: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MutationIncrementalSourceDataText {
+    id: i32,
+    value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MutationIncrementalSourceDataAttribute {
+    id: i32,
+    value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MutationIncrementalSourceDataRemove {
+    id: i32,
+    parent_id: i32,
 }
 
 #[derive(Debug)]
@@ -459,8 +594,8 @@ struct DefaultIncrementalSourceData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationAdditionIncrementalSourceData {
-    parent_id: Value,
-    next_id: Value,
+    parent_id: i32,
+    next_id: Option<i32>,
     node: Node,
 }
 
