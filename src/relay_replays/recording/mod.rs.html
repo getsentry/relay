@@ -710,6 +710,17 @@
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
 <a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt::Display;
@@ -850,12 +861,12 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingAction&gt; {
         <span class="kw">match </span>variant {
             IncrementalSourceDataVariant::Mutation(mutation) =&gt; {
+                <span class="kw">for </span>text <span class="kw">in </span><span class="kw-2">&amp;mut </span>mutation.texts {
+                    <span class="self">self</span>.strip_pii(<span class="kw-2">&amp;mut </span>text.value)<span class="question-mark">?
+                </span>}
                 <span class="kw">for </span>addition <span class="kw">in </span><span class="kw-2">&amp;mut </span>mutation.adds {
-                    <span class="kw">match </span><span class="self">self</span>.recurse_snapshot_node(<span class="kw-2">&amp;mut </span>addition.node) {
-                        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {}
-                        <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e),
-                    }
-                }
+                    <span class="self">self</span>.recurse_snapshot_node(<span class="kw-2">&amp;mut </span>addition.node)<span class="question-mark">?
+                </span>}
             }
             IncrementalSourceDataVariant::Input(input) =&gt; <span class="self">self</span>.strip_pii(<span class="kw-2">&amp;mut </span>input.text)<span class="question-mark">?</span>,
             <span class="kw">_ </span>=&gt; {}
@@ -1155,12 +1166,18 @@
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>MutationIncrementalSourceData {
-    texts: Vec&lt;Value&gt;,
+    texts: Vec&lt;Text&gt;,
     attributes: Vec&lt;Value&gt;,
     removes: Vec&lt;Value&gt;,
     adds: Vec&lt;MutationAdditionIncrementalSourceData&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>is_attach_iframe: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+}
+
+<span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="kw">struct </span>Text {
+    id: i32,
+    value: String,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1179,10 +1196,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::recording;
-    <span class="kw">use </span><span class="kw">crate</span>::recording::Event;
     <span class="kw">use </span>assert_json_diff::assert_json_eq;
     <span class="kw">use </span>serde_json::{Error, Value};
+
+    <span class="kw">use </span><span class="kw">crate</span>::recording::{<span class="self">self</span>, Event};
 
     <span class="kw">fn </span>loads(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Event&gt;, Error&gt; {
         serde_json::from_slice(bytes)
@@ -1342,21 +1359,10 @@
 
         recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
 
-        <span class="kw">let </span>aa = events.pop().unwrap();
-        <span class="kw">if let </span>recording::Event::T3(bb) = aa {
-            <span class="kw">if let </span>recording::IncrementalSourceDataVariant::Mutation(<span class="kw-2">mut </span>cc) = bb.data {
-                <span class="kw">let </span>dd = cc.adds.pop().unwrap();
-                <span class="kw">if let </span>recording::NodeVariant::T2(<span class="kw-2">mut </span>ee) = dd.node.variant {
-                    <span class="kw">let </span>ff = ee.child_nodes.pop().unwrap();
-                    <span class="kw">if let </span>recording::NodeVariant::T3(gg) = ff.variant {
-                        <span class="macro">assert_eq!</span>(gg.text_content, <span class="string">&quot;[ip]&quot;</span>);
-                        <span class="kw">return</span>;
-                    }
-                }
-            }
-        }
-        <span class="macro">unreachable!</span>();
-    }
+        <span class="kw">let </span>parsed = serde_json::to_string(<span class="kw-2">&amp;</span>events).unwrap();
+        <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;\&quot;value\&quot;:\&quot;[ip]\&quot;&quot;</span>)); <span class="comment">// Assert texts were mutated.
+        </span><span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;[ip]\&quot;&quot;</span>)) <span class="comment">// Assert text node was mutated.
+    </span>}
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rrweb_snapshot_parsing() {
@@ -1396,24 +1402,40 @@
         <span class="macro">assert_json_eq!</span>(input_parsed, input_raw);
     }
 
-    <span class="comment">// Event coverage
+    <span class="comment">// Event Parsing and Scrubbing.
 
     </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rrweb_event_3_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-3.json&quot;</span>);
+    </span><span class="kw">fn </span>test_scrub_pii_full_snapshot_event() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-2.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;recording::Event&gt; = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
 
-        <span class="kw">let </span>input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
-        <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
-        <span class="macro">assert_json_eq!</span>(input_parsed, input_raw)
+        <span class="kw">let </span>scrubbed_result = serde_json::to_string(<span class="kw-2">&amp;</span>events).unwrap();
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;attributes\&quot;:{\&quot;src\&quot;:\&quot;#\&quot;}&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;my ssn is ***********\&quot;&quot;</span>));
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rrweb_event_5_parsing() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-5.json&quot;</span>);
+    </span><span class="kw">fn </span>test_scrub_pii_incremental_snapshot_event() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-3.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;recording::Event&gt; = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
 
-        <span class="kw">let </span>input_parsed: Vec&lt;recording::Event&gt; = serde_json::from_slice(payload).unwrap();
-        <span class="kw">let </span>input_raw: Value = serde_json::from_slice(payload).unwrap();
-        <span class="macro">assert_json_eq!</span>(input_parsed, input_raw);
+        <span class="kw">let </span>scrubbed_result = serde_json::to_string(<span class="kw-2">&amp;</span>events).unwrap();
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;[creditcard]\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;value\&quot;:\&quot;***********\&quot;&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_scrub_pii_custom_event() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-5.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>events: Vec&lt;recording::Event&gt; = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(<span class="kw-2">&amp;mut </span>events).unwrap();
+
+        <span class="kw">let </span>scrubbed_result = serde_json::to_string(<span class="kw-2">&amp;</span>events).unwrap();
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;description\&quot;:\&quot;[creditcard]\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;description\&quot;:\&quot;https://sentry.io?ip-address=[ip]\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;message\&quot;:\&quot;[email]\&quot;&quot;</span>));
     }
 }
 
