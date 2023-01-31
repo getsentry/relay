@@ -2197,7 +2197,7 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.envelope_context.update(&state.envelope);
 
-                        let has_metrics = state.extracted_metrics.project_metrics.is_empty();
+                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
                         state.extracted_metrics.send_metrics(&state.envelope);
 

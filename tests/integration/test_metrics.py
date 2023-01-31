@@ -587,13 +587,17 @@ def test_transaction_metrics(
         "bar": {"value": 1.3},
     }
 
-    relay.send_transaction(42, transaction)
+    relay.send_transaction(
+        42, transaction, transaction_from_dsc="transaction_which_starts_trace"
+    )
 
     # Send another transaction:
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    relay.send_transaction(42, transaction)
+    relay.send_transaction(
+        42, transaction, transaction_from_dsc="transaction_which_starts_trace"
+    )
 
     if discard_data:
         transactions_consumer.assert_empty()
@@ -620,7 +624,6 @@ def test_transaction_metrics(
         return
 
     metrics = metrics_by_name(metrics_consumer, 5)
-
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -660,7 +663,7 @@ def test_transaction_metrics(
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {},
+        "tags": {"transaction": "transaction_which_starts_trace"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
@@ -697,7 +700,9 @@ def test_transaction_metrics_extraction_external_relays(
     tx["timestamp"] = timestamp.isoformat()
 
     external = relay(mini_sentry, options=TEST_CONFIG)
-    external.send_transaction(project_id, tx, item_headers)
+    external.send_transaction(
+        project_id, tx, item_headers, transaction_from_dsc="root_transaction"
+    )
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
@@ -728,6 +733,7 @@ def test_transaction_metrics_extraction_external_relays(
             m_item_body_sorted[0]["name"]
             == "c:transactions/count_per_root_project@none"
         )
+        assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
         assert m_item_body_sorted[0]["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
