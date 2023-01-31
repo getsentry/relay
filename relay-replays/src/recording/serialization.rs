@@ -204,8 +204,14 @@ impl<'de> Deserialize<'de> for IncrementalSourceDataVariant {
                 .map(IncrementalSourceDataVariant::TouchMove),
             7 => Box::<MediaInteractionIncrementalSourceData>::deserialize(content_deserializer)
                 .map(IncrementalSourceDataVariant::MediaInteraction),
+            8 => Box::<StyleSheetRuleIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::StyleSheetRule),
             12 => Box::<DragIncrementalSourceData>::deserialize(content_deserializer)
                 .map(IncrementalSourceDataVariant::Drag),
+            14 => Box::<SelectionIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::Selection),
+            15 => Box::<AdoptedStyleSheetIncrementalSourceData>::deserialize(content_deserializer)
+                .map(IncrementalSourceDataVariant::AdoptedStyleSheet),
             source => Value::deserialize(content_deserializer).map(|value| {
                 IncrementalSourceDataVariant::Default(Box::new(DefaultIncrementalSourceData {
                     source,
@@ -228,7 +234,10 @@ enum InnerISDV<'a> {
     Input(&'a InputIncrementalSourceData),
     TouchMove(&'a TouchMoveIncrementalSourceData),
     MediaInteraction(&'a MediaInteractionIncrementalSourceData),
+    StyleSheetRule(&'a StyleSheetRuleIncrementalSourceData),
     Drag(&'a DragIncrementalSourceData),
+    Selection(&'a SelectionIncrementalSourceData),
+    AdoptedStyleSheet(&'a AdoptedStyleSheetIncrementalSourceData),
     Default(&'a Value),
 }
 
@@ -276,8 +285,17 @@ impl Serialize for IncrementalSourceDataVariant {
             IncrementalSourceDataVariant::MediaInteraction(i) => {
                 OuterISDV::new(7, InnerISDV::MediaInteraction(i.as_ref()))
             }
+            IncrementalSourceDataVariant::StyleSheetRule(i) => {
+                OuterISDV::new(7, InnerISDV::StyleSheetRule(i.as_ref()))
+            }
             IncrementalSourceDataVariant::Drag(i) => {
                 OuterISDV::new(12, InnerISDV::Drag(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::Selection(i) => {
+                OuterISDV::new(14, InnerISDV::Selection(i.as_ref()))
+            }
+            IncrementalSourceDataVariant::AdoptedStyleSheet(i) => {
+                OuterISDV::new(14, InnerISDV::AdoptedStyleSheet(i.as_ref()))
             }
             IncrementalSourceDataVariant::Default(v) => {
                 OuterISDV::new(v.source, InnerISDV::Default(&v.value))

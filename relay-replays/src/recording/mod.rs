@@ -370,8 +370,6 @@ struct Node {
     is_shadow_host: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_shadow: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    compat_mode: Option<String>,
     #[serde(flatten)]
     variant: NodeVariant,
 }
@@ -388,10 +386,13 @@ enum NodeVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DocumentNode {
     id: i32,
     #[serde(rename = "childNodes")]
     child_nodes: Vec<Node>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compat_mode: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -411,9 +412,9 @@ struct ElementNode {
     tag_name: String,
     child_nodes: Vec<Node>,
     #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
-    is_svg: Option<Value>,
+    is_svg: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    need_block: Option<Value>,
+    need_block: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -446,11 +447,9 @@ struct TextNode {
 /// -> TOUCHMOVE = 6
 ///     {"source": 6, "positions": [{"id": 32258, "timeOffset": 0, "x": 243, "y": 597}]}
 /// -> MEDIAINTERACTION = 7
-///     {
-///         "source" 7, "id": 2011, "currentTime": 12597196711, "volume": 100, "muted": false,
-///         "playbackRate": 1
-///     }
+///     {"source" 7, "id": 2011, "currentTime": 12597196711, "volume": 100, "muted": false, "playbackRate": 1}
 /// -> STYLESHEETRULE = 8
+///     {"source": 8, "id": 40, "adds": [{"rule": "@-webkit-keyframes", "index": 117}]}
 /// -> CANVASMUTATION = 9
 /// -> FONT = 10
 /// -> LOG = 11
@@ -458,7 +457,9 @@ struct TextNode {
 ///     {"source": 12, "positions": [{"id": 32258, "timeOffset": 0, "x": 243, "y": 597}]}
 /// -> STYLEDECLARATION = 13
 /// -> SELECTION = 14
+///     {"source": 14, "ranges": [{"start": 12, "startOffset": 11, "end": 15, "endOffset": 6}]}
 /// -> ADOPTEDSTYLESHEET = 15
+///     {"id": 1, "styleIds": [1], "styles": [{"rules": [{"rule": "t"}], "styleId": 1}]}
 
 #[derive(Debug)]
 enum IncrementalSourceDataVariant {
@@ -470,7 +471,10 @@ enum IncrementalSourceDataVariant {
     Input(Box<InputIncrementalSourceData>),
     TouchMove(Box<TouchMoveIncrementalSourceData>),
     MediaInteraction(Box<MediaInteractionIncrementalSourceData>),
+    StyleSheetRule(Box<StyleSheetRuleIncrementalSourceData>),
     Drag(Box<DragIncrementalSourceData>),
+    Selection(Box<SelectionIncrementalSourceData>),
+    AdoptedStyleSheet(Box<AdoptedStyleSheetIncrementalSourceData>),
     Default(Box<DefaultIncrementalSourceData>),
 }
 
@@ -555,9 +559,68 @@ struct MediaInteractionIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct StyleSheetRuleIncrementalSourceData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    style_id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    removes: Option<Vec<StyleSheetRuleRemovesIncrementalSourceData>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    adds: Option<Vec<AddStyleRule>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    replace: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    replace_sync: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AddStyleRule {
+    rule: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    index: Option<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StyleSheetRuleRemovesIncrementalSourceData {
+    index: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectionIncrementalSourceData {
+    ranges: Vec<Range>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Range {
+    start: u64,
+    start_offset: u64,
+    end: u64,
+    end_offset: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AdoptedStyleSheetIncrementalSourceData {
+    id: i32,
+    style_ids: Vec<i32>,
+    styles: Vec<Style>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Style {
+    style_id: i32,
+    rules: Vec<AddStyleRule>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
     texts: Vec<MutationIncrementalSourceDataText>,
-    attributes: Vec<Value>,
+    attributes: Vec<MutationAttributeIncrementalSourceData>,
     removes: Vec<MutationIncrementalSourceDataRemove>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -573,22 +636,9 @@ struct MutationIncrementalSourceDataText {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceDataAttribute {
+struct MutationAttributeIncrementalSourceData {
     id: i32,
-    value: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceDataRemove {
-    id: i32,
-    parent_id: i32,
-}
-
-#[derive(Debug)]
-struct DefaultIncrementalSourceData {
-    pub source: u8,
-    pub value: Value,
+    attributes: HashMap<String, Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -596,7 +646,24 @@ struct DefaultIncrementalSourceData {
 struct MutationAdditionIncrementalSourceData {
     parent_id: i32,
     next_id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_id: Option<i32>,
     node: Node,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MutationIncrementalSourceDataRemove {
+    id: i32,
+    parent_id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_shadow: Option<bool>,
+}
+
+#[derive(Debug)]
+struct DefaultIncrementalSourceData {
+    pub source: u8,
+    pub value: Value,
 }
 
 #[cfg(test)]
