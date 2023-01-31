@@ -7,7 +7,8 @@
 /// line character, then an optionally compressed RRWeb recording.  Failure to include any
 /// component of this schema results in an error.
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use serde_json::{Error as SError, Value};
+use serde::Deserialize;
+use serde_json::Error as SError;
 use std::fmt::Display;
 use std::io::{Error, Read, Write};
 
@@ -59,9 +60,9 @@ fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
             let mut split = bytes.splitn(2, |b| b == &b'\n');
             let header = split.next().ok_or(ProtocolError::MissingHeaders)?;
 
-            // Try to parse the headers to determine if they are valid JSON. This is a good sanity
+            // Try to parse the headers to determine if they are valid. This is a good sanity
             // check to determine if our headers extraction is working properly.
-            serde_json::from_slice::<Value>(header).map_err(ProtocolError::InvalidHeaders)?;
+            serde_json::from_slice::<Headers>(header).map_err(ProtocolError::InvalidHeaders)?;
 
             let body = match split.next() {
                 Some(b"") | None => return Err(ProtocolError::MissingBody),
@@ -71,6 +72,12 @@ fn read(bytes: &[u8]) -> Result<(&[u8], &[u8]), ProtocolError> {
             Ok((header, body))
         }
     }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct Headers {
+    segment_id: u16,
 }
 
 #[derive(Debug)]
