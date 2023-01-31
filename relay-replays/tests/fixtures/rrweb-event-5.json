@@ -51,5 +51,16 @@
                 }
             }
         }
+    },
+    {
+        "type": 5,
+        "timestamp": 1674135065772.32,
+        "data": {
+            "tag": "breadcrumb",
+            "payload": {
+                "timestamp": 1674135065.772,
+                "type": "default"
+            }
+        }
     }
 ]

@@ -297,7 +297,8 @@ struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
-    category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
