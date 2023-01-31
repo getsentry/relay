@@ -6,8 +6,6 @@ def generate_replay_sdk_event():
         "type": "replay_event",
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "replay_type": "session",
-        "error_sample_rate": 0.125,
-        "session_sample_rate": 0.5,
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "segment_id": 0,
         "timestamp": 1597977777.6189718,
@@ -38,7 +36,11 @@ def generate_replay_sdk_event():
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
                 "type": "trace",
-            }
+            },
+            "replay": {
+                "error_sample_rate": 0.125,
+                "session_sample_rate": 0.5,
+            },
         },
     }
 
@@ -65,8 +67,6 @@ def test_replay_event_with_processing(
     # Assert required fields were returned.
     assert parsed_replay["replay_id"] == replay["replay_id"]
     assert parsed_replay["replay_type"] == replay["replay_type"]
-    assert parsed_replay["error_sample_rate"] == replay["error_sample_rate"]
-    assert parsed_replay["session_sample_rate"] == replay["session_sample_rate"]
     assert parsed_replay["event_id"] == replay["event_id"]
     assert parsed_replay["type"] == replay["type"]
     assert parsed_replay["segment_id"] == replay["segment_id"]
@@ -104,6 +104,11 @@ def test_replay_event_with_processing(
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
         "os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "replay": {
+            "type": "replay",
+            "error_sample_rate": replay["contexts"]["replay"]["error_sample_rate"],
+            "session_sample_rate": replay["contexts"]["replay"]["session_sample_rate"],
+        },
         "trace": {
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
             "span_id": "fa90fdead5f74052",

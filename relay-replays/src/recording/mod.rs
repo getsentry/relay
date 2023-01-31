@@ -138,11 +138,11 @@ impl RecordingProcessor<'_> {
     ) -> Result<(), ProcessingAction> {
         match variant {
             IncrementalSourceDataVariant::Mutation(mutation) => {
+                for text in &mut mutation.texts {
+                    self.strip_pii(&mut text.value)?
+                }
                 for addition in &mut mutation.adds {
-                    match self.recurse_snapshot_node(&mut addition.node) {
-                        Ok(_) => {}
-                        Err(e) => return Err(e),
-                    }
+                    self.recurse_snapshot_node(&mut addition.node)?
                 }
             }
             IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text)?,
@@ -297,7 +297,8 @@ struct BreadcrumbPayload {
     #[serde(rename = "type")]
     ty: String,
     timestamp: f64,
-    category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -442,12 +443,18 @@ struct InputIncrementalSourceData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
-    texts: Vec<Value>,
+    texts: Vec<Text>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_attach_iframe: Option<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Text {
+    id: i32,
+    value: String,
 }
 
 #[derive(Debug)]
@@ -466,10 +473,10 @@ struct MutationAdditionIncrementalSourceData {
 
 #[cfg(test)]
 mod tests {
-    use crate::recording;
-    use crate::recording::Event;
     use assert_json_diff::assert_json_eq;
     use serde_json::{Error, Value};
+
+    use crate::recording::{self, Event};
 
     fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
         serde_json::from_slice(bytes)
@@ -629,20 +636,9 @@ mod tests {
 
         recording::strip_pii(&mut events).unwrap();
 
-        let aa = events.pop().unwrap();
-        if let recording::Event::T3(bb) = aa {
-            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
-                let dd = cc.adds.pop().unwrap();
-                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
-                    let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::T3(gg) = ff.variant {
-                        assert_eq!(gg.text_content, "[ip]");
-                        return;
-                    }
-                }
-            }
-        }
-        unreachable!();
+        let parsed = serde_json::to_string(&events).unwrap();
+        assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
+        assert!(parsed.contains("\"textContent\":\"[ip]\"")) // Assert text node was mutated.
     }
 
     #[test]
@@ -683,24 +679,40 @@ mod tests {
         assert_json_eq!(input_parsed, input_raw);
     }
 
-    // Event coverage
+    // Event Parsing and Scrubbing.
 
     #[test]
-    fn test_rrweb_event_3_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
+    fn test_scrub_pii_full_snapshot_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-2.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(&mut events).unwrap();
 
-        let input_parsed: recording::Event = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
+        assert!(scrubbed_result.contains("\"textContent\":\"my ssn is ***********\""));
     }
 
     #[test]
-    fn test_rrweb_event_5_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
+    fn test_scrub_pii_incremental_snapshot_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(&mut events).unwrap();
 
-        let input_parsed: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw);
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
+        assert!(scrubbed_result.contains("\"value\":\"***********\""));
+    }
+
+    #[test]
+    fn test_scrub_pii_custom_event() {
+        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
+        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
+        recording::strip_pii(&mut events).unwrap();
+
+        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));
+        assert!(scrubbed_result.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
+        assert!(scrubbed_result.contains("\"message\":\"[email]\""));
     }
 }
 
