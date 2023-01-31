@@ -5,6 +5,7 @@
 **Features**
 
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+- Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
 
 ## 23.1.1
 
