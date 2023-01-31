@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+
 ## 23.1.1
 
 **Features**:
