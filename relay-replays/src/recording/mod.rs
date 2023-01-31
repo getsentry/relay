@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::io::Read;
+use std::io::{BufReader, Read};
 
 use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
 use once_cell::sync::Lazy;
@@ -83,7 +83,8 @@ where
     Ok(())
 }
 
-fn transcode_replay(
+#[doc(hidden)]
+pub fn transcode_replay(
     body: &[u8],
     limit: usize,
     output: &mut Vec<u8>,
@@ -93,9 +94,8 @@ fn transcode_replay(
     if body.first() == Some(&b'[') {
         scrub_replay(body, encoder)
     } else {
-        // TODO(ja): BufReader around decoder?
         let decoder = ZlibDecoder::new(body).take(limit as u64);
-        scrub_replay(decoder, encoder)
+        scrub_replay(BufReader::new(decoder), encoder)
     }
 }
 
@@ -119,9 +119,9 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRec
         Some(body) => body,
     };
 
-    // TODO(ja): Benchmark if output should be pre-reserved
     let mut output = header.to_owned();
     output.push(b'\n');
+    output.reserve(body.len());
     transcode_replay(body, limit, &mut output)?;
 
     Ok(output)
