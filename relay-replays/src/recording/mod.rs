@@ -69,6 +69,20 @@ fn scrub_string(value: &mut String) {
     };
 }
 
+fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
+where
+    R: std::io::Read,
+    W: std::io::Write,
+{
+    let mut deserializer = serde_json::Deserializer::from_reader(read);
+    let mut serializer = serde_json::Serializer::new(write);
+
+    let transcoder = StringTranscoder::new(&mut deserializer, &scrub_string);
+    transcoder.serialize(&mut serializer)?;
+
+    Ok(())
+}
+
 fn transcode_replay(
     body: &[u8],
     limit: usize,
@@ -83,20 +97,6 @@ fn transcode_replay(
         let decoder = ZlibDecoder::new(body).take(limit as u64);
         scrub_replay(decoder, encoder)
     }
-}
-
-fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
-where
-    R: std::io::Read,
-    W: std::io::Write,
-{
-    let mut deserializer = serde_json::Deserializer::from_reader(read);
-    let mut serializer = serde_json::Serializer::new(write);
-
-    let transcoder = StringTranscoder::new(&mut deserializer, &scrub_string);
-    transcoder.serialize(&mut serializer)?;
-
-    Ok(())
 }
 
 /// Parses compressed replay recording payloads and applies data scrubbers.
@@ -119,6 +119,7 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRec
         Some(body) => body,
     };
 
+    // TODO(ja): Benchmark if output should be pre-reserved
     let mut output = header.to_owned();
     output.push(b'\n');
     transcode_replay(body, limit, &mut output)?;
