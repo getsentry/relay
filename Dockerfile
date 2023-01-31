@@ -52,6 +52,7 @@ RUN : \
     RELAY_FEATURES=${RELAY_FEATURES}
 
 # Collect source bundle
+# Produces `relay-bin`, `relay-debug.zip` and `relay.src.zip` in current directory
 RUN : \
     && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
     && make collect-source-bundle \
@@ -83,7 +84,7 @@ WORKDIR /work
 
 EXPOSE 3000
 
-COPY --from=relay-builder /work/relay /bin/relay
+COPY --from=relay-builder /work/relay-bin /bin/relay
 COPY --from=relay-builder /work/relay-debug.zip /work/relay.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /

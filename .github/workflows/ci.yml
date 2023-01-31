@@ -72,6 +72,11 @@ jobs:
               "$IMG_DEPS" \
               scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
 
+          # Fix permissions for shared directories
+          USER_ID=$(id -u)
+          GROUP_ID=$(id -g)
+          sudo chown -R ${USER_ID}:${GROUP_ID} target/
+
           docker buildx build \
               --platform linux/${{ matrix.arch }} \
               --tag "$IMG_VERSIONED" \
