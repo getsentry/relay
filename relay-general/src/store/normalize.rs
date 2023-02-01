@@ -25,7 +25,7 @@ use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
-use relay_general::user_agent::RawUserAgentInfo;
+use crate::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
 mod contexts;
@@ -556,7 +556,7 @@ fn is_security_report(event: &Event) -> bool {
 fn normalize_security_report(
     event: &mut Event,
     client_ip: Option<&IpAddr>,
-    user_agent: Option<&str>,
+    user_agent: RawUserAgentInfo<&str>,
 ) {
     if !is_security_report(event) {
         // This event is not a security report, exit here.
@@ -570,7 +570,7 @@ fn normalize_security_report(
         user.ip_address = Annotated::new(client_ip.to_owned());
     }
 
-    if let Some(client) = user_agent {
+    if !user_agent.is_empty() {
         let request = event
             .request
             .value_mut()
@@ -580,12 +580,32 @@ fn normalize_security_report(
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
+        /*
+            pub sec_ch_ua_platform: Option<S>,
+            /// The version number of the client's OS.
+            pub sec_ch_ua_platform_version: Option<S>,
+            /// Name of the client's web browser and its version.
+            pub sec_ch_ua: Option<S>,
+            /// Device model, e.g. samsung galaxy 3.
+            pub sec_ch_ua_model: Option<S>,
+        */
 
-        if !headers.contains("User-Agent") {
-            headers.insert(
-                HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(client)),
-            );
+        if let Some(ua) = user_agent.user_agent {
+            if !headers.contains("User-Agent") {
+                headers.insert(
+                    HeaderName::new("User-Agent"),
+                    Annotated::new(HeaderValue::new(ua)),
+                );
+            }
+        }
+
+        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
+            if !headers.contains("SEC-CH-UA-PLATFORM") {
+                headers.insert(
+                    HeaderName::new("SEC-CH-UA-PLATFORM"),
+                    Annotated::new(HeaderValue::new(x)),
+                );
+            }
         }
     }
 }
@@ -692,7 +712,7 @@ pub fn light_normalize_event(
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, config.user_agent);
+        normalize_security_report(event, config.client_ip, config.user_agent.user_agent);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(event, config.client_ip);
