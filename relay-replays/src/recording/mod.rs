@@ -77,7 +77,7 @@ where
     let mut deserializer = serde_json::Deserializer::from_reader(read);
     let mut serializer = serde_json::Serializer::new(write);
 
-    let transcoder = StringTranscoder::new(&mut deserializer, &scrub_string);
+    let transcoder = StringTranscoder::new(&mut deserializer, scrub_string);
     transcoder.serialize(&mut serializer)?;
 
     Ok(())

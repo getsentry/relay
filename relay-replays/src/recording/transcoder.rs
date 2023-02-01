@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 use serde::de;
 use serde::ser::{self, SerializeMap, SerializeSeq};
@@ -16,41 +17,47 @@ use serde::ser::{self, SerializeMap, SerializeSeq};
 /// Unlike traditional serializable types, `StringTranscoder`'s `Serialize`
 /// implementation is *not* idempotent, as it advances the state of its
 /// internal `Deserializer`. It should only ever be serialized once.
-pub struct StringTranscoder<'a, D>(RefCell<Option<D>>, &'a dyn Fn(&mut String));
+pub struct StringTranscoder<D, F>(RefCell<Option<D>>, Rc<RefCell<F>>);
 
-impl<'de, 'a, D> StringTranscoder<'a, D>
+impl<'de, D, F> StringTranscoder<D, F>
 where
     D: de::Deserializer<'de>,
+    F: FnMut(&mut String),
 {
     /// Constructs a new `StringTranscoder`.
-    pub fn new(d: D, transform: &'a dyn Fn(&mut String)) -> StringTranscoder<D> {
-        StringTranscoder(RefCell::new(Some(d)), transform)
+    pub fn new(deserializer: D, transform: F) -> Self {
+        Self::from_visitor(deserializer, Rc::new(RefCell::new(transform)))
+    }
+
+    fn from_visitor(deserializer: D, transform: Rc<RefCell<F>>) -> Self {
+        Self(RefCell::new(Some(deserializer)), transform)
     }
 }
 
-impl<'de, 'a, D> ser::Serialize for StringTranscoder<'a, D>
+impl<'de, D, F> ser::Serialize for StringTranscoder<D, F>
 where
     D: de::Deserializer<'de>,
+    F: FnMut(&mut String),
 {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: ser::Serializer,
     {
-        let Self(ref d, ref f) = self;
-
-        d.borrow_mut()
+        self.0
+            .borrow_mut()
             .take()
             .expect("Transcoder may only be serialized once")
-            .deserialize_any(Visitor(s, f))
+            .deserialize_any(Visitor(s, self.1.clone()))
             .map_err(d2s)
     }
 }
 
-struct Visitor<'a, S>(S, &'a dyn Fn(&mut String));
+struct Visitor<S, F>(S, Rc<RefCell<F>>);
 
-impl<'de, 'a, S> de::Visitor<'de> for Visitor<'a, S>
+impl<'de, S, F> de::Visitor<'de> for Visitor<S, F>
 where
     S: ser::Serializer,
+    F: FnMut(&mut String),
 {
     type Value = S::Ok;
 
@@ -167,7 +174,7 @@ where
     where
         E: de::Error,
     {
-        self.1(&mut v);
+        (self.1.borrow_mut())(&mut v);
         self.0.serialize_str(&v).map_err(s2d)
     }
 
@@ -189,17 +196,17 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        let Self(s, f) = self;
-        s.serialize_some(&StringTranscoder::new(d, f)).map_err(s2d)
+        self.0
+            .serialize_some(&StringTranscoder::from_visitor(d, self.1))
+            .map_err(s2d)
     }
 
     fn visit_newtype_struct<D>(self, d: D) -> Result<S::Ok, D::Error>
     where
         D: de::Deserializer<'de>,
     {
-        let Self(s, f) = self;
-
-        s.serialize_newtype_struct("<unknown>", &StringTranscoder::new(d, f))
+        self.0
+            .serialize_newtype_struct("<unknown>", &StringTranscoder::from_visitor(d, self.1))
             .map_err(s2d)
     }
 
@@ -208,7 +215,7 @@ where
         V: de::SeqAccess<'de>,
     {
         let mut s = self.0.serialize_seq(v.size_hint()).map_err(s2d)?;
-        while let Some(()) = v.next_element_seed(SeqSeed(&mut s, self.1))? {}
+        while let Some(()) = v.next_element_seed(SeqSeed(&mut s, self.1.clone()))? {}
         s.end().map_err(s2d)
     }
 
@@ -217,8 +224,9 @@ where
         V: de::MapAccess<'de>,
     {
         let mut s = self.0.serialize_map(v.size_hint()).map_err(s2d)?;
-        while let Some(()) = v.next_key_seed(KeySeed(&mut s, self.1))? {
-            v.next_value_seed(ValueSeed(&mut s, self.1))?;
+        // NOTE: Intentionally no string transforms on keys.
+        while let Some(()) = v.next_key_seed(KeySeed(&mut s))? {
+            v.next_value_seed(ValueSeed(&mut s, self.1.clone()))?;
         }
         s.end().map_err(s2d)
     }
@@ -238,11 +246,12 @@ where
     }
 }
 
-struct SeqSeed<'a, S: 'a>(&'a mut S, &'a dyn Fn(&mut String));
+struct SeqSeed<'a, S: 'a, F>(&'a mut S, Rc<RefCell<F>>);
 
-impl<'de, 'a, S> de::DeserializeSeed<'de> for SeqSeed<'a, S>
+impl<'de, 'a, S, F> de::DeserializeSeed<'de> for SeqSeed<'a, S, F>
 where
     S: ser::SerializeSeq,
+    F: FnMut(&mut String),
 {
     type Value = ();
 
@@ -250,13 +259,13 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        let Self(s, f) = self;
-        s.serialize_element(&StringTranscoder::new(deserializer, f))
+        self.0
+            .serialize_element(&StringTranscoder::from_visitor(deserializer, self.1))
             .map_err(s2d)
     }
 }
 
-struct KeySeed<'a, S: 'a>(&'a mut S, &'a dyn Fn(&mut String));
+struct KeySeed<'a, S: 'a>(&'a mut S);
 
 impl<'de, 'a, S> de::DeserializeSeed<'de> for KeySeed<'a, S>
 where
@@ -268,18 +277,18 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        let Self(s, _) = self;
-        // NOTE: Skip keys for transforming
-        s.serialize_key(&StringTranscoder::new(deserializer, &|_| ()))
+        self.0
+            .serialize_key(&StringTranscoder::new(deserializer, |_| ()))
             .map_err(s2d)
     }
 }
 
-struct ValueSeed<'a, S: 'a>(&'a mut S, &'a dyn Fn(&mut String));
+struct ValueSeed<'a, S: 'a, F>(&'a mut S, Rc<RefCell<F>>);
 
-impl<'de, 'a, S> de::DeserializeSeed<'de> for ValueSeed<'a, S>
+impl<'de, 'a, S, F> de::DeserializeSeed<'de> for ValueSeed<'a, S, F>
 where
     S: ser::SerializeMap,
+    F: FnMut(&mut String),
 {
     type Value = ();
 
@@ -287,8 +296,8 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        let Self(s, f) = self;
-        s.serialize_value(&StringTranscoder::new(deserializer, f))
+        self.0
+            .serialize_value(&StringTranscoder::from_visitor(deserializer, self.1))
             .map_err(s2d)
     }
 }
