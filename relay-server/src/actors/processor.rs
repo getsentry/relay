@@ -799,7 +799,7 @@ impl EnvelopeProcessorService {
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at();
-        let extracted_metrics = &mut &mut state.extracted_metrics.project_metrics;
+        let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
         let client = envelope.meta().client().map(|x| x.to_owned());
