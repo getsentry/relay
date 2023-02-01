@@ -6,14 +6,14 @@ use std::fmt;
 use serde::de;
 use serde::ser::{self, SerializeMap, SerializeSeq};
 
-/// A Serde transcoder.
+/// A Serde transcoder that transforms strings.
 ///
-/// In most cases, the `transcode` function should be used instead of this
-/// type.
+/// Streams all contents from the deserializer into the serializer and passes
+/// strings through a mutation callback.
 ///
 /// # Note
 ///
-/// Unlike traditional serializable types, `Transcoder`'s `Serialize`
+/// Unlike traditional serializable types, `StringTranscoder`'s `Serialize`
 /// implementation is *not* idempotent, as it advances the state of its
 /// internal `Deserializer`. It should only ever be serialized once.
 pub struct StringTranscoder<'a, D>(RefCell<Option<D>>, &'a dyn Fn(&mut String));
@@ -22,7 +22,7 @@ impl<'de, 'a, D> StringTranscoder<'a, D>
 where
     D: de::Deserializer<'de>,
 {
-    /// Constructs a new `Transcoder`.
+    /// Constructs a new `StringTranscoder`.
     pub fn new(d: D, transform: &'a dyn Fn(&mut String)) -> StringTranscoder<D> {
         StringTranscoder(RefCell::new(Some(d)), transform)
     }

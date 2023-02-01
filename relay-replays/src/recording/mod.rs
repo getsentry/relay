@@ -83,7 +83,7 @@ where
     Ok(())
 }
 
-#[doc(hidden)]
+#[doc(hidden)] // Public for benchmarks.
 pub fn transcode_replay(
     body: &[u8],
     limit: usize,
@@ -121,6 +121,9 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRec
 
     let mut output = header.to_owned();
     output.push(b'\n');
+    // Data scrubbing usually does not change the size of the output by much. We can preallocate
+    // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
+    // Benchmarks have NOT shown a big difference, however.
     output.reserve(body.len());
     transcode_replay(body, limit, &mut output)?;
 
