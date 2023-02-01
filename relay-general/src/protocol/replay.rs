@@ -32,7 +32,7 @@ use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
 use crate::store::{self, normalize_ip_addresses_generic, user_agent};
-use crate::types::{Annotated, Array, Value};
+use crate::types::{Annotated, Array};
 use crate::user_agent::RawUserAgentInfo;
 
 #[derive(Debug)]
