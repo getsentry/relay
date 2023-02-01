@@ -33,7 +33,7 @@ use serde::de;
 /// ```ignore
 /// struct StringDefault(&'static str);
 ///
-/// impl Transformer for StringDefault {
+/// impl Transform for StringDefault {
 ///     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
 ///         match v {
 ///             "" => Cow::Borrowed(self.0),
@@ -49,7 +49,7 @@ use serde::de;
 ///     }
 /// }
 /// ```
-pub trait Transformer {
+pub trait Transform {
     fn transform_bool(&mut self, v: bool) -> bool {
         v
     }
@@ -167,7 +167,7 @@ pub struct TransformingDeserializer<'a, D, T>(D, Mut<'a, T>);
 impl<'de, D, T> TransformingDeserializer<'static, D, T>
 where
     D: de::Deserializer<'de>,
-    T: Transformer,
+    T: Transform,
 {
     /// Creates a new `TransformingDeserializer`.
     pub fn new(deserializer: D, transformer: T) -> Self {
@@ -178,7 +178,7 @@ where
 impl<'de, 'a, D, T> TransformingDeserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
-    T: Transformer,
+    T: Transform,
 {
     fn borrowed(deserializer: D, transformer: &'a mut T) -> Self {
         Self(deserializer, Mut::Borrowed(transformer))
@@ -188,7 +188,7 @@ where
 impl<'de, 'a, D, T> de::Deserializer<'de> for TransformingDeserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
-    T: Transformer,
+    T: Transform,
 {
     type Error = D::Error;
 
@@ -449,7 +449,7 @@ struct Visitor<'a, V, T>(V, &'a mut T);
 impl<'de, 'a, V, T> de::Visitor<'de> for Visitor<'a, V, T>
 where
     V: de::Visitor<'de>,
-    T: Transformer,
+    T: Transform,
 {
     type Value = V::Value;
 
@@ -655,7 +655,7 @@ struct SeqAccess<'a, A, T>(A, &'a mut T);
 impl<'de, 'a, A, T> de::SeqAccess<'de> for SeqAccess<'a, A, T>
 where
     A: de::SeqAccess<'de>,
-    T: Transformer,
+    T: Transform,
 {
     type Error = A::Error;
 
@@ -676,7 +676,7 @@ struct MapAccess<'a, A, T>(A, &'a mut T);
 impl<'de, 'a, A, T> de::MapAccess<'de> for MapAccess<'a, A, T>
 where
     A: de::MapAccess<'de>,
-    T: Transformer,
+    T: Transform,
 {
     type Error = A::Error;
 
@@ -701,7 +701,7 @@ struct DeserializeSeed<'a, D, T>(D, &'a mut T);
 impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeSeed<'a, D, T>
 where
     D: de::DeserializeSeed<'de>,
-    T: Transformer,
+    T: Transform,
 {
     type Value = D::Value;
 

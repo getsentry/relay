@@ -11,7 +11,7 @@ use relay_general::processor::{
 };
 use relay_general::types::{Meta, ProcessingAction};
 
-use crate::transform::{Transformer, TransformingDeserializer};
+use crate::transform::{Transform, TransformingDeserializer};
 
 #[derive(Debug)]
 pub enum ParseRecordingError {
@@ -59,7 +59,7 @@ static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 
 struct ScrubbingTransformer;
 
-impl Transformer for ScrubbingTransformer {
+impl Transform for ScrubbingTransformer {
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
