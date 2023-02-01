@@ -253,6 +253,22 @@ fn get_seed(
     event_id: &EventId,
     result: &SamplingConfigMatchResult,
 ) -> Uuid {
+    // If we are in a situation in which we have matched a trace rule, we want to use the trace id
+    // as the seed for the random number generation, to guarantee the same sampling result
+    // across transactions of the same trace.
+    // TODO: does this make sense if we incur in a situation in which two transactions of the same
+    //  trace but from a different project have different accumulated factors that lead to a different
+    //  sampling even if we have the same seed?
+    //
+    // /hello -> /world -> /transaction belong to trace_id = abc
+    // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
+    // * each project has a single transaction rule with different factors
+    //
+    // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
+    // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
+    // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
+    //
+    // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same, do we want this?
     if result.has_matched_trace_rule {
         if let Some(dsc) = dsc {
             dsc.trace_id
@@ -290,7 +306,10 @@ fn get_sampling_match_result(
     // We perform the rule matching with the multi-matching logic.
     let result = no_match_if_none!(merged_config.match_against_rules(event, dsc, ip_addr, now));
 
-    // If we have a match, we will
+    // If we have a match, we will try to derive the sample rate based on the sampling mode.
+    //
+    // Keep in mind that the sample rate received here has already been derived by the matching
+    // logic, based on multiple matches and decaying functions.
     let sample_rate = match sampling_config.mode {
         SamplingMode::Received => result.sample_rate,
         SamplingMode::Total => match dsc {
@@ -306,6 +325,8 @@ fn get_sampling_match_result(
         }
     };
 
+    // Only if we arrive at this stage, it means that we have found a match and we want to prepare
+    // the data for making the sampling decision.
     SamplingMatchResult::Match {
         sample_rate,
         seed: get_seed(dsc, event_id, &result),
