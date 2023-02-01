@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
+- Fix a bug where the replays ip-address normalization was not being applied when the user object was omitted. ([#1805](https://github.com/getsentry/relay/pull/1805))
 
 **Internal**:
 
