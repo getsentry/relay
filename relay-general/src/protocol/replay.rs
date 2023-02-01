@@ -31,7 +31,7 @@ use std::net::IpAddr as RealIPAddr;
 use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
-use crate::store::{self, user_agent};
+use crate::store::{self, normalize_ip_addresses_generic, user_agent};
 use crate::types::{Annotated, Array, Value};
 use crate::user_agent::RawUserAgentInfo;
 
@@ -255,53 +255,12 @@ impl Replay {
     }
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
-        if let Some(client_ip) = ip_address {
-            if let Some(ref mut request) = self.request.value_mut() {
-                if let Some(ref mut env) = request.env.value_mut() {
-                    if let Some(&mut Value::String(ref mut http_ip)) = env
-                        .get_mut("REMOTE_ADDR")
-                        .and_then(|annotated| annotated.value_mut().as_mut())
-                    {
-                        if http_ip == "{{auto}}" {
-                            *http_ip = client_ip.to_string();
-                        }
-                    }
-                }
-            }
-
-            if let Some(ref mut user) = self.user.value_mut() {
-                if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                    if user_ip.is_auto() {
-                        *user_ip = IpAddr(client_ip.to_string());
-                    }
-                }
-            }
-        }
-
-        // Copy IPs from request interface to user, and resolve platform-specific backfilling
-        let http_ip = self
-            .request
-            .value()
-            .and_then(|request| request.env.value())
-            .and_then(|env| env.get("REMOTE_ADDR"))
-            .and_then(Annotated::<Value>::as_str)
-            .and_then(|ip| IpAddr::parse(ip).ok());
-
-        if let Some(http_ip) = http_ip {
-            let user = self.user.value_mut().get_or_insert_with(User::default);
-            user.ip_address.value_mut().get_or_insert(http_ip);
-        } else if let Some(client_ip) = ip_address {
-            let user = self.user.value_mut().get_or_insert_with(User::default);
-            // auto is already handled above
-            if user.ip_address.value().is_none() {
-                let platform = self.platform.as_str();
-
-                // In an ideal world all SDKs would set {{auto}} explicitly.
-                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(IpAddr(client_ip.to_string()));
-                }
-            }
-        }
+        normalize_ip_addresses_generic(
+            &mut self.request,
+            &mut self.user,
+            &self.platform,
+            ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        )
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
