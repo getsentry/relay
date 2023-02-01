@@ -1,4 +1,5 @@
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import json
 import signal
@@ -37,6 +38,21 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     metrics_consumer.assert_empty()
     return metrics
+
+
+def metrics_by_name_group_by_project(metrics_consumer, count, timeout=None):
+    """
+    Return list of pairs metric name and metric dict
+    it useful when you have different projects
+    """
+    metrics_by_project = defaultdict(dict)
+    while True:
+        try:
+            metric = metrics_consumer.get_metric(timeout)
+            metrics_by_project[metric["project_id"]][metric["name"]] = metric
+        except AssertionError:
+            metrics_consumer.assert_empty()
+            return metrics_by_project
 
 
 def test_metrics(mini_sentry, relay):
@@ -684,18 +700,19 @@ def test_transaction_metrics_count_per_root_project(
     relay = relay_with_processing(options=TEST_CONFIG)
 
     project_id = 42
+    mini_sentry.add_full_project_config(41)
     mini_sentry.add_full_project_config(project_id)
-    config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
-    config["sessionMetrics"] = {"version": 1}
-    config["breakdownsV2"] = {
-        "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
-    }
-
-    config["transactionMetrics"] = {
-        "version": 1,
-    }
+    for project_id in (41, 42):
+        config = mini_sentry.project_configs[project_id]["config"]
+        config["sessionMetrics"] = {"version": 1}
+        config["breakdownsV2"] = {
+            "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
+        }
+        config["transactionMetrics"] = {
+            "version": 1,
+        }
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -703,34 +720,41 @@ def test_transaction_metrics_count_per_root_project(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    for _ in range(3):
-        relay.send_transaction(
-            42, transaction, transaction_from_dsc="transaction_which_starts_trace"
-        )
-        time.sleep(0.3)
+    relay.send_transaction(41, transaction, transaction_from_dsc="test")
+
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "test": {"value": 1.2},
+    }
+    relay.send_transaction(42, transaction)
     relay.send_transaction(42, transaction)
 
     event, _ = transactions_consumer.get_event()
-    span_time = 9.910106
 
-    assert event["breakdowns"] == {
-        "span_ops": {
-            "ops.react.mount": {"value": span_time, "unit": "millisecond"},
-            "total.time": {"value": span_time, "unit": "millisecond"},
-        }
+    metrics_by_project = metrics_by_name_group_by_project(
+        metrics_consumer, 4, timeout=2
+    )
+
+    assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 41,
+        "retention_days": 90,
+        "tags": {"transaction": "test"},
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 1.0,
     }
-
-    metrics = metrics_by_name(metrics_consumer, 6)
-
-    assert metrics["c:transactions/count_per_root_project@none"] == {
+    assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {"transaction": "transaction_which_starts_trace"},
+        "tags": {},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
-        "value": 3.0,
+        "value": 2.0,
     }
 
 
