@@ -60,13 +60,15 @@ static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     )
 });
 
-fn scrub_string(value: &mut String) {
+fn scrub_string(value: Cow<'_, str>) -> Cow<'_, str> {
     let mut processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
-    match processor.process_string(value, &mut Meta::default(), &REPLAY_PII_STATE) {
-        Err(ProcessingAction::DeleteValueHard) => *value = String::new(),
-        Err(ProcessingAction::DeleteValueSoft) => *value = String::new(),
-        _ => (),
-    };
+
+    let mut value = value.into_owned();
+    match processor.process_string(&mut value, &mut Meta::default(), &REPLAY_PII_STATE) {
+        Err(ProcessingAction::DeleteValueHard) => Cow::Borrowed(""),
+        Err(ProcessingAction::DeleteValueSoft) => Cow::Borrowed(""),
+        _ => Cow::Owned(value),
+    }
 }
 
 fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
