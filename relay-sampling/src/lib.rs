@@ -878,6 +878,18 @@ impl SamplingConfig {
         !self.rules.iter().all(SamplingRule::supported)
     }
 
+    /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
+    ///
+    /// The multi-matching algorithm used iterates by collecting and multiplying factor rules until
+    /// it finds a sample rate rule. Once a sample rate rule is found, the final sample rate is
+    /// computed by multiplying it with the previously accumulated factors.
+    ///
+    /// The default accumulated factors equal to 1 because it is the identity of the multiplication
+    /// operation, thus in case no factor rules are matched, the final result will just be the
+    /// sample rate of the matching rule.
+    ///
+    /// In case no sample rate rule is matched, we are going to return a None, signaling that no
+    /// match has been found.
     pub fn match_against_rules(
         &self,
         event: &Event,
@@ -911,12 +923,13 @@ impl SamplingConfig {
                     let value = active_rule.get_sampling_strategy_value(now);
 
                     if rule.ty == RuleType::Trace {
+                        // We use this flag to have observability into the matching process because
+                        // we will need it when performing sampling decisions.
                         has_matched_trace_rule = true
                     }
 
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingConfigMatchResult {
-                            // We need to perform clamping here, in order to avoid sample rates outside of [0.0, 1.0].
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
                             has_matched_trace_rule,
                         });
@@ -2384,7 +2397,7 @@ mod tests {
     }
 
     #[test]
-    /// test that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
+    /// Tests that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_matches() {
         let rules = SamplingConfig {
             rules: vec![
@@ -2447,7 +2460,7 @@ mod tests {
             next_id: None,
         };
 
-        // earl return of first rule
+        // early return of first rule
         let event = Event {
             ty: Annotated::new(EventType::Transaction),
             release: Annotated::new("1.1.1".to_string().into()),
@@ -2635,7 +2648,7 @@ mod tests {
     }
 
     #[test]
-    /// test that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
+    /// Test that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_multi_matching_with_transaction_event_decaying_rules_and_matches() {
         let rules = SamplingConfig {
             rules: vec![

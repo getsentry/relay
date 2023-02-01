@@ -374,12 +374,14 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests_new {
+    use chrono::Duration as DateDuration;
+
     use relay_common::EventType;
     use relay_general::protocol::{EventId, LenientString};
     use relay_general::types::Annotated;
     use relay_sampling::{
-        EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule,
-        SamplingStrategy,
+        DecayingFunction, EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType,
+        SamplingConfig, SamplingRule, SamplingStrategy, TimeRange,
     };
 
     use crate::testutils::project_state_with_config;
@@ -509,10 +511,21 @@ mod tests_new {
         }
     }
 
-    // with both configs trace and transaction containing transaction
-    // with empty project and root project
-    // with full project and empty root project
-    // with empty project and full root project
+    fn mocked_decaying_sampling_rule(
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        sampling_strategy: SamplingStrategy,
+        decaying_fn: DecayingFunction,
+    ) -> SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_strategy,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: TimeRange { start, end },
+            decaying_fn,
+        }
+    }
 
     #[test]
     /// Tests the merged config of the two configs with rules.
@@ -944,6 +957,160 @@ mod tests_new {
     }
 
     #[test]
+    /// Tests that match is returned with sample rate value interpolated with linear decaying function.
+    fn test_get_sampling_match_result_with_linear_decaying_function() {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                Some(now - DateDuration::days(1)),
+                Some(now + DateDuration::days(1)),
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(
+            result,
+            SamplingMatchResult::Match {
+                sample_rate: 0.75,
+                seed: event.id.0.unwrap().0,
+                rule_id: RuleId(1)
+            }
+        );
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                Some(now),
+                Some(now + DateDuration::days(1)),
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(
+            result,
+            SamplingMatchResult::Match {
+                sample_rate: 1.0,
+                seed: event.id.0.unwrap().0,
+                rule_id: RuleId(1)
+            }
+        );
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                Some(now - DateDuration::days(1)),
+                Some(now),
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(result, SamplingMatchResult::NoMatch);
+    }
+
+    #[test]
+    /// Tests that no match is returned when the linear decaying function has invalid time range.
+    fn test_get_sampling_match_result_with_linear_decaying_function_and_invalid_time_range() {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                Some(now - DateDuration::days(1)),
+                None,
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(result, SamplingMatchResult::NoMatch);
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                None,
+                Some(now + DateDuration::days(1)),
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(result, SamplingMatchResult::NoMatch);
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![mocked_decaying_sampling_rule(
+                None,
+                None,
+                SamplingStrategy::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert_eq!(result, SamplingMatchResult::NoMatch);
+    }
+
+    #[test]
+    /// Tests that match is returned when
+    fn test_get_sampling_match_result_with_multiple_decaying_functions_with_factor_and_sample_rate()
+    {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+
+        let project_state = project_state_with_config(SamplingConfig {
+            rules: vec![
+                mocked_decaying_sampling_rule(
+                    Some(now - DateDuration::days(1)),
+                    Some(now + DateDuration::days(1)),
+                    SamplingStrategy::Factor { value: 5.0 },
+                    DecayingFunction::Linear { decayed_value: 1.0 },
+                ),
+                mocked_decaying_sampling_rule(
+                    Some(now - DateDuration::days(1)),
+                    Some(now + DateDuration::days(1)),
+                    SamplingStrategy::SampleRate { value: 0.3 },
+                    DecayingFunction::Constant,
+                ),
+            ],
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+
+        let result =
+            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        assert!(matches!(result, SamplingMatchResult::Match { .. }));
+        if let SamplingMatchResult::Match {
+            sample_rate,
+            seed,
+            rule_id,
+        } = result
+        {
+            assert!((sample_rate - 0.9).abs() < f64::EPSILON);
+            assert_eq!(seed, event.id.0.unwrap().0);
+            assert_eq!(rule_id, RuleId(1))
+        }
+    }
+
+    #[test]
+    /// Tests that an event is kept when there is a match and we have 100% sample rate.
     fn test_should_keep_event_return_keep_with_match_and_100_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
@@ -959,6 +1126,7 @@ mod tests_new {
     }
 
     #[test]
+    /// Tests that an event is dropped when there is a match and we have 0% sample rate.
     fn test_should_keep_event_return_drop_with_match_and_0_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
@@ -974,6 +1142,7 @@ mod tests_new {
     }
 
     #[test]
+    /// Tests that an event is kept when there is no match.
     fn test_should_keep_event_return_keep_with_no_match() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![SamplingRule {
@@ -996,21 +1165,27 @@ mod tests_new {
     }
 
     #[test]
+    /// Tests that an event is kept when there are unsupported rules.
     fn test_should_keep_event_return_keep_with_unsupported_rule() {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Unsupported, 0.0)],
+            rules: vec![
+                mocked_sampling_rule(1, RuleType::Unsupported, 0.0),
+                mocked_sampling_rule(2, RuleType::Transaction, 0.0),
+            ],
             mode: SamplingMode::Received,
             next_id: None,
         });
 
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
+        let result = should_keep_event_new(false, &project_state, None, None, Some(&event), None);
+
+        assert_eq!(result, SamplingResult::Keep);
+
         let result = should_keep_event_new(true, &project_state, None, None, Some(&event), None);
 
-        assert_eq!(result, SamplingResult::Keep)
+        assert_eq!(result, SamplingResult::Drop(RuleId(1)))
     }
-
-    // TODO: we need to add also decaying fn tests?
 }
 
 #[cfg(test)]
