@@ -977,25 +977,30 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let event = state.event.get_or_insert_with(Event::default);
-        let event_type = event.ty.value();
-        let contexts = event.contexts.get_or_insert_with(Contexts::new);
-
         envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
                 Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
-                        if event_type == Some(&EventType::Transaction) {
-                            contexts.add(SentryContext::Profile(Box::new(ProfileContext {
-                                profile_id: Annotated::new(profile_id),
-                            })));
+                        if let Some(event) = state.event.value_mut() {
+                            let event_type = event.ty.value();
+                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                            if event_type == Some(&EventType::Transaction) {
+                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
+                                    profile_id: Annotated::new(profile_id),
+                                })));
+                            }
                         }
                         item.set_payload(ContentType::Json, payload);
                         true
                     } else {
-                        if event_type == Some(&EventType::Transaction) {
-                            contexts.remove(ProfileContext::default_key());
+                        if let Some(event) = state.event.value_mut() {
+                            let event_type = event.ty.value();
+                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                            if event_type == Some(&EventType::Transaction) {
+                                contexts.remove(ProfileContext::default_key());
+                            }
                         }
+
                         state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
@@ -1009,8 +1014,12 @@ impl EnvelopeProcessorService {
                     }
                 }
                 Err(err) => {
-                    if event_type == Some(&EventType::Transaction) {
-                        contexts.remove(ProfileContext::default_key());
+                    if let Some(event) = state.event.value_mut() {
+                        let event_type = event.ty.value();
+                        let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                        if event_type == Some(&EventType::Transaction) {
+                            contexts.remove(ProfileContext::default_key());
+                        }
                     }
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
