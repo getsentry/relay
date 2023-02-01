@@ -256,11 +256,10 @@ impl Replay {
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
         if let Some(addr) = ip_address {
-            if let Some(user) = self.user.value_mut() {
-                if user.ip_address.value().is_none() {
-                    user.ip_address.set_value(Some(IpAddr(addr.to_string())));
-                }
-            }
+            let user = self.user.value_mut().get_or_insert_with(User::default);
+            user.ip_address
+                .value_mut()
+                .get_or_insert(IpAddr(addr.to_string()));
         }
     }
 
@@ -446,12 +445,27 @@ mod tests {
     fn test_missing_user() {
         let payload = include_str!("../../tests/fixtures/replays/replay_missing_user.json");
 
-        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        let replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(None, None);
+        let mut annotated_replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        let replay = annotated_replay.value_mut().as_mut().unwrap();
 
-        let user = replay_value.user.value();
+        // No user object and no ip-address was provided.
+        replay.normalize(None, None);
+        let user = replay.user.value();
         assert!(user.is_none());
+
+        // No user object but an ip-address was provided.
+        let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        replay.normalize(Some(ip_address), None);
+
+        let ip_addr = replay
+            .user
+            .value()
+            .unwrap()
+            .ip_address
+            .value()
+            .unwrap()
+            .as_str();
+        assert!(ip_addr == "127.0.0.1");
     }
 
     #[test]
