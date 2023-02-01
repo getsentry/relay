@@ -359,15 +359,6 @@ impl RequestMeta {
     }
 }
 
-fn user_agent_from_http_request<S>(request: &HttpRequest<S>) -> RawUserAgentInfo<String> {
-    let mut ua = RawUserAgentInfo::default();
-
-    for (key, value) in request.headers() {
-        ua.extract_header(key.as_str(), value.to_str().ok().map(str::to_string));
-    }
-    ua
-}
-
 pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 
 impl PartialMeta {
@@ -381,7 +372,13 @@ impl PartialMeta {
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
             forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: user_agent_from_http_request(request),
+            user_agent: {
+                let mut ua = RawUserAgentInfo::default();
+                for (key, value) in request.headers() {
+                    ua.extract_header(key.as_str(), value.to_str().ok().map(str::to_string));
+                }
+                ua
+            },
             no_cache: false,
             start_time: StartTime::extract(request).into_inner(),
         }
