@@ -174,4 +174,13 @@ mod tests {
     fn test_default_empty() {
         assert!(RawUserAgentInfo::<&str>::default().is_empty());
     }
+
+    /// Make sure to update all relevant code if you add a new field to RawUserAgentInfo.
+    #[test]
+    fn size() {
+        let ua = RawUserAgentInfo::<&str>::default();
+        let size = std::mem::size_of_val(&ua);
+        //dbg!(size);
+        assert!(size == 80);
+    }
 }

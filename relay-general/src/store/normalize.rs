@@ -580,57 +580,26 @@ fn normalize_security_report(
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
-        /*
-            pub sec_ch_ua_platform: Option<S>,
-            /// The version number of the client's OS.
-            pub sec_ch_ua_platform_version: Option<S>,
-            /// Name of the client's web browser and its version.
-            pub sec_ch_ua: Option<S>,
-            /// Device model, e.g. samsung galaxy 3.
-            pub sec_ch_ua_model: Option<S>,
-        */
 
-        if let Some(ua) = user_agent.user_agent {
-            if !headers.contains("User-Agent") {
-                headers.insert(
-                    HeaderName::new("User-Agent"),
-                    Annotated::new(HeaderValue::new(ua)),
-                );
+        let mut insert_header = |key: &str, val: Option<&str>| {
+            if let Some(val) = val {
+                if !headers.contains(key) {
+                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
+                }
             }
-        }
+        };
 
-        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
-            if !headers.contains("SEC-CH-UA-Platform") {
-                headers.insert(
-                    HeaderName::new("SEC-CH-UA-Platform"),
-                    Annotated::new(HeaderValue::new(x)),
-                );
-            }
-        }
-        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
-            if !headers.contains("SEC-CH-UA-Platform-Version") {
-                headers.insert(
-                    HeaderName::new("SEC-CH-UA-Platform-Version"),
-                    Annotated::new(HeaderValue::new(x)),
-                );
-            }
-        }
-        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
-            if !headers.contains("SEC-CH-UA") {
-                headers.insert(
-                    HeaderName::new("SEC-CH-UA"),
-                    Annotated::new(HeaderValue::new(x)),
-                );
-            }
-        }
-        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
-            if !headers.contains("SEC-CH-UA-Model") {
-                headers.insert(
-                    HeaderName::new("SEC-CH-UA-Model"),
-                    Annotated::new(HeaderValue::new(x)),
-                );
-            }
-        }
+        insert_header("User-Agent", user_agent.user_agent);
+        insert_header(
+            "SEC-CH-UA-Platform",
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        insert_header(
+            "SEC-CH-UA-Platform-Version",
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+        insert_header("SEC-CH-UA", user_agent.client_hints.sec_ch_ua);
+        insert_header("SEC-CH-UA-Model", user_agent.client_hints.sec_ch_ua_model);
     }
 }
 
