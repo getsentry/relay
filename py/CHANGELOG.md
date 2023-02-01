@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
+
 ## 0.8.17
 
 - Add utility function for matching CODEOWNER paths against a stacktrace filepath ([#1746](https://github.com/getsentry/relay/pull/1746))

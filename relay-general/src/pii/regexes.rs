@@ -89,7 +89,7 @@ pub fn get_regex_for_rule_type(
         RuleType::Userpath => smallvec![(v, &*PATH_REGEX, ReplaceBehavior::replace_group(1))],
 
         // These ought to have been resolved in CompiledConfig
-        RuleType::Alias(_) | RuleType::Multiple(_) => smallvec![],
+        RuleType::Alias(_) | RuleType::Multiple(_) | RuleType::Unknown(_) => smallvec![],
     }
 }
 
