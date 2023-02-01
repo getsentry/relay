@@ -134,6 +134,7 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
             _ => {}
         }
     }
+
     pub fn is_empty(&self) -> bool {
         self.user_agent.is_none()
             && self.client_hints.sec_ch_ua_platform.is_none()
@@ -163,24 +164,10 @@ impl<'a> RawUserAgentInfo<&'a str> {
         }
         contexts
     }
-
-    pub fn to_owned(&self) -> RawUserAgentInfo<String> {
-        RawUserAgentInfo::<String> {
-            user_agent: self.user_agent.map(str::to_string),
-            client_hints: ClientHints::<String> {
-                sec_ch_ua_platform: self.client_hints.sec_ch_ua_platform.map(str::to_string),
-                sec_ch_ua_platform_version: self
-                    .client_hints
-                    .sec_ch_ua_platform_version
-                    .map(str::to_string),
-                sec_ch_ua: self.client_hints.sec_ch_ua.map(str::to_string),
-                sec_ch_ua_model: self.client_hints.sec_ch_ua_model.map(str::to_string),
-            },
-        }
-    }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use super::*;
 
     #[test]

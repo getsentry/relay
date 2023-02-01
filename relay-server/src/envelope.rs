@@ -1278,7 +1278,7 @@ mod tests {
         assert_eq!(meta.forwarded_for(), "8.8.8.8");
         assert_eq!(
             meta.user_agent(),
-            RawUserAgentInfo::from_ua("sentry-cli/1.0")
+            &RawUserAgentInfo::from_ua("sentry-cli/1.0".to_owned())
         );
     }
 
@@ -1496,7 +1496,10 @@ mod tests {
         assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
         assert_eq!(meta.remote_addr(), Some("192.168.0.1".parse().unwrap()));
         assert_eq!(meta.forwarded_for(), "");
-        assert_eq!(meta.user_agent(), RawUserAgentInfo::from_ua("sentry/agent"));
+        assert_eq!(
+            meta.user_agent(),
+            &RawUserAgentInfo::from_ua("sentry/agent".to_owned())
+        );
     }
 
     #[test]

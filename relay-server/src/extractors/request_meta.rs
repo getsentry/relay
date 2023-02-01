@@ -253,8 +253,8 @@ impl<D> RequestMeta<D> {
     ///
     /// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies
     /// the SDK that sent the event.
-    pub fn user_agent(&self) -> RawUserAgentInfo<&str> {
-        self.user_agent.as_deref()
+    pub fn user_agent(&self) -> &RawUserAgentInfo<String> {
+        &self.user_agent
     }
 
     /// Indicates that caches should be bypassed.

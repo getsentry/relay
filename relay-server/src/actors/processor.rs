@@ -1037,7 +1037,7 @@ impl EnvelopeProcessorService {
                     &item.payload(),
                     &state.project_state.config,
                     client_addr,
-                    user_agent,
+                    user_agent.as_deref(),
                 );
 
                 match result {
@@ -2049,7 +2049,7 @@ impl EnvelopeProcessorService {
         let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent: state.envelope.meta().user_agent(),
+            user_agent: state.envelope.meta().user_agent().as_deref(),
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -2137,7 +2137,7 @@ impl EnvelopeProcessorService {
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
-        let user_agent = state.envelope.meta().user_agent().to_owned();
+        let user_agent = state.envelope.meta().user_agent().clone();
         let project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
@@ -2146,8 +2146,8 @@ impl EnvelopeProcessorService {
                 if let Some(client) = client {
                     scope.set_tag("sdk", client);
                 }
-                if let Some(user_agent) = user_agent {
-                    scope.set_extra("user_agent", user_agent.into());
+                if let Some(user_agent) = user_agent.user_agent.as_ref() {
+                    scope.set_extra("user_agent", user_agent.as_str().into());
                 }
             },
             || {
