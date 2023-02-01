@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+
+**Bug Fixes**:
+
+- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
+
+**Internal**:
+
+- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
+- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
+
 ## 23.1.1
 
 **Features**:
@@ -11,6 +26,8 @@
 **Internal**:
 
 - Fix type errors in replay recording parsing. ([#1765](https://github.com/getsentry/relay/pull/1765))
+- Remove error and session sample rate fields from replay-event parser. ([#1791](https://github.com/getsentry/relay/pull/1791))
+- Scrub replay recording PII from mutation "texts" vector. ([#1796](https://github.com/getsentry/relay/pull/1796))
 
 ## 23.1.0
 

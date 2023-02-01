@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
+
+## 0.8.17
+
+- Add utility function for matching CODEOWNER paths against a stacktrace filepath ([#1746](https://github.com/getsentry/relay/pull/1746))
+
 ## 0.8.16
 
 - The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.

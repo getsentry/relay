@@ -1,0 +1,82 @@
+[
+    {
+        "type": 2,
+        "data": {
+            "node": {
+                "type": 0,
+                "childNodes": [
+                    {
+                        "type": 1,
+                        "name": "html",
+                        "publicId": "",
+                        "systemId": "",
+                        "id": 2
+                    },
+                    {
+                        "type": 2,
+                        "tagName": "html",
+                        "attributes": {
+                            "lang": "en"
+                        },
+                        "childNodes": [
+                            {
+                                "type": 2,
+                                "tagName": "head",
+                                "attributes": {},
+                                "childNodes": [],
+                                "id": 4
+                            },
+                            {
+                                "type": 2,
+                                "tagName": "body",
+                                "attributes": {},
+                                "childNodes": [
+                                    {
+                                        "type": 2,
+                                        "tagName": "a",
+                                        "attributes": {
+                                            "href": "https://github.com/getsentry/sourcemaps.io",
+                                            "class": "github-corner",
+                                            "aria-label": "View source on Github"
+                                        },
+                                        "childNodes": [
+                                            {
+                                                "type": 2,
+                                                "tagName": "div",
+                                                "attributes": {},
+                                                "childNodes": [
+                                                    {
+                                                        "type": 3,
+                                                        "textContent": "my ssn is 111-11-1111",
+                                                        "id": 244
+                                                    }
+                                                ],
+                                                "id": 18
+                                            },
+                                            {
+                                                "type": 2,
+                                                "tagName": "img",
+                                                "attributes": {"src": "https://www.sentry.io"},
+                                                "childNodes": [],
+                                                "id": 19
+                                            }
+                                        ],
+                                        "id": 17
+                                    }
+                                ],
+                                "id": 16
+                            }
+                        ],
+                        "id": 3
+                    }
+                ],
+                "id": 1
+            },
+            "initialOffset": {
+                "left": 0,
+                "top": 0
+            }
+        },
+        "timestamp": 1658770770472
+    }
+]
