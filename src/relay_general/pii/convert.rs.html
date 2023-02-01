@@ -1412,6 +1412,67 @@
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
 <a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1514,6 +1575,7 @@
             ValueType::String.into(),
             ValueType::Number.into(),
             ValueType::Array.into(),
+            ValueType::Object.into(),
         ]),
         SelectorSpec::Not(Box::new(DATASCRUBBER_IGNORE.clone())),
     ];
@@ -1633,7 +1695,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1659,7 +1721,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1694,7 +1756,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
@@ -1734,7 +1796,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1762,7 +1824,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@ip:replace&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -2652,7 +2714,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
@@ -2820,6 +2882,66 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         });
 
         <span class="kw">let </span>pii_config = pii_config.unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+        <span class="macro">assert_annotated_snapshot!</span>(data);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_scrub_object() {
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+            <span class="macro">serde_json::json!</span>({
+                <span class="string">&quot;request&quot;</span>: {
+                    <span class="string">&quot;url&quot;</span>: <span class="string">&quot;https://www.example.com/fr/testing/authenticate&quot;</span>,
+                    <span class="string">&quot;method&quot;</span>: <span class="string">&quot;POST&quot;</span>,
+                    <span class="string">&quot;data&quot;</span>: {
+                      <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
+                      <span class="string">&quot;profile&quot;</span>: {
+                        <span class="string">&quot;email&quot;</span>: <span class="string">&quot;testing@example.com&quot;</span>,
+                        <span class="string">&quot;password&quot;</span>: {
+                          <span class="string">&quot;$eq&quot;</span>: <span class="string">&quot;u{}{}{}]H[[[]]ww6KrA9F.x-F%%&quot;
+                        </span>}
+                      },
+                      <span class="string">&quot;submit&quot;</span>: <span class="string">&quot;Se connecter&quot;
+                    </span>}
+                }
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>config = simple_enabled_pii_config();
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(config.compiled());
+        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+        <span class="macro">assert_annotated_snapshot!</span>(data);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_no_scrub_object_with_safe_fields() {
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+            <span class="macro">serde_json::json!</span>({
+                <span class="string">&quot;request&quot;</span>: {
+                    <span class="string">&quot;url&quot;</span>: <span class="string">&quot;https://www.example.com/fr/testing/authenticate&quot;</span>,
+                    <span class="string">&quot;method&quot;</span>: <span class="string">&quot;POST&quot;</span>,
+                    <span class="string">&quot;data&quot;</span>: {
+                      <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
+                      <span class="string">&quot;credentials&quot;</span>: {
+                        <span class="string">&quot;email&quot;</span>: <span class="string">&quot;testing@example.com&quot;</span>,
+                        <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
+                      },
+                      <span class="string">&quot;submit&quot;</span>: <span class="string">&quot;Se connecter&quot;
+                    </span>}
+                }
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
+            sensitive_fields: <span class="macro">vec!</span>[],
+            exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;credentials&quot;</span>.to_owned()],
+            ..simple_enabled_config()
+        })
+        .unwrap();
+
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_annotated_snapshot!</span>(data);
