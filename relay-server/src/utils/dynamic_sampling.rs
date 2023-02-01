@@ -225,7 +225,8 @@ impl SamplingConfigs {
             .rules
             .clone()
             .into_iter()
-            .filter(|rule| rule.ty != RuleType::Trace);
+            // When we would like to have error sampling, we can update this filter statement.
+            .filter(|rule| rule.ty == RuleType::Transaction);
 
         let parent_rules = self
             .root_sampling_config
@@ -236,13 +237,17 @@ impl SamplingConfigs {
 
         SamplingConfig {
             // TODO: what do we do with rule ids? Do we re-create them?
+            // ANSWER: we can use a comma separated list of ids and we rely on the fact the ids
+            // of trace and transaction rules are disjoint.
             rules: event_rules.chain(parent_rules).collect(),
             // We want to take field priority on the fields from the sampling config of the project
             // to which the incoming transaction belongs.
-            // TODO: which mode do we choose, do we want to choose the root project mode in case
-            //  we match a trace?
+            //
+            // This code ignore the situation in which we have conflicting sampling configs between
+            // root and non-root projects.
             mode: self.sampling_config.mode,
             // TODO: do we want to keep this field, it seems unused.
+            // ANSWER: remove this field.
             next_id: self.sampling_config.next_id,
         }
     }
@@ -318,7 +323,7 @@ fn get_sampling_match_result(
         },
         SamplingMode::Unsupported => {
             if processing_enabled {
-                relay_log::error!("found unsupported sampling mode even as processing Relay, keep");
+                relay_log::error!("found unsupported sampling mode even as processing Relay");
             }
 
             return SamplingMatchResult::NoMatch;
@@ -361,13 +366,19 @@ pub fn should_keep_event_new(
             seed,
         } => {
             let random_number = relay_sampling::pseudo_random_from_uuid(seed);
+            relay_log::trace!("sampling envelope with {} sample rate", sample_rate);
             if random_number >= sample_rate {
+                relay_log::trace!("dropping envelope that matched the configuration");
                 SamplingResult::Drop(rule_id)
             } else {
+                relay_log::trace!("keeping envelope that matched the configuration");
                 SamplingResult::Keep
             }
         }
-        SamplingMatchResult::NoMatch => SamplingResult::Keep,
+        SamplingMatchResult::NoMatch => {
+            relay_log::trace!("keeping envelope that didn't match the configuration");
+            SamplingResult::Keep
+        }
     }
 }
 

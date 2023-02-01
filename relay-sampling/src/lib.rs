@@ -372,7 +372,7 @@ impl Default for SamplingStrategy {
     fn default() -> Self {
         // This default implementation aims at handling backward compatibility with old sampling
         // rules that do not have the "sampling_strategy" field.
-        SamplingStrategy::SampleRate { value: 0.0 }
+        SamplingStrategy::SampleRate { value: 1.0 }
     }
 }
 
@@ -910,11 +910,6 @@ impl SamplingConfig {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 },
-                RuleType::Error => match event.ty.0 {
-                    // TODO: do we want to match an error rule only with error events?
-                    Some(EventType::Error) => rule.condition.matches(event, ip_addr),
-                    _ => false,
-                },
                 _ => false,
             };
 
@@ -925,6 +920,7 @@ impl SamplingConfig {
                     if rule.ty == RuleType::Trace {
                         // We use this flag to have observability into the matching process because
                         // we will need it when performing sampling decisions.
+                        // TODO: return seed from here directly.
                         has_matched_trace_rule = true
                     }
 
@@ -982,6 +978,7 @@ impl SamplingConfig {
         let ty = if let Some(EventType::Transaction) = &event.ty.0 {
             RuleType::Transaction
         } else {
+            // TODO: why here we match error rules if we have even types different from transactions?
             RuleType::Error
         };
 

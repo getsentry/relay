@@ -2022,13 +2022,13 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr();
 
-        match utils::should_keep_event(
+        match utils::should_keep_event_new(
+            self.config.processing_enabled(),
+            &state.project_state,
+            state.sampling_project_state.as_deref(),
             state.envelope.dsc(),
             state.event.value(),
             client_ip,
-            &state.project_state,
-            state.sampling_project_state.as_deref(),
-            self.config.processing_enabled(),
         ) {
             SamplingResult::Drop(rule_id) => {
                 // TODO: how do we deal with this?
