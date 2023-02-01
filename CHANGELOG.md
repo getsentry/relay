@@ -2,13 +2,18 @@
 
 ## Unreleased
 
-**Internal**
-
-- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
-
-**Features**
+**Features**:
 
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+
+**Bug Fixes**:
+
+- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
+
+**Internal**:
+
+- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
+- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
 
 ## 23.1.1
 
