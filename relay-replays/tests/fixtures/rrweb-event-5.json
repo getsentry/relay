@@ -6,7 +6,7 @@
             "tag": "performanceSpan",
             "payload": {
                 "op": "memory",
-                "description": "memory",
+                "description": "4111-1111-1111-1111",
                 "startTimestamp": 1658770772.902,
                 "endTimestamp": 1658770772.902,
                 "data": {
@@ -26,7 +26,7 @@
             "tag": "performanceSpan",
             "payload": {
                 "op": "navigation.navigate",
-                "description": "https://sentry.io",
+                "description": "https://sentry.io?ip-address=127.0.0.1",
                 "startTimestamp": 1665063926.125,
                 "endTimestamp": 1665063926.833,
                 "data": {
@@ -45,10 +45,21 @@
                 "timestamp": 1674135065.772,
                 "type": "default",
                 "category": "ui.input",
-                "message": "something happened",
+                "message": "user@email.com",
                 "data": {
                     "nodeId": 14235
                 }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1674135065772.32,
+        "data": {
+            "tag": "breadcrumb",
+            "payload": {
+                "timestamp": 1674135065.772,
+                "type": "default"
             }
         }
     }

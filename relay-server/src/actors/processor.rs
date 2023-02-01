@@ -1093,9 +1093,7 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
-                // we measure the impact of this change.
-                if replays_enabled && state.project_state.organization_id == Some(1) {
+                if replays_enabled {
                     // Limit expansion of recordings to the max replay size. The payload is
                     // decompressed temporarily and then immediately re-compressed. However, to
                     // limit memory pressure, we use the replay limit as a good overall limit for
@@ -1111,11 +1109,7 @@ impl EnvelopeProcessorService {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
                         }
                         Err(e) => {
-                            relay_log::warn!(
-                                "replay-recording-event: failed to parse {:?} with message {}",
-                                event_id,
-                                e
-                            );
+                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
                             context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,

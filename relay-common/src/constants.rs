@@ -22,7 +22,9 @@ use crate::macros::impl_str_serde;
 ///    violation. SDKs do not send such events.
 ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for
 ///    performance monitoring.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Default,
+)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum EventType {
@@ -40,6 +42,7 @@ pub enum EventType {
     Transaction,
     /// All events that do not qualify as any other type.
     #[serde(other)]
+    #[default]
     Default,
 }
 
@@ -54,12 +57,6 @@ impl fmt::Display for ParseEventTypeError {
 }
 
 impl std::error::Error for ParseEventTypeError {}
-
-impl Default for EventType {
-    fn default() -> Self {
-        EventType::Default
-    }
-}
 
 impl FromStr for EventType {
     type Err = ParseEventTypeError;
@@ -575,7 +572,7 @@ impl std::ops::Deref for CustomUnit {
 /// measurements.
 ///
 /// Units and their precisions are uniquely represented by a string identifier.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 pub enum MetricUnit {
     /// A time duration, defaulting to `"millisecond"`.
     Duration(DurationUnit),
@@ -586,6 +583,7 @@ pub enum MetricUnit {
     /// user-defined units without builtin conversion or default.
     Custom(CustomUnit),
     /// Untyped value without a unit (`""`).
+    #[default]
     None,
 }
 
@@ -593,12 +591,6 @@ impl MetricUnit {
     /// Returns `true` if the metric_unit is [`None`].
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
-    }
-}
-
-impl Default for MetricUnit {
-    fn default() -> Self {
-        MetricUnit::None
     }
 }
 

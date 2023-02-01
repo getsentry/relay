@@ -3,7 +3,12 @@
         "type": 3,
         "data": {
             "source": 0,
-            "texts": [],
+            "texts": [
+                {
+                    "id": 1,
+                    "value": "127.0.0.1"
+                }
+            ],
             "attributes": [],
             "removes": [],
             "adds": [

@@ -28,9 +28,9 @@ use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
 use crate::store::is_valid_platform;
-use crate::store::user_agent::normalize_user_agent_generic;
+use crate::store::user_agent::normalize_user_agent_info_generic;
 use crate::types::{Annotated, Array};
-use crate::user_agent;
+use crate::user_agent::RawUserAgentInfo;
 use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
 
@@ -108,28 +108,6 @@ pub struct Replay {
     /// }
     /// ```
     pub replay_type: Annotated<String>,
-
-    /// The sample rate used to make a recording decision when an error has been detected.
-    ///
-    /// Example:
-    ///
-    /// ```json
-    /// {
-    ///     "error_sample_rate": 0.75
-    /// }
-    /// ```
-    pub error_sample_rate: Annotated<f64>,
-
-    /// The sample rate used to make a recording decision
-    ///
-    /// Example:
-    ///
-    /// ```json
-    /// {
-    ///     "session_sample_rate": 0.125
-    /// }
-    /// ```
-    pub session_sample_rate: Annotated<f64>,
 
     /// Segment identifier.
     ///
@@ -286,16 +264,23 @@ impl Replay {
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
-        let user_agent = match user_agent::get_user_agent(&self.request) {
-            Some(ua) => ua,
-            None => match default_user_agent {
-                Some(dua) => dua,
-                None => return,
-            },
+        let headers = match self
+            .request
+            .value()
+            .and_then(|request| request.headers.value())
+        {
+            Some(headers) => headers,
+            None => return,
         };
 
+        let mut user_agent_info = RawUserAgentInfo::new(headers);
+
+        if user_agent_info.user_agent.is_none() {
+            user_agent_info.user_agent = default_user_agent;
+        }
+
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        normalize_user_agent_generic(contexts, &self.platform, user_agent);
+        normalize_user_agent_info_generic(contexts, &self.platform, &user_agent_info);
     }
 
     fn normalize_platform(&mut self) {
@@ -396,8 +381,6 @@ mod tests {
                 uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )),
             replay_type: Annotated::new("session".to_string()),
-            error_sample_rate: Annotated::new(0.5),
-            session_sample_rate: Annotated::new(0.5),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             replay_start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
