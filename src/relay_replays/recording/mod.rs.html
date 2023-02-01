@@ -299,13 +299,19 @@
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io::{BufReader, Read};
 
 <span class="kw">use </span>flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{
@@ -313,9 +319,7 @@
 };
 <span class="kw">use </span>relay_general::types::{Meta, ProcessingAction};
 
-<span class="kw">mod </span>transcoder;
-
-<span class="kw">use </span>transcoder::StringTranscoder;
+<span class="kw">use </span><span class="kw">crate</span>::transform::{<span class="self">self</span>, Transform};
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ParseRecordingError {
@@ -361,13 +365,22 @@
     )
 });
 
-<span class="kw">fn </span>scrub_string(value: <span class="kw-2">&amp;mut </span>String) {
-    <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
-    <span class="kw">match </span>processor.process_string(value, <span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>REPLAY_PII_STATE) {
-        <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard) =&gt; <span class="kw-2">*</span>value = String::new(),
-        <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft) =&gt; <span class="kw-2">*</span>value = String::new(),
-        <span class="kw">_ </span>=&gt; (),
-    };
+<span class="kw">struct </span>ScrubbingTransformer;
+
+<span class="kw">impl </span>Transform <span class="kw">for </span>ScrubbingTransformer {
+    <span class="kw">fn </span>transform_str&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
+        <span class="self">self</span>.transform_string(v.to_owned())
+    }
+
+    <span class="kw">fn </span>transform_string(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>value: String) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
+
+        <span class="kw">match </span>processor.process_string(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>REPLAY_PII_STATE) {
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard) =&gt; Cow::Borrowed(<span class="string">&quot;&quot;</span>),
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft) =&gt; Cow::Borrowed(<span class="string">&quot;&quot;</span>),
+            <span class="kw">_ </span>=&gt; Cow::Owned(value),
+        }
+    }
 }
 
 <span class="kw">fn </span>scrub_replay&lt;R, W&gt;(read: R, write: W) -&gt; <span class="prelude-ty">Result</span>&lt;(), ParseRecordingError&gt;
@@ -378,8 +391,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>deserializer = serde_json::Deserializer::from_reader(read);
     <span class="kw">let </span><span class="kw-2">mut </span>serializer = serde_json::Serializer::new(write);
 
-    <span class="kw">let </span>transcoder = StringTranscoder::new(<span class="kw-2">&amp;mut </span>deserializer, <span class="kw-2">&amp;</span>scrub_string);
-    transcoder.serialize(<span class="kw-2">&amp;mut </span>serializer)<span class="question-mark">?</span>;
+    <span class="kw">let </span>transformer = ScrubbingTransformer;
+    <span class="kw">let </span>scrubber = transform::Deserializer::new(<span class="kw-2">&amp;mut </span>deserializer, transformer);
+    serde_transcode::transcode(scrubber, <span class="kw-2">&amp;mut </span>serializer)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }
