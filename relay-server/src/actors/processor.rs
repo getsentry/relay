@@ -983,7 +983,7 @@ impl EnvelopeProcessorService {
 
         envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                (Some(profile_id), Ok(payload)) => {
+                Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
                         if event_type == Some(&EventType::Transaction) {
                             contexts.add(SentryContext::Profile(Box::new(ProfileContext {
@@ -1008,7 +1008,7 @@ impl EnvelopeProcessorService {
                         false
                     }
                 }
-                (None, Err(err)) => {
+                Err(err) => {
                     if event_type == Some(&EventType::Transaction) {
                         contexts.remove(ProfileContext::default_key());
                     }
@@ -1027,7 +1027,6 @@ impl EnvelopeProcessorService {
                     );
                     false
                 }
-                (_, _) => false,
             },
             _ => true,
         });

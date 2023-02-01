@@ -137,20 +137,23 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-pub fn expand_profile(payload: &[u8]) -> (Option<EventId>, Result<Vec<u8>, ProfileError>) {
+pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError> {
     let profile: MinimalProfile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
-        Err(err) => return (None, Err(err)),
+        Err(err) => return Err(err),
     };
     let processed_payload = match profile.version {
         Version::V1 => parse_sample_profile(payload),
         Version::Unknown => match profile.platform {
             Platform::Android => parse_android_profile(payload),
             Platform::Cocoa => parse_cocoa_profile(payload),
-            _ => return (None, Err(ProfileError::PlatformNotSupported)),
+            _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    (Some(profile.event_id), processed_payload)
+    match processed_payload {
+        Ok(payload) => Ok((profile.event_id, payload)),
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg(test)]
@@ -159,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_with_version() {
-        let data = r#"{"version":"1","platform":"cocoa","event_id:"5D4714BF-CBD8-4BAC-B796-FDE61B3C17D1"}"#;
+        let data = r#"{"version":"1","platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, Version::V1);
@@ -167,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_without_version() {
-        let data = r#"{"platform":"cocoa","event_id":"5D4714BF-CBD8-4BAC-B796-FDE61B3C17D1"}"#;
+        let data = r#"{"platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, Version::Unknown);
@@ -176,14 +179,12 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let (_, profile) = expand_profile(payload);
-        assert!(profile.is_ok());
+        assert!(expand_profile(payload).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
-        let (_, profile) = expand_profile(payload);
-        assert!(profile.is_ok());
+        assert!(expand_profile(payload).is_ok());
     }
 }
