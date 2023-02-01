@@ -1,0 +1,49 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "request": {
+    "url": "https://www.example.com/fr/testing/authenticate",
+    "method": "POST",
+    "data": {
+      "password": "[Filtered]",
+      "profile": {
+        "email": "testing@example.com",
+        "password": null
+      },
+      "submit": "Se connecter"
+    }
+  },
+  "_meta": {
+    "request": {
+      "data": {
+        "password": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 4
+          }
+        },
+        "profile": {
+          "password": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "x"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

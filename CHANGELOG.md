@@ -13,6 +13,7 @@
 **Internal**:
 
 - Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
+- Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
 
 ## 23.1.1
 
