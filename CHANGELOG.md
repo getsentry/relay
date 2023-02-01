@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-**Features**
+**Features**:
 
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+
+**Bug Fixes**:
+
+- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
 
 **Internal**:
 

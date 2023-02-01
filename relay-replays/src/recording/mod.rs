@@ -1,7 +1,10 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::Display;
-use std::io::{Read, Write};
+use std::fmt;
+use std::io::{BufReader, Read};
+
+use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
+use once_cell::sync::Lazy;
+use serde::Serialize;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
@@ -9,479 +12,126 @@ use relay_general::processor::{
 };
 use relay_general::types::{Meta, ProcessingAction};
 
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+mod transcoder;
 
-mod serialization;
+use transcoder::StringTranscoder;
+
+#[derive(Debug)]
+pub enum ParseRecordingError {
+    Json(serde_json::Error),
+    Message(&'static str),
+}
+
+impl fmt::Display for ParseRecordingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseRecordingError::Json(serde_error) => write!(f, "{serde_error}"),
+            ParseRecordingError::Message(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+impl std::error::Error for ParseRecordingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ParseRecordingError::Json(e) => Some(e),
+            ParseRecordingError::Message(_) => None,
+        }
+    }
+}
+
+impl From<serde_json::Error> for ParseRecordingError {
+    fn from(err: serde_json::Error) -> Self {
+        ParseRecordingError::Json(err)
+    }
+}
+
+static REPLAY_PII_CONFIG: Lazy<PiiConfig> = Lazy::new(|| {
+    let mut pii_config = PiiConfig::default();
+    pii_config.applications = [(SelectorSpec::And(vec![]), vec!["@common".to_string()])].into();
+    pii_config
+});
+
+static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
+    ProcessingState::root().enter_static(
+        "",
+        Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
+        Some(ValueType::String),
+    )
+});
+
+fn scrub_string(value: &mut String) {
+    let mut processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
+    match processor.process_string(value, &mut Meta::default(), &REPLAY_PII_STATE) {
+        Err(ProcessingAction::DeleteValueHard) => *value = String::new(),
+        Err(ProcessingAction::DeleteValueSoft) => *value = String::new(),
+        _ => (),
+    };
+}
+
+fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
+where
+    R: std::io::Read,
+    W: std::io::Write,
+{
+    let mut deserializer = serde_json::Deserializer::from_reader(read);
+    let mut serializer = serde_json::Serializer::new(write);
+
+    let transcoder = StringTranscoder::new(&mut deserializer, &scrub_string);
+    transcoder.serialize(&mut serializer)?;
+
+    Ok(())
+}
+
+#[doc(hidden)] // Public for benchmarks.
+pub fn transcode_replay(
+    body: &[u8],
+    limit: usize,
+    output: &mut Vec<u8>,
+) -> Result<(), ParseRecordingError> {
+    let encoder = ZlibEncoder::new(output, Compression::default());
+
+    if body.first() == Some(&b'[') {
+        scrub_replay(body, encoder)
+    } else {
+        let decoder = ZlibDecoder::new(body).take(limit as u64);
+        scrub_replay(BufReader::new(decoder), encoder)
+    }
+}
 
 /// Parses compressed replay recording payloads and applies data scrubbers.
 ///
 /// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
 /// if decompressed contents exceed the limit.
-pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
+pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRecordingError> {
     // Check for null byte condition.
     if bytes.is_empty() {
-        return Err(RecordingParseError::Message("no data found"));
+        return Err(ParseRecordingError::Message("no data found"));
     }
 
     let mut split = bytes.splitn(2, |b| b == &b'\n');
     let header = split
         .next()
-        .ok_or(RecordingParseError::Message("no headers found"))?;
+        .ok_or(ParseRecordingError::Message("no headers found"))?;
 
     let body = match split.next() {
-        Some(b"") | None => return Err(RecordingParseError::Message("no body found")),
+        Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
         Some(body) => body,
     };
 
-    let mut events = deserialize_compressed(body, limit)?;
-    strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
-    let out_bytes = serialize_compressed(events)?;
-    Ok([header.into(), vec![b'\n'], out_bytes].concat())
-}
+    let mut output = header.to_owned();
+    output.push(b'\n');
+    // Data scrubbing usually does not change the size of the output by much. We can preallocate
+    // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
+    // Benchmarks have NOT shown a big difference, however.
+    output.reserve(body.len());
+    transcode_replay(body, limit, &mut output)?;
 
-fn deserialize_compressed(
-    zipped_input: &[u8],
-    limit: usize,
-) -> Result<Vec<Event>, RecordingParseError> {
-    let decoder = ZlibDecoder::new(zipped_input);
-
-    let mut buffer = Vec::new();
-    decoder.take(limit as u64).read_to_end(&mut buffer)?;
-
-    Ok(serde_json::from_slice(&buffer)?)
-}
-
-fn serialize_compressed(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
-    let buffer = serde_json::to_vec(&rrweb)?;
-
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&buffer)?;
-    let result = encoder.finish()?;
-    Ok(result)
-}
-
-fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
-    let mut pii_config = PiiConfig::default();
-    pii_config.applications =
-        BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
-
-    let pii_processor = PiiProcessor::new(pii_config.compiled());
-    let mut processor = RecordingProcessor::new(pii_processor);
-    processor.mask_pii(events)?;
-
-    Ok(())
-}
-
-// Error
-
-#[derive(Debug)]
-pub enum RecordingParseError {
-    Json(serde_json::Error),
-    Compression(std::io::Error),
-    Message(&'static str),
-    ProcessingAction(ProcessingAction),
-}
-
-impl Display for RecordingParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RecordingParseError::Json(serde_error) => write!(f, "{serde_error}"),
-            RecordingParseError::Compression(io_error) => write!(f, "{io_error}"),
-            RecordingParseError::Message(message) => write!(f, "{message}"),
-            RecordingParseError::ProcessingAction(action) => write!(f, "{action}"),
-        }
-    }
-}
-
-impl std::error::Error for RecordingParseError {}
-
-impl From<serde_json::Error> for RecordingParseError {
-    fn from(err: serde_json::Error) -> Self {
-        RecordingParseError::Json(err)
-    }
-}
-
-impl From<std::io::Error> for RecordingParseError {
-    fn from(err: std::io::Error) -> Self {
-        RecordingParseError::Compression(err)
-    }
-}
-
-// Recording Processor
-
-struct RecordingProcessor<'a> {
-    pii_processor: PiiProcessor<'a>,
-}
-
-impl RecordingProcessor<'_> {
-    fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
-        RecordingProcessor { pii_processor }
-    }
-
-    fn mask_pii(&mut self, events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
-        for event in events {
-            match event {
-                Event::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node)?,
-                Event::T3(variant) => self.recurse_incremental_source(&mut variant.data)?,
-                Event::T5(variant) => self.recurse_custom_event(variant)?,
-                _ => {}
-            };
-        }
-        Ok(())
-    }
-
-    fn recurse_incremental_source(
-        &mut self,
-        variant: &mut IncrementalSourceDataVariant,
-    ) -> Result<(), ProcessingAction> {
-        match variant {
-            IncrementalSourceDataVariant::Mutation(mutation) => {
-                for text in &mut mutation.texts {
-                    self.strip_pii(&mut text.value)?
-                }
-                for addition in &mut mutation.adds {
-                    self.recurse_snapshot_node(&mut addition.node)?
-                }
-            }
-            IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text)?,
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    fn recurse_snapshot_node(&mut self, node: &mut Node) -> Result<(), ProcessingAction> {
-        match &mut node.variant {
-            NodeVariant::T0(document) => {
-                for node in &mut document.child_nodes {
-                    self.recurse_snapshot_node(node)?
-                }
-            }
-            NodeVariant::T2(element) => self.recurse_element(element)?,
-            NodeVariant::T3(text) | NodeVariant::T4(text) | NodeVariant::T5(text) => {
-                self.strip_pii(&mut text.text_content)?;
-            }
-
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    fn recurse_custom_event(&mut self, event: &mut CustomEvent) -> Result<(), ProcessingAction> {
-        match &mut event.data {
-            CustomEventDataVariant::Breadcrumb(breadcrumb) => match &mut breadcrumb.payload.message
-            {
-                Some(message) => self.strip_pii(message)?,
-                None => {}
-            },
-            CustomEventDataVariant::PerformanceSpan(span) => {
-                self.strip_pii(&mut span.payload.description)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn recurse_element(&mut self, element: &mut ElementNode) -> Result<(), ProcessingAction> {
-        match element.tag_name.as_str() {
-            "script" | "style" => {}
-            "img" | "source" => {
-                let attrs = &mut element.attributes;
-                attrs.insert("src".to_string(), Value::String("#".to_string()));
-                self.recurse_element_children(element)?
-            }
-            _ => self.recurse_element_children(element)?,
-        }
-
-        Ok(())
-    }
-
-    fn recurse_element_children(
-        &mut self,
-        element: &mut ElementNode,
-    ) -> Result<(), ProcessingAction> {
-        for node in &mut element.child_nodes {
-            self.recurse_snapshot_node(node)?
-        }
-
-        Ok(())
-    }
-
-    fn strip_pii(&mut self, value: &mut String) -> Result<(), ProcessingAction> {
-        let field_attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
-        let processing_state =
-            ProcessingState::root().enter_static("", Some(field_attrs), Some(ValueType::String));
-        self.pii_processor
-            .process_string(value, &mut Meta::default(), &processing_state)?;
-
-        Ok(())
-    }
-}
-
-/// Event Type Parser
-///
-/// Events have an internally tagged variant on their "type" field. The type must be one of seven
-/// values. There are no default types for this variation. Because the "type" field's values are
-/// integers we must define custom deserailization behavior.
-///
-/// -> DOMCONTENTLOADED = 0
-/// -> LOAD = 1
-/// -> FULLSNAPSHOT = 2
-/// -> INCREMENTALSNAPSHOT = 3
-/// -> META = 4
-/// -> CUSTOM = 5
-/// -> PLUGIN = 6
-
-#[derive(Debug)]
-enum Event {
-    T0(Value), // 0: DOMContentLoadedEvent,
-    T1(Value), // 1: LoadEvent,
-    T2(Box<FullSnapshotEvent>),
-    T3(Box<IncrementalSnapshotEvent>),
-    T4(Box<MetaEvent>),
-    T5(Box<CustomEvent>),
-    T6(Value), // 6: PluginEvent,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEvent {
-    timestamp: u64,
-    data: FullSnapshotEventData,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct FullSnapshotEventData {
-    node: Node,
-    #[serde(rename = "initialOffset")]
-    initial_offset: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct IncrementalSnapshotEvent {
-    timestamp: u64,
-    data: IncrementalSourceDataVariant,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MetaEvent {
-    timestamp: u64,
-    data: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct CustomEvent {
-    timestamp: f64,
-    data: CustomEventDataVariant,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-enum CustomEventDataVariant {
-    #[serde(rename = "breadcrumb")]
-    Breadcrumb(Box<Breadcrumb>),
-    #[serde(rename = "performanceSpan")]
-    PerformanceSpan(Box<PerformanceSpan>),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Breadcrumb {
-    tag: String,
-    payload: BreadcrumbPayload,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct BreadcrumbPayload {
-    #[serde(rename = "type")]
-    ty: String,
-    timestamp: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    level: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PerformanceSpan {
-    tag: String,
-    payload: PerformanceSpanPayload,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PerformanceSpanPayload {
-    op: String,
-    description: String,
-    start_timestamp: f64,
-    end_timestamp: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Value>,
-}
-
-/// Node Type Parser
-///
-/// Nodes have an internally tagged variant on their "type" field. The type must be one of six
-/// values.  There are no default types for this variation. Because the "type" field's values are
-/// integers we must define custom deserailization behavior.
-///
-/// -> DOCUMENT = 0
-/// -> DOCUMENTTYPE = 1
-/// -> ELEMENT = 2
-/// -> TEXT = 3
-/// -> CDATA = 4
-/// -> COMMENT = 5
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Node {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    root_id: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_shadow_host: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_shadow: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    compat_mode: Option<String>,
-    #[serde(flatten)]
-    variant: NodeVariant,
-}
-
-#[derive(Debug)]
-
-enum NodeVariant {
-    T0(Box<DocumentNode>),
-    T1(Box<DocumentTypeNode>),
-    T2(Box<ElementNode>),
-    T3(Box<TextNode>), // text
-    T4(Box<TextNode>), // cdata
-    T5(Box<TextNode>), // comment
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DocumentNode {
-    id: i32,
-    #[serde(rename = "childNodes")]
-    child_nodes: Vec<Node>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DocumentTypeNode {
-    id: Value,
-    public_id: Value,
-    system_id: Value,
-    name: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ElementNode {
-    id: Value,
-    attributes: HashMap<String, Value>,
-    tag_name: String,
-    child_nodes: Vec<Node>,
-    #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
-    is_svg: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    need_block: Option<Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TextNode {
-    id: Value,
-    text_content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_style: Option<Value>,
-}
-
-/// Incremental Source Parser
-///
-/// Sources have an internally tagged variant on their "source" field. The type must be one of
-/// fourteen values.  Because the "type" field's values are integers we must define custom
-/// deserailization behavior.
-///
-/// -> MUTATION = 0
-/// -> MOUSEMOVE = 1
-/// -> MOUSEINTERACTION = 2
-/// -> SCROLL = 3
-/// -> VIEWPORTRESIZE = 4
-/// -> INPUT = 5
-/// -> TOUCHMOVE = 6
-/// -> MEDIAINTERACTION = 7
-/// -> STYLESHEETRULE = 8
-/// -> CANVASMUTATION = 9
-/// -> FONT = 10
-/// -> LOG = 11
-/// -> DRAG = 12
-/// -> STYLEDECLARATION = 13
-
-#[derive(Debug)]
-enum IncrementalSourceDataVariant {
-    Mutation(Box<MutationIncrementalSourceData>),
-    Input(Box<InputIncrementalSourceData>),
-    Default(Box<DefaultIncrementalSourceData>),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct InputIncrementalSourceData {
-    id: i32,
-    text: String,
-    is_checked: Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    user_triggered: Option<Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MutationIncrementalSourceData {
-    texts: Vec<Text>,
-    attributes: Vec<Value>,
-    removes: Vec<Value>,
-    adds: Vec<MutationAdditionIncrementalSourceData>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_attach_iframe: Option<Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Text {
-    id: i32,
-    value: String,
-}
-
-#[derive(Debug)]
-struct DefaultIncrementalSourceData {
-    pub source: u8,
-    pub value: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MutationAdditionIncrementalSourceData {
-    parent_id: Value,
-    next_id: Value,
-    node: Node,
+    Ok(output)
 }
 
 #[cfg(test)]
 mod tests {
-    use assert_json_diff::assert_json_eq;
-    use serde_json::{Error, Value};
-
-    use crate::recording::{self, Event};
-
-    fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
-        serde_json::from_slice(bytes)
-    }
-
     // End to end test coverage.
 
     #[test]
@@ -504,7 +154,7 @@ mod tests {
             146, 59, 13, 115, 10, 144, 115, 190, 126, 0, 2, 68, 180, 16,
         ];
 
-        let result = recording::process_recording(payload, 1000);
+        let result = super::process_recording(payload, 1000);
         assert!(!result.unwrap().is_empty());
     }
 
@@ -515,10 +165,10 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
         ];
 
-        let result = recording::process_recording(payload, 1000);
+        let result = super::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no body found"),
+            super::ParseRecordingError::Message("no body found"),
         ));
     }
 
@@ -529,10 +179,10 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
         ];
 
-        let result = recording::process_recording(payload, 1000);
+        let result = super::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Compression(_),
+            super::ParseRecordingError::Json(_),
         ));
     }
 
@@ -543,10 +193,10 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
         ];
 
-        let result = recording::process_recording(payload, 1000);
+        let result = super::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no body found"),
+            super::ParseRecordingError::Message("no body found"),
         ));
     }
 
@@ -555,10 +205,10 @@ mod tests {
         // Empty payload can not be decompressed.  Header check never fails.
         let payload: &[u8] = &[];
 
-        let result = recording::process_recording(payload, 1000);
+        let result = super::process_recording(payload, 1000);
         assert!(matches!(
             result.unwrap_err(),
-            recording::RecordingParseError::Message("no data found"),
+            super::ParseRecordingError::Message("no data found"),
         ));
     }
 
@@ -567,116 +217,46 @@ mod tests {
     #[test]
     fn test_pii_credit_card_removal() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-pii.json");
-        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
-        recording::strip_pii(&mut events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
 
-        let aa = events.pop().unwrap();
-        if let recording::Event::T3(bb) = aa {
-            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
-                let dd = cc.adds.pop().unwrap();
-                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
-                    let ff = ee.child_nodes.pop().unwrap();
-                    if let recording::NodeVariant::T3(gg) = ff.variant {
-                        assert_eq!(gg.text_content, "[creditcard]");
-                        return;
-                    }
-                }
-            }
-        }
-        unreachable!();
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
+        assert!(parsed.contains(r#"{"type":3,"textContent":"[creditcard]","id":284}"#));
     }
 
     #[test]
     fn test_scrub_pii_navigation() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-performance-navigation.json");
-        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
-        recording::strip_pii(&mut events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
 
-        let event = events.pop().unwrap();
-        if let recording::Event::T5(custom) = &event {
-            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
-                assert_eq!(
-                    &span.payload.description,
-                    "https://sentry.io?credit-card=[creditcard]"
-                );
-                return;
-            }
-        }
-
-        unreachable!();
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
+        assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
     }
 
     #[test]
     fn test_scrub_pii_resource() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-performance-resource.json");
-        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
-        recording::strip_pii(&mut events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
 
-        let event = events.pop().unwrap();
-        if let recording::Event::T5(custom) = &event {
-            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
-                assert_eq!(
-                    &span.payload.description,
-                    "https://sentry.io?credit-card=[creditcard]"
-                );
-                return;
-            }
-        }
-
-        unreachable!();
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
+        assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
     }
 
     #[test]
     fn test_pii_ip_address_removal() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-pii-ip-address.json");
-        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
-        recording::strip_pii(&mut events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
 
-        let parsed = serde_json::to_string(&events).unwrap();
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
         assert!(parsed.contains("\"textContent\":\"[ip]\"")) // Assert text node was mutated.
-    }
-
-    #[test]
-    fn test_rrweb_snapshot_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb.json");
-
-        let input_parsed = loads(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
-    }
-
-    #[test]
-    fn test_rrweb_incremental_source_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-diff.json");
-
-        let input_parsed = loads(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
-    }
-
-    // Node coverage
-    #[test]
-    fn test_rrweb_node_2_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2.json");
-
-        let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        assert_json_eq!(input_parsed, input_raw)
-    }
-
-    #[test]
-    fn test_rrweb_node_2_style_parsing() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-node-2-style.json");
-
-        let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
-        let input_raw: Value = serde_json::from_slice(payload).unwrap();
-        serde_json::to_string_pretty(&input_parsed).unwrap();
-        assert_json_eq!(input_parsed, input_raw);
     }
 
     // Event Parsing and Scrubbing.
@@ -684,21 +264,24 @@ mod tests {
     #[test]
     fn test_scrub_pii_full_snapshot_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-2.json");
-        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        recording::strip_pii(&mut events).unwrap();
 
-        let scrubbed_result = serde_json::to_string(&events).unwrap();
-        assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        // NOTE: The normalization below was removed
+        // assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
         assert!(scrubbed_result.contains("\"textContent\":\"my ssn is ***********\""));
     }
 
     #[test]
     fn test_scrub_pii_incremental_snapshot_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
-        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        recording::strip_pii(&mut events).unwrap();
 
-        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
         assert!(scrubbed_result.contains("\"value\":\"***********\""));
     }
@@ -706,18 +289,13 @@ mod tests {
     #[test]
     fn test_scrub_pii_custom_event() {
         let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
-        let mut events: Vec<recording::Event> = serde_json::from_slice(payload).unwrap();
-        recording::strip_pii(&mut events).unwrap();
 
-        let scrubbed_result = serde_json::to_string(&events).unwrap();
+        let mut transcoded = Vec::new();
+        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));
         assert!(scrubbed_result.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
         assert!(scrubbed_result.contains("\"message\":\"[email]\""));
     }
-}
-
-#[doc(hidden)]
-/// Only used in benchmarks.
-pub fn _deserialize_event(payload: &[u8]) {
-    let _: Vec<Event> = serde_json::from_slice(payload).unwrap();
 }
