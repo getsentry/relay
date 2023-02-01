@@ -23,9 +23,9 @@ use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Context as SentryContext, Contexts, Csp, Event, EventType,
-    ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, Metrics, ProfileContext, RelayInfo,
-    Replay, ReplayError, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus,
+    self, Breadcrumb, ClientReport, Context as SentryContext, Csp, Event, EventType, ExpectCt,
+    ExpectStaple, Hpkp, IpAddr, LenientString, Metrics, ProfileContext, RelayInfo, Replay,
+    ReplayError, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus,
     SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
@@ -983,11 +983,14 @@ impl EnvelopeProcessorService {
                     if payload.len() <= self.config.max_profile_size() {
                         if let Some(event) = state.event.value_mut() {
                             let event_type = event.ty.value();
-                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                            if event_type == Some(&EventType::Transaction) {
-                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
-                                    profile_id: Annotated::new(profile_id),
-                                })));
+                            if let Some(contexts) = event.contexts.value_mut() {
+                                if event_type == Some(&EventType::Transaction) {
+                                    contexts.add(SentryContext::Profile(Box::new(
+                                        ProfileContext {
+                                            profile_id: Annotated::new(profile_id),
+                                        },
+                                    )));
+                                }
                             }
                         }
                         item.set_payload(ContentType::Json, payload);
@@ -995,9 +998,10 @@ impl EnvelopeProcessorService {
                     } else {
                         if let Some(event) = state.event.value_mut() {
                             let event_type = event.ty.value();
-                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                            if event_type == Some(&EventType::Transaction) {
-                                contexts.remove(ProfileContext::default_key());
+                            if let Some(contexts) = event.contexts.value_mut() {
+                                if event_type == Some(&EventType::Transaction) {
+                                    contexts.remove(ProfileContext::default_key());
+                                }
                             }
                         }
 
@@ -1016,9 +1020,10 @@ impl EnvelopeProcessorService {
                 Err(err) => {
                     if let Some(event) = state.event.value_mut() {
                         let event_type = event.ty.value();
-                        let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                        if event_type == Some(&EventType::Transaction) {
-                            contexts.remove(ProfileContext::default_key());
+                        if let Some(contexts) = event.contexts.value_mut() {
+                            if event_type == Some(&EventType::Transaction) {
+                                contexts.remove(ProfileContext::default_key());
+                            }
                         }
                     }
                     match err {
