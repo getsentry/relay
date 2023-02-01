@@ -121,14 +121,14 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     }
 }
 
-impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+impl RawUserAgentInfo<&str> {
     pub fn from_headers(headers: &Headers) -> Self {
         let mut contexts = Self::default();
 
         for item in headers.iter() {
             if let Some((ref o_k, ref v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
-                    contexts.extract_header();
+                    contexts.extract_header(k, v.as_str());
                 }
             }
         }
