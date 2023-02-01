@@ -7,7 +7,7 @@ use serde::de;
 
 /// A transform for deserialized values.
 ///
-/// This transformer defines callbacks that will be called by a [`TransformingDeserializer`] during
+/// This transformer defines callbacks that will be called by a [`Deserializer`] during
 /// deserialization to map values inline. The default for every transform callback is the identity
 /// function, which will not change the value.
 ///
@@ -157,25 +157,25 @@ impl<T> Mut<'_, T> {
 ///
 /// let json = "42";
 /// let json_deserializer = &mut serde_json::Deserializer::from_str(&json);
-/// let deserializer = TransformingDeserializer::new(json_deserializer, Identity);
+/// let deserializer = Deserializer::new(json_deserializer, Identity);
 ///
 /// let number = deserializer.deserialize_u32(deserializer).unwrap();
 /// assert_eq!(number, 42);
 /// ```
-pub struct TransformingDeserializer<'a, D, T>(D, Mut<'a, T>);
+pub struct Deserializer<'a, D, T>(D, Mut<'a, T>);
 
-impl<'de, D, T> TransformingDeserializer<'static, D, T>
+impl<'de, D, T> Deserializer<'static, D, T>
 where
     D: de::Deserializer<'de>,
     T: Transform,
 {
-    /// Creates a new `TransformingDeserializer`.
+    /// Creates a new `Deserializer`.
     pub fn new(deserializer: D, transformer: T) -> Self {
         Self(deserializer, Mut::Owned(transformer))
     }
 }
 
-impl<'de, 'a, D, T> TransformingDeserializer<'a, D, T>
+impl<'de, 'a, D, T> Deserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
     T: Transform,
@@ -185,7 +185,7 @@ where
     }
 }
 
-impl<'de, 'a, D, T> de::Deserializer<'de> for TransformingDeserializer<'a, D, T>
+impl<'de, 'a, D, T> de::Deserializer<'de> for Deserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
     T: Transform,
@@ -603,8 +603,7 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        self.0
-            .visit_some(TransformingDeserializer::borrowed(d, self.1))
+        self.0.visit_some(Deserializer::borrowed(d, self.1))
     }
 
     fn visit_newtype_struct<D>(self, d: D) -> Result<Self::Value, D::Error>
@@ -612,7 +611,7 @@ where
         D: de::Deserializer<'de>,
     {
         self.0
-            .visit_newtype_struct(TransformingDeserializer::borrowed(d, self.1))
+            .visit_newtype_struct(Deserializer::borrowed(d, self.1))
     }
 
     fn visit_seq<A>(self, v: A) -> Result<Self::Value, A::Error>
@@ -710,6 +709,6 @@ where
         X: serde::Deserializer<'de>,
     {
         self.0
-            .deserialize(TransformingDeserializer::borrowed(deserializer, self.1))
+            .deserialize(Deserializer::borrowed(deserializer, self.1))
     }
 }

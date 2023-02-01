@@ -11,7 +11,7 @@ use relay_general::processor::{
 };
 use relay_general::types::{Meta, ProcessingAction};
 
-use crate::transform::{Transform, TransformingDeserializer};
+use crate::transform::{self, Transform};
 
 #[derive(Debug)]
 pub enum ParseRecordingError {
@@ -84,7 +84,7 @@ where
     let mut serializer = serde_json::Serializer::new(write);
 
     let transformer = ScrubbingTransformer;
-    let scrubber = TransformingDeserializer::new(&mut deserializer, transformer);
+    let scrubber = transform::Deserializer::new(&mut deserializer, transformer);
     serde_transcode::transcode(scrubber, &mut serializer)?;
 
     Ok(())
