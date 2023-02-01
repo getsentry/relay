@@ -556,7 +556,7 @@ fn is_security_report(event: &Event) -> bool {
 fn normalize_security_report(
     event: &mut Event,
     client_ip: Option<&IpAddr>,
-    user_agent: RawUserAgentInfo<&str>,
+    user_agent: &RawUserAgentInfo<&str>,
 ) {
     if !is_security_report(event) {
         // This event is not a security report, exit here.
@@ -600,9 +600,33 @@ fn normalize_security_report(
         }
 
         if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
-            if !headers.contains("SEC-CH-UA-PLATFORM") {
+            if !headers.contains("SEC-CH-UA-Platform") {
                 headers.insert(
-                    HeaderName::new("SEC-CH-UA-PLATFORM"),
+                    HeaderName::new("SEC-CH-UA-Platform"),
+                    Annotated::new(HeaderValue::new(x)),
+                );
+            }
+        }
+        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
+            if !headers.contains("SEC-CH-UA-Platform-Version") {
+                headers.insert(
+                    HeaderName::new("SEC-CH-UA-Platform-Version"),
+                    Annotated::new(HeaderValue::new(x)),
+                );
+            }
+        }
+        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
+            if !headers.contains("SEC-CH-UA") {
+                headers.insert(
+                    HeaderName::new("SEC-CH-UA"),
+                    Annotated::new(HeaderValue::new(x)),
+                );
+            }
+        }
+        if let Some(x) = user_agent.client_hints.sec_ch_ua_platform {
+            if !headers.contains("SEC-CH-UA-Model") {
+                headers.insert(
+                    HeaderName::new("SEC-CH-UA-Model"),
                     Annotated::new(HeaderValue::new(x)),
                 );
             }
@@ -712,7 +736,7 @@ pub fn light_normalize_event(
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, config.user_agent.user_agent);
+        normalize_security_report(event, config.client_ip, &config.user_agent);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(event, config.client_ip);

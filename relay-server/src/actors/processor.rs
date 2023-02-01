@@ -2137,7 +2137,7 @@ impl EnvelopeProcessorService {
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
-        let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
+        let user_agent = state.envelope.meta().user_agent().to_owned();
         let project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
