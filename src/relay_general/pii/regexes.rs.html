@@ -364,7 +364,7 @@
         RuleType::Userpath =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>PATH_REGEX, ReplaceBehavior::replace_group(<span class="number">1</span>))],
 
         <span class="comment">// These ought to have been resolved in CompiledConfig
-        </span>RuleType::Alias(<span class="kw">_</span>) | RuleType::Multiple(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
+        </span>RuleType::Alias(<span class="kw">_</span>) | RuleType::Multiple(<span class="kw">_</span>) | RuleType::Unknown(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
     }
 }
 

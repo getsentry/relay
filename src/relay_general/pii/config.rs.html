@@ -238,6 +238,8 @@
 <a href="#237" id="237">237</a>
 <a href="#238" id="238">238</a>
 <a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::Deref;
@@ -390,6 +392,8 @@
     </span>Multiple(MultipleRule),
     <span class="doccomment">/// Applies another rule.  Works like a single multiple.
     </span>Alias(AliasRule),
+    <span class="doccomment">/// Unknown ruletype for forward compatibility
+    </span>Unknown(String),
 }
 
 <span class="doccomment">/// A single rule configuration.
