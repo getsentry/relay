@@ -36,17 +36,17 @@ pub enum SamplingResult {
 fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: &SamplingConfig,
-) -> Result<(), SamplingResult> {
+) -> Option<()> {
     // When we have unsupported rules disable sampling for non processing relays.
     if sampling_config.has_unsupported_rules() {
         if !processing_enabled {
-            return Err(SamplingResult::Keep);
+            return None;
         } else {
             relay_log::error!("found unsupported rules even as processing relay");
         }
     }
 
-    Ok(())
+    Some(())
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -71,7 +71,7 @@ fn get_trace_sampling_rule(
     }
     let sampling_project_state = or_ok_none!(sampling_project_state);
     let sampling_config = or_ok_none!(&sampling_project_state.config.dynamic_sampling);
-    check_unsupported_rules(processing_enabled, sampling_config)?;
+    //check_unsupported_rules(processing_enabled, sampling_config)?;
 
     let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr, now));
     let sample_rate = match sampling_config.mode {
@@ -105,7 +105,7 @@ fn get_event_sampling_rule(
     let event_id = or_ok_none!(event.id.value());
 
     let sampling_config = or_ok_none!(&project_state.config.dynamic_sampling);
-    check_unsupported_rules(processing_enabled, sampling_config)?;
+    //check_unsupported_rules(processing_enabled, sampling_config)?;
 
     let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr, now));
     let sample_rate = match (dsc, sampling_config.mode) {
@@ -138,9 +138,6 @@ pub fn should_keep_event(
     // requires it.
     let now = Utc::now();
 
-    // /hello release: 1.0
-    // /world TKT
-    // /hello -> /world
     let matching_trace_rule = match get_trace_sampling_rule(
         processing_enabled,
         sampling_project_state,
@@ -179,6 +176,7 @@ pub fn should_keep_event(
     SamplingResult::Keep
 }
 
+/// The result of the dynamic sampling matching executed on the sampling config.
 #[derive(Clone, Debug, PartialEq)]
 enum SamplingMatchResult {
     Match {
@@ -187,9 +185,6 @@ enum SamplingMatchResult {
         seed: Uuid,
     },
     NoMatch,
-    Override {
-        sampling_result: SamplingResult,
-    },
 }
 
 macro_rules! no_match_if_none {
@@ -225,8 +220,6 @@ impl SamplingConfigs {
     }
 
     fn get_merged_config(&self) -> SamplingConfig {
-        // We get all the transaction rules of the sampling config of the project to which
-        // the incoming transaction belongs.
         let event_rules = self
             .sampling_config
             .rules
@@ -291,11 +284,13 @@ fn get_sampling_match_result(
         .add_root_config(root_project_state)
         .get_merged_config();
 
-    if let Err(sampling_result) = check_unsupported_rules(processing_enabled, &merged_config) {
-        return SamplingMatchResult::Override { sampling_result };
-    }
+    // We check if there are unsupported rules.
+    no_match_if_none!(check_unsupported_rules(processing_enabled, &merged_config));
 
+    // We perform the rule matching with the multi-matching logic.
     let result = no_match_if_none!(merged_config.match_against_rules(event, dsc, ip_addr, now));
+
+    // If we have a match, we will
     let sample_rate = match sampling_config.mode {
         SamplingMode::Received => result.sample_rate,
         SamplingMode::Total => match dsc {
@@ -307,9 +302,7 @@ fn get_sampling_match_result(
                 relay_log::error!("found unsupported sampling mode even as processing Relay, keep");
             }
 
-            return SamplingMatchResult::Override {
-                sampling_result: SamplingResult::Keep,
-            };
+            return SamplingMatchResult::NoMatch;
         }
     };
 
@@ -354,7 +347,6 @@ pub fn should_keep_event_new(
             }
         }
         SamplingMatchResult::NoMatch => SamplingResult::Keep,
-        SamplingMatchResult::Override { sampling_result } => sampling_result,
     }
 }
 
@@ -798,7 +790,7 @@ mod tests_new {
     }
 
     #[test]
-    /// Tests that an override is raised in case we have unsupported rules with processing both
+    /// Tests that a no match is raised in case we have unsupported rules with processing both
     /// enabled and disabled.
     fn test_get_sampling_match_result_with_unsupported_rules() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
@@ -830,12 +822,7 @@ mod tests_new {
             Utc::now(),
         );
 
-        assert_eq!(
-            result,
-            SamplingMatchResult::Override {
-                sampling_result: SamplingResult::Keep
-            }
-        );
+        assert_eq!(result, SamplingMatchResult::NoMatch);
 
         let result = get_sampling_match_result(
             true,
@@ -858,7 +845,7 @@ mod tests_new {
     }
 
     #[test]
-    /// Tests that an override is raised in case we have an unsupported sampling mode and a match.
+    /// Tests that a no match is raised in case we have an unsupported sampling mode and a match.
     fn test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
         let project_state = mocked_project_state(SamplingMode::Unsupported);
         let root_project_state = mocked_root_project_state(SamplingMode::Unsupported);
@@ -875,12 +862,7 @@ mod tests_new {
             Utc::now(),
         );
 
-        assert_eq!(
-            result,
-            SamplingMatchResult::Override {
-                sampling_result: SamplingResult::Keep
-            }
-        )
+        assert_eq!(result, SamplingMatchResult::NoMatch)
     }
 
     #[test]
@@ -1157,7 +1139,7 @@ mod tests_new {
             next_id: None,
         });
 
-        let event = mocked_event(EventType::Transaction, "foo", "2.0");
+        let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
         let result = should_keep_event_new(true, &project_state, None, None, Some(&event), None);
 
@@ -1165,7 +1147,7 @@ mod tests_new {
     }
 
     #[test]
-    /// Tests that an event is kept when there are unsupported rules.
+    /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
     fn test_should_keep_event_return_keep_with_unsupported_rule() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![
