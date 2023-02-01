@@ -25,6 +25,7 @@ use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
+use relay_general::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
 mod contexts;
@@ -656,7 +657,7 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
-    pub user_agent: Option<&'a str>,
+    pub user_agent: RawUserAgentInfo<&'a str>,
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,

@@ -173,15 +173,15 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints<S: Default + AsRef<str>>(client_hints: &ClientHints<S>) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?.as_ref().to_string();
+    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
+        let device = client_hints.sec_ch_ua_model?;
         Some(Self {
-            model: Annotated::new(device),
+            model: Annotated::new(device.into()),
             ..Default::default()
         })
     }
 
-    fn from_user_agent<S: Default + AsRef<str>>(user_agent: S) -> Option<Self> {
+    fn from_user_agent(user_agent: &str) -> Option<Self> {
         let device = parse_device(user_agent.as_ref());
 
         if !is_known(&device.family) {

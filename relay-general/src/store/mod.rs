@@ -9,6 +9,7 @@ use serde_json::Value;
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
 use crate::types::{Meta, ProcessingResult, SpanAttribute};
+use crate::user_agent::RawUserAgentInfo;
 
 mod clock_drift;
 mod event_error;
@@ -37,7 +38,7 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
-    pub user_agent: Option<String>,
+    pub user_agent: RawUserAgentInfo<String>,
     pub received_at: Option<DateTime<Utc>>,
     pub sent_at: Option<DateTime<Utc>>,
 

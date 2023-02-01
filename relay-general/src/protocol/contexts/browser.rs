@@ -29,9 +29,7 @@ impl BrowserContext {
 }
 
 impl FromUserAgentInfo for BrowserContext {
-    fn from_client_hints<S: Default + AsRef<str>>(
-        client_hints: &user_agent::ClientHints<S>,
-    ) -> Option<Self> {
+    fn from_client_hints(client_hints: &user_agent::ClientHints<&str>) -> Option<Self> {
         let (browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
 
         Some(Self {

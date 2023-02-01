@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use relay_general::user_agent::RawUserAgentInfo;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -1133,7 +1134,7 @@ impl EnvelopeProcessorService {
         payload: &Bytes,
         config: &ProjectConfig,
         client_ip: Option<NetIPAddr>,
-        user_agent: Option<&str>,
+        user_agent: RawUserAgentInfo<&str>,
     ) -> Result<Annotated<Replay>, ReplayError> {
         let mut replay =
             Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
@@ -1743,7 +1744,7 @@ impl EnvelopeProcessorService {
             key_id,
             protocol_version: Some(envelope.meta().version().to_string()),
             grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().map(str::to_owned),
+            user_agent: envelope.meta().user_agent().to_owned(),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             enable_trimming: Some(true),

@@ -87,7 +87,7 @@ impl UpstreamRequest for SendEnvelope {
         builder
             .content_encoding(self.http_encoding)
             .header_opt("Origin", meta.origin().map(|url| url.as_str()))
-            .header_opt("User-Agent", meta.user_agent())
+            .header_opt("User-Agent", meta.user_agent().user_agent)
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);

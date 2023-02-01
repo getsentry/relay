@@ -7,6 +7,7 @@
 //! to your consumer.
 
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use uaparser::{Parser, UserAgentParser};
 
 use crate::protocol::{Headers, Request};
@@ -83,7 +84,7 @@ pub fn parse_os(user_agent: &str) -> OS {
 ///
 /// Useful for the scenarios where you will use either information from client hints if it exists,
 /// and if not fall back to user agent string.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
     /// The "old style" of a single UA string.
     pub user_agent: Option<S>,
@@ -93,7 +94,7 @@ pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
 
 /// The client hint variable names mirror the name of the "SEC-CH" headers, see
 /// '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ClientHints<S: Default + AsRef<str>> {
     /// The client's OS, e.g. macos, android...
     pub sec_ch_ua_platform: Option<S>,
@@ -103,6 +104,20 @@ pub struct ClientHints<S: Default + AsRef<str>> {
     pub sec_ch_ua: Option<S>,
     /// Device model, e.g. samsung galaxy 3.
     pub sec_ch_ua_model: Option<S>,
+}
+
+impl RawUserAgentInfo<String> {
+    pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
+        RawUserAgentInfo::<&str> {
+            user_agent: self.user_agent.as_deref(),
+            client_hints: ClientHints::<&str> {
+                sec_ch_ua_platform: self.client_hints.sec_ch_ua_platform.as_deref(),
+                sec_ch_ua_platform_version: self.client_hints.sec_ch_ua_platform_version.as_deref(),
+                sec_ch_ua: self.client_hints.sec_ch_ua.as_deref(),
+                sec_ch_ua_model: self.client_hints.sec_ch_ua_model.as_deref(),
+            },
+        }
+    }
 }
 
 impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
@@ -119,11 +134,25 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
             _ => {}
         }
     }
+    pub fn is_empty(&self) -> bool {
+        self.user_agent.is_none()
+            && self.client_hints.sec_ch_ua_platform.is_none()
+            && self.client_hints.sec_ch_ua_platform_version.is_none()
+            && self.client_hints.sec_ch_ua.is_none()
+            && self.client_hints.sec_ch_ua_model.is_none()
+    }
+
+    pub fn from_ua(s: S) -> Self {
+        Self {
+            user_agent: Some(s),
+            client_hints: ClientHints::default(),
+        }
+    }
 }
 
-impl RawUserAgentInfo<&str> {
-    pub fn from_headers(headers: &Headers) -> Self {
-        let mut contexts = Self::default();
+impl<'a> RawUserAgentInfo<&'a str> {
+    pub fn from_headers(headers: &'a Headers) -> Self {
+        let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
         for item in headers.iter() {
             if let Some((ref o_k, ref v)) = item.value() {
@@ -133,5 +162,29 @@ impl RawUserAgentInfo<&str> {
             }
         }
         contexts
+    }
+
+    pub fn to_owned(&self) -> RawUserAgentInfo<String> {
+        RawUserAgentInfo::<String> {
+            user_agent: self.user_agent.map(str::to_string),
+            client_hints: ClientHints::<String> {
+                sec_ch_ua_platform: self.client_hints.sec_ch_ua_platform.map(str::to_string),
+                sec_ch_ua_platform_version: self
+                    .client_hints
+                    .sec_ch_ua_platform_version
+                    .map(str::to_string),
+                sec_ch_ua: self.client_hints.sec_ch_ua.map(str::to_string),
+                sec_ch_ua_model: self.client_hints.sec_ch_ua_model.map(str::to_string),
+            },
+        }
+    }
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_default_empty() {
+        assert!(RawUserAgentInfo::<&str>::default().is_empty());
     }
 }

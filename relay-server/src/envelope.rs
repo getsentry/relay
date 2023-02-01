@@ -1149,6 +1149,7 @@ mod tests {
     use super::*;
 
     use relay_common::ProjectId;
+    use relay_general::user_agent::RawUserAgentInfo;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -1275,7 +1276,10 @@ mod tests {
         assert_eq!(meta.origin(), Some(&"http://localhost/".parse().unwrap()));
         assert_eq!(meta.remote_addr(), Some("127.0.0.1".parse().unwrap()));
         assert_eq!(meta.forwarded_for(), "8.8.8.8");
-        assert_eq!(meta.user_agent(), Some("sentry-cli/1.0"));
+        assert_eq!(
+            meta.user_agent(),
+            RawUserAgentInfo::from_ua("sentry-cli/1.0")
+        );
     }
 
     #[test]
@@ -1492,7 +1496,7 @@ mod tests {
         assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
         assert_eq!(meta.remote_addr(), Some("192.168.0.1".parse().unwrap()));
         assert_eq!(meta.forwarded_for(), "");
-        assert_eq!(meta.user_agent(), Some("sentry/agent"));
+        assert_eq!(meta.user_agent(), RawUserAgentInfo::from_ua("sentry/agent"));
     }
 
     #[test]

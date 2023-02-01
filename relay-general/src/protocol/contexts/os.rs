@@ -50,13 +50,13 @@ impl OsContext {
 }
 
 impl FromUserAgentInfo for OsContext {
-    fn from_client_hints<S: Default + AsRef<str>>(client_hints: &ClientHints<S>) -> Option<Self> {
+    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 
         Some(Self {
             name: Annotated::new(platform.into()),
-            version: Annotated::new(version.to_owned()),
+            version: Annotated::new(version.into()),
             ..Default::default()
         })
     }

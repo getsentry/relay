@@ -7,6 +7,7 @@ use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures01::{future, Future};
+use relay_general::user_agent::RawUserAgentInfo;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -187,8 +188,8 @@ pub struct RequestMeta<D = PartialDsn> {
     forwarded_for: String,
 
     /// The user agent that sent this event.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    user_agent: Option<String>,
+    #[serde(default, skip_serializing_if = "RawUserAgentInfo::is_empty")]
+    user_agent: RawUserAgentInfo<String>,
 
     /// A flag that indicates that project options caching should be bypassed.
     #[serde(default = "make_false", skip_serializing_if = "is_false")]
@@ -252,7 +253,7 @@ impl<D> RequestMeta<D> {
     ///
     /// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies
     /// the SDK that sent the event.
-    pub fn user_agent(&self) -> Option<&str> {
+    pub fn user_agent(&self) -> RawUserAgentInfo<&str> {
         self.user_agent.as_deref()
     }
 
@@ -277,7 +278,7 @@ impl RequestMeta {
             origin: None,
             remote_addr: None,
             forwarded_for: "".to_string(),
-            user_agent: Some(crate::constants::SERVER.to_owned()),
+            user_agent: RawUserAgentInfo::from_ua(crate::constants::SERVER.to_owned()),
             no_cache: false,
             start_time: Instant::now(),
         }
@@ -293,7 +294,7 @@ impl RequestMeta {
             origin: Some("http://origin/".parse().unwrap()),
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
-            user_agent: Some("sentry/agent".to_string()),
+            user_agent: RawUserAgentInfo::from_ua("sentry/agent".to_string()),
             no_cache: false,
             start_time: Instant::now(),
         }
@@ -371,11 +372,18 @@ impl PartialMeta {
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
             forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: request
-                .headers()
-                .get(header::USER_AGENT)
-                .and_then(|h| h.to_str().ok())
-                .map(str::to_owned),
+            user_agent: {
+                let x = request
+                    .headers()
+                    .get(header::USER_AGENT)
+                    .and_then(|h| h.to_str().ok())
+                    .map(str::to_owned);
+
+                match x {
+                    Some(ua) => RawUserAgentInfo::from_ua(ua),
+                    None => RawUserAgentInfo::default(),
+                }
+            },
             no_cache: false,
             start_time: StartTime::extract(request).into_inner(),
         }
@@ -410,7 +418,7 @@ impl PartialMeta {
         if !self.forwarded_for.is_empty() {
             complete.forwarded_for = self.forwarded_for;
         }
-        if self.user_agent.is_some() {
+        if !self.user_agent.is_empty() {
             complete.user_agent = self.user_agent;
         }
         if self.no_cache {
