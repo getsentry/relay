@@ -10,6 +10,10 @@
 
 - Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
 
+**Internal**:
+
+- Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
+
 ## 23.1.1
 
 **Features**:
