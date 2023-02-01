@@ -121,7 +121,7 @@ impl RawUserAgentInfo<String> {
 }
 
 impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
-    fn extract_header(&mut self, key: &str, value: Option<S>) {
+    pub fn extract_header(&mut self, key: &str, value: Option<S>) {
         match key.to_lowercase().as_str() {
             "user-agent" => self.user_agent = value,
 
