@@ -174,9 +174,9 @@ impl DeviceContext {
 
 impl FromUserAgentInfo for DeviceContext {
     fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?;
+        let device = client_hints.sec_ch_ua_model?.to_owned();
         Some(Self {
-            model: Annotated::new(device.into()),
+            model: Annotated::new(device),
             ..Default::default()
         })
     }
