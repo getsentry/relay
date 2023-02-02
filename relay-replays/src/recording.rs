@@ -172,15 +172,16 @@ impl Transform for &'_ mut ReplayScrubber<'_> {
 mod tests {
     // End to end test coverage.
 
-    use relay_general::pii::PiiConfig;
-    use relay_general::processor::SelectorSpec;
+    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
     use super::ReplayScrubber;
 
     fn default_pii_config() -> PiiConfig {
-        let mut pii_config = PiiConfig::default();
-        pii_config.applications = [(SelectorSpec::And(vec![]), vec!["@common".to_string()])].into();
-        pii_config
+        let mut scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true;
+        scrubbing_config.scrub_ip_addresses = true;
+        scrubbing_config.pii_config_uncached().unwrap().unwrap()
     }
 
     fn scrubber(config: &PiiConfig) -> ReplayScrubber {
@@ -283,7 +284,7 @@ mod tests {
             .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
-        assert!(parsed.contains(r#"{"type":3,"textContent":"[creditcard]","id":284}"#));
+        assert!(parsed.contains(r#"{"type":3,"textContent":"[Filtered]","id":284}"#));
     }
 
     #[test]
@@ -297,7 +298,7 @@ mod tests {
             .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
-        assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
+        assert!(parsed.contains("https://sentry.io?credit-card=[Filtered]"));
     }
 
     #[test]
@@ -311,7 +312,7 @@ mod tests {
             .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
-        assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
+        assert!(parsed.contains("https://sentry.io?credit-card=[Filtered]"));
     }
 
     #[test]
@@ -344,7 +345,7 @@ mod tests {
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         // NOTE: The normalization below was removed
         // assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
-        assert!(scrubbed_result.contains("\"textContent\":\"my ssn is ***********\""));
+        assert!(scrubbed_result.contains("\"textContent\":\"my ssn is [Filtered]\""));
     }
 
     #[test]
@@ -358,8 +359,8 @@ mod tests {
             .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
-        assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
-        assert!(scrubbed_result.contains("\"value\":\"***********\""));
+        assert!(scrubbed_result.contains("\"textContent\":\"[Filtered]\""));
+        assert!(scrubbed_result.contains("\"value\":\"[Filtered]\""));
     }
 
     #[test]
@@ -373,8 +374,9 @@ mod tests {
             .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
-        assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));
+        assert!(scrubbed_result.contains("\"description\":\"[Filtered]\""));
         assert!(scrubbed_result.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
-        assert!(scrubbed_result.contains("\"message\":\"[email]\""));
+        // NOTE: default scrubbers do not remove email address
+        // assert!(scrubbed_result.contains("\"message\":\"[email]\""));
     }
 }
