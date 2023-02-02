@@ -3471,6 +3471,7 @@ dependencies = [
  "criterion",
  "flate2",
  "insta",
+ "once_cell",
  "rand 0.8.5",
  "rand_pcg 0.3.1",
  "relay-common",
@@ -3478,6 +3479,7 @@ dependencies = [
  "relay-general",
  "relay-log",
  "serde",
+ "serde-transcode",
  "serde_json",
  "unicase",
 ]
@@ -4010,6 +4012,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61ea8d54c77f8315140a05f4c7237403bf38b72704d031543aa1d16abbf517d1"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-transcode"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "590c0e25c2a5bb6e85bf5c1bce768ceb86b316e7a01bdf07d2cb4ec2271990e2"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
