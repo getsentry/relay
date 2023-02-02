@@ -613,53 +613,61 @@ pub fn normalize_ip_addresses_generic(
     // back into one function. If a desire to split this code up overcomes you, put this in a
     // new processor and make sure all of it runs before the rest of normalization.
 
-    // Resolve {{auto}}
+    // Replace instances of "{{auto}}" with the client-ip.
     if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
-                }
-            }
-        }
+        resolve_auto_to_ip_request(request, client_ip);
+        resolve_auto_to_ip_user(user, client_ip);
     }
 
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
-        .value()
-        .and_then(|request| request.env.value())
-        .and_then(|env| env.get("REMOTE_ADDR"))
-        .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok());
-
-    if let Some(http_ip) = http_ip {
+    if let Some(http_ip) = get_request_ip(request) {
+        // If we were able to extract an ip-address from request we can replace the user's
+        // ip-address without consideration.
         let user = user.value_mut().get_or_insert_with(User::default);
         user.ip_address.value_mut().get_or_insert(http_ip);
     } else if let Some(client_ip) = client_ip {
+        // The client-ip is inserted into the user object if the ip-address was provided as
+        // null and you are a legacy client which does not use "{{auto}}".
         let user = user.value_mut().get_or_insert_with(User::default);
-        // auto is already handled above
         if user.ip_address.value().is_none() {
-            let platform = platform.as_str();
-
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+            if let Some("javascript") | Some("cocoa") | Some("objc") = platform.as_str() {
                 user.ip_address = Annotated::new(client_ip.to_owned());
             }
         }
     }
+}
+
+pub fn resolve_auto_to_ip_request(request: &mut Annotated<Request>, client_ip: &IpAddr) {
+    if let Some(ref mut request) = request.value_mut() {
+        if let Some(ref mut env) = request.env.value_mut() {
+            if let Some(&mut Value::String(ref mut http_ip)) = env
+                .get_mut("REMOTE_ADDR")
+                .and_then(|annotated| annotated.value_mut().as_mut())
+            {
+                if http_ip == "{{auto}}" {
+                    *http_ip = client_ip.to_string();
+                }
+            }
+        }
+    }
+}
+
+pub fn resolve_auto_to_ip_user(user: &mut Annotated<User>, client_ip: &IpAddr) {
+    if let Some(ref mut user) = user.value_mut() {
+        if let Some(ref mut user_ip) = user.ip_address.value_mut() {
+            if user_ip.is_auto() {
+                *user_ip = client_ip.to_owned();
+            }
+        }
+    }
+}
+
+pub fn get_request_ip(request: &Annotated<Request>) -> Option<IpAddr> {
+    request
+        .value()
+        .and_then(|request| request.env.value())
+        .and_then(|env| env.get("REMOTE_ADDR"))
+        .and_then(Annotated::<Value>::as_str)
+        .and_then(|ip| IpAddr::parse(ip).ok())
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
