@@ -5,6 +5,7 @@
 **Features**:
 
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+- Apply all configured data scrubbing rules on Replays. ([#1731](https://github.com/getsentry/relay/pull/1731))
 
 **Bug Fixes**:
 

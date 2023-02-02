@@ -6,10 +6,8 @@ use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
 use once_cell::sync::Lazy;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{
-    FieldAttrs, Pii, ProcessingState, Processor, SelectorSpec, ValueType,
-};
-use relay_general::types::{Meta, ProcessingAction};
+use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+use relay_general::types::Meta;
 
 use crate::transform::{self, Transform};
 
@@ -43,13 +41,7 @@ impl From<serde_json::Error> for ParseRecordingError {
     }
 }
 
-static REPLAY_PII_CONFIG: Lazy<PiiConfig> = Lazy::new(|| {
-    let mut pii_config = PiiConfig::default();
-    pii_config.applications = [(SelectorSpec::And(vec![]), vec!["@common".to_string()])].into();
-    pii_config
-});
-
-static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
+static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     ProcessingState::root().enter_static(
         "",
         Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
@@ -57,25 +49,63 @@ static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     )
 });
 
-struct ScrubbingTransformer;
+/// A utility that performs data scrubbing on Replay payloads.
+pub struct ReplayScrubber<'a> {
+    processor1: Option<PiiProcessor<'a>>,
+    processor2: Option<PiiProcessor<'a>>,
+}
 
-impl Transform for ScrubbingTransformer {
+impl<'a> ReplayScrubber<'a> {
+    /// Creates a new `ReplayScrubber` from PII configs.
+    ///
+    /// The two optional configs to be passed here are from data scrubbing settings and from the
+    /// dedicated PII config.
+    pub fn new(config1: Option<&'a PiiConfig>, config2: Option<&'a PiiConfig>) -> Self {
+        Self {
+            processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
+            processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+        }
+    }
+
+    /// Returns `true` if both configs are empty.
+    pub fn is_empty(&self) -> bool {
+        self.processor1.is_none() && self.processor2.is_none()
+    }
+}
+
+impl Transform for ReplayScrubber<'_> {
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        let mut processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
-
-        match processor.process_string(&mut value, &mut Meta::default(), &REPLAY_PII_STATE) {
-            Err(ProcessingAction::DeleteValueHard) => Cow::Borrowed(""),
-            Err(ProcessingAction::DeleteValueSoft) => Cow::Borrowed(""),
-            _ => Cow::Owned(value),
+        if let Some(ref mut processor) = self.processor1 {
+            if processor
+                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .is_err()
+            {
+                return Cow::Borrowed("");
+            }
         }
+
+        if let Some(ref mut processor) = self.processor2 {
+            if processor
+                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .is_err()
+            {
+                return Cow::Borrowed("");
+            }
+        }
+
+        Cow::Owned(value)
     }
 }
 
-fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
+fn scrub_replay<R, W>(
+    read: R,
+    write: W,
+    scrubber: ReplayScrubber<'_>,
+) -> Result<(), ParseRecordingError>
 where
     R: std::io::Read,
     W: std::io::Write,
@@ -83,9 +113,8 @@ where
     let mut deserializer = serde_json::Deserializer::from_reader(read);
     let mut serializer = serde_json::Serializer::new(write);
 
-    let transformer = ScrubbingTransformer;
-    let scrubber = transform::Deserializer::new(&mut deserializer, transformer);
-    serde_transcode::transcode(scrubber, &mut serializer)?;
+    let transformer = transform::Deserializer::new(&mut deserializer, scrubber);
+    serde_transcode::transcode(transformer, &mut serializer)?;
 
     Ok(())
 }
@@ -94,15 +123,16 @@ where
 pub fn transcode_replay(
     body: &[u8],
     limit: usize,
+    scrubber: ReplayScrubber<'_>,
     output: &mut Vec<u8>,
 ) -> Result<(), ParseRecordingError> {
     let encoder = ZlibEncoder::new(output, Compression::default());
 
     if body.first() == Some(&b'[') {
-        scrub_replay(body, encoder)
+        scrub_replay(body, encoder, scrubber)
     } else {
         let decoder = ZlibDecoder::new(body).take(limit as u64);
-        scrub_replay(BufReader::new(decoder), encoder)
+        scrub_replay(BufReader::new(decoder), encoder, scrubber)
     }
 }
 
@@ -110,7 +140,11 @@ pub fn transcode_replay(
 ///
 /// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
 /// if decompressed contents exceed the limit.
-pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRecordingError> {
+pub fn process_recording(
+    bytes: &[u8],
+    limit: usize,
+    scrubber: ReplayScrubber<'_>,
+) -> Result<Vec<u8>, ParseRecordingError> {
     // Check for null byte condition.
     if bytes.is_empty() {
         return Err(ParseRecordingError::Message("no data found"));
@@ -132,7 +166,7 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRec
     // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
     // Benchmarks have NOT shown a big difference, however.
     output.reserve(body.len());
-    transcode_replay(body, limit, &mut output)?;
+    transcode_replay(body, limit, scrubber, &mut output)?;
 
     Ok(output)
 }
@@ -140,6 +174,21 @@ pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, ParseRec
 #[cfg(test)]
 mod tests {
     // End to end test coverage.
+
+    use relay_general::pii::PiiConfig;
+    use relay_general::processor::SelectorSpec;
+
+    use super::ReplayScrubber;
+
+    fn default_pii_config() -> PiiConfig {
+        let mut pii_config = PiiConfig::default();
+        pii_config.applications = [(SelectorSpec::And(vec![]), vec!["@common".to_string()])].into();
+        pii_config
+    }
+
+    fn scrubber(config: &PiiConfig) -> ReplayScrubber {
+        ReplayScrubber::new(Some(config), None)
+    }
 
     #[test]
     fn test_process_recording_end_to_end() {
@@ -161,7 +210,8 @@ mod tests {
             146, 59, 13, 115, 10, 144, 115, 190, 126, 0, 2, 68, 180, 16,
         ];
 
-        let result = super::process_recording(payload, 1000);
+        let config = default_pii_config();
+        let result = super::process_recording(payload, 1000, scrubber(&config));
         assert!(!result.unwrap().is_empty());
     }
 
@@ -172,7 +222,8 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
         ];
 
-        let result = super::process_recording(payload, 1000);
+        let config = default_pii_config();
+        let result = super::process_recording(payload, 1000, scrubber(&config));
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no body found"),
@@ -186,7 +237,8 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
         ];
 
-        let result = super::process_recording(payload, 1000);
+        let config = default_pii_config();
+        let result = super::process_recording(payload, 1000, scrubber(&config));
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Json(_),
@@ -200,7 +252,8 @@ mod tests {
             123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
         ];
 
-        let result = super::process_recording(payload, 1000);
+        let config = default_pii_config();
+        let result = super::process_recording(payload, 1000, scrubber(&config));
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no body found"),
@@ -212,7 +265,8 @@ mod tests {
         // Empty payload can not be decompressed.  Header check never fails.
         let payload: &[u8] = &[];
 
-        let result = super::process_recording(payload, 1000);
+        let config = default_pii_config();
+        let result = super::process_recording(payload, 1000, scrubber(&config));
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no data found"),
@@ -223,10 +277,11 @@ mod tests {
 
     #[test]
     fn test_pii_credit_card_removal() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-pii.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains(r#"{"type":3,"textContent":"[creditcard]","id":284}"#));
@@ -234,10 +289,11 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_navigation() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-navigation.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-navigation.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
@@ -245,10 +301,11 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_resource() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-performance-resource.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-resource.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
@@ -256,10 +313,11 @@ mod tests {
 
     #[test]
     fn test_pii_ip_address_removal() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-pii-ip-address.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
@@ -270,10 +328,11 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_full_snapshot_event() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-2.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-event-2.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         // NOTE: The normalization below was removed
@@ -283,10 +342,11 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_incremental_snapshot_event() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-3.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
@@ -295,10 +355,11 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_custom_event() {
-        let payload = include_bytes!("../../tests/fixtures/rrweb-event-5.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-event-5.json");
 
         let mut transcoded = Vec::new();
-        super::scrub_replay(payload.as_slice(), &mut transcoded).unwrap();
+        let config = default_pii_config();
+        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));

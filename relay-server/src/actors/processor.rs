@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use relay_replays::recording::ReplayScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -1018,13 +1019,20 @@ impl EnvelopeProcessorService {
     }
 
     /// Remove replays if the feature flag is not enabled
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
         let user_agent = meta.user_agent();
         let event_id = state.envelope.event_id();
+
+        let config = state.project_state.config();
+        let datascrubbing_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
+            .as_ref();
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1093,38 +1101,50 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                if replays_enabled {
-                    // Limit expansion of recordings to the max replay size. The payload is
-                    // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the replay limit as a good overall limit for
-                    // allocations.
-                    let limit = self.config.max_replay_size();
-                    let parsed_recording =
-                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::recording::process_recording(&item.payload(), limit)
-                        });
+                if !replays_enabled {
+                    return false;
+                }
 
-                    match parsed_recording {
-                        Ok(recording) => {
-                            item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        }
-                        Err(e) => {
-                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            context.track_outcome(
-                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                                DataCategory::Replay,
-                                1,
-                            );
-                        }
+                let scrubber =
+                    ReplayScrubber::new(config.pii_config.as_ref(), datascrubbing_config);
+
+                // XXX: Processing is there just for data scrubbing. Skip the entire expensive
+                // processing step if we do not need to scrub.
+                if scrubber.is_empty() {
+                    return true;
+                }
+
+                // Limit expansion of recordings to the max replay size. The payload is
+                // decompressed temporarily and then immediately re-compressed. However, to
+                // limit memory pressure, we use the replay limit as a good overall limit for
+                // allocations.
+                let limit = self.config.max_replay_size();
+                let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                    relay_replays::recording::process_recording(&item.payload(), limit, scrubber)
+                });
+
+                match parsed_recording {
+                    Ok(recording) => {
+                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                    }
+                    Err(e) => {
+                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                            DataCategory::Replay,
+                            1,
+                        );
                     }
                 }
 
                 // XXX: For now replays that could not be parsed are still accepted while we
                 // determine the impact of the recording parser.
-                replays_enabled
+                true
             }
             _ => true,
         });
+
+        Ok(())
     }
 
     /// Validates, normalizes, and scrubs PII from a replay event.
@@ -2084,7 +2104,7 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replays(state);
+        self.process_replays(state)?;
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.

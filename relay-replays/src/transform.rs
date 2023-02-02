@@ -164,7 +164,7 @@ impl<T> Mut<'_, T> {
 /// ```
 pub struct Deserializer<'a, D, T>(D, Mut<'a, T>);
 
-impl<'de, D, T> Deserializer<'static, D, T>
+impl<'de, 'a, D, T> Deserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
     T: Transform,
@@ -173,13 +173,7 @@ where
     pub fn new(deserializer: D, transformer: T) -> Self {
         Self(deserializer, Mut::Owned(transformer))
     }
-}
 
-impl<'de, 'a, D, T> Deserializer<'a, D, T>
-where
-    D: de::Deserializer<'de>,
-    T: Transform,
-{
     fn borrowed(deserializer: D, transformer: &'a mut T) -> Self {
         Self(deserializer, Mut::Borrowed(transformer))
     }
