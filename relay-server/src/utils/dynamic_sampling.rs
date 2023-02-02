@@ -225,15 +225,16 @@ impl SamplingConfigs {
             .rules
             .clone()
             .into_iter()
-            // When we would like to have error sampling, we can update this filter statement.
-            .filter(|rule| rule.ty == RuleType::Transaction);
+            // We keep unsupported rules in both configs because we will behave differently based
+            // on if there are unsupported rule or not.
+            .filter(|rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Unsupported);
 
         let parent_rules = self
             .root_sampling_config
             .clone()
             .map_or(vec![], |config| config.rules)
             .into_iter()
-            .filter(|rule| rule.ty == RuleType::Trace);
+            .filter(|rule| rule.ty == RuleType::Trace || rule.ty == RuleType::Unsupported);
 
         SamplingConfig {
             // TODO: what do we do with rule ids? Do we re-create them?
@@ -246,42 +247,7 @@ impl SamplingConfigs {
             // This code ignore the situation in which we have conflicting sampling configs between
             // root and non-root projects.
             mode: self.sampling_config.mode,
-            // TODO: do we want to keep this field, it seems unused.
-            // ANSWER: remove this field.
-            next_id: self.sampling_config.next_id,
         }
-    }
-}
-
-fn get_seed(
-    dsc: Option<&DynamicSamplingContext>,
-    event_id: &EventId,
-    result: &SamplingConfigMatchResult,
-) -> Uuid {
-    // If we are in a situation in which we have matched a trace rule, we want to use the trace id
-    // as the seed for the random number generation, to guarantee the same sampling result
-    // across transactions of the same trace.
-    // TODO: does this make sense if we incur in a situation in which two transactions of the same
-    //  trace but from a different project have different accumulated factors that lead to a different
-    //  sampling even if we have the same seed?
-    //
-    // /hello -> /world -> /transaction belong to trace_id = abc
-    // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
-    // * each project has a single transaction rule with different factors
-    //
-    // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
-    // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
-    // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
-    //
-    // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same, do we want this?
-    if result.has_matched_trace_rule {
-        if let Some(dsc) = dsc {
-            dsc.trace_id
-        } else {
-            event_id.0
-        }
-    } else {
-        event_id.0
     }
 }
 
@@ -334,7 +300,7 @@ fn get_sampling_match_result(
     // the data for making the sampling decision.
     SamplingMatchResult::Match {
         sample_rate,
-        seed: get_seed(dsc, event_id, &result),
+        seed: result.seed,
         // TODO: decide what to do with rule ids because we have multiple matches.
         rule_id: RuleId(1),
     }
@@ -487,7 +453,6 @@ mod tests_new {
                 },
             ],
             mode,
-            next_id: None,
         })
     }
 
@@ -520,7 +485,6 @@ mod tests_new {
                 },
             ],
             mode,
-            next_id: None,
         })
     }
 
@@ -559,25 +523,25 @@ mod tests_new {
                 mocked_sampling_rule(1, RuleType::Transaction, 0.1),
                 mocked_sampling_rule(2, RuleType::Error, 0.2),
                 mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
             rules: vec![
-                mocked_sampling_rule(4, RuleType::Transaction, 0.4),
-                mocked_sampling_rule(5, RuleType::Error, 0.5),
-                mocked_sampling_rule(6, RuleType::Trace, 0.6),
+                mocked_sampling_rule(5, RuleType::Transaction, 0.4),
+                mocked_sampling_rule(6, RuleType::Error, 0.5),
+                mocked_sampling_rule(7, RuleType::Trace, 0.6),
+                mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
             .add_root_config(Some(&root_project_state))
             .get_merged_config();
 
-        let expected_result = vec![1, 2, 6];
+        let expected_result = vec![1, 4, 7, 8];
         for (index, rule) in result.rules.iter().enumerate() {
             assert_eq!(rule.id.0, expected_result[index])
         }
@@ -589,12 +553,10 @@ mod tests_new {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
@@ -613,21 +575,20 @@ mod tests_new {
                 mocked_sampling_rule(1, RuleType::Transaction, 0.1),
                 mocked_sampling_rule(2, RuleType::Error, 0.2),
                 mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
             .add_root_config(Some(&root_project_state))
             .get_merged_config();
 
-        let expected_result = vec![1, 2];
+        let expected_result = vec![1, 4];
         for (index, rule) in result.rules.iter().enumerate() {
             assert_eq!(rule.id.0, expected_result[index])
         }
@@ -641,23 +602,22 @@ mod tests_new {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
             rules: vec![
                 mocked_sampling_rule(4, RuleType::Transaction, 0.4),
                 mocked_sampling_rule(5, RuleType::Error, 0.5),
                 mocked_sampling_rule(6, RuleType::Trace, 0.6),
+                mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
             .add_root_config(Some(&root_project_state))
             .get_merged_config();
 
-        let expected_result = vec![6];
+        let expected_result = vec![6, 7];
         for (index, rule) in result.rules.iter().enumerate() {
             assert_eq!(rule.id.0, expected_result[index])
         }
@@ -931,7 +891,7 @@ mod tests_new {
     }
 
     #[test]
-    /// Tests that a match of a rule of type error with an error event results in a match.
+    /// Tests that a match of a rule of type error with an error event results in a no match.
     fn test_get_sampling_match_result_with_error_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         project_state
@@ -960,14 +920,7 @@ mod tests_new {
             Utc::now(),
         );
 
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
-            }
-        );
+        assert_eq!(result, SamplingMatchResult::NoMatch);
     }
 
     #[test]
@@ -984,7 +937,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1005,7 +957,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1026,7 +977,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1047,7 +997,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1061,7 +1010,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1075,7 +1023,6 @@ mod tests_new {
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
-            next_id: None,
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
@@ -1105,7 +1052,6 @@ mod tests_new {
                 ),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let result =
@@ -1129,7 +1075,6 @@ mod tests_new {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
@@ -1145,7 +1090,6 @@ mod tests_new {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
@@ -1168,7 +1112,6 @@ mod tests_new {
                 decaying_fn: Default::default(),
             }],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
@@ -1187,7 +1130,6 @@ mod tests_new {
                 mocked_sampling_rule(2, RuleType::Transaction, 0.0),
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
@@ -1243,11 +1185,7 @@ mod tests {
             None => Vec::new(),
         };
 
-        project_state_with_config(SamplingConfig {
-            rules,
-            mode,
-            next_id: None,
-        })
+        project_state_with_config(SamplingConfig { rules, mode })
     }
 
     fn prepare_and_get_sampling_rule(
@@ -1280,7 +1218,6 @@ mod tests {
         let event_state = project_state_with_config(SamplingConfig {
             rules,
             mode: SamplingMode::Received,
-            next_id: None,
         });
 
         let some_event = Event {

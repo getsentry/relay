@@ -854,7 +854,7 @@ impl Default for SamplingMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SamplingConfigMatchResult {
     pub sample_rate: f64,
-    pub has_matched_trace_rule: bool,
+    pub seed: Uuid,
 }
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -868,12 +868,48 @@ pub struct SamplingConfig {
     /// Defines which population of items a dynamic sample rate applies to.
     #[serde(default)]
     pub mode: SamplingMode,
-    /// The unique identifier for the next new rule to be added.
-    #[serde(default)]
-    pub next_id: Option<u32>,
 }
 
 impl SamplingConfig {
+    /// Generates the seed used for the random number generation that is used for sampling decisions.
+    fn get_seed(
+        event: &Event,
+        dsc: Option<&DynamicSamplingContext>,
+        has_matched_trace_rule: bool,
+    ) -> Option<Uuid> {
+        // If we are in a situation in which we have matched a trace rule, we want to use the trace id
+        // as the seed for the random number generation, to guarantee the same sampling result
+        // across transactions of the same trace. The problem here is that this logic won't help
+        // in cases in which we have multiple matches of transaction and trace rules because they will
+        // effectively apply on different payloads. The transaction rule will match the event itself which differs
+        // between each component of the trace and the trace rule will match the dynamic sampling context that
+        // is the same across all components of the trace.
+        //
+        // An example of the aforementioned case:
+        // /hello -> /world -> /transaction belong to trace_id = abc
+        // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
+        // * each project has a single transaction rule with different factors (2, 3, 4)
+        //
+        // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
+        // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
+        // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
+        //
+        // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
+        let event_id = event.id.value();
+
+        if has_matched_trace_rule {
+            if let Some(dsc) = dsc {
+                return Some(dsc.trace_id);
+            }
+        }
+
+        if let Some(event_id) = event_id {
+            return Some(event_id.0);
+        }
+
+        None
+    }
+
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules.iter().all(SamplingRule::supported)
     }
@@ -918,16 +954,18 @@ impl SamplingConfig {
                     let value = active_rule.get_sampling_strategy_value(now);
 
                     if rule.ty == RuleType::Trace {
-                        // We use this flag to have observability into the matching process because
-                        // we will need it when performing sampling decisions.
-                        // TODO: return seed from here directly.
                         has_matched_trace_rule = true
                     }
 
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingConfigMatchResult {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
-                            has_matched_trace_rule,
+                            seed: match Self::get_seed(event, dsc, has_matched_trace_rule) {
+                                Some(seed) => seed,
+                                // In case we are not able to generate a seed, we will return a no
+                                // match.
+                                None => return None,
+                            },
                         });
                     } else {
                         accumulated_factors *= value
@@ -1212,8 +1250,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use relay_general::protocol::{
-        Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
-        LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
+        Contexts, Csp, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
+        LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     use relay_general::types::Annotated;
 
@@ -2101,7 +2139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_decaying_sampling_rule_deserialization_with_no_strategy() {
+    fn test_non_decaying_sampling_rule_deserialization_with_old_config_format() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -2109,6 +2147,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
+            "sampleRate": 0.5,
             "type": "trace",
             "id": 1
         }"#;
@@ -2118,7 +2157,7 @@ mod tests {
         let rule = rule.unwrap();
         assert_eq!(
             rule.sampling_strategy,
-            SamplingStrategy::SampleRate { value: 0.0 }
+            SamplingStrategy::SampleRate { value: 1.0 }
         );
         assert_eq!(rule.ty, RuleType::Trace);
     }
@@ -2366,7 +2405,6 @@ mod tests {
                 },
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         };
 
         let event = Event {
@@ -2454,11 +2492,11 @@ mod tests {
                 },
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         };
 
         // early return of first rule
         let event = Event {
+            id: Annotated::new(EventId(Uuid::new_v4())),
             ty: Annotated::new(EventType::Transaction),
             release: Annotated::new("1.1.1".to_string().into()),
             environment: Annotated::new("testing".to_string()),
@@ -2483,7 +2521,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.1, // 0.1
-                has_matched_trace_rule: false
+                seed: event.id.value().unwrap().0
             }),
             "did not use the sample rate of the first rule"
         );
@@ -2514,7 +2552,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 1.0, // 1.0,
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the sample rate of the second rule"
         );
@@ -2545,7 +2583,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.04, // 0.02 * 2.0
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the factor of the third rule and the sample rate of the sixth rule"
         );
@@ -2576,7 +2614,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 1.0, // 0.5 * 2.0
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the factor of the third rule and the sample rate of the fourth rule"
         );
@@ -2607,7 +2645,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.06, // 0.02 * 1.5 * 2.0
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the factor of the third, fifth rule and the sample rate of the sixth rule"
         );
@@ -2638,7 +2676,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the factor of the fifth rule and the sample rate of the sixth rule"
         )
@@ -2687,7 +2725,6 @@ mod tests {
                 },
             ],
             mode: SamplingMode::Received,
-            next_id: None,
         };
 
         // factor match first rule and early return third rule
@@ -2722,7 +2759,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the factor of the first rule and the sample rate of the third rule"
         );
@@ -2795,7 +2832,7 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.02, // 0.02
-                has_matched_trace_rule: true
+                seed: trace_context.trace_id
             }),
             "did not use the sample rate of the third rule"
         );
@@ -2848,7 +2885,6 @@ mod tests {
                     decaying_fn: Default::default(),
                 }],
                 mode: SamplingMode::Received,
-                next_id: None,
             };
             assert_eq!(
                 config
@@ -2869,7 +2905,6 @@ mod tests {
                     decaying_fn: Default::default(),
                 }],
                 mode: SamplingMode::Received,
-                next_id: None,
             };
             assert_eq!(
                 config

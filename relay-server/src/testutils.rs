@@ -27,11 +27,7 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    project_state_with_config(SamplingConfig {
-        rules,
-        mode,
-        next_id: None,
-    })
+    project_state_with_config(SamplingConfig { rules, mode })
 }
 
 pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectState {
@@ -58,11 +54,7 @@ pub fn state_with_rule(
         None => Vec::new(),
     };
 
-    project_state_with_config(SamplingConfig {
-        rules,
-        mode,
-        next_id: None,
-    })
+    project_state_with_config(SamplingConfig { rules, mode })
 }
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
