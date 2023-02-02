@@ -1129,31 +1129,31 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                if replays_enabled {
-                    // Limit expansion of recordings to the max replay size. The payload is
-                    // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the replay limit as a good overall limit for
-                    // allocations.
-                    let limit = self.config.max_replay_size();
-                    let parsed_recording =
-                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::recording::process_recording(&item.payload(), limit)
-                        });
+                // if replays_enabled {
+                //     // Limit expansion of recordings to the max replay size. The payload is
+                //     // decompressed temporarily and then immediately re-compressed. However, to
+                //     // limit memory pressure, we use the replay limit as a good overall limit for
+                //     // allocations.
+                //     let limit = self.config.max_replay_size();
+                //     let parsed_recording =
+                //         metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                //             relay_replays::recording::process_recording(&item.payload(), limit)
+                //         });
 
-                    match parsed_recording {
-                        Ok(recording) => {
-                            item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        }
-                        Err(e) => {
-                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            context.track_outcome(
-                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                                DataCategory::Replay,
-                                1,
-                            );
-                        }
-                    }
-                }
+                //     match parsed_recording {
+                //         Ok(recording) => {
+                //             item.set_payload(ContentType::OctetStream, recording.as_slice());
+                //         }
+                //         Err(e) => {
+                //             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
+                //             context.track_outcome(
+                //                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                //                 DataCategory::Replay,
+                //                 1,
+                //             );
+                //         }
+                //     }
+                // }
 
                 // XXX: For now replays that could not be parsed are still accepted while we
                 // determine the impact of the recording parser.
