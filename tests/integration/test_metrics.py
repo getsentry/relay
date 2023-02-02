@@ -40,7 +40,7 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
     return metrics
 
 
-def metrics_by_name_group_by_project(metrics_consumer, count, timeout=None):
+def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
     """
     Return list of pairs metric name and metric dict
     it useful when you have different projects
@@ -720,7 +720,14 @@ def test_transaction_metrics_count_per_root_project(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    relay.send_transaction(41, transaction, transaction_from_dsc="test")
+
+    trace_info = {
+        "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(41),
+    }
+    relay.send_transaction(
+        42, transaction, trace_info=trace_info, transaction_from_dsc="test"
+    )
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
