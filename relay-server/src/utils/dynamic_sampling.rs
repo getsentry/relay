@@ -7,8 +7,8 @@ use chrono::{DateTime, Utc};
 use relay_common::{ProjectKey, Uuid};
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
-    DynamicSamplingContext, RuleId, RuleType, SamplingConfig, SamplingConfigMatchResult,
-    SamplingMode,
+    DynamicSamplingContext, MatchedRuleIds, RuleId, RuleType, SamplingConfig,
+    SamplingConfigMatchResult, SamplingMode,
 };
 
 use crate::actors::project::ProjectState;
@@ -24,13 +24,13 @@ macro_rules! or_ok_none {
 }
 
 /// The result of a sampling operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
     /// it bailed out)
     Keep,
     /// Drop the event, due to the rule with provided identifier.
-    Drop(RuleId),
+    Drop(MatchedRuleIds),
 }
 
 fn check_unsupported_rules(
@@ -169,7 +169,7 @@ pub fn should_keep_event(
     if let Some(spec) = matching_event_rule.or(matching_trace_rule) {
         let random_number = relay_sampling::pseudo_random_from_uuid(spec.seed);
         if random_number >= spec.sample_rate {
-            return SamplingResult::Drop(spec.rule_id);
+            return SamplingResult::Drop(MatchedRuleIds(vec![]));
         }
     }
 
@@ -181,7 +181,7 @@ pub fn should_keep_event(
 enum SamplingMatchResult {
     Match {
         sample_rate: f64,
-        rule_id: RuleId,
+        matched_rule_ids: MatchedRuleIds,
         seed: Uuid,
     },
     NoMatch,
@@ -237,15 +237,12 @@ impl SamplingConfigs {
             .filter(|rule| rule.ty == RuleType::Trace || rule.ty == RuleType::Unsupported);
 
         SamplingConfig {
-            // TODO: what do we do with rule ids? Do we re-create them?
-            // ANSWER: we can use a comma separated list of ids and we rely on the fact the ids
-            // of trace and transaction rules are disjoint.
             rules: event_rules.chain(parent_rules).collect(),
             // We want to take field priority on the fields from the sampling config of the project
             // to which the incoming transaction belongs.
             //
-            // This code ignore the situation in which we have conflicting sampling configs between
-            // root and non-root projects.
+            // This code ignore the situation in which we have conflicting sampling config modes
+            // between root and non-root projects.
             mode: self.sampling_config.mode,
         }
     }
@@ -301,8 +298,7 @@ fn get_sampling_match_result(
     SamplingMatchResult::Match {
         sample_rate,
         seed: result.seed,
-        // TODO: decide what to do with rule ids because we have multiple matches.
-        rule_id: RuleId(1),
+        matched_rule_ids: result.matched_rule_ids,
     }
 }
 
@@ -328,14 +324,14 @@ pub fn should_keep_event_new(
     ) {
         SamplingMatchResult::Match {
             sample_rate,
-            rule_id,
+            matched_rule_ids,
             seed,
         } => {
             let random_number = relay_sampling::pseudo_random_from_uuid(seed);
             relay_log::trace!("sampling envelope with {} sample rate", sample_rate);
             if random_number >= sample_rate {
                 relay_log::trace!("dropping envelope that matched the configuration");
-                SamplingResult::Drop(rule_id)
+                SamplingResult::Drop(matched_rule_ids)
             } else {
                 relay_log::trace!("keeping envelope that matched the configuration");
                 SamplingResult::Keep
@@ -463,7 +459,7 @@ mod tests_new {
                     condition: eq("trace.release", &["3.0"], true),
                     sampling_strategy: SamplingStrategy::Factor { value: 1.5 },
                     ty: RuleType::Trace,
-                    id: RuleId(1),
+                    id: RuleId(5),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
@@ -471,7 +467,7 @@ mod tests_new {
                     condition: eq("trace.environment", &["dev"], true),
                     sampling_strategy: SamplingStrategy::SampleRate { value: 1.0 },
                     ty: RuleType::Trace,
-                    id: RuleId(1),
+                    id: RuleId(6),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
@@ -479,7 +475,7 @@ mod tests_new {
                     condition: RuleCondition::all(),
                     sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
-                    id: RuleId(2),
+                    id: RuleId(7),
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
@@ -500,6 +496,7 @@ mod tests_new {
     }
 
     fn mocked_decaying_sampling_rule(
+        id: u32,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
         sampling_strategy: SamplingStrategy,
@@ -509,7 +506,7 @@ mod tests_new {
             condition: RuleCondition::all(),
             sampling_strategy,
             ty: RuleType::Transaction,
-            id: RuleId(1),
+            id: RuleId(id),
             time_range: TimeRange { start, end },
             decaying_fn,
         }
@@ -665,7 +662,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.1,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
             }
         )
     }
@@ -693,7 +690,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 1.0,
                 seed: dsc.trace_id,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(6)])
             }
         )
     }
@@ -721,7 +718,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.75,
                 seed: dsc.trace_id,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(2), RuleId(5), RuleId(7)])
             }
         )
     }
@@ -748,7 +745,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.5,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
             }
         )
     }
@@ -776,7 +773,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.625,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
             }
         )
     }
@@ -831,7 +828,7 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.5,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
             }
         )
     }
@@ -931,6 +928,7 @@ mod tests_new {
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 Some(now - DateDuration::days(1)),
                 Some(now + DateDuration::days(1)),
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -945,12 +943,13 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 0.75,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
             }
         );
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 Some(now),
                 Some(now + DateDuration::days(1)),
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -965,12 +964,13 @@ mod tests_new {
             SamplingMatchResult::Match {
                 sample_rate: 1.0,
                 seed: event.id.0.unwrap().0,
-                rule_id: RuleId(1)
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
             }
         );
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 Some(now - DateDuration::days(1)),
                 Some(now),
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -991,6 +991,7 @@ mod tests_new {
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 Some(now - DateDuration::days(1)),
                 None,
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -1004,6 +1005,7 @@ mod tests_new {
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 None,
                 Some(now + DateDuration::days(1)),
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -1017,6 +1019,7 @@ mod tests_new {
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
+                1,
                 None,
                 None,
                 SamplingStrategy::SampleRate { value: 1.0 },
@@ -1039,12 +1042,14 @@ mod tests_new {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![
                 mocked_decaying_sampling_rule(
+                    1,
                     Some(now - DateDuration::days(1)),
                     Some(now + DateDuration::days(1)),
                     SamplingStrategy::Factor { value: 5.0 },
                     DecayingFunction::Linear { decayed_value: 1.0 },
                 ),
                 mocked_decaying_sampling_rule(
+                    2,
                     Some(now - DateDuration::days(1)),
                     Some(now + DateDuration::days(1)),
                     SamplingStrategy::SampleRate { value: 0.3 },
@@ -1060,12 +1065,12 @@ mod tests_new {
         if let SamplingMatchResult::Match {
             sample_rate,
             seed,
-            rule_id,
+            matched_rule_ids,
         } = result
         {
             assert!((sample_rate - 0.9).abs() < f64::EPSILON);
             assert_eq!(seed, event.id.0.unwrap().0);
-            assert_eq!(rule_id, RuleId(1))
+            assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
         }
     }
 
@@ -1096,7 +1101,10 @@ mod tests_new {
 
         let result = should_keep_event_new(true, &project_state, None, None, Some(&event), None);
 
-        assert_eq!(result, SamplingResult::Drop(RuleId(1)))
+        assert_eq!(
+            result,
+            SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))
+        )
     }
 
     #[test]
@@ -1140,7 +1148,10 @@ mod tests_new {
 
         let result = should_keep_event_new(true, &project_state, None, None, Some(&event), None);
 
-        assert_eq!(result, SamplingResult::Drop(RuleId(1)))
+        assert_eq!(
+            result,
+            SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
+        )
     }
 }
 
@@ -1373,7 +1384,7 @@ mod tests {
         let proj_state = state_with_rule(Some(0.0), RuleType::Error, SamplingMode::default());
 
         assert_eq!(
-            SamplingResult::Drop(RuleId(1)),
+            SamplingResult::Drop(MatchedRuleIds(vec![])),
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
         let proj_state = state_with_rule(Some(1.0), RuleType::Error, SamplingMode::default());
@@ -1402,7 +1413,7 @@ mod tests {
             Some(&sampling_state),
             true,
         );
-        assert_eq!(result, SamplingResult::Drop(RuleId(1)));
+        assert_eq!(result, SamplingResult::Drop(MatchedRuleIds(vec![])));
     }
 
     #[test]
@@ -1443,7 +1454,7 @@ mod tests {
             Some(&sampling_state),
             true,
         );
-        assert_eq!(result, SamplingResult::Drop(RuleId(1)));
+        assert_eq!(result, SamplingResult::Drop(MatchedRuleIds(vec![])));
     }
 
     #[test]

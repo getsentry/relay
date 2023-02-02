@@ -1,3 +1,4 @@
+#![feature(slice_concat_trait)]
 //! Functionality for calculating if a trace should be processed or dropped.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
@@ -10,6 +11,8 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
+use std::num::ParseIntError;
+use std::slice::Join;
 
 use chrono::{DateTime, Utc};
 use rand::{distributions::Uniform, Rng};
@@ -850,11 +853,45 @@ impl Default for SamplingMode {
     }
 }
 
+/// Represents a list of rule ids which is used for outcomes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatchedRuleIds(pub Vec<RuleId>);
+
+impl MatchedRuleIds {
+    /// Creates a MatchedRuleIds struct from a string formatted with the following format:
+    /// rule_id_1;rule_id_2;...
+    pub fn from_string(value: &str) -> Result<MatchedRuleIds, ParseIntError> {
+        let mut rule_ids = vec![];
+
+        for rule_id in value.split(";") {
+            let int_rule_id = rule_id.parse()?;
+            rule_ids.push(RuleId(int_rule_id));
+        }
+
+        Ok(MatchedRuleIds(rule_ids))
+    }
+}
+
+impl Display for MatchedRuleIds {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.0
+                .iter()
+                .map(|rule_id| format!("{}", rule_id))
+                .collect::<Vec<String>>()
+                .join(";")
+        )
+    }
+}
+
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SamplingConfigMatchResult {
     pub sample_rate: f64,
     pub seed: Uuid,
+    pub matched_rule_ids: MatchedRuleIds,
 }
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -933,6 +970,7 @@ impl SamplingConfig {
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
     ) -> Option<SamplingConfigMatchResult> {
+        let mut matched_rule_ids = vec![];
         let mut has_matched_trace_rule = false;
         let mut accumulated_factors = 1.0;
 
@@ -951,12 +989,13 @@ impl SamplingConfig {
 
             if matches {
                 if let Some(active_rule) = rule.is_active(now) {
-                    let value = active_rule.get_sampling_strategy_value(now);
+                    matched_rule_ids.push(rule.id);
 
                     if rule.ty == RuleType::Trace {
                         has_matched_trace_rule = true
                     }
 
+                    let value = active_rule.get_sampling_strategy_value(now);
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingConfigMatchResult {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
@@ -966,6 +1005,7 @@ impl SamplingConfig {
                                 // match.
                                 None => return None,
                             },
+                            matched_rule_ids: MatchedRuleIds(matched_rule_ids),
                         });
                     } else {
                         accumulated_factors *= value
@@ -2432,6 +2472,18 @@ mod tests {
     }
 
     #[test]
+    fn test_matched_rule_ids_to_string() {
+        let matched_rule_ids = MatchedRuleIds(vec![RuleId(123), RuleId(456)]);
+        assert_eq!(format!("{}", matched_rule_ids), "123;456");
+
+        let matched_rule_ids = MatchedRuleIds(vec![RuleId(123)]);
+        assert_eq!(format!("{}", matched_rule_ids), "123");
+
+        let matched_rule_ids = MatchedRuleIds(vec![]);
+        assert_eq!(format!("{}", matched_rule_ids), "")
+    }
+
+    #[test]
     /// Tests that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_matches() {
         let rules = SamplingConfig {
@@ -2521,7 +2573,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.1, // 0.1
-                seed: event.id.value().unwrap().0
+                seed: event.id.value().unwrap().0,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the sample rate of the first rule"
         );
@@ -2552,7 +2605,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 1.0, // 1.0,
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the sample rate of the second rule"
         );
@@ -2583,7 +2637,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.04, // 0.02 * 2.0
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the factor of the third rule and the sample rate of the sixth rule"
         );
@@ -2614,7 +2669,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 1.0, // 0.5 * 2.0
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the factor of the third rule and the sample rate of the fourth rule"
         );
@@ -2645,7 +2701,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.06, // 0.02 * 1.5 * 2.0
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the factor of the third, fifth rule and the sample rate of the sixth rule"
         );
@@ -2676,7 +2733,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the factor of the fifth rule and the sample rate of the sixth rule"
         )
@@ -2759,7 +2817,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the factor of the first rule and the sample rate of the third rule"
         );
@@ -2832,7 +2891,8 @@ mod tests {
             result,
             Some(SamplingConfigMatchResult {
                 sample_rate: 0.02, // 0.02
-                seed: trace_context.trace_id
+                seed: trace_context.trace_id,
+                matched_rule_ids: MatchedRuleIds(vec![])
             }),
             "did not use the sample rate of the third rule"
         );

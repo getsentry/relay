@@ -28,7 +28,7 @@ use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 #[cfg(feature = "processing")]
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
-use relay_sampling::RuleId;
+use relay_sampling::{MatchedRuleIds, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Service};
 
@@ -168,7 +168,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been filtered by a Sampling Rule
-    FilteredSampling(RuleId),
+    FilteredSampling(MatchedRuleIds),
 
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),
@@ -201,7 +201,7 @@ impl Outcome {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
-            Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{rule_id}"))),
+            Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
             //TODO can we do better ? (not re copying the string )
             Outcome::RateLimited(code_opt) => code_opt
                 .as_ref()
@@ -232,7 +232,7 @@ impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Outcome::Filtered(key) => write!(f, "filtered by {key}"),
-            Outcome::FilteredSampling(rule) => write!(f, "sampling rule {rule}"),
+            Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
