@@ -4,7 +4,6 @@ use std::io::{BufReader, Read};
 
 use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
 use once_cell::sync::Lazy;
-use serde::Serialize;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
@@ -12,9 +11,7 @@ use relay_general::processor::{
 };
 use relay_general::types::{Meta, ProcessingAction};
 
-mod transcoder;
-
-use transcoder::StringTranscoder;
+use crate::transform::{self, Transform};
 
 #[derive(Debug)]
 pub enum ParseRecordingError {
@@ -60,13 +57,22 @@ static REPLAY_PII_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     )
 });
 
-fn scrub_string(value: &mut String) {
-    let mut processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
-    match processor.process_string(value, &mut Meta::default(), &REPLAY_PII_STATE) {
-        Err(ProcessingAction::DeleteValueHard) => *value = String::new(),
-        Err(ProcessingAction::DeleteValueSoft) => *value = String::new(),
-        _ => (),
-    };
+struct ScrubbingTransformer;
+
+impl Transform for ScrubbingTransformer {
+    fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
+        self.transform_string(v.to_owned())
+    }
+
+    fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
+        let mut processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
+
+        match processor.process_string(&mut value, &mut Meta::default(), &REPLAY_PII_STATE) {
+            Err(ProcessingAction::DeleteValueHard) => Cow::Borrowed(""),
+            Err(ProcessingAction::DeleteValueSoft) => Cow::Borrowed(""),
+            _ => Cow::Owned(value),
+        }
+    }
 }
 
 fn scrub_replay<R, W>(read: R, write: W) -> Result<(), ParseRecordingError>
@@ -77,8 +83,9 @@ where
     let mut deserializer = serde_json::Deserializer::from_reader(read);
     let mut serializer = serde_json::Serializer::new(write);
 
-    let transcoder = StringTranscoder::new(&mut deserializer, &scrub_string);
-    transcoder.serialize(&mut serializer)?;
+    let transformer = ScrubbingTransformer;
+    let scrubber = transform::Deserializer::new(&mut deserializer, transformer);
+    serde_transcode::transcode(scrubber, &mut serializer)?;
 
     Ok(())
 }

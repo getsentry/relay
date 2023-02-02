@@ -1,3 +1,5 @@
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import json
 import signal
@@ -36,6 +38,21 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     metrics_consumer.assert_empty()
     return metrics
+
+
+def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
+    """
+    Return list of pairs metric name and metric dict
+    it useful when you have different projects
+    """
+    metrics_by_project = defaultdict(dict)
+    while True:
+        try:
+            metric = metrics_consumer.get_metric(timeout)
+            metrics_by_project[metric["project_id"]][metric["name"]] = metric
+        except AssertionError:
+            metrics_consumer.assert_empty()
+            return metrics_by_project
 
 
 def test_metrics(mini_sentry, relay):
@@ -163,6 +180,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "project_id": project_id,
         "retention_days": 90,
         "name": "c:transactions/foo@none",
+        "tags": {},
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
@@ -173,6 +191,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "project_id": project_id,
         "retention_days": 90,
         "name": "c:transactions/bar@second",
+        "tags": {},
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
@@ -230,6 +249,7 @@ def test_metrics_with_sharded_kafka(
         "project_id": project_id,
         "retention_days": 90,
         "name": "c:transactions/foo@none",
+        "tags": {},
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
@@ -240,6 +260,7 @@ def test_metrics_with_sharded_kafka(
         "project_id": project_id,
         "retention_days": 90,
         "name": "c:transactions/bar@second",
+        "tags": {},
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
@@ -278,6 +299,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "project_id": project_id,
         "retention_days": 90,
         "name": "c:transactions/foo@none",
+        "tags": {},
         "value": 15.0,
         "type": "c",
     }
@@ -582,13 +604,18 @@ def test_transaction_metrics(
         "bar": {"value": 1.3},
     }
 
-    relay.send_transaction(42, transaction)
+    trace_info = {
+        "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(project_id),
+        "transaction": "transaction_which_starts_trace",
+    }
+    relay.send_transaction(42, transaction, trace_info=trace_info)
 
     # Send another transaction:
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    relay.send_transaction(42, transaction)
+    relay.send_transaction(42, transaction, trace_info=trace_info)
 
     if discard_data:
         transactions_consumer.assert_empty()
@@ -614,8 +641,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 4)
-
+    metrics = metrics_by_name(metrics_consumer, 5)
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -650,6 +676,91 @@ def test_transaction_metrics(
         "type": "d",
         "value": [9.910106, 9.910106],
     }
+    assert metrics["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "tags": {"transaction": "transaction_which_starts_trace"},
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 2.0,
+    }
+
+
+def test_transaction_metrics_count_per_root_project(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+):
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_full_project_config(41)
+    mini_sentry.add_full_project_config(project_id)
+    timestamp = datetime.now(tz=timezone.utc)
+
+    for project_id in (41, 42):
+        config = mini_sentry.project_configs[project_id]["config"]
+        config["sessionMetrics"] = {"version": 1}
+        config["breakdownsV2"] = {
+            "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
+        }
+        config["transactionMetrics"] = {
+            "version": 1,
+        }
+
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "bar": {"value": 1.3},
+    }
+
+    trace_info = {
+        "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(41),
+        "transaction": "test",
+    }
+    relay.send_transaction(42, transaction, trace_info=trace_info)
+
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "test": {"value": 1.2},
+    }
+    relay.send_transaction(42, transaction)
+    relay.send_transaction(42, transaction)
+
+    event, _ = transactions_consumer.get_event()
+
+    metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=2)
+
+    assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 41,
+        "retention_days": 90,
+        "tags": {"transaction": "test"},
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 1.0,
+    }
+    assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
+        "timestamp": int(timestamp.timestamp()),
+        "org_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "tags": {},
+        "name": "c:transactions/count_per_root_project@none",
+        "type": "c",
+        "value": 2.0,
+    }
 
 
 @pytest.mark.parametrize(
@@ -682,14 +793,20 @@ def test_transaction_metrics_extraction_external_relays(
     tx["timestamp"] = timestamp.isoformat()
 
     external = relay(mini_sentry, options=TEST_CONFIG)
-    external.send_transaction(project_id, tx, item_headers)
+
+    trace_info = {
+        "trace_id": tx["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(project_id),
+        "transaction": "root_transaction",
+    }
+    external.send_transaction(project_id, tx, item_headers, trace_info)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
     tx_item = envelope.items[0]
 
     if expect_extracted_header:
-        assert tx_item.headers["metrics_extracted"] == True
+        assert tx_item.headers["metrics_extracted"] is True
     else:
         assert "metrics_extracted" not in tx_item.headers
 
@@ -702,12 +819,19 @@ def test_transaction_metrics_extraction_external_relays(
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
         assert len(metrics_envelope.items) == 1
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(m_item_body) == 1
-        assert m_item_body[0]["name"] == "d:transactions/duration@millisecond"
+        assert len(m_item_body) == 2
+        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
         assert (
-            m_item_body[0]["tags"]["transaction"]
+            m_item_body_sorted[1]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
+        assert (
+            m_item_body_sorted[0]["name"]
+            == "c:transactions/count_per_root_project@none"
+        )
+        assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
+        assert m_item_body_sorted[0]["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
 
@@ -752,12 +876,19 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metric = metrics_consumer.get_metric(timeout=3)
-        assert metric["name"] == "d:transactions/duration@millisecond"
+        metrics = metrics_by_name(metrics_consumer, 2, timeout=3)
+        metric_duration = metrics["d:transactions/duration@millisecond"]
+        assert metric_duration["name"] == "d:transactions/duration@millisecond"
         assert (
-            metric["tags"]["transaction"]
+            metric_duration["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
+        metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
+        assert (
+            metric_count_per_project["name"]
+            == "c:transactions/count_per_root_project@none"
+        )
+        assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
 
@@ -919,11 +1050,13 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    # Expect exactly 3 metrics (transaction.duration, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 3)
+    # Expect exactly 4 metrics:
+    # (transaction.duration, transactions.count_per_root_project, 1 builtin, 1 custom)
+    metrics = metrics_by_name(metrics_consumer, 4)
 
     assert metrics.keys() == {
         "d:transactions/duration@millisecond",
+        "c:transactions/count_per_root_project@none",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
     }
