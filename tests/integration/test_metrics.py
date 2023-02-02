@@ -604,17 +604,18 @@ def test_transaction_metrics(
         "bar": {"value": 1.3},
     }
 
-    relay.send_transaction(
-        42, transaction, transaction_from_dsc="transaction_which_starts_trace"
-    )
+    trace_info = {
+        "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(project_id),
+        "transaction": "transaction_which_starts_trace",
+    }
+    relay.send_transaction(42, transaction, trace_info=trace_info)
 
     # Send another transaction:
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    relay.send_transaction(
-        42, transaction, transaction_from_dsc="transaction_which_starts_trace"
-    )
+    relay.send_transaction(42, transaction, trace_info=trace_info)
 
     if discard_data:
         transactions_consumer.assert_empty()
@@ -724,10 +725,9 @@ def test_transaction_metrics_count_per_root_project(
     trace_info = {
         "trace_id": transaction["contexts"]["trace"]["trace_id"],
         "public_key": mini_sentry.get_dsn_public_key(41),
+        "transaction": "test",
     }
-    relay.send_transaction(
-        42, transaction, trace_info=trace_info, transaction_from_dsc="test"
-    )
+    relay.send_transaction(42, transaction, trace_info=trace_info)
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -793,9 +793,13 @@ def test_transaction_metrics_extraction_external_relays(
     tx["timestamp"] = timestamp.isoformat()
 
     external = relay(mini_sentry, options=TEST_CONFIG)
-    external.send_transaction(
-        project_id, tx, item_headers, transaction_from_dsc="root_transaction"
-    )
+
+    trace_info = {
+        "trace_id": tx["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(project_id),
+        "transaction": "root_transaction",
+    }
+    external.send_transaction(project_id, tx, item_headers, trace_info)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1

@@ -386,9 +386,9 @@ pub fn extract_transaction_metrics(
         aggregator_config,
         config,
         event,
+        transaction_from_dsc,
         project_metrics,
         sampling_metrics,
-        transaction_from_dsc,
     )?;
 
     let added_slice = &mut project_metrics[before_len..];
@@ -400,9 +400,9 @@ fn extract_transaction_metrics_inner(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     event: &Event,
+    transaction_from_dsc: Option<&str>,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
-    transaction_from_dsc: Option<&str>,
 ) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());

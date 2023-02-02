@@ -183,7 +183,6 @@ class SentryLike(object):
         payload,
         item_headers=None,
         trace_info=None,
-        transaction_from_dsc=None,
     ):
         envelope = Envelope()
         envelope.add_transaction(payload)
@@ -199,8 +198,6 @@ class SentryLike(object):
                 "trace_id": payload["contexts"]["trace"]["trace_id"],
                 "public_key": self.get_dsn_public_key(project_id),
             }
-        if transaction_from_dsc is not None:
-            trace_info["transaction"] = transaction_from_dsc
 
         envelope.headers["trace"] = trace_info
 
