@@ -1050,7 +1050,6 @@
 <a href="#1049" id="1049">1049</a>
 <a href="#1050" id="1050">1050</a>
 <a href="#1051" id="1051">1051</a>
-<a href="#1052" id="1052">1052</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2008,8 +2007,7 @@
     <span class="attr">#[serde(flatten)]
     </span>value: BucketValue,
     timestamp: UnixTimestamp,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
-    </span>tags: BTreeMap&lt;String, String&gt;,
+    tags: BTreeMap&lt;String, String&gt;,
     retention_days: u16,
 }
 

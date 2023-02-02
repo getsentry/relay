@@ -2032,6 +2032,75 @@
 <a href="#2031" id="2031">2031</a>
 <a href="#2032" id="2032">2032</a>
 <a href="#2033" id="2033">2033</a>
+<a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
+<a href="#2040" id="2040">2040</a>
+<a href="#2041" id="2041">2041</a>
+<a href="#2042" id="2042">2042</a>
+<a href="#2043" id="2043">2043</a>
+<a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a>
+<a href="#2074" id="2074">2074</a>
+<a href="#2075" id="2075">2075</a>
+<a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
+<a href="#2080" id="2080">2080</a>
+<a href="#2081" id="2081">2081</a>
+<a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a>
+<a href="#2088" id="2088">2088</a>
+<a href="#2089" id="2089">2089</a>
+<a href="#2090" id="2090">2090</a>
+<a href="#2091" id="2091">2091</a>
+<a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
+<a href="#2099" id="2099">2099</a>
+<a href="#2100" id="2100">2100</a>
+<a href="#2101" id="2101">2101</a>
+<a href="#2102" id="2102">2102</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
@@ -2410,13 +2479,22 @@
     config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
     conditional_tagging_config: <span class="kw-2">&amp;</span>[TaggingRule],
     event: <span class="kw-2">&amp;</span>Event,
-    target: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+    project_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+    sampling_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+    transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ExtractMetricsError&gt; {
-    <span class="kw">let </span>before_len = target.len();
+    <span class="kw">let </span>before_len = project_metrics.len();
 
-    extract_transaction_metrics_inner(aggregator_config, config, event, target)<span class="question-mark">?</span>;
+    extract_transaction_metrics_inner(
+        aggregator_config,
+        config,
+        event,
+        transaction_from_dsc,
+        project_metrics,
+        sampling_metrics,
+    )<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>added_slice = <span class="kw-2">&amp;mut </span>target[before_len..];
+    <span class="kw">let </span>added_slice = <span class="kw-2">&amp;mut </span>project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
     <span class="prelude-val">Ok</span>(!added_slice.is_empty())
 }
@@ -2425,7 +2503,9 @@
     aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
     config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
     event: <span class="kw-2">&amp;</span>Event,
-    metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
+    transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,          <span class="comment">// output parameter
+    </span>sampling_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExtractMetricsError&gt; {
     <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -2531,6 +2611,19 @@
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags_with_satisfaction.clone(),
+    ));
+
+    <span class="comment">// Count the transaction towards the root
+    </span>sampling_metrics.push(Metric::new_mri(
+        METRIC_NAMESPACE,
+        <span class="string">&quot;count_per_root_project&quot;</span>,
+        MetricUnit::None,
+        MetricValue::Counter(<span class="number">1.0</span>),
+        timestamp,
+        <span class="kw">match </span>transaction_from_dsc {
+            <span class="prelude-val">Some</span>(name) =&gt; BTreeMap::from([(<span class="string">&quot;transaction&quot;</span>.to_owned(), name.to_owned())]),
+            <span class="prelude-val">None </span>=&gt; BTreeMap::new(),
+        },
     ));
 
     <span class="comment">// User
@@ -2734,12 +2827,15 @@
         <span class="macro">assert!</span>(res.is_ok());
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -2871,12 +2967,15 @@
         <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -2959,12 +3058,15 @@
         <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3034,12 +3136,15 @@
         <span class="kw">let </span>aggregator_config = aggregator_config();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3099,12 +3204,15 @@
         <span class="kw">let </span>aggregator_config = aggregator_config();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
@@ -3158,12 +3266,15 @@
         <span class="kw">let </span>aggregator_config = aggregator_config();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
@@ -3227,12 +3338,15 @@
         <span class="kw">let </span>aggregator_config = aggregator_config();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3308,12 +3422,15 @@
         <span class="kw">let </span>aggregator_config = aggregator_config();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3414,12 +3531,15 @@
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>tagging_config,
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3497,12 +3617,15 @@
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>tagging_config,
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
         metrics.retain(|m| m.name.contains(<span class="string">&quot;lcp&quot;</span>));
@@ -3541,12 +3664,15 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3576,12 +3702,15 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3620,12 +3749,15 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         <span class="kw">let </span>result = extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         );
 
         <span class="macro">assert_eq!</span>(result, <span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp));
@@ -3641,12 +3773,15 @@
         config.accept_transaction_names = strategy;
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 
@@ -3997,12 +4132,15 @@
         </span><span class="kw">let _ </span>= store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
             <span class="kw-2">&amp;</span>aggregator_config,
             <span class="kw-2">&amp;</span>config,
             <span class="kw-2">&amp;</span>[],
             event.value().unwrap(),
             <span class="kw-2">&amp;mut </span>metrics,
+            <span class="kw-2">&amp;mut </span>sampling_metrics,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
         )
         .unwrap();
 

@@ -3165,6 +3165,43 @@
 <a href="#3164" id="3164">3164</a>
 <a href="#3165" id="3165">3165</a>
 <a href="#3166" id="3166">3166</a>
+<a href="#3167" id="3167">3167</a>
+<a href="#3168" id="3168">3168</a>
+<a href="#3169" id="3169">3169</a>
+<a href="#3170" id="3170">3170</a>
+<a href="#3171" id="3171">3171</a>
+<a href="#3172" id="3172">3172</a>
+<a href="#3173" id="3173">3173</a>
+<a href="#3174" id="3174">3174</a>
+<a href="#3175" id="3175">3175</a>
+<a href="#3176" id="3176">3176</a>
+<a href="#3177" id="3177">3177</a>
+<a href="#3178" id="3178">3178</a>
+<a href="#3179" id="3179">3179</a>
+<a href="#3180" id="3180">3180</a>
+<a href="#3181" id="3181">3181</a>
+<a href="#3182" id="3182">3182</a>
+<a href="#3183" id="3183">3183</a>
+<a href="#3184" id="3184">3184</a>
+<a href="#3185" id="3185">3185</a>
+<a href="#3186" id="3186">3186</a>
+<a href="#3187" id="3187">3187</a>
+<a href="#3188" id="3188">3188</a>
+<a href="#3189" id="3189">3189</a>
+<a href="#3190" id="3190">3190</a>
+<a href="#3191" id="3191">3191</a>
+<a href="#3192" id="3192">3192</a>
+<a href="#3193" id="3193">3193</a>
+<a href="#3194" id="3194">3194</a>
+<a href="#3195" id="3195">3195</a>
+<a href="#3196" id="3196">3196</a>
+<a href="#3197" id="3197">3197</a>
+<a href="#3198" id="3198">3198</a>
+<a href="#3199" id="3199">3199</a>
+<a href="#3200" id="3200">3200</a>
+<a href="#3201" id="3201">3201</a>
+<a href="#3202" id="3202">3202</a>
+<a href="#3203" id="3203">3203</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -3215,7 +3252,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
+    FormDataIter, SamplingResult,
 };
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -3380,6 +3418,41 @@
     </span>}
 }
 
+<span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">struct </span>ExtractedMetrics {
+    <span class="doccomment">/// Metrics associated with the project that the transaction belongs to.
+    </span>project_metrics: Vec&lt;Metric&gt;,
+    <span class="doccomment">/// Metrics associated with the sampling project (a.k.a. root or head project)
+    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
+    </span>sampling_metrics: Vec&lt;Metric&gt;,
+}
+
+<span class="kw">impl </span>ExtractedMetrics {
+    <span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope) {
+        <span class="kw">let </span>project_key = envelope.meta().public_key();
+
+        <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
+            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(project_key, <span class="self">self</span>.project_metrics));
+        }
+
+        <span class="kw">if </span>!<span class="self">self</span>.sampling_metrics.is_empty() {
+            <span class="comment">// If no sampling project state is available, we associate the sampling
+            // metrics with the current project.
+            //
+            // project_without_tracing         -&gt; metrics goes to self
+            // dependent_project_with_tracing  -&gt; metrics goes to root
+            // root_project_with_tracing       -&gt; metrics goes to root == self
+            </span><span class="kw">let </span>sampling_project_key = get_sampling_key(envelope).unwrap_or(project_key);
+            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(
+                sampling_project_key,
+                <span class="self">self</span>.sampling_metrics,
+            ));
+        }
+    }
+}
+
 <span class="doccomment">/// A state container for envelope processing.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProcessEnvelopeState {
@@ -3415,7 +3488,7 @@
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    </span>extracted_metrics: Vec&lt;Metric&gt;,
+    </span>extracted_metrics: ExtractedMetrics,
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.
     </span>project_state: Arc&lt;ProjectState&gt;,
@@ -3930,7 +4003,7 @@
     /// are out of range after clock drift correction.
     </span><span class="kw">fn </span>process_sessions(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="kw">let </span>received = state.envelope_context.received_at();
-        <span class="kw">let </span>extracted_metrics = <span class="kw-2">&amp;mut </span>state.extracted_metrics;
+        <span class="kw">let </span>extracted_metrics = <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics;
         <span class="kw">let </span>metrics_config = state.project_state.config().session_metrics;
         <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
         <span class="kw">let </span>client = envelope.meta().client().map(|x| x.to_owned());
@@ -4380,7 +4453,7 @@
             transaction_metrics_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             sample_rates: <span class="prelude-val">None</span>,
-            extracted_metrics: Vec::new(),
+            extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
             project_id,
@@ -5057,6 +5130,10 @@
         <span class="kw">if </span>!extraction_config.is_enabled() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
+        <span class="kw">let </span>transaction_from_dsc = state
+            .envelope
+            .dsc()
+            .and_then(|dsc| dsc.transaction.as_deref());
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
             <span class="kw">let </span>result;
@@ -5070,7 +5147,9 @@
                         extraction_config,
                         <span class="kw-2">&amp;</span>project_config.metric_conditional_tagging,
                         event,
-                        <span class="kw-2">&amp;mut </span>state.extracted_metrics,
+                        <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics,
+                        <span class="kw-2">&amp;mut </span>state.extracted_metrics.sampling_metrics,
+                        transaction_from_dsc,
                     );
                 }
             );
@@ -5304,7 +5383,6 @@
         <span class="kw">let </span>project_id = state.project_id;
         <span class="kw">let </span>client = state.envelope.meta().client().map(str::to_owned);
         <span class="kw">let </span>user_agent = state.envelope.meta().user_agent().map(str::to_owned);
-        <span class="kw">let </span>project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
             |scope| {
@@ -5323,8 +5401,12 @@
                         // requires recomputation of the context.
                         </span>state.envelope_context.update(<span class="kw-2">&amp;</span>state.envelope);
 
+                        <span class="kw">let </span>has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+
+                        state.extracted_metrics.send_metrics(<span class="kw-2">&amp;</span>state.envelope);
+
                         <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.envelope.is_empty() {
-                            <span class="kw">if </span>state.extracted_metrics.is_empty() {
+                            <span class="kw">if </span>!has_metrics {
                                 <span class="comment">// Individual rate limits have already been issued
                                 </span>state.envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
                             } <span class="kw">else </span>{
@@ -5335,12 +5417,6 @@
                             <span class="prelude-val">Some</span>((state.envelope, state.envelope_context))
                         };
 
-                        <span class="kw">if </span>!state.extracted_metrics.is_empty() {
-                            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
-
                         <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
                             envelope: envelope_response,
                         })
@@ -5350,10 +5426,8 @@
                             state.envelope_context.reject(outcome);
                         }
 
-                        <span class="kw">if </span>!state.extracted_metrics.is_empty() &amp;&amp; err.should_keep_metrics() {
-                            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
+                        <span class="kw">if </span>err.should_keep_metrics() {
+                            state.extracted_metrics.send_metrics(<span class="kw-2">&amp;</span>state.envelope);
                         }
 
                         <span class="prelude-val">Err</span>(err)
@@ -5767,7 +5841,7 @@
                 transaction_metrics_extracted: <span class="bool-val">false</span>,
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
-                extracted_metrics: <span class="macro">vec!</span>[],
+                extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
