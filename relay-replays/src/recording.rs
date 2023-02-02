@@ -51,6 +51,7 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 
 /// A utility that performs data scrubbing on Replay payloads.
 pub struct ReplayScrubber<'a> {
+    limit: usize,
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
 }
@@ -58,22 +59,88 @@ pub struct ReplayScrubber<'a> {
 impl<'a> ReplayScrubber<'a> {
     /// Creates a new `ReplayScrubber` from PII configs.
     ///
-    /// The two optional configs to be passed here are from data scrubbing settings and from the
-    /// dedicated PII config.
-    pub fn new(config1: Option<&'a PiiConfig>, config2: Option<&'a PiiConfig>) -> Self {
+    /// `limit` controls the maximum size in bytes during decompression. This function returns an
+    /// `Err` if decompressed contents exceed the limit. The two optional configs to be passed here
+    /// are from data scrubbing settings and from the dedicated PII config.
+    pub fn new(
+        limit: usize,
+        config1: Option<&'a PiiConfig>,
+        config2: Option<&'a PiiConfig>,
+    ) -> Self {
         Self {
+            limit,
             processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
             processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
         }
     }
 
-    /// Returns `true` if both configs are empty.
+    /// Returns `true` if both configs are empty and no scrubbing would occur.
     pub fn is_empty(&self) -> bool {
         self.processor1.is_none() && self.processor2.is_none()
     }
+
+    fn scrub_replay<R, W>(&mut self, read: R, write: W) -> Result<(), ParseRecordingError>
+    where
+        R: std::io::Read,
+        W: std::io::Write,
+    {
+        let mut deserializer = serde_json::Deserializer::from_reader(read);
+        let mut serializer = serde_json::Serializer::new(write);
+
+        let transformer = transform::Deserializer::new(&mut deserializer, self);
+        serde_transcode::transcode(transformer, &mut serializer)?;
+
+        Ok(())
+    }
+
+    #[doc(hidden)] // Public for benchmarks.
+    pub fn transcode_replay(
+        &mut self,
+        body: &[u8],
+        output: &mut Vec<u8>,
+    ) -> Result<(), ParseRecordingError> {
+        let encoder = ZlibEncoder::new(output, Compression::default());
+
+        if body.first() == Some(&b'[') {
+            self.scrub_replay(body, encoder)
+        } else {
+            let decoder = ZlibDecoder::new(body).take(self.limit as u64);
+            self.scrub_replay(BufReader::new(decoder), encoder)
+        }
+    }
+
+    /// Parses compressed replay recording payloads and applies data scrubbers.
+    ///
+    /// To avoid redundant parsing, check [`is_empty`](Self::is_empty) first.
+    pub fn process_recording(&mut self, bytes: &[u8]) -> Result<Vec<u8>, ParseRecordingError> {
+        // Check for null byte condition.
+        if bytes.is_empty() {
+            return Err(ParseRecordingError::Message("no data found"));
+        }
+
+        let mut split = bytes.splitn(2, |b| b == &b'\n');
+        let header = split
+            .next()
+            .ok_or(ParseRecordingError::Message("no headers found"))?;
+
+        let body = match split.next() {
+            Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
+            Some(body) => body,
+        };
+
+        let mut output = header.to_owned();
+        output.push(b'\n');
+        // Data scrubbing usually does not change the size of the output by much. We can preallocate
+        // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
+        // Benchmarks have NOT shown a big difference, however.
+        output.reserve(body.len());
+        self.transcode_replay(body, &mut output)?;
+
+        Ok(output)
+    }
 }
 
-impl Transform for ReplayScrubber<'_> {
+impl Transform for &'_ mut ReplayScrubber<'_> {
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
@@ -101,76 +168,6 @@ impl Transform for ReplayScrubber<'_> {
     }
 }
 
-fn scrub_replay<R, W>(
-    read: R,
-    write: W,
-    scrubber: ReplayScrubber<'_>,
-) -> Result<(), ParseRecordingError>
-where
-    R: std::io::Read,
-    W: std::io::Write,
-{
-    let mut deserializer = serde_json::Deserializer::from_reader(read);
-    let mut serializer = serde_json::Serializer::new(write);
-
-    let transformer = transform::Deserializer::new(&mut deserializer, scrubber);
-    serde_transcode::transcode(transformer, &mut serializer)?;
-
-    Ok(())
-}
-
-#[doc(hidden)] // Public for benchmarks.
-pub fn transcode_replay(
-    body: &[u8],
-    limit: usize,
-    scrubber: ReplayScrubber<'_>,
-    output: &mut Vec<u8>,
-) -> Result<(), ParseRecordingError> {
-    let encoder = ZlibEncoder::new(output, Compression::default());
-
-    if body.first() == Some(&b'[') {
-        scrub_replay(body, encoder, scrubber)
-    } else {
-        let decoder = ZlibDecoder::new(body).take(limit as u64);
-        scrub_replay(BufReader::new(decoder), encoder, scrubber)
-    }
-}
-
-/// Parses compressed replay recording payloads and applies data scrubbers.
-///
-/// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
-/// if decompressed contents exceed the limit.
-pub fn process_recording(
-    bytes: &[u8],
-    limit: usize,
-    scrubber: ReplayScrubber<'_>,
-) -> Result<Vec<u8>, ParseRecordingError> {
-    // Check for null byte condition.
-    if bytes.is_empty() {
-        return Err(ParseRecordingError::Message("no data found"));
-    }
-
-    let mut split = bytes.splitn(2, |b| b == &b'\n');
-    let header = split
-        .next()
-        .ok_or(ParseRecordingError::Message("no headers found"))?;
-
-    let body = match split.next() {
-        Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
-        Some(body) => body,
-    };
-
-    let mut output = header.to_owned();
-    output.push(b'\n');
-    // Data scrubbing usually does not change the size of the output by much. We can preallocate
-    // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
-    // Benchmarks have NOT shown a big difference, however.
-    output.reserve(body.len());
-    transcode_replay(body, limit, scrubber, &mut output)?;
-
-    Ok(output)
-}
-
 #[cfg(test)]
 mod tests {
     // End to end test coverage.
@@ -187,7 +184,7 @@ mod tests {
     }
 
     fn scrubber(config: &PiiConfig) -> ReplayScrubber {
-        ReplayScrubber::new(Some(config), None)
+        ReplayScrubber::new(usize::MAX, Some(config), None)
     }
 
     #[test]
@@ -211,7 +208,7 @@ mod tests {
         ];
 
         let config = default_pii_config();
-        let result = super::process_recording(payload, 1000, scrubber(&config));
+        let result = scrubber(&config).process_recording(payload);
         assert!(!result.unwrap().is_empty());
     }
 
@@ -223,7 +220,7 @@ mod tests {
         ];
 
         let config = default_pii_config();
-        let result = super::process_recording(payload, 1000, scrubber(&config));
+        let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no body found"),
@@ -238,7 +235,7 @@ mod tests {
         ];
 
         let config = default_pii_config();
-        let result = super::process_recording(payload, 1000, scrubber(&config));
+        let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Json(_),
@@ -253,7 +250,7 @@ mod tests {
         ];
 
         let config = default_pii_config();
-        let result = super::process_recording(payload, 1000, scrubber(&config));
+        let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no body found"),
@@ -266,7 +263,7 @@ mod tests {
         let payload: &[u8] = &[];
 
         let config = default_pii_config();
-        let result = super::process_recording(payload, 1000, scrubber(&config));
+        let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
             super::ParseRecordingError::Message("no data found"),
@@ -281,7 +278,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains(r#"{"type":3,"textContent":"[creditcard]","id":284}"#));
@@ -293,7 +292,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
@@ -305,7 +306,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("https://sentry.io?credit-card=[creditcard]"));
@@ -317,7 +320,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let parsed = std::str::from_utf8(&transcoded).unwrap();
         assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
@@ -332,7 +337,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         // NOTE: The normalization below was removed
@@ -346,7 +353,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"textContent\":\"[creditcard]\""));
@@ -359,7 +368,9 @@ mod tests {
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
-        super::scrub_replay(payload.as_slice(), &mut transcoded, scrubber(&config)).unwrap();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         assert!(scrubbed_result.contains("\"description\":\"[creditcard]\""));

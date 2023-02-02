@@ -2,7 +2,9 @@ use std::io::Read;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use flate2::{bufread::ZlibEncoder, Compression};
-use relay_replays::recording::transcode_replay;
+use relay_general::pii::PiiConfig;
+use relay_general::processor::SelectorSpec;
+use relay_replays::recording::ReplayScrubber;
 
 fn bench_recording(c: &mut Criterion) {
     let payload = include_bytes!("../tests/fixtures/rrweb.json");
@@ -13,10 +15,14 @@ fn bench_recording(c: &mut Criterion) {
     let mut encoder = ZlibEncoder::new(payload.as_slice(), Compression::default());
     encoder.read_to_end(&mut compressed).unwrap();
 
+    let mut pii_config = PiiConfig::default();
+    pii_config.applications = [(SelectorSpec::And(vec![]), vec!["@common".to_string()])].into();
+    let mut scrubber = ReplayScrubber::new(usize::MAX, Some(&pii_config), None);
+
     c.bench_with_input(BenchmarkId::new("rrweb", 1), &compressed, |b, &_| {
         b.iter(|| {
             let mut buf = Vec::new();
-            transcode_replay(criterion::black_box(&compressed), usize::MAX, &mut buf).ok();
+            scrubber.transcode_replay(&compressed, &mut buf).ok();
             buf
         });
     });

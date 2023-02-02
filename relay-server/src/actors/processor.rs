@@ -1018,7 +1018,7 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Remove replays if the feature flag is not enabled
+    /// Remove replays if the feature flag is not enabled.
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
@@ -1027,12 +1027,15 @@ impl EnvelopeProcessorService {
         let user_agent = meta.user_agent();
         let event_id = state.envelope.event_id();
 
+        let limit = self.config.max_replay_size();
         let config = state.project_state.config();
         let datascrubbing_config = config
             .datascrubbing_settings
             .pii_config()
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
             .as_ref();
+        let mut scrubber =
+            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1105,9 +1108,6 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let scrubber =
-                    ReplayScrubber::new(config.pii_config.as_ref(), datascrubbing_config);
-
                 // XXX: Processing is there just for data scrubbing. Skip the entire expensive
                 // processing step if we do not need to scrub.
                 if scrubber.is_empty() {
@@ -1118,9 +1118,8 @@ impl EnvelopeProcessorService {
                 // decompressed temporarily and then immediately re-compressed. However, to
                 // limit memory pressure, we use the replay limit as a good overall limit for
                 // allocations.
-                let limit = self.config.max_replay_size();
                 let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                    relay_replays::recording::process_recording(&item.payload(), limit, scrubber)
+                    scrubber.process_recording(&item.payload())
                 });
 
                 match parsed_recording {
