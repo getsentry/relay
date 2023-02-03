@@ -258,7 +258,7 @@ def test_validate_sampling_configuration():
                 "samplingStrategy": {
                     "type": "sampleRate",
                     "value": 0.9
-                }
+                },
                 "condition": {
                     "op": "eq",
                     "name": "event.release",
