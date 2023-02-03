@@ -106,19 +106,6 @@ pub struct ClientHints<S: Default + AsRef<str>> {
     pub sec_ch_ua_model: Option<S>,
 }
 
-/*
-impl ClientHints<&str> {
-    pub fn to_owned(&self) -> ClientHints<String> {
-        ClientHints {
-            sec_ch_ua_platform: self.sec_ch_ua_platform.map(str::to_string),
-            sec_ch_ua_platform_version: self.sec_ch_ua_platform_version.map(str::to_string),
-            sec_ch_ua: self.sec_ch_ua.map(str::to_string),
-            sec_ch_ua_model: self.sec_ch_ua_model.map(str::to_string),
-        }
-    }
-}
-*/
-
 impl<S: AsRef<str> + Default> ClientHints<S> {
     pub fn is_empty(&self) -> bool {
         self.sec_ch_ua_platform.is_none()
