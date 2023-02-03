@@ -232,7 +232,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
-    use std::iter::zip;
 
     use chrono::Duration as DateDuration;
 
@@ -525,7 +524,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(result, SamplingMatchResult::NoMatch)
+        no_match!(result);
     }
 
     #[test]
@@ -545,14 +544,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
-            }
-        );
+        transaction_match!(result, 0.5, event, 3);
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
         let result = get_sampling_match_result(
@@ -564,14 +556,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.1,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
-            }
-        )
+        transaction_match!(result, 0.1, event, 1);
     }
 
     #[test]
