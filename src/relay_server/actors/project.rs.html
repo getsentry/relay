@@ -1217,6 +1217,10 @@
 <a href="#1216" id="1216">1216</a>
 <a href="#1217" id="1217">1217</a>
 <a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1294,8 +1298,12 @@
     </span>Profiling,
     <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay&quot;</span>)]
-    </span>Replays,
-    <span class="doccomment">/// Enable transaction names normalization.
+    </span>SessionReplay,
+    <span class="doccomment">/// Enables data scrubbing of replay recording payloads.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;</span>)]
+    </span>SessionReplayRecordingScrubbing,
+    <span class="doccomment">/// Enables transaction names normalization.
+    ///
     /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
     </span>TransactionNameNormalize,
