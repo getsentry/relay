@@ -242,7 +242,10 @@ def test_validate_sampling_configuration():
         "rules": [
             {
                 "type": "trace",
-                "sampleRate": 0.7,
+                "samplingStrategy": {
+                    "type": "sampleRate",
+                    "value": 0.7
+                },
                 "condition": {
                     "op": "custom",
                     "name": "event.legacy_browser",
@@ -252,7 +255,10 @@ def test_validate_sampling_configuration():
             },
             {
                 "type": "trace",
-                "sampleRate": 0.9,
+                "samplingStrategy": {
+                    "type": "sampleRate",
+                    "value": 0.9
+                }
                 "condition": {
                     "op": "eq",
                     "name": "event.release",

@@ -257,7 +257,7 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"strategy": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -312,14 +312,14 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
                 "start": "2022-10-10T00:00:00.000000Z",
                 "end": "2022-10-20T00:00:00.000000Z",
             },
-            "decayingFn": {"type": "linear", "decayedSampleRate": 0.9},
+            "decayingFn": {"type": "linear", "decayedValue": 0.9},
         }
     ]
 
@@ -388,7 +388,7 @@ def test_cached_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {

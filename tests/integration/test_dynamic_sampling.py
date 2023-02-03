@@ -125,7 +125,7 @@ def _add_sampling_config(
         )
 
     rule = {
-        "sampleRate": sample_rate,
+        "samplingStrategy": {"type": "sampleRate", "value": sample_rate},
         "type": rule_type,
         "condition": {"op": "and", "inner": conditions},
         "id": len(rules) + 1,
@@ -366,7 +366,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
     _add_sampling_config(config, sample_rate=0, rule_type=rule_type)

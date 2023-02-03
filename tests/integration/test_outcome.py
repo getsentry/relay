@@ -616,7 +616,6 @@ def test_outcomes_rate_limit(
 
 
 def test_outcome_to_client_report(relay, mini_sentry):
-
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -624,7 +623,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "sampleRate": 0.0,
+                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",
@@ -790,7 +789,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "sampleRate": 0.0,
+                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",
@@ -910,7 +909,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "sampleRate": 0.0,
+                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",
