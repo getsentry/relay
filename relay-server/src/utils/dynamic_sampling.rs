@@ -101,6 +101,8 @@ impl SamplingConfigs {
     }
 }
 
+/// Checks whether unsupported rules result in a direct keep of the event or depending on the
+/// type of Relay an ignore of unsupported rules.
 fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: &SamplingConfig,
@@ -117,6 +119,8 @@ fn check_unsupported_rules(
     Some(())
 }
 
+/// Gets the sampling match result by creating the merged configuration and matching it against
+/// the sampling configuration.
 fn get_sampling_match_result(
     processing_enabled: bool,
     project_state: &ProjectState,
@@ -170,6 +174,8 @@ fn get_sampling_match_result(
     }
 }
 
+/// Checks whether an incoming event should be kept or dropped based on the result of the sampling
+/// configuration match.
 pub fn should_keep_event(
     processing_enabled: bool,
     project_state: &ProjectState,

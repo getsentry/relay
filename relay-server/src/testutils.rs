@@ -17,7 +17,6 @@ pub fn state_with_rule_and_condition(
     let rules = match sample_rate {
         Some(sample_rate) => vec![SamplingRule {
             condition,
-            // TODO: check if we need to add factor here.
             sampling_strategy: SamplingStrategy::SampleRate { value: sample_rate },
             ty: rule_type,
             id: RuleId(1),

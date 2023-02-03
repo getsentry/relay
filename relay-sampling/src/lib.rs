@@ -1,4 +1,3 @@
-#![feature(slice_concat_trait)]
 //! Functionality for calculating if a trace should be processed or dropped.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
