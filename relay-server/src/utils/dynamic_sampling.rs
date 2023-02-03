@@ -232,6 +232,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
+    use std::iter::zip;
 
     use chrono::Duration as DateDuration;
 
@@ -385,83 +386,77 @@ mod tests {
         }
     }
 
-    #[test]
-    /// Tests the merged config of the two configs with rules.
-    fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
+    fn merge_root_and_non_root_configs_with(
+        rules: Vec<SamplingRule>,
+        root_rules: Vec<SamplingRule>,
+    ) -> Vec<SamplingRule> {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
-                mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                mocked_sampling_rule(2, RuleType::Error, 0.2),
-                mocked_sampling_rule(3, RuleType::Trace, 0.3),
-                mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
-            ],
+            rules,
             mode: SamplingMode::Received,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
-                mocked_sampling_rule(5, RuleType::Transaction, 0.4),
-                mocked_sampling_rule(6, RuleType::Error, 0.5),
-                mocked_sampling_rule(7, RuleType::Trace, 0.6),
-                mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
-            ],
+            rules: root_rules,
             mode: SamplingMode::Received,
         });
 
-        let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
+        SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
             .add_root_config(Some(&root_project_state))
-            .get_merged_config();
+            .get_merged_config()
+            .rules
+    }
 
-        let expected_result = vec![1, 2, 4, 7, 8];
-        for (index, rule) in result.rules.iter().enumerate() {
-            assert_eq!(rule.id.0, expected_result[index])
-        }
+    macro_rules! match_rule_ids {
+        ($exc:expr, $res:expr) => {
+            for (index, rule) in $res.iter().enumerate() {
+                assert_eq!(rule.id.0, $exc[index])
+            }
+        };
+    }
+
+    #[test]
+    /// Tests the merged config of the two configs with rules.
+    fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
+        match_rule_ids!(
+            [1, 2, 4, 7, 8],
+            merge_root_and_non_root_configs_with(
+                vec![
+                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
+                    mocked_sampling_rule(2, RuleType::Error, 0.2),
+                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
+                ],
+                vec![
+                    mocked_sampling_rule(5, RuleType::Transaction, 0.4),
+                    mocked_sampling_rule(6, RuleType::Error, 0.5),
+                    mocked_sampling_rule(7, RuleType::Trace, 0.6),
+                    mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
+                ],
+            )
+        );
     }
 
     #[test]
     /// Tests the merged config of the two configs without rules.
     fn test_get_merged_config_with_no_rules_in_both_project_config_and_root_project_config() {
-        let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            mode: SamplingMode::Received,
-        });
-        let root_project_state = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            mode: SamplingMode::Received,
-        });
-
-        let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
-            .add_root_config(Some(&root_project_state))
-            .get_merged_config();
-
-        assert!(result.rules.is_empty());
+        assert!(merge_root_and_non_root_configs_with(vec![], vec![]).is_empty());
     }
 
     #[test]
     /// Tests the merged config of the project config with rules and the root project config
     /// without rules.
     fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
-        let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
-                mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                mocked_sampling_rule(2, RuleType::Error, 0.2),
-                mocked_sampling_rule(3, RuleType::Trace, 0.3),
-                mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
-            ],
-            mode: SamplingMode::Received,
-        });
-        let root_project_state = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            mode: SamplingMode::Received,
-        });
-
-        let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
-            .add_root_config(Some(&root_project_state))
-            .get_merged_config();
-
-        let expected_result = vec![1, 2, 4];
-        for (index, rule) in result.rules.iter().enumerate() {
-            assert_eq!(rule.id.0, expected_result[index])
-        }
+        match_rule_ids!(
+            [1, 2, 4],
+            merge_root_and_non_root_configs_with(
+                vec![
+                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
+                    mocked_sampling_rule(2, RuleType::Error, 0.2),
+                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
+                ],
+                vec![],
+            )
+        );
     }
 
     #[test]
@@ -469,28 +464,18 @@ mod tests {
     /// with rules.
     fn test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
     ) {
-        let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            mode: SamplingMode::Received,
-        });
-        let root_project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
-                mocked_sampling_rule(4, RuleType::Transaction, 0.4),
-                mocked_sampling_rule(5, RuleType::Error, 0.5),
-                mocked_sampling_rule(6, RuleType::Trace, 0.6),
-                mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
-            ],
-            mode: SamplingMode::Received,
-        });
-
-        let result = SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
-            .add_root_config(Some(&root_project_state))
-            .get_merged_config();
-
-        let expected_result = vec![6, 7];
-        for (index, rule) in result.rules.iter().enumerate() {
-            assert_eq!(rule.id.0, expected_result[index])
-        }
+        match_rule_ids!(
+            [6],
+            merge_root_and_non_root_configs_with(
+                vec![],
+                vec![
+                    mocked_sampling_rule(4, RuleType::Transaction, 0.4),
+                    mocked_sampling_rule(5, RuleType::Error, 0.5),
+                    mocked_sampling_rule(6, RuleType::Trace, 0.6),
+                    mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
+                ]
+            )
+        );
     }
 
     #[test]
