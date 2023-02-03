@@ -1021,11 +1021,9 @@ mod tests {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
             mode: SamplingMode::Received,
         });
-
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
-
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -1036,11 +1034,9 @@ mod tests {
             rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
             mode: SamplingMode::Received,
         });
-
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
-
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))
@@ -1061,11 +1057,9 @@ mod tests {
             }],
             mode: SamplingMode::Received,
         });
-
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
         let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
-
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -1079,15 +1073,12 @@ mod tests {
             ],
             mode: SamplingMode::Received,
         });
-
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = should_keep_event(false, &project_state, None, None, Some(&event), None);
-
         assert_eq!(result, SamplingResult::Keep);
 
         let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
-
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
