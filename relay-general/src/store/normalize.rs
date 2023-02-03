@@ -256,7 +256,7 @@ fn remove_invalid_measurements(
     measurements_config: &MeasurementsConfig,
 ) {
     let mut custom_measurements_count = 0;
-    let mut removed_measurements = vec![];
+    let mut removed_measurements = Object::new();
 
     measurements.retain(|name, value| {
         let measurement = match value.value() {
@@ -284,7 +284,7 @@ fn remove_invalid_measurements(
 
         // Retain payloads in _meta just for excessive custom measurements.
         if let Some(measurement) = value.value_mut().take() {
-            removed_measurements.push(Annotated::new(measurement));
+            removed_measurements.insert(name.clone(), Annotated::new(measurement));
         }
 
         false
@@ -2195,6 +2195,26 @@ mod tests {
             "my_custom_measurement_2": {
               "value": 789.0,
               "unit": "none",
+            },
+          },
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "too many measurements",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "my_custom_measurement_3": {
+                    "unit": "none",
+                    "value": 456.0,
+                  },
+                }),
+              ))),
             },
           },
         }
