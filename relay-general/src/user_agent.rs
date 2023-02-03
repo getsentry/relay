@@ -92,6 +92,57 @@ pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
     pub client_hints: ClientHints<S>,
 }
 
+impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+    pub fn extract_header(&mut self, key: &str, value: Option<S>) {
+        match key.to_lowercase().as_str() {
+            "user-agent" => self.user_agent = value,
+
+            "sec-ch-ua" => self.client_hints.sec_ch_ua = value,
+            "sec-ch-ua-model" => self.client_hints.sec_ch_ua_model = value,
+            "sec-ch-ua-platform" => self.client_hints.sec_ch_ua_platform = value,
+            "sec-ch-ua-platform-version" => {
+                self.client_hints.sec_ch_ua_platform_version = value;
+            }
+            _ => {}
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.user_agent.is_none() && self.client_hints.is_empty()
+    }
+
+    pub fn from_ua(s: S) -> Self {
+        Self {
+            user_agent: Some(s),
+            client_hints: ClientHints::default(),
+        }
+    }
+}
+
+impl RawUserAgentInfo<String> {
+    pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
+        RawUserAgentInfo::<&str> {
+            user_agent: self.user_agent.as_deref(),
+            client_hints: self.client_hints.as_deref(),
+        }
+    }
+}
+
+impl<'a> RawUserAgentInfo<&'a str> {
+    pub fn from_headers(headers: &'a Headers) -> Self {
+        let mut contexts: RawUserAgentInfo<&str> = Self::default();
+
+        for item in headers.iter() {
+            if let Some((ref o_k, ref v)) = item.value() {
+                if let Some(k) = o_k.as_str() {
+                    contexts.extract_header(k, v.as_str());
+                }
+            }
+        }
+        contexts
+    }
+}
+
 /// The client hint variable names mirror the name of the "SEC-CH" headers, see
 /// '<https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>'
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -126,57 +177,6 @@ impl ClientHints<String> {
     }
 }
 
-impl RawUserAgentInfo<String> {
-    pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
-        RawUserAgentInfo::<&str> {
-            user_agent: self.user_agent.as_deref(),
-            client_hints: self.client_hints.as_deref(),
-        }
-    }
-}
-
-impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
-    pub fn extract_header(&mut self, key: &str, value: Option<S>) {
-        match key.to_lowercase().as_str() {
-            "user-agent" => self.user_agent = value,
-
-            "sec-ch-ua" => self.client_hints.sec_ch_ua = value,
-            "sec-ch-ua-model" => self.client_hints.sec_ch_ua_model = value,
-            "sec-ch-ua-platform" => self.client_hints.sec_ch_ua_platform = value,
-            "sec-ch-ua-platform-version" => {
-                self.client_hints.sec_ch_ua_platform_version = value;
-            }
-            _ => {}
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.user_agent.is_none() && self.client_hints.is_empty()
-    }
-
-    pub fn from_ua(s: S) -> Self {
-        Self {
-            user_agent: Some(s),
-            client_hints: ClientHints::default(),
-        }
-    }
-}
-
-impl<'a> RawUserAgentInfo<&'a str> {
-    pub fn from_headers(headers: &'a Headers) -> Self {
-        let mut contexts: RawUserAgentInfo<&str> = Self::default();
-
-        for item in headers.iter() {
-            if let Some((ref o_k, ref v)) = item.value() {
-                if let Some(k) = o_k.as_str() {
-                    contexts.extract_header(k, v.as_str());
-                }
-            }
-        }
-        contexts
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,12 +186,14 @@ mod tests {
         assert!(RawUserAgentInfo::<&str>::default().is_empty());
     }
 
-    /// Make sure to update all relevant code if you add a new field to RawUserAgentInfo.
     #[test]
-    fn size() {
+    fn detect_new_field() {
         let ua = RawUserAgentInfo::<&str>::default();
         let size = std::mem::size_of_val(&ua);
         //dbg!(size);
-        assert!(size == 80);
+        assert!(
+            size == 80,
+            "Make sure to update all relevant code if you add a new field to RawUserAgentInfo"
+        );
     }
 }
