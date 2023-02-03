@@ -106,7 +106,7 @@ pub struct ClientHints<'a> {
 }
 
 impl<'a> RawUserAgentInfo<'a> {
-    pub fn new(headers: &'a Headers) -> Self {
+    pub fn from_headers(headers: &'a Headers) -> Self {
         let mut contexts = Self::default();
 
         for item in headers.iter() {

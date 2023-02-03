@@ -103,7 +103,7 @@ mod tests {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         insta::assert_debug_snapshot!(os, @r###"
 OsContext {
@@ -138,7 +138,7 @@ OsContext {
             PairList(headers)
         });
 
-        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         insta::assert_debug_snapshot!(os, @r###"
 OsContext {
