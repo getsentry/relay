@@ -1056,7 +1056,10 @@ impl EnvelopeProcessorService {
 
     /// Remove replays if the feature flag is not enabled.
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let project_state = &mut state.project_state;
+        let replays_enabled = project_state.has_feature(Feature::SessionReplay);
+        let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
@@ -1064,7 +1067,7 @@ impl EnvelopeProcessorService {
         let event_id = state.envelope.event_id();
 
         let limit = self.config.max_replay_size();
-        let config = state.project_state.config();
+        let config = project_state.config();
         let datascrubbing_config = config
             .datascrubbing_settings
             .pii_config()
@@ -1079,14 +1082,7 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let result = self.process_replay_event(
-                    &item.payload(),
-                    &state.project_state.config,
-                    client_addr,
-                    user_agent,
-                );
-
-                match result {
+                match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
                             item.set_payload(ContentType::Json, json.as_bytes());
@@ -1146,7 +1142,7 @@ impl EnvelopeProcessorService {
 
                 // XXX: Processing is there just for data scrubbing. Skip the entire expensive
                 // processing step if we do not need to scrub.
-                if scrubber.is_empty() {
+                if !scrubbing_enabled || scrubber.is_empty() {
                     return true;
                 }
 

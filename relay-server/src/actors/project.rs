@@ -75,8 +75,12 @@ pub enum Feature {
     Profiling,
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     #[serde(rename = "organizations:session-replay")]
-    Replays,
-    /// Enable transaction names normalization.
+    SessionReplay,
+    /// Enables data scrubbing of replay recording payloads.
+    #[serde(rename = "organizations:session-replay-recording-scrubbing")]
+    SessionReplayRecordingScrubbing,
+    /// Enables transaction names normalization.
+    ///
     /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
     #[serde(rename = "organizations:transaction-name-normalize")]
     TransactionNameNormalize,
