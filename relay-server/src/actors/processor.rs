@@ -1746,7 +1746,7 @@ impl EnvelopeProcessorService {
             key_id,
             protocol_version: Some(envelope.meta().version().to_string()),
             grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().map(str::to_string),
+            user_agent: envelope.meta().user_agent().map(str::to_owned),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             enable_trimming: Some(true),
@@ -2049,19 +2049,15 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
-
-        let user_agent = {
-            let requestmeta = state.envelope.meta();
-            RawUserAgentInfo {
-                user_agent: requestmeta.user_agent(),
-                client_hints: requestmeta.client_hints().as_deref(),
-            }
-        };
+        let request_meta = state.envelope.meta();
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent,
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -2149,8 +2145,8 @@ impl EnvelopeProcessorService {
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
+        let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
         let project_key = state.envelope.meta().public_key();
-        let user_agent = state.envelope.meta().user_agent().map(str::to_string);
 
         relay_log::with_scope(
             |scope| {

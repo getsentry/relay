@@ -106,6 +106,7 @@ pub struct ClientHints<S: Default + AsRef<str>> {
     pub sec_ch_ua_model: Option<S>,
 }
 
+/*
 impl ClientHints<&str> {
     pub fn to_owned(&self) -> ClientHints<String> {
         ClientHints {
@@ -116,6 +117,7 @@ impl ClientHints<&str> {
         }
     }
 }
+*/
 
 impl<S: AsRef<str> + Default> ClientHints<S> {
     pub fn is_empty(&self) -> bool {
