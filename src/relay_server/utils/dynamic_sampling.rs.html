@@ -1198,7 +1198,7 @@
         )
     }
 
-    <span class="kw">fn </span>samplingresult_from_rules_and_proccessing_flag(
+    <span class="kw">fn </span>samplingresult_from_rules_and_processing_flag(
         rules: Vec&lt;SamplingRule&gt;,
         processing_enabled: bool,
     ) -&gt; SamplingResult {
@@ -1242,10 +1242,10 @@
         }];
 
         <span class="comment">// ensures the event is indeed dropped with and without processing enabled
-        </span><span class="kw">let </span>res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), <span class="bool-val">false</span>);
+        </span><span class="kw">let </span>res = samplingresult_from_rules_and_processing_flag(rules.clone(), <span class="bool-val">false</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, SamplingResult::Drop(<span class="kw">_</span>)));
 
-        <span class="kw">let </span>res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), <span class="bool-val">true</span>);
+        <span class="kw">let </span>res = samplingresult_from_rules_and_processing_flag(rules.clone(), <span class="bool-val">true</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, SamplingResult::Drop(<span class="kw">_</span>)));
 
         rules.push(SamplingRule {
@@ -1258,10 +1258,10 @@
         });
 
         <span class="comment">// now that an unsupported rule has been pushed, it should keep the event if processing is disabled
-        </span><span class="kw">let </span>res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), <span class="bool-val">false</span>);
+        </span><span class="kw">let </span>res = samplingresult_from_rules_and_processing_flag(rules.clone(), <span class="bool-val">false</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, SamplingResult::Keep));
 
-        <span class="kw">let </span>res = samplingresult_from_rules_and_proccessing_flag(rules, <span class="bool-val">true</span>);
+        <span class="kw">let </span>res = samplingresult_from_rules_and_processing_flag(rules, <span class="bool-val">true</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, SamplingResult::Drop(<span class="kw">_</span>))); <span class="comment">// should also log an error
     </span>}
 

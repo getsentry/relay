@@ -348,7 +348,7 @@
         <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let </span>user_agent_info = RawUserAgentInfo::new(headers);
+    <span class="kw">let </span>user_agent_info = RawUserAgentInfo::from_headers(headers);
 
     <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(|| Contexts::new());
     normalize_user_agent_info_generic(contexts, <span class="kw-2">&amp;</span>event.platform, <span class="kw-2">&amp;</span>user_agent_info);

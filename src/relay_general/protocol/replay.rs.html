@@ -803,7 +803,7 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>user_agent_info = RawUserAgentInfo::new(headers);
+        <span class="kw">let </span><span class="kw-2">mut </span>user_agent_info = RawUserAgentInfo::from_headers(headers);
 
         <span class="kw">if </span>user_agent_info.user_agent.is_none() {
             user_agent_info.user_agent = default_user_agent;

@@ -562,7 +562,7 @@
             PairList(headers)
         });
 
-        <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::new(<span class="kw-2">&amp;</span>headers));
+        <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers));
         <span class="macro">assert_eq!</span>(device.unwrap().family.as_str().unwrap(), <span class="string">&quot;foo g31(w)&quot;</span>);
     }
     <span class="attr">#[test]
@@ -581,7 +581,7 @@
             PairList(headers)
         });
 
-        <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::new(<span class="kw-2">&amp;</span>headers));
+        <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers));
         <span class="macro">assert_eq!</span>(device.unwrap().model.as_str().unwrap(), <span class="string">&quot;moto g31(w)&quot;</span>);
     }
 
