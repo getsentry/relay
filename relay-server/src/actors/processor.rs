@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use relay_general::user_agent::RawUserAgentInfo;
+use relay_replays::recording::ReplayScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -49,7 +50,8 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
+    FormDataIter, SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -214,6 +216,41 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
+#[derive(Debug, Default)]
+struct ExtractedMetrics {
+    /// Metrics associated with the project that the transaction belongs to.
+    project_metrics: Vec<Metric>,
+    /// Metrics associated with the sampling project (a.k.a. root or head project)
+    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
+    sampling_metrics: Vec<Metric>,
+}
+
+impl ExtractedMetrics {
+    fn send_metrics(self, envelope: &Envelope) {
+        let project_key = envelope.meta().public_key();
+
+        if !self.project_metrics.is_empty() {
+            let project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(project_key, self.project_metrics));
+        }
+
+        if !self.sampling_metrics.is_empty() {
+            // If no sampling project state is available, we associate the sampling
+            // metrics with the current project.
+            //
+            // project_without_tracing         -> metrics goes to self
+            // dependent_project_with_tracing  -> metrics goes to root
+            // root_project_with_tracing       -> metrics goes to root == self
+            let sampling_project_key = get_sampling_key(envelope).unwrap_or(project_key);
+            let project_cache = ProjectCache::from_registry();
+            project_cache.send(InsertMetrics::new(
+                sampling_project_key,
+                self.sampling_metrics,
+            ));
+        }
+    }
+}
+
 /// A state container for envelope processing.
 #[derive(Debug)]
 struct ProcessEnvelopeState {
@@ -249,7 +286,7 @@ struct ProcessEnvelopeState {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    extracted_metrics: Vec<Metric>,
+    extracted_metrics: ExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
@@ -764,7 +801,7 @@ impl EnvelopeProcessorService {
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at();
-        let extracted_metrics = &mut state.extracted_metrics;
+        let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
         let client = envelope.meta().client().map(|x| x.to_owned());
@@ -1018,13 +1055,26 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Remove replays if the feature flag is not enabled
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
-        let replays_enabled = state.project_state.has_feature(Feature::Replays);
+    /// Remove replays if the feature flag is not enabled.
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let project_state = &mut state.project_state;
+        let replays_enabled = project_state.has_feature(Feature::SessionReplay);
+        let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
         let event_id = state.envelope.event_id();
+
+        let limit = self.config.max_replay_size();
+        let config = project_state.config();
+        let datascrubbing_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
+            .as_ref();
+        let mut scrubber =
+            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1032,17 +1082,12 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let result = self.process_replay_event(
-                    &item.payload(),
-                    &state.project_state.config,
-                    client_addr,
-                    RawUserAgentInfo {
-                        user_agent: meta.user_agent(),
-                        client_hints: meta.client_hints().as_deref(),
-                    },
-                );
+                let user_agent = RawUserAgentInfo {
+                    user_agent: meta.user_agent(),
+                    client_hints: meta.client_hints().as_deref(),
+                };
 
-                match result {
+                match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
                             item.set_payload(ContentType::Json, json.as_bytes());
@@ -1096,38 +1141,46 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                if replays_enabled {
-                    // Limit expansion of recordings to the max replay size. The payload is
-                    // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the replay limit as a good overall limit for
-                    // allocations.
-                    let limit = self.config.max_replay_size();
-                    let parsed_recording =
-                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::recording::process_recording(&item.payload(), limit)
-                        });
+                if !replays_enabled {
+                    return false;
+                }
 
-                    match parsed_recording {
-                        Ok(recording) => {
-                            item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        }
-                        Err(e) => {
-                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            context.track_outcome(
-                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                                DataCategory::Replay,
-                                1,
-                            );
-                        }
+                // XXX: Processing is there just for data scrubbing. Skip the entire expensive
+                // processing step if we do not need to scrub.
+                if !scrubbing_enabled || scrubber.is_empty() {
+                    return true;
+                }
+
+                // Limit expansion of recordings to the max replay size. The payload is
+                // decompressed temporarily and then immediately re-compressed. However, to
+                // limit memory pressure, we use the replay limit as a good overall limit for
+                // allocations.
+                let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                    scrubber.process_recording(&item.payload())
+                });
+
+                match parsed_recording {
+                    Ok(recording) => {
+                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                    }
+                    Err(e) => {
+                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                            DataCategory::Replay,
+                            1,
+                        );
                     }
                 }
 
                 // XXX: For now replays that could not be parsed are still accepted while we
                 // determine the impact of the recording parser.
-                replays_enabled
+                true
             }
             _ => true,
         });
+
+        Ok(())
     }
 
     /// Validates, normalizes, and scrubs PII from a replay event.
@@ -1216,7 +1269,7 @@ impl EnvelopeProcessorService {
             transaction_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            extracted_metrics: Vec::new(),
+            extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
             project_id,
@@ -1894,6 +1947,10 @@ impl EnvelopeProcessorService {
         if !extraction_config.is_enabled() {
             return Ok(());
         }
+        let transaction_from_dsc = state
+            .envelope
+            .dsc()
+            .and_then(|dsc| dsc.transaction.as_deref());
 
         if let Some(event) = state.event.value() {
             let result;
@@ -1907,7 +1964,9 @@ impl EnvelopeProcessorService {
                         extraction_config,
                         &project_config.metric_conditional_tagging,
                         event,
-                        &mut state.extracted_metrics,
+                        &mut state.extracted_metrics.project_metrics,
+                        &mut state.extracted_metrics.sampling_metrics,
+                        transaction_from_dsc,
                     );
                 }
             );
@@ -2093,7 +2152,7 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replays(state);
+        self.process_replays(state)?;
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
@@ -2146,7 +2205,6 @@ impl EnvelopeProcessorService {
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
         let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
-        let project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
             |scope| {
@@ -2165,8 +2223,12 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.envelope_context.update(&state.envelope);
 
+                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+
+                        state.extracted_metrics.send_metrics(&state.envelope);
+
                         let envelope_response = if state.envelope.is_empty() {
-                            if state.extracted_metrics.is_empty() {
+                            if !has_metrics {
                                 // Individual rate limits have already been issued
                                 state.envelope_context.reject(Outcome::RateLimited(None));
                             } else {
@@ -2177,12 +2239,6 @@ impl EnvelopeProcessorService {
                             Some((state.envelope, state.envelope_context))
                         };
 
-                        if !state.extracted_metrics.is_empty() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
-
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,
                         })
@@ -2192,10 +2248,8 @@ impl EnvelopeProcessorService {
                             state.envelope_context.reject(outcome);
                         }
 
-                        if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
+                        if err.should_keep_metrics() {
+                            state.extracted_metrics.send_metrics(&state.envelope);
                         }
 
                         Err(err)
@@ -2609,7 +2663,7 @@ mod tests {
                 transaction_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                extracted_metrics: vec![],
+                extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
