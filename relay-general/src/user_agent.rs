@@ -106,16 +106,42 @@ pub struct ClientHints<S: Default + AsRef<str>> {
     pub sec_ch_ua_model: Option<S>,
 }
 
+impl ClientHints<&str> {
+    pub fn to_owned(&self) -> ClientHints<String> {
+        ClientHints {
+            sec_ch_ua_platform: self.sec_ch_ua_platform.map(str::to_string),
+            sec_ch_ua_platform_version: self.sec_ch_ua_platform_version.map(str::to_string),
+            sec_ch_ua: self.sec_ch_ua.map(str::to_string),
+            sec_ch_ua_model: self.sec_ch_ua_model.map(str::to_string),
+        }
+    }
+}
+
+impl<S: AsRef<str> + Default> ClientHints<S> {
+    pub fn is_empty(&self) -> bool {
+        self.sec_ch_ua_platform.is_none()
+            && self.sec_ch_ua_platform_version.is_none()
+            && self.sec_ch_ua.is_none()
+            && self.sec_ch_ua_model.is_none()
+    }
+}
+
+impl ClientHints<String> {
+    pub fn as_deref(&self) -> ClientHints<&str> {
+        ClientHints::<&str> {
+            sec_ch_ua_platform: self.sec_ch_ua_platform.as_deref(),
+            sec_ch_ua_platform_version: self.sec_ch_ua_platform_version.as_deref(),
+            sec_ch_ua: self.sec_ch_ua.as_deref(),
+            sec_ch_ua_model: self.sec_ch_ua_model.as_deref(),
+        }
+    }
+}
+
 impl RawUserAgentInfo<String> {
     pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
         RawUserAgentInfo::<&str> {
             user_agent: self.user_agent.as_deref(),
-            client_hints: ClientHints::<&str> {
-                sec_ch_ua_platform: self.client_hints.sec_ch_ua_platform.as_deref(),
-                sec_ch_ua_platform_version: self.client_hints.sec_ch_ua_platform_version.as_deref(),
-                sec_ch_ua: self.client_hints.sec_ch_ua.as_deref(),
-                sec_ch_ua_model: self.client_hints.sec_ch_ua_model.as_deref(),
-            },
+            client_hints: self.client_hints.as_deref(),
         }
     }
 }
@@ -136,11 +162,7 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.user_agent.is_none()
-            && self.client_hints.sec_ch_ua_platform.is_none()
-            && self.client_hints.sec_ch_ua_platform_version.is_none()
-            && self.client_hints.sec_ch_ua.is_none()
-            && self.client_hints.sec_ch_ua_model.is_none()
+        self.user_agent.is_none() && self.client_hints.is_empty()
     }
 
     pub fn from_ua(s: S) -> Self {

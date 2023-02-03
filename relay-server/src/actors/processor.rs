@@ -1024,7 +1024,6 @@ impl EnvelopeProcessorService {
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
-        let user_agent = meta.user_agent();
         let event_id = state.envelope.event_id();
 
         state.envelope.retain_items(|item| match item.ty() {
@@ -1037,7 +1036,10 @@ impl EnvelopeProcessorService {
                     &item.payload(),
                     &state.project_state.config,
                     client_addr,
-                    user_agent.as_deref(),
+                    RawUserAgentInfo {
+                        user_agent: meta.user_agent(),
+                        client_hints: meta.client_hints().as_deref(),
+                    },
                 );
 
                 match result {
@@ -1744,7 +1746,7 @@ impl EnvelopeProcessorService {
             key_id,
             protocol_version: Some(envelope.meta().version().to_string()),
             grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().to_owned(),
+            user_agent: envelope.meta().user_agent().map(str::to_string),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             enable_trimming: Some(true),
@@ -1756,6 +1758,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            client_hints: envelope.meta().client_hints().to_owned(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -2047,9 +2050,18 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
         let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+
+        let user_agent = {
+            let requestmeta = state.envelope.meta();
+            RawUserAgentInfo {
+                user_agent: requestmeta.user_agent(),
+                client_hints: requestmeta.client_hints().as_deref(),
+            }
+        };
+
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent: state.envelope.meta().user_agent().as_deref(),
+            user_agent,
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -2137,8 +2149,8 @@ impl EnvelopeProcessorService {
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
-        let user_agent = state.envelope.meta().user_agent().clone();
         let project_key = state.envelope.meta().public_key();
+        let user_agent = state.envelope.meta().user_agent().map(str::to_string);
 
         relay_log::with_scope(
             |scope| {
@@ -2146,8 +2158,8 @@ impl EnvelopeProcessorService {
                 if let Some(client) = client {
                     scope.set_tag("sdk", client);
                 }
-                if let Some(user_agent) = user_agent.user_agent.as_ref() {
-                    scope.set_extra("user_agent", user_agent.as_str().into());
+                if let Some(user_agent) = user_agent {
+                    scope.set_extra("user_agent", user_agent.into());
                 }
             },
             || {

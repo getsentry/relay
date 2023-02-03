@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
 use crate::types::{Meta, ProcessingResult, SpanAttribute};
-use crate::user_agent::RawUserAgentInfo;
+use crate::user_agent::ClientHints;
 
 mod clock_drift;
 mod event_error;
@@ -38,7 +38,7 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
-    pub user_agent: RawUserAgentInfo<String>,
+    pub user_agent: Option<String>,
     pub received_at: Option<DateTime<Utc>>,
     pub sent_at: Option<DateTime<Utc>>,
 
@@ -64,6 +64,8 @@ pub struct StoreConfig {
 
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
+
+    pub client_hints: ClientHints<String>,
 }
 
 /// The processor that normalizes events for store.

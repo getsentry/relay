@@ -7,7 +7,7 @@ use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures01::{future, Future};
-use relay_general::user_agent::RawUserAgentInfo;
+use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -188,8 +188,8 @@ pub struct RequestMeta<D = PartialDsn> {
     forwarded_for: String,
 
     /// The user agent that sent this event.
-    #[serde(default, skip_serializing_if = "RawUserAgentInfo::is_empty")]
-    user_agent: RawUserAgentInfo<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    user_agent: Option<String>,
 
     /// A flag that indicates that project options caching should be bypassed.
     #[serde(default = "make_false", skip_serializing_if = "is_false")]
@@ -200,6 +200,9 @@ pub struct RequestMeta<D = PartialDsn> {
     // NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip, default = "Instant::now")]
     start_time: Instant,
+
+    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
+    client_hints: ClientHints<String>,
 }
 
 impl<D> RequestMeta<D> {
@@ -253,8 +256,12 @@ impl<D> RequestMeta<D> {
     ///
     /// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies
     /// the SDK that sent the event.
-    pub fn user_agent(&self) -> &RawUserAgentInfo<String> {
-        &self.user_agent
+    pub fn user_agent(&self) -> Option<&str> {
+        self.user_agent.as_deref()
+    }
+
+    pub fn client_hints(&self) -> &ClientHints<String> {
+        &self.client_hints
     }
 
     /// Indicates that caches should be bypassed.
@@ -278,9 +285,10 @@ impl RequestMeta {
             origin: None,
             remote_addr: None,
             forwarded_for: "".to_string(),
-            user_agent: RawUserAgentInfo::from_ua(crate::constants::SERVER.to_owned()),
+            user_agent: Some(crate::constants::SERVER.to_owned()),
             no_cache: false,
             start_time: Instant::now(),
+            client_hints: ClientHints::default(),
         }
     }
 
@@ -294,9 +302,10 @@ impl RequestMeta {
             origin: Some("http://origin/".parse().unwrap()),
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
-            user_agent: RawUserAgentInfo::from_ua("sentry/agent".to_string()),
+            user_agent: Some("sentry/agent".to_string()),
             no_cache: false,
             start_time: Instant::now(),
+            client_hints: ClientHints::default(),
         }
     }
 
@@ -364,6 +373,12 @@ pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 impl PartialMeta {
     /// Extracts header information except for auth info.
     fn from_headers<S>(request: &HttpRequest<S>) -> Self {
+        let mut ua = RawUserAgentInfo::default();
+
+        for (key, value) in request.headers() {
+            ua.extract_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
         RequestMeta {
             dsn: None,
             version: default_version(),
@@ -372,15 +387,10 @@ impl PartialMeta {
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
             forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: {
-                let mut ua = RawUserAgentInfo::default();
-                for (key, value) in request.headers() {
-                    ua.extract_header(key.as_str(), value.to_str().ok().map(str::to_string));
-                }
-                ua
-            },
+            user_agent: ua.user_agent,
             no_cache: false,
             start_time: StartTime::extract(request).into_inner(),
+            client_hints: ua.client_hints,
         }
     }
 
@@ -413,8 +423,11 @@ impl PartialMeta {
         if !self.forwarded_for.is_empty() {
             complete.forwarded_for = self.forwarded_for;
         }
-        if !self.user_agent.is_empty() {
+        if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
+        }
+        if !self.client_hints.is_empty() {
+            complete.client_hints = self.client_hints
         }
         if self.no_cache {
             complete.no_cache = true;
@@ -526,6 +539,7 @@ impl FromRequest<ServiceState> for RequestMeta {
             user_agent: partial_meta.user_agent,
             no_cache: key_flags.contains(&"no-cache"),
             start_time: partial_meta.start_time,
+            client_hints: partial_meta.client_hints,
         })
     }
 }

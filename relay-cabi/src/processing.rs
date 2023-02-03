@@ -20,6 +20,7 @@ use relay_general::store::{
     light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_general::types::{Annotated, Remark};
+use relay_general::user_agent::RawUserAgentInfo;
 use relay_sampling::{RuleCondition, SamplingConfig};
 
 use crate::core::{RelayBuf, RelayStr};
@@ -112,7 +113,10 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let config = (*processor).config();
     let light_normalization_config = LightNormalizationConfig {
         client_ip: config.client_ip.as_ref(),
-        user_agent: config.user_agent.as_deref(),
+        user_agent: RawUserAgentInfo {
+            user_agent: config.user_agent.as_deref(),
+            client_hints: config.client_hints.as_deref(),
+        },
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
