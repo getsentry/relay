@@ -33,7 +33,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::{DynamicSamplingContext, MatchedRuleIds, RuleId};
+use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -334,7 +334,7 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
             Some(rule_ids) => MatchedRuleIds::from_string(rule_ids)
-                .map(|matched_rule_ids| Outcome::FilteredSampling(matched_rule_ids))
+                .map(Outcome::FilteredSampling)
                 .map_err(|_| ()),
             None => Err(()),
         },
@@ -2021,7 +2021,7 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr();
 
-        match utils::should_keep_event_new(
+        match utils::should_keep_event(
             self.config.processing_enabled(),
             &state.project_state,
             state.sampling_project_state.as_deref(),
@@ -2030,12 +2030,11 @@ impl EnvelopeProcessorService {
             client_ip,
         ) {
             SamplingResult::Drop(rule_ids) => {
-                // TODO: how do we deal with this?
                 state
                     .envelope_context
                     .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
-                Err(ProcessingError::Sampled(rule_ids.clone()))
+                Err(ProcessingError::Sampled(rule_ids))
             }
             SamplingResult::Keep => Ok(()),
         }
@@ -2410,7 +2409,7 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
-    use relay_sampling::{RuleCondition, RuleType, SamplingMode};
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};

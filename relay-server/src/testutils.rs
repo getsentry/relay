@@ -36,26 +36,6 @@ pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectStat
     state
 }
 
-pub fn state_with_rule(
-    sample_rate: Option<f64>,
-    rule_type: RuleType,
-    mode: SamplingMode,
-) -> ProjectState {
-    let rules = match sample_rate {
-        Some(sample_rate) => vec![SamplingRule {
-            condition: RuleCondition::all(),
-            // TODO: check if we need to add factor here.
-            sampling_strategy: SamplingStrategy::SampleRate { value: sample_rate },
-            ty: rule_type,
-            id: RuleId(1),
-            time_range: Default::default(),
-            decaying_fn: relay_sampling::DecayingFunction::Constant,
-        }],
-        None => Vec::new(),
-    };
-
-    project_state_with_config(SamplingConfig { rules, mode })
-}
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
         trace_id: uuid::Uuid::new_v4(),

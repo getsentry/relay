@@ -12,7 +12,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 use std::num::ParseIntError;
-use std::slice::Join;
 
 use chrono::{DateTime, Utc};
 use rand::{distributions::Uniform, Rng};
@@ -863,7 +862,7 @@ impl MatchedRuleIds {
     pub fn from_string(value: &str) -> Result<MatchedRuleIds, ParseIntError> {
         let mut rule_ids = vec![];
 
-        for rule_id in value.split(";") {
+        for rule_id in value.split(';') {
             let int_rule_id = rule_id.parse()?;
             rule_ids.push(RuleId(int_rule_id));
         }
@@ -1016,61 +1015,6 @@ impl SamplingConfig {
 
         // In case no match is available, we won't return any specification.
         None
-    }
-
-    /// Get the first rule of type [`RuleType::Trace`] whose conditions match on the given sampling
-    /// context.
-    ///
-    /// This is a function separate from `get_matching_event_rule` because trace rules can
-    /// (theoretically) be applied even if there's no event. Also we expect that trace rules are
-    /// executed before event rules.
-    pub fn get_matching_trace_rule(
-        &self,
-        sampling_context: &DynamicSamplingContext,
-        ip_addr: Option<IpAddr>,
-        now: DateTime<Utc>,
-    ) -> Option<ActiveRule> {
-        self.rules.iter().find_map(|rule| {
-            if rule.ty != RuleType::Trace {
-                return None;
-            }
-
-            if !rule.condition.matches(sampling_context, ip_addr) {
-                return None;
-            }
-
-            rule.is_active(now)
-        })
-    }
-
-    /// Get the first rule of type [`RuleType::Transaction`] or [`RuleType::Error`] whose conditions
-    /// match the given event.
-    ///
-    /// The rule type to filter by is inferred from the event's type.
-    pub fn get_matching_event_rule(
-        &self,
-        event: &Event,
-        ip_addr: Option<IpAddr>,
-        now: DateTime<Utc>,
-    ) -> Option<ActiveRule> {
-        let ty = if let Some(EventType::Transaction) = &event.ty.0 {
-            RuleType::Transaction
-        } else {
-            // TODO: why here we match error rules if we have even types different from transactions?
-            RuleType::Error
-        };
-
-        self.rules.iter().find_map(|rule| {
-            if rule.ty != ty {
-                return None;
-            }
-
-            if !rule.condition.matches(event, ip_addr) {
-                return None;
-            }
-
-            rule.is_active(now)
-        })
     }
 }
 
@@ -2897,85 +2841,6 @@ mod tests {
             }),
             "did not use the sample rate of the third rule"
         );
-    }
-
-    #[test]
-    fn test_open_decaying_rules() {
-        let transaction = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            ..Default::default()
-        };
-        let trace = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("testing".to_string()),
-            transaction: Some("transaction2".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-
-        let ranges = vec![
-            TimeRange {
-                start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                end: None,
-            },
-            TimeRange {
-                start: None,
-                end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-            },
-            TimeRange {
-                start: None,
-                end: None,
-            },
-        ];
-
-        for range in ranges {
-            let config = SamplingConfig {
-                rules: vec![SamplingRule {
-                    condition: eq("trace.release", &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: RuleType::Trace,
-                    id: RuleId(1),
-                    time_range: range,
-                    decaying_fn: Default::default(),
-                }],
-                mode: SamplingMode::Received,
-            };
-            assert_eq!(
-                config
-                    .get_matching_trace_rule(&trace, None, Utc::now())
-                    .unwrap()
-                    .id,
-                RuleId(1),
-                "Trace rule did not match",
-            );
-
-            let config = SamplingConfig {
-                rules: vec![SamplingRule {
-                    condition: eq("event.release", &["1.1.1"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.2 },
-                    ty: RuleType::Transaction,
-                    id: RuleId(1),
-                    time_range: range,
-                    decaying_fn: Default::default(),
-                }],
-                mode: SamplingMode::Received,
-            };
-            assert_eq!(
-                config
-                    .get_matching_event_rule(&transaction, None, Utc::now())
-                    .unwrap()
-                    .id,
-                RuleId(1),
-                "Transaction rule did not match",
-            );
-        }
     }
 
     #[test]

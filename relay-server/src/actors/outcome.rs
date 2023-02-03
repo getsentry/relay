@@ -28,7 +28,7 @@ use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 #[cfg(feature = "processing")]
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
-use relay_sampling::{MatchedRuleIds, RuleId};
+use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Service};
 
