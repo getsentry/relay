@@ -2404,9 +2404,12 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
@@ -3110,26 +3113,18 @@ mod tests {
             Err(())
         ));
 
-        let outcome = outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123;456");
-        assert!(matches!(
-            outcome,
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(_)))
-        ));
-        if let Ok(Outcome::FilteredSampling(matched_rule_ids)) = outcome {
-            assert_eq!(
-                matched_rule_ids,
-                MatchedRuleIds(vec![RuleId(123), RuleId(456)])
-            )
-        }
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123;456"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
+                RuleId(123),
+                RuleId(456)
+            ])))
+        );
 
-        let outcome = outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123");
-        assert!(matches!(
-            outcome,
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(_)))
-        ));
-        if let Ok(Outcome::FilteredSampling(matched_rule_ids)) = outcome {
-            assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(123)]))
-        }
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
+        );
     }
 
     #[test]

@@ -231,6 +231,8 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use chrono::Duration as DateDuration;
 
     use relay_common::EventType;

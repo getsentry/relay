@@ -1234,6 +1234,8 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 

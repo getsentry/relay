@@ -3497,6 +3497,7 @@ dependencies = [
  "relay-log",
  "serde",
  "serde_json",
+ "similar-asserts",
  "unicase",
 ]
 
@@ -3550,6 +3551,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.1",
+ "similar-asserts",
  "smallvec 1.8.0",
  "symbolic-common",
  "symbolic-unreal",
