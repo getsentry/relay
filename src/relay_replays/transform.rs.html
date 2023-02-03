@@ -706,12 +706,6 @@
 <a href="#706" id="706">706</a>
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A transforming `serde` Deserializer`.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -878,7 +872,7 @@
 /// ```
 </span><span class="kw">pub struct </span>Deserializer&lt;<span class="lifetime">&#39;a</span>, D, T&gt;(D, Mut&lt;<span class="lifetime">&#39;a</span>, T&gt;);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, D, T&gt; Deserializer&lt;<span class="lifetime">&#39;static</span>, D, T&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="lifetime">&#39;a</span>, D, T&gt; Deserializer&lt;<span class="lifetime">&#39;a</span>, D, T&gt;
 <span class="kw">where
     </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     T: Transform,
@@ -887,13 +881,7 @@
     </span><span class="kw">pub fn </span>new(deserializer: D, transformer: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(deserializer, Mut::Owned(transformer))
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="lifetime">&#39;a</span>, D, T&gt; Deserializer&lt;<span class="lifetime">&#39;a</span>, D, T&gt;
-<span class="kw">where
-    </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    T: Transform,
-{
     <span class="kw">fn </span>borrowed(deserializer: D, transformer: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>T) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(deserializer, Mut::Borrowed(transformer))
     }

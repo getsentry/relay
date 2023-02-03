@@ -3202,7 +3202,27 @@
 <a href="#3201" id="3201">3201</a>
 <a href="#3202" id="3202">3202</a>
 <a href="#3203" id="3203">3203</a>
+<a href="#3204" id="3204">3204</a>
+<a href="#3205" id="3205">3205</a>
+<a href="#3206" id="3206">3206</a>
+<a href="#3207" id="3207">3207</a>
+<a href="#3208" id="3208">3208</a>
+<a href="#3209" id="3209">3209</a>
+<a href="#3210" id="3210">3210</a>
+<a href="#3211" id="3211">3211</a>
+<a href="#3212" id="3212">3212</a>
+<a href="#3213" id="3213">3213</a>
+<a href="#3214" id="3214">3214</a>
+<a href="#3215" id="3215">3215</a>
+<a href="#3216" id="3216">3216</a>
+<a href="#3217" id="3217">3217</a>
+<a href="#3218" id="3218">3218</a>
+<a href="#3219" id="3219">3219</a>
+<a href="#3220" id="3220">3220</a>
+<a href="#3221" id="3221">3221</a>
+<a href="#3222" id="3222">3222</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_replays::recording::ReplayScrubber;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -4257,14 +4277,24 @@
         });
     }
 
-    <span class="doccomment">/// Remove replays if the feature flag is not enabled
-    </span><span class="kw">fn </span>process_replays(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+    <span class="doccomment">/// Remove replays if the feature flag is not enabled.
+    </span><span class="kw">fn </span>process_replays(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>replays_enabled = state.project_state.has_feature(Feature::Replays);
         <span class="kw">let </span>context = <span class="kw-2">&amp;</span>state.envelope_context;
         <span class="kw">let </span>meta = state.envelope.meta().clone();
         <span class="kw">let </span>client_addr = meta.client_addr();
         <span class="kw">let </span>user_agent = meta.user_agent();
         <span class="kw">let </span>event_id = state.envelope.event_id();
+
+        <span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
+        <span class="kw">let </span>config = state.project_state.config();
+        <span class="kw">let </span>datascrubbing_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))<span class="question-mark">?
+            </span>.as_ref();
+        <span class="kw">let </span><span class="kw-2">mut </span>scrubber =
+            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
@@ -4333,38 +4363,46 @@
                 }
             }
             ItemType::ReplayRecording =&gt; {
-                <span class="kw">if </span>replays_enabled {
-                    <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
-                    // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the replay limit as a good overall limit for
-                    // allocations.
-                    </span><span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
-                    <span class="kw">let </span>parsed_recording =
-                        <span class="macro">metric!</span>(timer(RelayTimers::ReplayRecordingProcessing), {
-                            relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload(), limit)
-                        });
+                <span class="kw">if </span>!replays_enabled {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
+                }
 
-                    <span class="kw">match </span>parsed_recording {
-                        <span class="prelude-val">Ok</span>(recording) =&gt; {
-                            item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        }
-                        <span class="prelude-val">Err</span>(e) =&gt; {
-                            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
-                            context.track_outcome(
-                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                                DataCategory::Replay,
-                                <span class="number">1</span>,
-                            );
-                        }
+                <span class="comment">// XXX: Processing is there just for data scrubbing. Skip the entire expensive
+                // processing step if we do not need to scrub.
+                </span><span class="kw">if </span>scrubber.is_empty() {
+                    <span class="kw">return </span><span class="bool-val">true</span>;
+                }
+
+                <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
+                // decompressed temporarily and then immediately re-compressed. However, to
+                // limit memory pressure, we use the replay limit as a good overall limit for
+                // allocations.
+                </span><span class="kw">let </span>parsed_recording = <span class="macro">metric!</span>(timer(RelayTimers::ReplayRecordingProcessing), {
+                    scrubber.process_recording(<span class="kw-2">&amp;</span>item.payload())
+                });
+
+                <span class="kw">match </span>parsed_recording {
+                    <span class="prelude-val">Ok</span>(recording) =&gt; {
+                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                    }
+                    <span class="prelude-val">Err</span>(e) =&gt; {
+                        <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                            DataCategory::Replay,
+                            <span class="number">1</span>,
+                        );
                     }
                 }
 
                 <span class="comment">// XXX: For now replays that could not be parsed are still accepted while we
                 // determine the impact of the recording parser.
-                </span>replays_enabled
-            }
+                </span><span class="bool-val">true
+            </span>}
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Validates, normalizes, and scrubs PII from a replay event.
@@ -5330,7 +5368,7 @@
         <span class="self">self</span>.process_client_reports(state);
         <span class="self">self</span>.process_user_reports(state);
         <span class="self">self</span>.process_profiles(state);
-        <span class="self">self</span>.process_replays(state);
+        <span class="self">self</span>.process_replays(state)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>state.creates_event() {
             <span class="comment">// Some envelopes only create events in processing relays; for example, unreal events.

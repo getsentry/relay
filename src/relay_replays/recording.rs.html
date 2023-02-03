@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../../relay_replays/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recording.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../relay_replays/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -306,6 +306,80 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io::{BufReader, Read};
@@ -314,10 +388,8 @@
 <span class="kw">use </span>once_cell::sync::Lazy;
 
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
-<span class="kw">use </span>relay_general::processor::{
-    FieldAttrs, Pii, ProcessingState, Processor, SelectorSpec, ValueType,
-};
-<span class="kw">use </span>relay_general::types::{Meta, ProcessingAction};
+<span class="kw">use </span>relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+<span class="kw">use </span>relay_general::types::Meta;
 
 <span class="kw">use </span><span class="kw">crate</span>::transform::{<span class="self">self</span>, Transform};
 
@@ -351,13 +423,7 @@
     }
 }
 
-<span class="kw">static </span>REPLAY_PII_CONFIG: Lazy&lt;PiiConfig&gt; = Lazy::new(|| {
-    <span class="kw">let </span><span class="kw-2">mut </span>pii_config = PiiConfig::default();
-    pii_config.applications = [(SelectorSpec::And(<span class="macro">vec!</span>[]), <span class="macro">vec!</span>[<span class="string">&quot;@common&quot;</span>.to_string()])].into();
-    pii_config
-});
-
-<span class="kw">static </span>REPLAY_PII_STATE: Lazy&lt;ProcessingState&gt; = Lazy::new(|| {
+<span class="kw">static </span>STRING_STATE: Lazy&lt;ProcessingState&gt; = Lazy::new(|| {
     ProcessingState::root().enter_static(
         <span class="string">&quot;&quot;</span>,
         <span class="prelude-val">Some</span>(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
@@ -365,91 +431,146 @@
     )
 });
 
-<span class="kw">struct </span>ScrubbingTransformer;
+<span class="doccomment">/// A utility that performs data scrubbing on Replay payloads.
+</span><span class="kw">pub struct </span>ReplayScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
+    limit: usize,
+    processor1: <span class="prelude-ty">Option</span>&lt;PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    processor2: <span class="prelude-ty">Option</span>&lt;PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+}
 
-<span class="kw">impl </span>Transform <span class="kw">for </span>ScrubbingTransformer {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ReplayScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Creates a new `ReplayScrubber` from PII configs.
+    ///
+    /// `limit` controls the maximum size in bytes during decompression. This function returns an
+    /// `Err` if decompressed contents exceed the limit. The two optional configs to be passed here
+    /// are from data scrubbing settings and from the dedicated PII config.
+    </span><span class="kw">pub fn </span>new(
+        limit: usize,
+        config1: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PiiConfig&gt;,
+        config2: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PiiConfig&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            limit,
+            processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
+            processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if both configs are empty and no scrubbing would occur.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.processor1.is_none() &amp;&amp; <span class="self">self</span>.processor2.is_none()
+    }
+
+    <span class="kw">fn </span>scrub_replay&lt;R, W&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, read: R, write: W) -&gt; <span class="prelude-ty">Result</span>&lt;(), ParseRecordingError&gt;
+    <span class="kw">where
+        </span>R: std::io::Read,
+        W: std::io::Write,
+    {
+        <span class="kw">let </span><span class="kw-2">mut </span>deserializer = serde_json::Deserializer::from_reader(read);
+        <span class="kw">let </span><span class="kw-2">mut </span>serializer = serde_json::Serializer::new(write);
+
+        <span class="kw">let </span>transformer = transform::Deserializer::new(<span class="kw-2">&amp;mut </span>deserializer, <span class="self">self</span>);
+        serde_transcode::transcode(transformer, <span class="kw-2">&amp;mut </span>serializer)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="attr">#[doc(hidden)] </span><span class="comment">// Public for benchmarks.
+    </span><span class="kw">pub fn </span>transcode_replay(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        body: <span class="kw-2">&amp;</span>[u8],
+        output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ParseRecordingError&gt; {
+        <span class="kw">let </span>encoder = ZlibEncoder::new(output, Compression::default());
+
+        <span class="kw">if </span>body.first() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">b&#39;[&#39;</span>) {
+            <span class="self">self</span>.scrub_replay(body, encoder)
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>decoder = ZlibDecoder::new(body).take(<span class="self">self</span>.limit <span class="kw">as </span>u64);
+            <span class="self">self</span>.scrub_replay(BufReader::new(decoder), encoder)
+        }
+    }
+
+    <span class="doccomment">/// Parses compressed replay recording payloads and applies data scrubbers.
+    ///
+    /// To avoid redundant parsing, check [`is_empty`](Self::is_empty) first.
+    </span><span class="kw">pub fn </span>process_recording(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ParseRecordingError&gt; {
+        <span class="comment">// Check for null byte condition.
+        </span><span class="kw">if </span>bytes.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ParseRecordingError::Message(<span class="string">&quot;no data found&quot;</span>));
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>split = bytes.splitn(<span class="number">2</span>, |b| b == <span class="kw-2">&amp;</span><span class="string">b&#39;\n&#39;</span>);
+        <span class="kw">let </span>header = split
+            .next()
+            .ok_or(ParseRecordingError::Message(<span class="string">&quot;no headers found&quot;</span>))<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>body = <span class="kw">match </span>split.next() {
+            <span class="prelude-val">Some</span>(<span class="string">b&quot;&quot;</span>) | <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseRecordingError::Message(<span class="string">&quot;no body found&quot;</span>)),
+            <span class="prelude-val">Some</span>(body) =&gt; body,
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>output = header.to_owned();
+        output.push(<span class="string">b&#39;\n&#39;</span>);
+        <span class="comment">// Data scrubbing usually does not change the size of the output by much. We can preallocate
+        // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
+        // Benchmarks have NOT shown a big difference, however.
+        </span>output.reserve(body.len());
+        <span class="self">self</span>.transcode_replay(body, <span class="kw-2">&amp;mut </span>output)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(output)
+    }
+}
+
+<span class="kw">impl </span>Transform <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>ReplayScrubber&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>transform_str&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
         <span class="self">self</span>.transform_string(v.to_owned())
     }
 
     <span class="kw">fn </span>transform_string(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>value: String) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(REPLAY_PII_CONFIG.compiled());
-
-        <span class="kw">match </span>processor.process_string(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>REPLAY_PII_STATE) {
-            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard) =&gt; Cow::Borrowed(<span class="string">&quot;&quot;</span>),
-            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft) =&gt; Cow::Borrowed(<span class="string">&quot;&quot;</span>),
-            <span class="kw">_ </span>=&gt; Cow::Owned(value),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>processor) = <span class="self">self</span>.processor1 {
+            <span class="kw">if </span>processor
+                .process_string(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>STRING_STATE)
+                .is_err()
+            {
+                <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&quot;</span>);
+            }
         }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>processor) = <span class="self">self</span>.processor2 {
+            <span class="kw">if </span>processor
+                .process_string(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>STRING_STATE)
+                .is_err()
+            {
+                <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&quot;</span>);
+            }
+        }
+
+        Cow::Owned(value)
     }
-}
-
-<span class="kw">fn </span>scrub_replay&lt;R, W&gt;(read: R, write: W) -&gt; <span class="prelude-ty">Result</span>&lt;(), ParseRecordingError&gt;
-<span class="kw">where
-    </span>R: std::io::Read,
-    W: std::io::Write,
-{
-    <span class="kw">let </span><span class="kw-2">mut </span>deserializer = serde_json::Deserializer::from_reader(read);
-    <span class="kw">let </span><span class="kw-2">mut </span>serializer = serde_json::Serializer::new(write);
-
-    <span class="kw">let </span>transformer = ScrubbingTransformer;
-    <span class="kw">let </span>scrubber = transform::Deserializer::new(<span class="kw-2">&amp;mut </span>deserializer, transformer);
-    serde_transcode::transcode(scrubber, <span class="kw-2">&amp;mut </span>serializer)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="attr">#[doc(hidden)] </span><span class="comment">// Public for benchmarks.
-</span><span class="kw">pub fn </span>transcode_replay(
-    body: <span class="kw-2">&amp;</span>[u8],
-    limit: usize,
-    output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ParseRecordingError&gt; {
-    <span class="kw">let </span>encoder = ZlibEncoder::new(output, Compression::default());
-
-    <span class="kw">if </span>body.first() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">b&#39;[&#39;</span>) {
-        scrub_replay(body, encoder)
-    } <span class="kw">else </span>{
-        <span class="kw">let </span>decoder = ZlibDecoder::new(body).take(limit <span class="kw">as </span>u64);
-        scrub_replay(BufReader::new(decoder), encoder)
-    }
-}
-
-<span class="doccomment">/// Parses compressed replay recording payloads and applies data scrubbers.
-///
-/// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
-/// if decompressed contents exceed the limit.
-</span><span class="kw">pub fn </span>process_recording(bytes: <span class="kw-2">&amp;</span>[u8], limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ParseRecordingError&gt; {
-    <span class="comment">// Check for null byte condition.
-    </span><span class="kw">if </span>bytes.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ParseRecordingError::Message(<span class="string">&quot;no data found&quot;</span>));
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>split = bytes.splitn(<span class="number">2</span>, |b| b == <span class="kw-2">&amp;</span><span class="string">b&#39;\n&#39;</span>);
-    <span class="kw">let </span>header = split
-        .next()
-        .ok_or(ParseRecordingError::Message(<span class="string">&quot;no headers found&quot;</span>))<span class="question-mark">?</span>;
-
-    <span class="kw">let </span>body = <span class="kw">match </span>split.next() {
-        <span class="prelude-val">Some</span>(<span class="string">b&quot;&quot;</span>) | <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseRecordingError::Message(<span class="string">&quot;no body found&quot;</span>)),
-        <span class="prelude-val">Some</span>(body) =&gt; body,
-    };
-
-    <span class="kw">let </span><span class="kw-2">mut </span>output = header.to_owned();
-    output.push(<span class="string">b&#39;\n&#39;</span>);
-    <span class="comment">// Data scrubbing usually does not change the size of the output by much. We can preallocate
-    // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
-    // Benchmarks have NOT shown a big difference, however.
-    </span>output.reserve(body.len());
-    transcode_replay(body, limit, <span class="kw-2">&amp;mut </span>output)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(output)
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="comment">// End to end test coverage.
 
-    </span><span class="attr">#[test]
+    </span><span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
+
+    <span class="kw">use </span><span class="kw">super</span>::ReplayScrubber;
+
+    <span class="kw">fn </span>default_pii_config() -&gt; PiiConfig {
+        <span class="kw">let </span><span class="kw-2">mut </span>scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = <span class="bool-val">true</span>;
+        scrubbing_config.scrub_defaults = <span class="bool-val">true</span>;
+        scrubbing_config.scrub_ip_addresses = <span class="bool-val">true</span>;
+        scrubbing_config.pii_config_uncached().unwrap().unwrap()
+    }
+
+    <span class="kw">fn </span>scrubber(config: <span class="kw-2">&amp;</span>PiiConfig) -&gt; ReplayScrubber {
+        ReplayScrubber::new(usize::MAX, <span class="prelude-val">Some</span>(config), <span class="prelude-val">None</span>)
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_process_recording_end_to_end() {
         <span class="comment">// Valid compressed rrweb payload.  Contains a 16 byte header followed by a new line
         // character and concludes with a gzipped rrweb payload.
@@ -469,7 +590,8 @@
             <span class="number">146</span>, <span class="number">59</span>, <span class="number">13</span>, <span class="number">115</span>, <span class="number">10</span>, <span class="number">144</span>, <span class="number">115</span>, <span class="number">190</span>, <span class="number">126</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">68</span>, <span class="number">180</span>, <span class="number">16</span>,
         ];
 
-        <span class="kw">let </span>result = <span class="kw">super</span>::process_recording(payload, <span class="number">1000</span>);
+        <span class="kw">let </span>config = default_pii_config();
+        <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(!result.unwrap().is_empty());
     }
 
@@ -480,7 +602,8 @@
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>, <span class="number">10</span>,
         ];
 
-        <span class="kw">let </span>result = <span class="kw">super</span>::process_recording(payload, <span class="number">1000</span>);
+        <span class="kw">let </span>config = default_pii_config();
+        <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             result.unwrap_err(),
             <span class="kw">super</span>::ParseRecordingError::Message(<span class="string">&quot;no body found&quot;</span>),
@@ -494,7 +617,8 @@
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>, <span class="number">10</span>, <span class="number">22</span>,
         ];
 
-        <span class="kw">let </span>result = <span class="kw">super</span>::process_recording(payload, <span class="number">1000</span>);
+        <span class="kw">let </span>config = default_pii_config();
+        <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             result.unwrap_err(),
             <span class="kw">super</span>::ParseRecordingError::Json(<span class="kw">_</span>),
@@ -508,7 +632,8 @@
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>,
         ];
 
-        <span class="kw">let </span>result = <span class="kw">super</span>::process_recording(payload, <span class="number">1000</span>);
+        <span class="kw">let </span>config = default_pii_config();
+        <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             result.unwrap_err(),
             <span class="kw">super</span>::ParseRecordingError::Message(<span class="string">&quot;no body found&quot;</span>),
@@ -520,7 +645,8 @@
         <span class="comment">// Empty payload can not be decompressed.  Header check never fails.
         </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[];
 
-        <span class="kw">let </span>result = <span class="kw">super</span>::process_recording(payload, <span class="number">1000</span>);
+        <span class="kw">let </span>config = default_pii_config();
+        <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             result.unwrap_err(),
             <span class="kw">super</span>::ParseRecordingError::Message(<span class="string">&quot;no data found&quot;</span>),
@@ -531,43 +657,55 @@
 
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_pii_credit_card_removal() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-pii.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-pii.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>parsed = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
-        <span class="macro">assert!</span>(parsed.contains(<span class="string">r#&quot;{&quot;type&quot;:3,&quot;textContent&quot;:&quot;[creditcard]&quot;,&quot;id&quot;:284}&quot;#</span>));
+        <span class="macro">assert!</span>(parsed.contains(<span class="string">r#&quot;{&quot;type&quot;:3,&quot;textContent&quot;:&quot;[Filtered]&quot;,&quot;id&quot;:284}&quot;#</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_navigation() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-performance-navigation.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-performance-navigation.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>parsed = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
-        <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;https://sentry.io?credit-card=[creditcard]&quot;</span>));
+        <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;https://sentry.io?credit-card=[Filtered]&quot;</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_resource() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-performance-resource.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-performance-resource.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>parsed = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
-        <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;https://sentry.io?credit-card=[creditcard]&quot;</span>));
+        <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;https://sentry.io?credit-card=[Filtered]&quot;</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_pii_ip_address_removal() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-pii-ip-address.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-pii-ip-address.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>parsed = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
         <span class="macro">assert!</span>(parsed.contains(<span class="string">&quot;\&quot;value\&quot;:\&quot;[ip]\&quot;&quot;</span>)); <span class="comment">// Assert texts were mutated.
@@ -578,41 +716,51 @@
 
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_full_snapshot_event() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-2.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-event-2.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>scrubbed_result = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
         <span class="comment">// NOTE: The normalization below was removed
         // assert!(scrubbed_result.contains(&quot;\&quot;attributes\&quot;:{\&quot;src\&quot;:\&quot;#\&quot;}&quot;));
-        </span><span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;my ssn is ***********\&quot;&quot;</span>));
+        </span><span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;my ssn is [Filtered]\&quot;&quot;</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_incremental_snapshot_event() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-3.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-event-3.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>scrubbed_result = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
-        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;[creditcard]\&quot;&quot;</span>));
-        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;value\&quot;:\&quot;***********\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;textContent\&quot;:\&quot;[Filtered]\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;value\&quot;:\&quot;[Filtered]\&quot;&quot;</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_pii_custom_event() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/rrweb-event-5.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/rrweb-event-5.json&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
-        <span class="kw">super</span>::scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded).unwrap();
+        <span class="kw">let </span>config = default_pii_config();
+        scrubber(<span class="kw-2">&amp;</span>config)
+            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+            .unwrap();
 
         <span class="kw">let </span>scrubbed_result = std::str::from_utf8(<span class="kw-2">&amp;</span>transcoded).unwrap();
-        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;description\&quot;:\&quot;[creditcard]\&quot;&quot;</span>));
+        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;description\&quot;:\&quot;[Filtered]\&quot;&quot;</span>));
         <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;description\&quot;:\&quot;https://sentry.io?ip-address=[ip]\&quot;&quot;</span>));
-        <span class="macro">assert!</span>(scrubbed_result.contains(<span class="string">&quot;\&quot;message\&quot;:\&quot;[email]\&quot;&quot;</span>));
-    }
+        <span class="comment">// NOTE: default scrubbers do not remove email address
+        // assert!(scrubbed_result.contains(&quot;\&quot;message\&quot;:\&quot;[email]\&quot;&quot;));
+    </span>}
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_replays" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_replays" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
