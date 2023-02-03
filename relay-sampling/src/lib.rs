@@ -877,7 +877,7 @@ impl Display for MatchedRuleIds {
             "{}",
             self.0
                 .iter()
-                .map(|rule_id| format!("{}", rule_id))
+                .map(|rule_id| format!("{rule_id}"))
                 .collect::<Vec<String>>()
                 .join(";")
         )
@@ -973,12 +973,6 @@ impl SamplingConfig {
         let mut accumulated_factors = 1.0;
 
         for rule in self.rules.iter() {
-            relay_log::trace!(
-                "trying to match rule {} with type {:?} and event type {:?}",
-                rule.id,
-                rule.ty,
-                event.ty.value()
-            );
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
@@ -988,15 +982,17 @@ impl SamplingConfig {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 },
-                RuleType::Error => match event.ty.0 {
-                    Some(EventType::Error) => rule.condition.matches(event, ip_addr),
-                    _ => false,
-                },
+                RuleType::Error => {
+                    if let Some(EventType::Transaction) = event.ty.0 {
+                        false
+                    } else {
+                        rule.condition.matches(event, ip_addr)
+                    }
+                }
                 _ => false,
             };
 
             if matches {
-                relay_log::trace!("rule {} matches", rule.id);
                 if let Some(active_rule) = rule.is_active(now) {
                     matched_rule_ids.push(rule.id);
 
@@ -2377,13 +2373,13 @@ mod tests {
     /// Tests if the MatchedRuleIds structu is displayed correctly as string.
     fn test_matched_rule_ids_to_string() {
         let matched_rule_ids = MatchedRuleIds(vec![RuleId(123), RuleId(456)]);
-        assert_eq!(format!("{}", matched_rule_ids), "123;456");
+        assert_eq!(format!("{matched_rule_ids}"), "123;456");
 
         let matched_rule_ids = MatchedRuleIds(vec![RuleId(123)]);
-        assert_eq!(format!("{}", matched_rule_ids), "123");
+        assert_eq!(format!("{matched_rule_ids}"), "123");
 
         let matched_rule_ids = MatchedRuleIds(vec![]);
-        assert_eq!(format!("{}", matched_rule_ids), "")
+        assert_eq!(format!("{matched_rule_ids}"), "")
     }
 
     #[test]

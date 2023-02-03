@@ -375,6 +375,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         envelope = Envelope()
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope, trace_id, event_id = event_factory(public_key)
+        print(envelope)
         envelope.add_item(
             Item(payload=PayloadRef(json={"x": "some attachment"}), type="attachment")
         )

@@ -796,7 +796,7 @@ mod tests {
     }
 
     #[test]
-    /// Tests that a match of a rule of type error with an error event results in a no match.
+    /// Tests that a match of a rule of type error with an error event results in a match.
     fn test_get_sampling_match_result_with_error_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         project_state
@@ -814,6 +814,45 @@ mod tests {
                 decaying_fn: Default::default(),
             });
         let event = mocked_event(EventType::Error, "transaction", "2.0");
+
+        let result = get_sampling_match_result(
+            true,
+            &project_state,
+            None,
+            None,
+            Some(&event),
+            None,
+            Utc::now(),
+        );
+        assert_eq!(
+            result,
+            SamplingMatchResult::Match {
+                sample_rate: 0.5,
+                seed: event.id.0.unwrap().0,
+                matched_rule_ids: MatchedRuleIds(vec![RuleId(10)])
+            }
+        );
+    }
+
+    #[test]
+    /// Tests that a match of a rule of type default with an error event results in a match.
+    fn test_get_sampling_match_result_with_default_event_and_error_rule() {
+        let mut project_state = mocked_project_state(SamplingMode::Received);
+        project_state
+            .config
+            .dynamic_sampling
+            .as_mut()
+            .unwrap()
+            .rules
+            .push(SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                ty: RuleType::Error,
+                id: RuleId(10),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            });
+        let event = mocked_event(EventType::Default, "transaction", "2.0");
 
         let result = get_sampling_match_result(
             true,
