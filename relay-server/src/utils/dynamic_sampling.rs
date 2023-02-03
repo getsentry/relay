@@ -297,10 +297,10 @@ mod tests {
         }];
 
         // ensures the event is indeed dropped with and without processing enabled
-        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        let res = samplingresult_from_rules_and_processing_flag(rules.clone(), false);
         assert!(matches!(res, SamplingResult::Drop(_)));
 
-        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), true);
+        let res = samplingresult_from_rules_and_processing_flag(rules.clone(), true);
         assert!(matches!(res, SamplingResult::Drop(_)));
 
         rules.push(SamplingRule {
@@ -313,10 +313,10 @@ mod tests {
         });
 
         // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
-        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        let res = samplingresult_from_rules_and_processing_flag(rules.clone(), false);
         assert!(matches!(res, SamplingResult::Keep));
 
-        let res = samplingresult_from_rules_and_proccessing_flag(rules, true);
+        let res = samplingresult_from_rules_and_processing_flag(rules, true);
         assert!(matches!(res, SamplingResult::Drop(_))); // should also log an error
     }
 
