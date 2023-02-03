@@ -140,7 +140,8 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let browser =
+            BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         assert_debug_snapshot!(browser, @r###"
         BrowserContext {
@@ -171,7 +172,8 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let browser =
+            BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
         assert_debug_snapshot!(browser, @r###"
         BrowserContext {
@@ -198,7 +200,8 @@ mod tests {
             PairList(headers)
         });
 
-        let browser = BrowserContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers)).unwrap();
+        let browser =
+            BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
         assert_eq!(
             browser.version.as_str().unwrap(),
             "109.0.0" // notice the version number is from UA string not from client hints

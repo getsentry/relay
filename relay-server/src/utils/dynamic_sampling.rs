@@ -253,7 +253,7 @@ mod tests {
         )
     }
 
-    fn samplingresult_from_rules_and_proccessing_flag(
+    fn samplingresult_from_rules_and_processing_flag(
         rules: Vec<SamplingRule>,
         processing_enabled: bool,
     ) -> SamplingResult {
