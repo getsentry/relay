@@ -413,6 +413,38 @@ mod tests {
         };
     }
 
+    macro_rules! transaction_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                SamplingMatchResult::Match {
+                    sample_rate: $sr,
+                    seed: $sd.id.0.unwrap().0,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                }
+            )
+        }
+    }
+
+    macro_rules! trace_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                SamplingMatchResult::Match {
+                    sample_rate: $sr,
+                    seed: $sd.trace_id,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                }
+            )
+        }
+    }
+
+    macro_rules! no_match {
+        ($res:expr) => {
+            assert_eq!($res, SamplingMatchResult::NoMatch)
+        };
+    }
+
     #[test]
     /// Tests the merged config of the two configs with rules.
     fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
@@ -559,14 +591,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.1,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
-            }
-        )
+        transaction_match!(result, 0.1, event, 1);
     }
 
     #[test]
@@ -586,14 +611,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 1.0,
-                seed: dsc.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(6)])
-            }
-        )
+        trace_match!(result, 1.0, dsc, 6);
     }
 
     #[test]
@@ -613,14 +631,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.75,
-                seed: dsc.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(2), RuleId(5), RuleId(7)])
-            }
-        )
+        trace_match!(result, 0.75, dsc, 2, 5, 7);
     }
 
     #[test]
@@ -629,6 +640,7 @@ mod tests {
     fn test_get_sampling_match_result_with_no_dynamic_sampling_context_and_no_root_project_state() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0");
+
         let result = get_sampling_match_result(
             true,
             &project_state,
@@ -638,15 +650,7 @@ mod tests {
             None,
             Utc::now(),
         );
-
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
-            }
-        )
+        transaction_match!(result, 0.5, event, 3);
     }
 
     #[test]
@@ -666,14 +670,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.625,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
-            }
-        )
+        transaction_match!(result, 0.625, event, 3);
     }
 
     #[test]
@@ -681,6 +678,7 @@ mod tests {
     /// enabled and disabled.
     fn test_get_sampling_match_result_with_unsupported_rules() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
+        // TODO: find a way to simplify this.
         project_state
             .config
             .dynamic_sampling
@@ -708,7 +706,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
 
         let result = get_sampling_match_result(
             true,
@@ -719,14 +717,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
-            }
-        )
+        transaction_match!(result, 0.5, event, 3);
     }
 
     #[test]
@@ -734,9 +725,9 @@ mod tests {
     fn test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
         let project_state = mocked_project_state(SamplingMode::Unsupported);
         let root_project_state = mocked_root_project_state(SamplingMode::Unsupported);
-
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
+
         let result = get_sampling_match_result(
             true,
             &project_state,
@@ -746,8 +737,7 @@ mod tests {
             None,
             Utc::now(),
         );
-
-        assert_eq!(result, SamplingMatchResult::NoMatch)
+        no_match!(result);
     }
 
     #[test]
@@ -779,7 +769,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
     }
 
     #[test]
@@ -811,14 +801,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(10)])
-            }
-        );
+        transaction_match!(result, 0.5, event, 10);
     }
 
     #[test]
@@ -850,14 +833,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.5,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(10)])
-            }
-        );
+        transaction_match!(result, 0.5, event, 10);
     }
 
     #[test]
@@ -878,14 +854,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 0.75,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
-            }
-        );
+        transaction_match!(result, 0.75, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
@@ -899,14 +868,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(
-            result,
-            SamplingMatchResult::Match {
-                sample_rate: 1.0,
-                seed: event.id.0.unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
-            }
-        );
+        transaction_match!(result, 1.0, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
@@ -920,7 +882,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
     }
 
     #[test]
@@ -941,7 +903,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
@@ -955,7 +917,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![mocked_decaying_sampling_rule(
@@ -969,7 +931,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert_eq!(result, SamplingMatchResult::NoMatch);
+        no_match!(result);
     }
 
     #[test]
