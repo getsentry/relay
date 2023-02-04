@@ -72,6 +72,7 @@ zstd = { version = "0.11.2"}
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"
+tikv-jemallocator =  { version = "0.5", features = ["stats"] }
 
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["json"] }
