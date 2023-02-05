@@ -4,7 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM getsentry/sentry-cli:1 AS sentry-cli
+FROM getsentry/sentry-cli:2 AS sentry-cli
 FROM $DOCKER_ARCH/centos:7 AS relay-deps
 
 ARG DOCKER_ARCH
@@ -47,8 +47,7 @@ FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
-
-ENV JEMALLOC_SYS_WITH_MALLOC_CONF=background_thread:true,stats_print:true,stats_print_opts:mdabixe,abort_conf:true
+ENV JEMALLOC_SYS_WITH_MALLOC_CONF=background_thread:true,abort_conf:true
 
 COPY . .
 
