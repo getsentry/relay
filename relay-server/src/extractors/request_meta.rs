@@ -584,12 +584,9 @@ impl FromRequest<ServiceState> for EnvelopeMeta {
     }
 }
 
-//   insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    impl Eq for RequestMeta {}
 
     #[test]
     fn test_request_meta_roundtrip() {
@@ -654,58 +651,3 @@ mod tests {
         }
     }
 }
-
-/*
-
-    pub struct PartialDsn {
-    pub scheme: Scheme,
-    pub public_key: ProjectKey,
-    pub host: String,
-    pub port: u16,
-    pub path: String,
-    pub project_id: Option<ProjectId>,
-
-    /// The DSN describing the target of this envelope.
-    dsn: D,
-
-    /// The client SDK that sent this event.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    client: Option<String>,
-
-    /// The protocol version that the client speaks.
-    #[serde(default = "default_version")]
-    version: u16,
-
-    /// Value of the origin header in the incoming request, if present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    origin: Option<Url>,
-
-    /// IP address of the submitting remote.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    remote_addr: Option<IpAddr>,
-
-    /// The full chain of request forward addresses, including the `remote_addr`.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    forwarded_for: String,
-
-    /// The user agent that sent this event.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    user_agent: Option<String>,
-
-    /// A flag that indicates that project options caching should be bypassed.
-    #[serde(default = "make_false", skip_serializing_if = "is_false")]
-    no_cache: bool,
-
-    /// The time at which the request started.
-    //
-    // NOTE: This is internal-only and not exposed to Envelope headers.
-    #[serde(skip, default = "Instant::now")]
-    start_time: Instant,
-
-    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
-    client_hints: ClientHints<String>
-
-
-
-
-*/
