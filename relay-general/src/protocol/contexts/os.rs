@@ -54,6 +54,10 @@ impl FromUserAgentInfo for OsContext {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 
+        if platform.is_empty() || version.is_empty() {
+            return None;
+        }
+
         Some(Self {
             name: Annotated::new(platform.to_owned()),
             version: Annotated::new(version.to_owned()),

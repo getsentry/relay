@@ -86,6 +86,10 @@ fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
         let browser = captures.get(1)?.as_str().to_owned();
         let version = captures.get(2)?.as_str().to_owned();
 
+        if browser.is_empty() || version.is_empty() {
+            return None;
+        }
+
         return Some((browser, version));
     }
     None
