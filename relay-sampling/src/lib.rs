@@ -1254,6 +1254,32 @@ mod tests {
 
     use super::*;
 
+    macro_rules! transaction_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                Some(SamplingConfigMatchResult {
+                    sample_rate: $sr,
+                    seed: $sd.id.value().unwrap().0,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                })
+            )
+        }
+    }
+
+    macro_rules! trace_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                Some(SamplingConfigMatchResult {
+                    sample_rate: $sr,
+                    seed: $sd.trace_id,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                })
+            )
+        }
+    }
+
     fn default_sampling_context() -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: Uuid::default(),
@@ -1310,6 +1336,60 @@ mod tests {
         RuleCondition::Not(NotCondition {
             inner: Box::new(cond),
         })
+    }
+
+    fn mocked_sampling_config(rules: Vec<SamplingRule>) -> SamplingConfig {
+        SamplingConfig {
+            rules,
+            mode: SamplingMode::Received,
+        }
+    }
+
+    fn mocked_event(
+        event_type: EventType,
+        transaction: &str,
+        release: &str,
+        environment: &str,
+    ) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            environment: Annotated::new(environment.to_string()),
+            ..Event::default()
+        }
+    }
+
+    fn mocked_dynamic_sampling_context(
+        transaction: &str,
+        release: &str,
+        environment: &str,
+        user_segment: &str,
+        user_id: &str,
+    ) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            release: Some(release.to_string()),
+            environment: Some(environment.to_string()),
+            transaction: Some(transaction.to_string()),
+            sample_rate: Some(1.0),
+            user: TraceUserContext {
+                user_segment: user_segment.to_string(),
+                user_id: user_id.to_string(),
+            },
+            other: Default::default(),
+        }
+    }
+
+    fn match_against_rules(
+        config: &SamplingConfig,
+        event: &Event,
+        dsc: &DynamicSamplingContext,
+        time: DateTime<Utc>,
+    ) -> Option<SamplingConfigMatchResult> {
+        config.match_against_rules(event, Some(dsc), None, time)
     }
 
     #[test]
@@ -2381,7 +2461,7 @@ mod tests {
     }
 
     #[test]
-    /// Tests if the MatchedRuleIds structu is displayed correctly as string.
+    /// Tests if the MatchedRuleIds struct is displayed correctly as string.
     fn test_matched_rule_ids_to_string() {
         let matched_rule_ids = MatchedRuleIds(vec![RuleId(123), RuleId(456)]);
         assert_eq!(format!("{matched_rule_ids}"), "123;456");
@@ -2394,10 +2474,32 @@ mod tests {
     }
 
     #[test]
+    /// Tests if the MatchRuleIds struct is created correctly from its string representation.
+    fn test_matched_rule_ids_from_string() {
+        assert_eq!(
+            MatchedRuleIds::from_string("123;456"),
+            Ok(MatchedRuleIds(vec![RuleId(123), RuleId(456)]))
+        );
+
+        assert_eq!(
+            MatchedRuleIds::from_string("123"),
+            Ok(MatchedRuleIds(vec![RuleId(123)]))
+        );
+
+        assert!(matches!(MatchedRuleIds::from_string(""), Err(_)));
+
+        assert!(matches!(MatchedRuleIds::from_string(";"), Err(_)));
+
+        assert!(matches!(MatchedRuleIds::from_string("123.456"), Err(_)));
+
+        assert!(matches!(MatchedRuleIds::from_string("a;b"), Err(_)));
+    }
+
+    #[test]
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
-        let rules = SamplingConfig {
-            rules: vec![
+        let result = match_against_rules(
+            &mocked_sampling_config(vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
                     sample_rate: 1.0,
@@ -2419,409 +2521,216 @@ mod tests {
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
-            ],
-            mode: SamplingMode::Received,
-        };
-
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("healthcheck".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("debug".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
+            ]),
+            &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing"),
+            &mocked_dynamic_sampling_context(
+                "root_transaction",
+                "1.1.1",
+                "debug",
+                "vip",
+                "user-id",
+            ),
+            Utc::now(),
+        );
         assert_eq!(result, None, "did not return none for no match");
     }
 
     #[test]
     /// Tests that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_match_against_rules_with_multiple_event_types_non_decaying_rules_and_matches() {
-        let rules = SamplingConfig {
-            rules: vec![
-                SamplingRule {
-                    condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 0.1 },
-                    ty: RuleType::Transaction,
-                    id: RuleId(1),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![glob("trace.environment", &["*dev*"])]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 1.0 },
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::Factor { value: 2.0 },
-                    ty: RuleType::Transaction,
-                    id: RuleId(3),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.user.segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                    ty: RuleType::Trace,
-                    id: RuleId(4),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.release", &["1.1.1"], true),
-                        eq("trace.environment", &["prod"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::Factor { value: 1.5 },
-                    ty: RuleType::Trace,
-                    id: RuleId(5),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 0.02 },
-                    ty: RuleType::Trace,
-                    id: RuleId(6),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-            ],
-            mode: SamplingMode::Received,
-        };
+        let config = mocked_sampling_config(vec![
+            SamplingRule {
+                condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 0.1 },
+                ty: RuleType::Transaction,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![glob("trace.environment", &["*dev*"])]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                ty: RuleType::Trace,
+                id: RuleId(2),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::Factor { value: 2.0 },
+                ty: RuleType::Transaction,
+                id: RuleId(3),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Trace,
+                id: RuleId(4),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![
+                    eq("trace.release", &["1.1.1"], true),
+                    eq("trace.environment", &["prod"], true),
+                ]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::Factor { value: 1.5 },
+                ty: RuleType::Trace,
+                id: RuleId(5),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 0.02 },
+                ty: RuleType::Trace,
+                id: RuleId(6),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        ]);
 
         // early return of first rule
-        let event = Event {
-            id: Annotated::new(EventId(Uuid::new_v4())),
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("healthcheck".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("debug".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.1, // 0.1
-                seed: event.id.value().unwrap().0,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1)])
-            }),
-            "did not use the sample rate of the first rule"
+        let event = &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
+        let dsc = &mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "debug",
+            "vip",
+            "user-id",
         );
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        transaction_match!(result, 0.1, event, 1);
 
         // early return of second rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("foo".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("dev".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 1.0, // 1.0,
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(2)])
-            }),
-            "did not use the sample rate of the second rule"
-        );
+        let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "dev", "vip", "user-id");
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        trace_match!(result, 1.0, dsc, 2);
 
         // factor match third rule and early return sixth rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("foo".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.2".to_string()),
-            user: TraceUserContext {
-                user_segment: "non-vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("testing".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.04, // 0.02 * 2.0
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3), RuleId(6)])
-            }),
-            "did not use the factor of the third rule and the sample rate of the sixth rule"
+        let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.2",
+            "testing",
+            "non-vip",
+            "user-id",
         );
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        trace_match!(result, 0.04, dsc, 3, 6);
 
         // factor match third rule and early return fourth rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("foo".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("prod".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 1.0, // 0.5 * 2.0
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3), RuleId(4)])
-            }),
-            "did not use the factor of the third rule and the sample rate of the fourth rule"
-        );
+        let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "prod", "vip", "user-id");
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        trace_match!(result, 1.0, dsc, 3, 4);
 
         // factor match third, fifth rule and early return sixth rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("foo".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "non-vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("prod".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.06, // 0.02 * 1.5 * 2.0
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3), RuleId(5), RuleId(6)])
-            }),
-            "did not use the factor of the third, fifth rule and the sample rate of the sixth rule"
+        let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "non-vip",
+            "user-id",
         );
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        trace_match!(result, 0.06, dsc, 3, 5, 6);
 
         // factor match fifth and early return sixth rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("transaction".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "non-vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("prod".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
-        let result = rules.match_against_rules(&event, Some(&trace_context), None, Utc::now());
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(5), RuleId(6)])
-            }),
-            "did not use the factor of the fifth rule and the sample rate of the sixth rule"
-        )
+        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "non-vip",
+            "user-id",
+        );
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        trace_match!(result, 0.03, dsc, 5, 6);
     }
 
     #[test]
     /// Test that the multi-matching works for a mixture of decaying and non-decaying rules.
     fn test_match_against_rules_with_trace_event_type_decaying_rules_and_matches() {
-        let rules = SamplingConfig {
-            rules: vec![
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.release", &["1.1.1"], true),
-                        eq("trace.environment", &["dev"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::Factor { value: 2.0 },
-                    ty: RuleType::Trace,
-                    id: RuleId(1),
-                    time_range: TimeRange {
-                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
-                    },
-                    decaying_fn: DecayingFunction::Linear { decayed_value: 1.0 },
+        let config = mocked_sampling_config(vec![
+            SamplingRule {
+                condition: and(vec![
+                    eq("trace.release", &["1.1.1"], true),
+                    eq("trace.environment", &["dev"], true),
+                ]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::Factor { value: 2.0 },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: TimeRange {
+                    start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                    end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
                 },
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.release", &["1.1.1"], true),
-                        eq("trace.environment", &["prod"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 0.6 },
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: TimeRange {
-                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
-                    },
-                    decaying_fn: DecayingFunction::Linear { decayed_value: 0.3 },
+                decaying_fn: DecayingFunction::Linear { decayed_value: 1.0 },
+            },
+            SamplingRule {
+                condition: and(vec![
+                    eq("trace.release", &["1.1.1"], true),
+                    eq("trace.environment", &["prod"], true),
+                ]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 0.6 },
+                ty: RuleType::Trace,
+                id: RuleId(2),
+                time_range: TimeRange {
+                    start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                    end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
                 },
-                SamplingRule {
-                    condition: and(vec![]),
-                    sample_rate: 1.0,
-                    sampling_value: SamplingValue::SampleRate { value: 0.02 },
-                    ty: RuleType::Trace,
-                    id: RuleId(3),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-            ],
-            mode: SamplingMode::Received,
-        };
+                decaying_fn: DecayingFunction::Linear { decayed_value: 0.3 },
+            },
+            SamplingRule {
+                condition: and(vec![]),
+                sample_rate: 1.0,
+                sampling_value: SamplingValue::SampleRate { value: 0.02 },
+                ty: RuleType::Trace,
+                id: RuleId(3),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        ]);
 
         // factor match first rule and early return third rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("transaction".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("dev".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
+        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "dev", "vip", "user-id");
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.match_against_rules(
+        let result = match_against_rules(
+            &config,
             &event,
-            Some(&trace_context),
-            None,
+            &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.03, // 0.02 * 1.5
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(1), RuleId(3)])
-            }),
-            "did not use the factor of the first rule and the sample rate of the third rule"
-        );
+        trace_match!(result, 0.03, dsc, 1, 3);
 
         // early return second rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("transaction".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("prod".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
+        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "prod", "vip", "user-id");
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.match_against_rules(
+        let result = match_against_rules(
+            &config,
             &event,
-            Some(&trace_context),
-            None,
+            &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
         assert!(matches!(result, Some(SamplingConfigMatchResult { .. })));
@@ -2833,42 +2742,22 @@ mod tests {
         }
 
         // early return third rule
-        let event = Event {
-            ty: Annotated::new(EventType::Transaction),
-            release: Annotated::new("1.1.1".to_string().into()),
-            environment: Annotated::new("testing".to_string()),
-            transaction: Annotated::new("transaction".to_string()),
-            ..Default::default()
-        };
-        let trace_context = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            environment: Some("testing".to_string()),
-            transaction: Some("root_transaction".into()),
-            sample_rate: None,
-            other: BTreeMap::new(),
-        };
+        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "testing",
+            "vip",
+            "user-id",
+        );
         // We will use a time in the middle of 10th and 11th.
-        let result = rules.match_against_rules(
+        let result = match_against_rules(
+            &config,
             &event,
-            Some(&trace_context),
-            None,
+            &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        assert_eq!(
-            result,
-            Some(SamplingConfigMatchResult {
-                sample_rate: 0.02, // 0.02
-                seed: trace_context.trace_id,
-                matched_rule_ids: MatchedRuleIds(vec![RuleId(3)])
-            }),
-            "did not use the sample rate of the third rule"
-        );
+        trace_match!(result, 0.02, dsc, 3);
     }
 
     #[test]
