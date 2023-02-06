@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::Duration;
 
+use chrono::Utc;
+
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
@@ -139,22 +141,23 @@ impl OutcomeAggregator {
                 category,
             } = bucket_key;
 
-            if let Some(timestamp) =
-                UnixTimestamp::from_secs(offset * bucket_interval).as_datetime()
-            {
-                let outcome = TrackOutcome {
-                    timestamp,
-                    scoping,
-                    outcome,
-                    event_id: None,
-                    remote_addr,
-                    category,
-                    quantity,
-                };
+            // In case the timestamp cannot be extracted, we fallback to the current UTC `DateTime`
+            let timestamp = UnixTimestamp::from_secs(offset * bucket_interval)
+                .as_datetime()
+                .unwrap_or_else(Utc::now);
 
-                relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-                outcome_producer.send(outcome);
-            }
+            let outcome = TrackOutcome {
+                timestamp,
+                scoping,
+                outcome,
+                event_id: None,
+                remote_addr,
+                category,
+                quantity,
+            };
+
+            relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
+            outcome_producer.send(outcome);
         }
     }
 

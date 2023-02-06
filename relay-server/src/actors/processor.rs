@@ -871,10 +871,7 @@ impl EnvelopeProcessorService {
     /// At the moment client reports are primarily used to transfer outcomes from
     /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
     /// system.
-    fn process_client_reports(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
+    fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
         if !self.config.emit_outcomes().any() || !self.config.emit_client_outcomes() {
@@ -884,7 +881,7 @@ impl EnvelopeProcessorService {
                     .envelope
                     .retain_items(|item| item.ty() != &ItemType::ClientReport);
             }
-            return Ok(());
+            return;
         }
 
         let mut timestamp = None;
@@ -947,7 +944,7 @@ impl EnvelopeProcessorService {
         });
 
         if output_events.is_empty() {
-            return Ok(());
+            return;
         }
 
         let timestamp =
@@ -959,31 +956,31 @@ impl EnvelopeProcessorService {
         }
 
         let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
-        if (received
-            - timestamp
-                .as_datetime()
-                .ok_or(ProcessingError::InvalidTimestamp)?)
-            > max_age
-        {
+        // also if we unable to parse the timestamp, we assume it's way too old here.
+        let in_past = timestamp
+            .as_datetime()
+            .map(|ts| (received - ts) > max_age)
+            .unwrap_or(true);
+        if in_past {
             relay_log::trace!(
                 "skipping client outcomes older than {} days",
                 max_age.num_days()
             );
-            return Ok(());
+            return;
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (timestamp
+        // also if we unable to parse the timestamp, we assume it's way far in the future here.
+        let in_future = timestamp
             .as_datetime()
-            .ok_or(ProcessingError::InvalidTimestamp)?
-            - received)
-            > max_future
-        {
+            .map(|ts| (ts - received) > max_future)
+            .unwrap_or(true);
+        if in_future {
             relay_log::trace!(
                 "skipping client outcomes more than {}s in the future",
                 max_future.num_seconds()
             );
-            return Ok(());
+            return;
         }
 
         let producer = TrackOutcome::from_registry();
@@ -1001,9 +998,10 @@ impl EnvelopeProcessorService {
             };
 
             producer.send(TrackOutcome {
-                timestamp: timestamp
-                    .as_datetime()
-                    .ok_or(ProcessingError::InvalidTimestamp)?,
+                // If we get to this point, the unwrap should not be used anymore, since we know by
+                // now that the timestamp can be parsed, but just incase we fallback to UTC current
+                // `DateTime`.
+                timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
                 scoping: state.envelope_context.scoping(),
                 outcome,
                 event_id: None,
@@ -1012,7 +1010,6 @@ impl EnvelopeProcessorService {
                 quantity,
             });
         }
-        Ok(())
     }
 
     /// Remove profiles if the feature flag is not enabled
@@ -2152,7 +2149,7 @@ impl EnvelopeProcessorService {
         }
 
         self.process_sessions(state);
-        self.process_client_reports(state)?;
+        self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
         self.process_replays(state)?;
