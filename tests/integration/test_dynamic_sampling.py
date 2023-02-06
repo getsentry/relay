@@ -125,7 +125,7 @@ def _add_sampling_config(
         )
 
     rule = {
-        "samplingStrategy": {"type": "sampleRate", "value": sample_rate},
+        "samplingValue": {"type": "sampleRate", "value": sample_rate},
         "type": rule_type,
         "condition": {"op": "and", "inner": conditions},
         "id": len(rules) + 1,

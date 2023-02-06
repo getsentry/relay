@@ -623,7 +623,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",
@@ -789,7 +789,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",
@@ -909,7 +909,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "rules": [
             {
                 "id": 1,
-                "samplingStrategy": {"type": "sampleRate", "value": 0.0},
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "error",
                 "condition": {
                     "op": "eq",

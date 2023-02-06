@@ -364,16 +364,16 @@ impl TimeRange {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
-pub enum SamplingStrategy {
+pub enum SamplingValue {
     SampleRate { value: f64 },
     Factor { value: f64 },
 }
 
-impl Default for SamplingStrategy {
+impl Default for SamplingValue {
     fn default() -> Self {
         // This default implementation aims at handling backward compatibility with old sampling
         // rules that do not have the "sampling_strategy" field.
-        SamplingStrategy::SampleRate { value: 1.0 }
+        SamplingValue::SampleRate { value: 1.0 }
     }
 }
 
@@ -393,44 +393,40 @@ pub enum DecayingFunction {
 
 /// A struct representing the evaluation context of a sample rate.
 #[derive(Debug, Clone, Copy)]
-enum SamplingStrategyValueEvaluator {
+enum SamplingValueEvaluator {
     Linear {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
         initial_value: f64,
         decayed_value: f64,
-        use_factor: bool,
     },
     Constant {
         initial_value: f64,
     },
 }
 
-impl SamplingStrategyValueEvaluator {
+impl SamplingValueEvaluator {
     /// Evaluates the value of the sampling strategy given a the current time.
     fn evaluate(&self, now: DateTime<Utc>) -> f64 {
         match self {
-            SamplingStrategyValueEvaluator::Linear {
+            SamplingValueEvaluator::Linear {
                 start,
                 end,
                 initial_value,
                 decayed_value,
-                use_factor,
             } => {
                 let now_timestamp = now.timestamp() as f64;
                 let start_timestamp = start.timestamp() as f64;
                 let end_timestamp = end.timestamp() as f64;
-                let mut progress_ratio =
-                    (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
-                if !use_factor {
-                    // In case we don't use factors, we want to clamp the value between 0 and 1.
-                    progress_ratio = progress_ratio.clamp(0.0, 1.0)
-                }
+                let progress_ratio = ((now_timestamp - start_timestamp)
+                    / (end_timestamp - start_timestamp))
+                    .clamp(0.0, 1.0);
 
+                // This interval will always be < 0.
                 let interval = decayed_value - initial_value;
                 initial_value + (interval * progress_ratio)
             }
-            SamplingStrategyValueEvaluator::Constant { initial_value } => *initial_value,
+            SamplingValueEvaluator::Constant { initial_value } => *initial_value,
         }
     }
 }
@@ -440,12 +436,12 @@ impl SamplingStrategyValueEvaluator {
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveRule {
     pub id: RuleId,
-    evaluator: SamplingStrategyValueEvaluator,
+    evaluator: SamplingValueEvaluator,
 }
 
 impl ActiveRule {
     /// Gets the sample rate for the specific rule.
-    pub fn get_sampling_strategy_value(&self, now: DateTime<Utc>) -> f64 {
+    pub fn get_sampling_value(&self, now: DateTime<Utc>) -> f64 {
         self.evaluator.evaluate(now)
     }
 }
@@ -456,7 +452,7 @@ impl ActiveRule {
 pub struct SamplingRule {
     pub condition: RuleCondition,
     #[serde(default)]
-    pub sampling_strategy: SamplingStrategy,
+    pub sampling_value: SamplingValue,
     #[serde(rename = "type")]
     pub ty: RuleType,
     pub id: RuleId,
@@ -488,18 +484,14 @@ impl SamplingRule {
                 } = self.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if self.get_sampling_strategy_base_value() > decayed_value
-                        && start <= now
-                        && now < end
-                    {
+                    if self.get_sampling_base_value() > decayed_value && start <= now && now < end {
                         return Some(ActiveRule {
                             id: self.id,
-                            evaluator: SamplingStrategyValueEvaluator::Linear {
+                            evaluator: SamplingValueEvaluator::Linear {
                                 start,
                                 end,
-                                initial_value: self.get_sampling_strategy_base_value(),
+                                initial_value: self.get_sampling_base_value(),
                                 decayed_value,
-                                use_factor: true,
                             },
                         });
                     }
@@ -509,8 +501,8 @@ impl SamplingRule {
                 if self.time_range.contains(now) {
                     return Some(ActiveRule {
                         id: self.id,
-                        evaluator: SamplingStrategyValueEvaluator::Constant {
-                            initial_value: self.get_sampling_strategy_base_value(),
+                        evaluator: SamplingValueEvaluator::Constant {
+                            initial_value: self.get_sampling_base_value(),
                         },
                     });
                 }
@@ -521,16 +513,16 @@ impl SamplingRule {
     }
 
     fn is_sample_rate_rule(&self) -> bool {
-        match self.sampling_strategy {
-            SamplingStrategy::SampleRate { value: _ } => true,
-            SamplingStrategy::Factor { value: _ } => false,
+        match self.sampling_value {
+            SamplingValue::SampleRate { value: _ } => true,
+            SamplingValue::Factor { value: _ } => false,
         }
     }
 
-    fn get_sampling_strategy_base_value(&self) -> f64 {
-        match self.sampling_strategy {
-            SamplingStrategy::SampleRate { value: sample_rate } => sample_rate,
-            SamplingStrategy::Factor { value: factor } => factor,
+    fn get_sampling_base_value(&self) -> f64 {
+        match self.sampling_value {
+            SamplingValue::SampleRate { value: sample_rate } => sample_rate,
+            SamplingValue::Factor { value: factor } => factor,
         }
     }
 }
@@ -1000,7 +992,7 @@ impl SamplingConfig {
                         has_matched_trace_rule = true
                     }
 
-                    let value = active_rule.get_sampling_strategy_value(now);
+                    let value = active_rule.get_sampling_value(now);
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingConfigMatchResult {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
@@ -2148,8 +2140,8 @@ mod tests {
         assert!(rule.is_ok());
         let rule = rule.unwrap();
         assert_eq!(
-            rule.sampling_strategy,
-            SamplingStrategy::SampleRate { value: 1.0 }
+            rule.sampling_value,
+            SamplingValue::SampleRate { value: 1.0 }
         );
         assert_eq!(rule.ty, RuleType::Trace);
     }
@@ -2163,7 +2155,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "sampleRate", "value": 0.7},
+            "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1
         }"#;
@@ -2172,8 +2164,8 @@ mod tests {
         assert!(rule.is_ok());
         let rule = rule.unwrap();
         assert_eq!(
-            rule.sampling_strategy,
-            SamplingStrategy::SampleRate { value: 0.7f64 }
+            rule.sampling_value,
+            SamplingValue::SampleRate { value: 0.7f64 }
         );
         assert_eq!(rule.ty, RuleType::Trace);
     }
@@ -2187,7 +2179,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "factor", "value": 5.0},
+            "samplingValue": {"type": "factor", "value": 5.0},
             "type": "trace",
             "id": 1
         }"#;
@@ -2195,10 +2187,7 @@ mod tests {
 
         assert!(rule.is_ok());
         let rule = rule.unwrap();
-        assert_eq!(
-            rule.sampling_strategy,
-            SamplingStrategy::Factor { value: 5.0 }
-        );
+        assert_eq!(rule.sampling_value, SamplingValue::Factor { value: 5.0 });
         assert_eq!(rule.ty, RuleType::Trace);
     }
 
@@ -2211,7 +2200,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "factor", "value": 5.0},
+            "samplingValue": {"type": "factor", "value": 5.0},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2241,7 +2230,7 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
+            "samplingValue": {"type": "sampleRate", "value": 1.0},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -2391,7 +2380,7 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    sampling_value: SamplingValue::Factor { value: 2.0 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: Default::default(),
@@ -2402,7 +2391,7 @@ mod tests {
                         glob("trace.release", &["1.1.1"]),
                         eq("trace.environment", &["prod"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: Default::default(),
@@ -2443,7 +2432,7 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.1 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.1 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: Default::default(),
@@ -2451,7 +2440,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: and(vec![glob("trace.environment", &["*dev*"])]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 1.0 },
+                    sampling_value: SamplingValue::SampleRate { value: 1.0 },
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: Default::default(),
@@ -2459,7 +2448,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    sampling_value: SamplingValue::Factor { value: 2.0 },
                     ty: RuleType::Transaction,
                     id: RuleId(3),
                     time_range: Default::default(),
@@ -2470,7 +2459,7 @@ mod tests {
                         glob("trace.release", &["1.1.1"]),
                         eq("trace.user.segment", &["vip"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(4),
                     time_range: Default::default(),
@@ -2481,7 +2470,7 @@ mod tests {
                         eq("trace.release", &["1.1.1"], true),
                         eq("trace.environment", &["prod"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::Factor { value: 1.5 },
+                    sampling_value: SamplingValue::Factor { value: 1.5 },
                     ty: RuleType::Trace,
                     id: RuleId(5),
                     time_range: Default::default(),
@@ -2489,7 +2478,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: and(vec![]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.02 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.02 },
                     ty: RuleType::Trace,
                     id: RuleId(6),
                     time_range: Default::default(),
@@ -2703,7 +2692,7 @@ mod tests {
                         eq("trace.release", &["1.1.1"], true),
                         eq("trace.environment", &["dev"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::Factor { value: 2.0 },
+                    sampling_value: SamplingValue::Factor { value: 2.0 },
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: TimeRange {
@@ -2717,7 +2706,7 @@ mod tests {
                         eq("trace.release", &["1.1.1"], true),
                         eq("trace.environment", &["prod"], true),
                     ]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.6 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.6 },
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: TimeRange {
@@ -2728,7 +2717,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: and(vec![]),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.02 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.02 },
                     ty: RuleType::Trace,
                     id: RuleId(3),
                     time_range: Default::default(),
@@ -3066,7 +3055,7 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "trace",
-            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
+            "samplingValue": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
         .unwrap();
@@ -3078,7 +3067,7 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "new_rule_type_unknown_to_this_relay",
-            "samplingStrategy": {"type": "sampleRate", "value": 1.0},
+            "samplingValue": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
         .unwrap();

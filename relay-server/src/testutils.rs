@@ -2,7 +2,7 @@ use bytes::Bytes;
 use relay_general::protocol::EventId;
 use relay_sampling::{
     DynamicSamplingContext, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
-    SamplingRule, SamplingStrategy,
+    SamplingRule, SamplingValue,
 };
 
 use crate::actors::project::ProjectState;
@@ -17,7 +17,7 @@ pub fn state_with_rule_and_condition(
     let rules = match sample_rate {
         Some(sample_rate) => vec![SamplingRule {
             condition,
-            sampling_strategy: SamplingStrategy::SampleRate { value: sample_rate },
+            sampling_value: SamplingValue::SampleRate { value: sample_rate },
             ty: rule_type,
             id: RuleId(1),
             time_range: Default::default(),

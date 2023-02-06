@@ -242,7 +242,7 @@ def test_validate_sampling_configuration():
         "rules": [
             {
                 "type": "trace",
-                "samplingStrategy": {
+                "samplingValue": {
                     "type": "sampleRate",
                     "value": 0.7
                 },
@@ -255,7 +255,7 @@ def test_validate_sampling_configuration():
             },
             {
                 "type": "trace",
-                "samplingStrategy": {
+                "samplingValue": {
                     "type": "sampleRate",
                     "value": 0.9
                 },

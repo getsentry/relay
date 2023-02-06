@@ -240,12 +240,56 @@ mod tests {
     use relay_general::types::Annotated;
     use relay_sampling::{
         DecayingFunction, EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType,
-        SamplingConfig, SamplingRule, SamplingStrategy, TimeRange,
+        SamplingConfig, SamplingRule, SamplingValue, TimeRange,
     };
 
     use crate::testutils::project_state_with_config;
 
     use super::*;
+
+    macro_rules! match_rule_ids {
+        ($exc:expr, $res:expr) => {
+            if ($exc.len() != $res.len()) {
+                panic!("The rule ids don't match.")
+            }
+
+            for (index, rule) in $res.iter().enumerate() {
+                assert_eq!(rule.id.0, $exc[index])
+            }
+        };
+    }
+
+    macro_rules! transaction_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                SamplingMatchResult::Match {
+                    sample_rate: $sr,
+                    seed: $sd.id.0.unwrap().0,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                }
+            )
+        }
+    }
+
+    macro_rules! trace_match {
+        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
+            assert_eq!(
+                $res,
+                SamplingMatchResult::Match {
+                    sample_rate: $sr,
+                    seed: $sd.trace_id,
+                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
+                }
+            )
+        }
+    }
+
+    macro_rules! no_match {
+        ($res:expr) => {
+            assert_eq!($res, SamplingMatchResult::NoMatch)
+        };
+    }
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
@@ -288,7 +332,7 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: eq("event.transaction", &["healthcheck"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.1 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.1 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: Default::default(),
@@ -296,7 +340,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("event.transaction", &["bar"], true),
-                    sampling_strategy: SamplingStrategy::Factor { value: 1.0 },
+                    sampling_value: SamplingValue::Factor { value: 1.0 },
                     ty: RuleType::Transaction,
                     id: RuleId(2),
                     time_range: Default::default(),
@@ -304,7 +348,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("event.transaction", &["foo"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Transaction,
                     id: RuleId(3),
                     time_range: Default::default(),
@@ -314,7 +358,7 @@ mod tests {
                 // be considered if put within a non-root project.
                 SamplingRule {
                     condition: RuleCondition::all(),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(4),
                     time_range: Default::default(),
@@ -330,7 +374,7 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: eq("trace.release", &["3.0"], true),
-                    sampling_strategy: SamplingStrategy::Factor { value: 1.5 },
+                    sampling_value: SamplingValue::Factor { value: 1.5 },
                     ty: RuleType::Trace,
                     id: RuleId(5),
                     time_range: Default::default(),
@@ -338,7 +382,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("trace.environment", &["dev"], true),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 1.0 },
+                    sampling_value: SamplingValue::SampleRate { value: 1.0 },
                     ty: RuleType::Trace,
                     id: RuleId(6),
                     time_range: Default::default(),
@@ -346,7 +390,7 @@ mod tests {
                 },
                 SamplingRule {
                     condition: RuleCondition::all(),
-                    sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(7),
                     time_range: Default::default(),
@@ -360,7 +404,7 @@ mod tests {
     fn mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -> SamplingRule {
         SamplingRule {
             condition: RuleCondition::all(),
-            sampling_strategy: SamplingStrategy::SampleRate { value: sample_rate },
+            sampling_value: SamplingValue::SampleRate { value: sample_rate },
             ty,
             id: RuleId(id),
             time_range: Default::default(),
@@ -372,12 +416,12 @@ mod tests {
         id: u32,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
-        sampling_strategy: SamplingStrategy,
+        sampling_value: SamplingValue,
         decaying_fn: DecayingFunction,
     ) -> SamplingRule {
         SamplingRule {
             condition: RuleCondition::all(),
-            sampling_strategy,
+            sampling_value,
             ty: RuleType::Transaction,
             id: RuleId(id),
             time_range: TimeRange { start, end },
@@ -402,46 +446,6 @@ mod tests {
             .add_root_config(Some(&root_project_state))
             .get_merged_config()
             .rules
-    }
-
-    macro_rules! match_rule_ids {
-        ($exc:expr, $res:expr) => {
-            for (index, rule) in $res.iter().enumerate() {
-                assert_eq!(rule.id.0, $exc[index])
-            }
-        };
-    }
-
-    macro_rules! transaction_match {
-        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
-            assert_eq!(
-                $res,
-                SamplingMatchResult::Match {
-                    sample_rate: $sr,
-                    seed: $sd.id.0.unwrap().0,
-                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                }
-            )
-        }
-    }
-
-    macro_rules! trace_match {
-        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
-            assert_eq!(
-                $res,
-                SamplingMatchResult::Match {
-                    sample_rate: $sr,
-                    seed: $sd.trace_id,
-                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                }
-            )
-        }
-    }
-
-    macro_rules! no_match {
-        ($res:expr) => {
-            assert_eq!($res, SamplingMatchResult::NoMatch)
-        };
     }
 
     #[test]
@@ -496,7 +500,7 @@ mod tests {
     fn test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
     ) {
         match_rule_ids!(
-            [6],
+            [6, 7],
             merge_root_and_non_root_configs_with(
                 vec![],
                 vec![
@@ -672,7 +676,7 @@ mod tests {
             .rules
             .push(SamplingRule {
                 condition: RuleCondition::Unsupported,
-                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Transaction,
                 id: RuleId(1),
                 time_range: Default::default(),
@@ -737,7 +741,7 @@ mod tests {
             .rules
             .push(SamplingRule {
                 condition: RuleCondition::all(),
-                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(1),
                 time_range: Default::default(),
@@ -769,7 +773,7 @@ mod tests {
             .rules
             .push(SamplingRule {
                 condition: RuleCondition::all(),
-                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(10),
                 time_range: Default::default(),
@@ -801,7 +805,7 @@ mod tests {
             .rules
             .push(SamplingRule {
                 condition: RuleCondition::all(),
-                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(10),
                 time_range: Default::default(),
@@ -832,7 +836,7 @@ mod tests {
                 1,
                 Some(now - DateDuration::days(1)),
                 Some(now + DateDuration::days(1)),
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -846,7 +850,7 @@ mod tests {
                 1,
                 Some(now),
                 Some(now + DateDuration::days(1)),
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -860,7 +864,7 @@ mod tests {
                 1,
                 Some(now - DateDuration::days(1)),
                 Some(now),
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -881,7 +885,7 @@ mod tests {
                 1,
                 Some(now - DateDuration::days(1)),
                 None,
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -895,7 +899,7 @@ mod tests {
                 1,
                 None,
                 Some(now + DateDuration::days(1)),
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -909,7 +913,7 @@ mod tests {
                 1,
                 None,
                 None,
-                SamplingStrategy::SampleRate { value: 1.0 },
+                SamplingValue::SampleRate { value: 1.0 },
                 DecayingFunction::Linear { decayed_value: 0.5 },
             )],
             mode: SamplingMode::Received,
@@ -932,14 +936,14 @@ mod tests {
                     1,
                     Some(now - DateDuration::days(1)),
                     Some(now + DateDuration::days(1)),
-                    SamplingStrategy::Factor { value: 5.0 },
+                    SamplingValue::Factor { value: 5.0 },
                     DecayingFunction::Linear { decayed_value: 1.0 },
                 ),
                 mocked_decaying_sampling_rule(
                     2,
                     Some(now - DateDuration::days(1)),
                     Some(now + DateDuration::days(1)),
-                    SamplingStrategy::SampleRate { value: 0.3 },
+                    SamplingValue::SampleRate { value: 0.3 },
                     DecayingFunction::Constant,
                 ),
             ],
@@ -996,7 +1000,7 @@ mod tests {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![SamplingRule {
                 condition: eq("event.transaction", &["foo"], true),
-                sampling_strategy: SamplingStrategy::SampleRate { value: 0.5 },
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Transaction,
                 id: RuleId(3),
                 time_range: Default::default(),
