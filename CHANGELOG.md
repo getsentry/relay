@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
+- Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752), [#1802](https://github.com/getsentry/relay/pull/1802))
 - Apply all configured data scrubbing rules on Replays. ([#1731](https://github.com/getsentry/relay/pull/1731))
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
 
