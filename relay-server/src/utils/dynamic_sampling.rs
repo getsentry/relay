@@ -457,6 +457,19 @@ mod tests {
             .rules
     }
 
+    fn add_sampling_rule_to_project_state(
+        project_state: &mut ProjectState,
+        sampling_rule: SamplingRule,
+    ) {
+        project_state
+            .config
+            .dynamic_sampling
+            .as_mut()
+            .unwrap()
+            .rules
+            .push(sampling_rule);
+    }
+
     #[test]
     /// Tests the merged config of the two configs with rules.
     fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
@@ -676,14 +689,9 @@ mod tests {
     /// enabled and disabled.
     fn test_get_sampling_match_result_with_unsupported_rules() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
-        // TODO: find a way to simplify this.
-        project_state
-            .config
-            .dynamic_sampling
-            .as_mut()
-            .unwrap()
-            .rules
-            .push(SamplingRule {
+        add_sampling_rule_to_project_state(
+            &mut project_state,
+            SamplingRule {
                 condition: RuleCondition::Unsupported,
                 sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
@@ -691,7 +699,9 @@ mod tests {
                 id: RuleId(1),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            });
+            },
+        );
+
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
@@ -743,13 +753,9 @@ mod tests {
     /// Tests that a match of a rule of type error with a transaction event results in no match.
     fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
-        project_state
-            .config
-            .dynamic_sampling
-            .as_mut()
-            .unwrap()
-            .rules
-            .push(SamplingRule {
+        add_sampling_rule_to_project_state(
+            &mut project_state,
+            SamplingRule {
                 condition: RuleCondition::all(),
                 sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
@@ -757,7 +763,8 @@ mod tests {
                 id: RuleId(1),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            });
+            },
+        );
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = get_sampling_match_result(
@@ -776,13 +783,9 @@ mod tests {
     /// Tests that a match of a rule of type error with an error event results in a match.
     fn test_get_sampling_match_result_with_error_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
-        project_state
-            .config
-            .dynamic_sampling
-            .as_mut()
-            .unwrap()
-            .rules
-            .push(SamplingRule {
+        add_sampling_rule_to_project_state(
+            &mut project_state,
+            SamplingRule {
                 condition: RuleCondition::all(),
                 sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
@@ -790,7 +793,8 @@ mod tests {
                 id: RuleId(10),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            });
+            },
+        );
         let event = mocked_event(EventType::Error, "transaction", "2.0");
 
         let result = get_sampling_match_result(
@@ -809,13 +813,9 @@ mod tests {
     /// Tests that a match of a rule of type default with an error event results in a match.
     fn test_get_sampling_match_result_with_default_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
-        project_state
-            .config
-            .dynamic_sampling
-            .as_mut()
-            .unwrap()
-            .rules
-            .push(SamplingRule {
+        add_sampling_rule_to_project_state(
+            &mut project_state,
+            SamplingRule {
                 condition: RuleCondition::all(),
                 sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
@@ -823,7 +823,8 @@ mod tests {
                 id: RuleId(10),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            });
+            },
+        );
         let event = mocked_event(EventType::Default, "transaction", "2.0");
 
         let result = get_sampling_match_result(
