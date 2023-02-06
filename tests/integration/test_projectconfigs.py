@@ -257,6 +257,7 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
+            "sampleRate": 1.0,
             "samplingValue": {"strategy": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
@@ -312,6 +313,7 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
+            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
@@ -388,6 +390,7 @@ def test_cached_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
+            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
