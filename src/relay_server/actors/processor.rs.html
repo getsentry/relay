@@ -3215,8 +3215,6 @@
 <a href="#3214" id="3214">3214</a>
 <a href="#3215" id="3215">3215</a>
 <a href="#3216" id="3216">3216</a>
-<a href="#3217" id="3217">3217</a>
-<a href="#3218" id="3218">3218</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_replays::recording::ReplayScrubber;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -4376,7 +4374,8 @@
                 <span class="kw">match </span>parsed_recording {
                     <span class="prelude-val">Ok</span>(recording) =&gt; {
                         item.set_payload(ContentType::OctetStream, recording.as_slice());
-                    }
+                        <span class="bool-val">true
+                    </span>}
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
                         context.track_outcome(
@@ -4384,13 +4383,10 @@
                             DataCategory::Replay,
                             <span class="number">1</span>,
                         );
-                    }
+                        <span class="bool-val">false
+                    </span>}
                 }
-
-                <span class="comment">// XXX: For now replays that could not be parsed are still accepted while we
-                // determine the impact of the recording parser.
-                </span><span class="bool-val">true
-            </span>}
+            }
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
 
