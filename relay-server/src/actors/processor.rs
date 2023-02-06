@@ -24,10 +24,9 @@ use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Context as SentryContext, Contexts, Csp, Event, EventType,
-    ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, Metrics, ProfileContext, RelayInfo,
-    Replay, ReplayError, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus,
-    SessionUpdate, Timestamp, UserReport, Values,
+    self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -61,6 +60,7 @@ use {
     crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
+    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
