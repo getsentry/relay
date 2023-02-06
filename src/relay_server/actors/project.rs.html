@@ -1221,6 +1221,8 @@
 <a href="#1220" id="1220">1220</a>
 <a href="#1221" id="1221">1221</a>
 <a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1729,7 +1731,8 @@
     </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
-<span class="kw">struct </span>StateChannel {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>StateChannel {
     inner: BroadcastChannel&lt;Arc&lt;ProjectState&gt;&gt;,
     no_cache: bool,
 }
@@ -1757,6 +1760,7 @@
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Project {
     backoff: RetryBackoff,
     next_fetch_attempt: <span class="prelude-ty">Option</span>&lt;Instant&gt;,

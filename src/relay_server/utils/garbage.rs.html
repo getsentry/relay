@@ -104,6 +104,7 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
 <span class="kw">use </span>std::sync::{mpsc, Arc};
 <span class="kw">use </span>std::thread::JoinHandle;
@@ -111,6 +112,7 @@
 <span class="doccomment">/// Garbage disposal agent.
 ///
 /// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>GarbageDisposal&lt;T&gt; {
     tx: mpsc::Sender&lt;T&gt;,
     queue_size: Arc&lt;AtomicUsize&gt;,

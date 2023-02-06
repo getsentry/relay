@@ -373,12 +373,6 @@
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
 <a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -517,14 +511,12 @@
         <span class="kw">let </span>outcome_runtime = create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
-        <span class="kw">let </span>guard = upstream_runtime.enter();
-        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        drop(guard);
+        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start_in(<span class="kw-2">&amp;</span>upstream_runtime);
 
-        <span class="kw">let </span>guard = outcome_runtime.enter();
-        <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(config.clone())<span class="question-mark">?</span>.start();
-        <span class="kw">let </span>outcome_aggregator = OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start();
-        drop(guard);
+        <span class="kw">let </span>outcome_producer =
+            OutcomeProducerService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>outcome_runtime);
+        <span class="kw">let </span>outcome_aggregator =
+            OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>outcome_runtime);
 
         <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
             <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
@@ -541,8 +533,7 @@
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">if </span>config.processing_enabled() {
             <span class="kw">let </span>rt = create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
-            <span class="kw">let </span>_guard = rt.enter();
-            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start();
+            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>rt);
             envelope_manager.set_store_forwarder(store);
             _store_runtime = <span class="prelude-val">Some</span>(rt);
         }
@@ -550,9 +541,8 @@
         <span class="kw">let </span>envelope_manager = envelope_manager.start();
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let </span>guard = project_runtime.enter();
-        <span class="kw">let </span>project_cache = ProjectCacheService::new(config.clone(), redis_pool).start();
-        drop(guard);
+        <span class="kw">let </span>project_cache =
+            ProjectCacheService::new(config.clone(), redis_pool).start_in(<span class="kw-2">&amp;</span>project_runtime);
 
         <span class="kw">let </span>health_check = HealthCheckService::new(config.clone()).start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone()).start();
@@ -563,13 +553,11 @@
             }
         }
 
-        <span class="kw">let </span>guard = aggregator_runtime.enter();
         <span class="kw">let </span>aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
-        .start();
-        drop(guard);
+        .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
 
         REGISTRY
             .set(Box::new(Registry {

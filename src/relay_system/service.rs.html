@@ -1078,6 +1078,13 @@
 <a href="#1077" id="1077">1077</a>
 <a href="#1078" id="1078">1078</a>
 <a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1089,6 +1096,7 @@
 
 <span class="kw">use </span>futures::future::Shared;
 <span class="kw">use </span>futures::FutureExt;
+<span class="kw">use </span>tokio::runtime::Runtime;
 <span class="kw">use </span>tokio::sync::{mpsc, oneshot};
 <span class="kw">use </span>tokio::time::MissedTickBehavior;
 
@@ -2058,6 +2066,12 @@
         <span class="kw">let </span>(addr, rx) = channel(<span class="self">Self</span>::name());
         <span class="self">self</span>.spawn_handler(rx);
         addr
+    }
+
+    <span class="doccomment">/// Starts the service in the given runtime and returns an address for it.
+    </span><span class="kw">fn </span>start_in(<span class="self">self</span>, runtime: <span class="kw-2">&amp;</span>Runtime) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
+        <span class="kw">let </span>_guard = runtime.enter();
+        <span class="self">self</span>.start()
     }
 
     <span class="doccomment">/// Returns a unique name for this service implementation.

@@ -936,6 +936,29 @@
 <a href="#935" id="935">935</a>
 <a href="#936" id="936">936</a>
 <a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1464,6 +1487,7 @@
 }
 
 <span class="doccomment">/// Outcome producer backend via HTTP as [`TrackRawOutcome`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>HttpOutcomeProducer {
     config: Arc&lt;Config&gt;,
     unsent_outcomes: Vec&lt;TrackRawOutcome&gt;,
@@ -1541,6 +1565,7 @@
 }
 
 <span class="doccomment">/// Outcome producer backend via HTTP as [`ClientReport`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap&lt;Scoping, Vec&lt;ClientReport&gt;&gt;,
@@ -1641,6 +1666,7 @@
 /// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
 /// producer instance internally.
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+#[derive(Debug)]
 </span><span class="kw">struct </span>KafkaOutcomesProducer {
     client: KafkaClient,
 }
@@ -1667,14 +1693,6 @@
             client: client_builder.build(),
         })
     }
-}
-
-<span class="kw">enum </span>ProducerInner {
-    AsClientReports(Addr&lt;TrackOutcome&gt;),
-    AsHttpOutcomes(Addr&lt;TrackRawOutcome&gt;),
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>AsKafkaOutcomes(KafkaOutcomesProducer),
-    Disabled,
 }
 
 <span class="doccomment">/// Produces [`Outcome`]s to a configurable backend.
@@ -1719,51 +1737,28 @@
     }
 }
 
-<span class="doccomment">/// Service implementing the [`OutcomeProducer`] interface.
-</span><span class="kw">pub struct </span>OutcomeProducerService {
-    config: Arc&lt;Config&gt;,
-    producer: ProducerInner,
+<span class="kw">fn </span>send_outcome_metric(message: <span class="kw-2">&amp;</span><span class="kw">impl </span>TrackOutcomeLike, to: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) {
+    <span class="macro">metric!</span>(
+        counter(RelayCounters::Outcomes) += <span class="number">1</span>,
+        reason = message.reason().as_deref().unwrap_or(<span class="string">&quot;&quot;</span>),
+        outcome = message.tag_name(),
+        to = to,
+    );
 }
 
-<span class="kw">impl </span>OutcomeProducerService {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>producer = <span class="kw">match </span>config.emit_outcomes() {
-            EmitOutcomes::AsOutcomes =&gt; {
-                <span class="comment">// We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
-                // relays.
-                </span><span class="kw">if </span>config.processing_enabled() {
-                    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-                    </span>{
-                        ProducerInner::AsKafkaOutcomes(KafkaOutcomesProducer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>)
-                    }
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>OutcomeBroker {
+    ClientReport(Addr&lt;TrackOutcome&gt;),
+    Http(Addr&lt;TrackRawOutcome&gt;),
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>Kafka(KafkaOutcomesProducer),
+    Disabled,
+}
 
-                    <span class="attr">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
-                    </span><span class="macro">unreachable!</span>(<span class="string">&quot;config parsing should have failed&quot;</span>)
-                } <span class="kw">else </span>{
-                    <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes via http&quot;</span>);
-                    ProducerInner::AsHttpOutcomes(
-                        HttpOutcomeProducer::create(Arc::clone(<span class="kw-2">&amp;</span>config))<span class="question-mark">?</span>.start(),
-                    )
-                }
-            }
-            EmitOutcomes::AsClientReports =&gt; {
-                <span class="comment">// We emit outcomes as client reports, and we do not
-                // accept any raw outcomes
-                </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
-                ProducerInner::AsClientReports(ClientReportOutcomeProducer::create(<span class="kw-2">&amp;</span>config).start())
-            }
-            EmitOutcomes::None =&gt; {
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to drop all outcomes&quot;</span>);
-                ProducerInner::Disabled
-            }
-        };
-
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, producer })
-    }
-
-    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: OutcomeProducer) {
+<span class="kw">impl </span>OutcomeBroker {
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: OutcomeProducer, config: <span class="kw-2">&amp;</span>Config) {
         <span class="kw">match </span>message {
-            OutcomeProducer::TrackOutcome(msg) =&gt; <span class="self">self</span>.handle_track_outcome(msg),
+            OutcomeProducer::TrackOutcome(msg) =&gt; <span class="self">self</span>.handle_track_outcome(msg, config),
             OutcomeProducer::TrackRawOutcome(msg) =&gt; <span class="self">self</span>.handle_track_raw_outcome(msg),
         }
     }
@@ -1806,68 +1801,119 @@
         }
     }
 
-    <span class="kw">fn </span>send_outcome_metric(message: <span class="kw-2">&amp;</span><span class="kw">impl </span>TrackOutcomeLike, to: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) {
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::Outcomes) += <span class="number">1</span>,
-            reason = message.reason().as_deref().unwrap_or(<span class="string">&quot;&quot;</span>),
-            outcome = message.tag_name(),
-            to = to,
-        );
-    }
-
-    <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackOutcome) {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.producer {
+    <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, message: TrackOutcome, config: <span class="kw-2">&amp;</span>Config) {
+        <span class="kw">match </span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>ProducerInner::AsKafkaOutcomes(<span class="kw-2">ref </span>kafka_producer) =&gt; {
-                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
+            </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
+                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
                 <span class="kw">let </span>organization_id = message.scoping.organization_id;
-                <span class="kw">let </span>raw_message = TrackRawOutcome::from_outcome(message, <span class="kw-2">&amp;</span><span class="self">self</span>.config);
+                <span class="kw">let </span>raw_message = TrackRawOutcome::from_outcome(message, config);
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) =
                     <span class="self">self</span>.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
                 }
             }
-            ProducerInner::AsClientReports(<span class="kw-2">ref </span>producer) =&gt; {
-                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;client_report&quot;</span>);
+            <span class="self">Self</span>::ClientReport(producer) =&gt; {
+                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;client_report&quot;</span>);
                 producer.send(message);
             }
-            ProducerInner::AsHttpOutcomes(<span class="kw-2">ref </span>producer) =&gt; {
-                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
-                producer.send(TrackRawOutcome::from_outcome(message, <span class="kw-2">&amp;</span><span class="self">self</span>.config));
+            <span class="self">Self</span>::Http(producer) =&gt; {
+                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
+                producer.send(TrackRawOutcome::from_outcome(message, config));
             }
-            ProducerInner::Disabled =&gt; (),
+            <span class="self">Self</span>::Disabled =&gt; (),
         }
     }
 
-    <span class="kw">fn </span>handle_track_raw_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackRawOutcome) {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.producer {
+    <span class="kw">fn </span>handle_track_raw_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, message: TrackRawOutcome) {
+        <span class="kw">match </span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>ProducerInner::AsKafkaOutcomes(<span class="kw-2">ref </span>kafka_producer) =&gt; {
-                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
+            </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
+                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
                 <span class="kw">let </span>sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, sharding_id, message) {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
                 }
             }
-            ProducerInner::AsHttpOutcomes(<span class="kw-2">ref </span>producer) =&gt; {
-                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
+            <span class="self">Self</span>::Http(producer) =&gt; {
+                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
                 producer.send(message);
             }
-            ProducerInner::AsClientReports(<span class="kw">_</span>) =&gt; (),
-            ProducerInner::Disabled =&gt; (),
+            <span class="self">Self</span>::ClientReport(<span class="kw">_</span>) =&gt; (),
+            <span class="self">Self</span>::Disabled =&gt; (),
         }
+    }
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>ProducerInner {
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>Kafka(KafkaOutcomesProducer),
+    Http(HttpOutcomeProducer),
+    ClientReport(ClientReportOutcomeProducer),
+    Disabled,
+}
+
+<span class="kw">impl </span>ProducerInner {
+    <span class="kw">fn </span>start(<span class="self">self</span>) -&gt; OutcomeBroker {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>ProducerInner::Kafka(inner) =&gt; OutcomeBroker::Kafka(inner),
+            ProducerInner::Http(inner) =&gt; OutcomeBroker::Http(inner.start()),
+            ProducerInner::ClientReport(inner) =&gt; OutcomeBroker::ClientReport(inner.start()),
+            ProducerInner::Disabled =&gt; OutcomeBroker::Disabled,
+        }
+    }
+}
+
+<span class="doccomment">/// Service implementing the [`OutcomeProducer`] interface.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>OutcomeProducerService {
+    config: Arc&lt;Config&gt;,
+    inner: ProducerInner,
+}
+
+<span class="kw">impl </span>OutcomeProducerService {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>inner = <span class="kw">match </span>config.emit_outcomes() {
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>EmitOutcomes::AsOutcomes <span class="kw">if </span>config.processing_enabled() =&gt; {
+                <span class="comment">// We emit raw outcomes, and accept raw outcomes emitted by downstream Relays
+                </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes via kafka&quot;</span>);
+                ProducerInner::Kafka(KafkaOutcomesProducer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>)
+            }
+            EmitOutcomes::AsOutcomes =&gt; {
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes via http&quot;</span>);
+                ProducerInner::Http(HttpOutcomeProducer::create(Arc::clone(<span class="kw-2">&amp;</span>config))<span class="question-mark">?</span>)
+            }
+            EmitOutcomes::AsClientReports =&gt; {
+                <span class="comment">// We emit client reports, and we do NOT accept raw outcomes
+                </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
+                ProducerInner::ClientReport(ClientReportOutcomeProducer::create(<span class="kw-2">&amp;</span>config))
+            }
+            EmitOutcomes::None =&gt; {
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to drop all outcomes&quot;</span>);
+                ProducerInner::Disabled
+            }
+        };
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, inner })
     }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>OutcomeProducerService {
     <span class="kw">type </span>Interface = OutcomeProducer;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span><span class="self">Self </span>{ config, inner } = <span class="self">self</span>;
+
         tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>broker = inner.start();
+
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer started.&quot;</span>);
             <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
-                <span class="self">self</span>.handle_message(message);
+                broker.handle_message(message, <span class="kw-2">&amp;</span>config);
             }
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer stopped.&quot;</span>);
         });

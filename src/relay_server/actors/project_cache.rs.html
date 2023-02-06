@@ -634,6 +634,27 @@
 <a href="#633" id="633">633</a>
 <a href="#634" id="634">634</a>
 <a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>tokio::sync::mpsc;
@@ -956,7 +977,8 @@
 }
 
 <span class="kw">impl </span>ProjectSource {
-    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// Starts all project source services in the current runtime.
+    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = LocalProjectSourceService::new(config.clone()).start();
         <span class="kw">let </span>upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
 
@@ -1035,30 +1057,21 @@
     </span>no_cache: bool,
 }
 
-<span class="doccomment">/// Service implementing the [`ProjectCache`] interface.
-</span><span class="kw">pub struct </span>ProjectCacheService {
+<span class="doccomment">/// Main broker of the [`ProjectCacheService`].
+///
+/// This handles incoming public messages, merges resolved project states, and maintains the actual
+/// cache of project states.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
     <span class="comment">// need hashbrown because drain_filter is not stable in std yet
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
-    state_rx: mpsc::UnboundedReceiver&lt;UpdateProjectState&gt;,
 }
 
-<span class="kw">impl </span>ProjectCacheService {
-    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(state_tx, state_rx) = mpsc::unbounded_channel();
-        <span class="self">Self </span>{
-            config: config.clone(),
-            projects: hashbrown::HashMap::new(),
-            garbage_disposal: GarbageDisposal::new(),
-            source: ProjectSource::new(config, redis),
-            state_tx,
-            state_rx,
-        }
-    }
-
+<span class="kw">impl </span>ProjectCacheBroker {
     <span class="doccomment">/// Evict projects that are over its expiry date.
     ///
     /// Ideally, we would use `check_expiry` to determine expiry here.
@@ -1226,21 +1239,50 @@
     }
 }
 
+<span class="doccomment">/// Service implementing the [`ProjectCache`] interface.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ProjectCacheService {
+    config: Arc&lt;Config&gt;,
+    redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+}
+
+<span class="kw">impl </span>ProjectCacheService {
+    <span class="doccomment">/// Creates a new `ProjectCacheService`.
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ config, redis }
+    }
+}
+
 <span class="kw">impl </span>Service <span class="kw">for </span>ProjectCacheService {
     <span class="kw">type </span>Interface = ProjectCache;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span><span class="self">Self </span>{ config, redis } = <span class="self">self</span>;
+
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(<span class="self">self</span>.config.cache_eviction_interval());
+            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(config.cache_eviction_interval());
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache started&quot;</span>);
+
+            <span class="comment">// Channel for async project state responses back into the project cache.
+            </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::unbounded_channel();
+
+            <span class="comment">// Main broker that serializes public and internal messages, and triggers project state
+            // fetches via the project source.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
+                config: config.clone(),
+                projects: hashbrown::HashMap::new(),
+                garbage_disposal: GarbageDisposal::new(),
+                source: ProjectSource::start(config, redis),
+                state_tx,
+            };
 
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select! </span>{
                     biased;
 
-                    <span class="prelude-val">Some</span>(message) = <span class="self">self</span>.state_rx.recv() =&gt; <span class="self">self</span>.merge_state(message),
-                    <span class="kw">_ </span>= ticker.tick() =&gt; <span class="self">self</span>.evict_stale_project_caches(),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+                    <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
+                    <span class="kw">_ </span>= ticker.tick() =&gt; broker.evict_stale_project_caches(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message),
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
