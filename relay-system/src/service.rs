@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use futures::future::Shared;
 use futures::FutureExt;
+use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
@@ -978,6 +979,12 @@ pub trait Service: Sized {
         let (addr, rx) = channel(Self::name());
         self.spawn_handler(rx);
         addr
+    }
+
+    /// Starts the service in the given runtime and returns an address for it.
+    fn start_in(self, runtime: &Runtime) -> Addr<Self::Interface> {
+        let _guard = runtime.enter();
+        self.start()
     }
 
     /// Returns a unique name for this service implementation.
