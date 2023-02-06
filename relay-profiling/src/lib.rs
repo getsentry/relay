@@ -138,7 +138,7 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
 }
 
 pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError> {
-    let profile: MinimalProfile = match minimal_profile_from_json(payload) {
+    let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => return Err(err),
     };
@@ -150,10 +150,7 @@ pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    match processed_payload {
-        Ok(payload) => Ok((profile.event_id, payload)),
-        Err(err) => Err(err),
-    }
+    processed_payload.map(|payload| (profile.event_id, payload))
 }
 
 #[cfg(test)]

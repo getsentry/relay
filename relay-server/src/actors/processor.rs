@@ -999,21 +999,18 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles if the feature flag is not enabled
-    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+    fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let envelope = &mut state.envelope;
-
-        envelope.retain_items(|item| match item.ty() {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => profiling_enabled,
             _ => true,
         });
+    }
 
-        if !self.config.processing_enabled() {
-            return;
-        }
-
-        envelope.retain_items(|item| match item.ty() {
+    /// Remove profiles if the feature flag is not enabled
+    #[cfg(feature = "processing")]
+    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
                 Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
@@ -2148,6 +2145,9 @@ impl EnvelopeProcessorService {
         self.process_user_reports(state);
         self.process_replays(state);
 
+        // Remove profiles from the payload if the feature is not enabled
+        self.filter_profiles(state);
+
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
             // This makes it possible to get in this code block while not really having an event in
@@ -2176,11 +2176,10 @@ impl EnvelopeProcessorService {
             });
         }
 
-        // We need the event parsed in order to set the profile context on it
-        self.process_profiles(state);
-
         if_processing!({
             self.enforce_quotas(state)?;
+            // We need the event parsed in order to set the profile context on it
+            self.process_profiles(state);
         });
 
         if state.has_event() {
