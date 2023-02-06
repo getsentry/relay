@@ -273,7 +273,7 @@ impl Replay {
             None => return,
         };
 
-        let mut user_agent_info = RawUserAgentInfo::new(headers);
+        let mut user_agent_info = RawUserAgentInfo::from_headers(headers);
 
         if user_agent_info.user_agent.is_none() {
             user_agent_info.user_agent = default_user_agent;

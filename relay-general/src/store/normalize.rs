@@ -252,9 +252,12 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// measurements is retained.
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
+    meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
 ) {
     let mut custom_measurements_count = 0;
+    let mut removed_measurements = Object::new();
+
     measurements.retain(|name, value| {
         let measurement = match value.value() {
             Some(m) => m,
@@ -279,8 +282,18 @@ fn remove_invalid_measurements(
             return true;
         }
 
+        // Retain payloads in _meta just for excessive custom measurements.
+        if let Some(measurement) = value.value_mut().take() {
+            removed_measurements.insert(name.clone(), Annotated::new(measurement));
+        }
+
         false
     });
+
+    if !removed_measurements.is_empty() {
+        meta.add_error(Error::invalid("too many measurements"));
+        meta.set_original_value(Some(removed_measurements));
+    }
 }
 
 /// Returns the unit of the provided metric.
@@ -339,10 +352,10 @@ fn normalize_measurements(event: &mut Event, measurements_config: Option<&Measur
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
-    } else if let Some(measurements) = event.measurements.value_mut() {
+    } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, measurements_config);
+            remove_invalid_measurements(measurements, meta, measurements_config);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -2203,6 +2216,26 @@ mod tests {
             "my_custom_measurement_2": {
               "value": 789.0,
               "unit": "none",
+            },
+          },
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "too many measurements",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "my_custom_measurement_3": {
+                    "unit": "none",
+                    "value": 456.0,
+                  },
+                }),
+              ))),
             },
           },
         }
