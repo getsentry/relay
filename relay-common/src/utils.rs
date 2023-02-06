@@ -61,6 +61,9 @@ impl<'g> GlobBuilder<'g> {
     }
 
     /// Create a new [`Glob`] from this builder.
+    ///
+    /// This build the string pattern, which will be later lazily compiled to regex when used first
+    /// time.
     pub fn build(self) -> Glob {
         let mut pattern = String::with_capacity(&self.value.len() + 100);
         let mut last = 0;
@@ -85,7 +88,8 @@ impl<'g> GlobBuilder<'g> {
 
         Glob {
             value: self.value.to_owned(),
-            pattern: Regex::new(&pattern).unwrap(),
+            re_pattern: pattern,
+            glob: OnceCell::new(),
         }
     }
 }
@@ -97,7 +101,8 @@ impl<'g> GlobBuilder<'g> {
 #[derive(Clone)]
 pub struct Glob {
     value: String,
-    pattern: Regex,
+    re_pattern: String,
+    glob: OnceCell<Regex>,
 }
 
 impl Glob {
@@ -119,9 +124,21 @@ impl Glob {
         &self.value
     }
 
+    /// Returns the compiled regex based on the prepared pattern.
+    ///
+    /// This will return `None` if the pattern is invalid and it cannot be compiled to regex.
+    fn compiled(&self) -> Option<&Regex> {
+        self.glob
+            .get_or_try_init(|| Regex::new(&self.re_pattern))
+            .ok()
+    }
+
     /// Checks if some value matches the glob.
     pub fn is_match(&self, value: &str) -> bool {
-        self.pattern.is_match(value)
+        if let Some(glob) = self.compiled() {
+            return glob.is_match(value);
+        }
+        false
     }
 
     /// Currently support replacing only all `*` in the input string with provided replacement.
@@ -130,23 +147,26 @@ impl Glob {
         let mut output = String::new();
         let mut current = 0;
 
-        for caps in self.pattern.captures_iter(input) {
-            // Create the iter on subcaptures and ignore the first capture, since this is always
-            // the entire string.
-            for cap in caps.iter().flatten().skip(1) {
-                output.push_str(&input[current..cap.start()]);
-                output.push_str(replacement);
-                current = cap.end();
+        if let Some(glob) = self.compiled() {
+            for caps in glob.captures_iter(input) {
+                // Create the iter on subcaptures and ignore the first capture, since this is always
+                // the entire string.
+                for cap in caps.iter().flatten().skip(1) {
+                    output.push_str(&input[current..cap.start()]);
+                    output.push_str(replacement);
+                    current = cap.end();
+                }
             }
-        }
 
-        output.push_str(&input[current..]);
-        output
+            output.push_str(&input[current..]);
+            return output;
+        }
+        input.to_string()
     }
 
     /// Checks if the value matches and returns the wildcard matches.
     pub fn matches<'t>(&self, value: &'t str) -> Option<Vec<&'t str>> {
-        self.pattern.captures(value).map(|caps| {
+        self.compiled()?.captures(value).map(|caps| {
             caps.iter()
                 .skip(1)
                 .map(|x| x.map_or("", |x| x.as_str()))
