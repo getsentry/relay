@@ -17,6 +17,7 @@
 - Add metric name as tag on Sentry errors from relay dropping metrics. ([#1797](https://github.com/getsentry/relay/pull/1797))
 - Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
 - Keep meta for removed custom measurements. ([#1815](https://github.com/getsentry/relay/pull/1815))
+- Drop replay recording payloads if they cannot be parsed or scrubbed. ([#1683](https://github.com/getsentry/relay/pull/1683))
 
 ## 23.1.1
 
