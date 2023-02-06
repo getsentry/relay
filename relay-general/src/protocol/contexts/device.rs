@@ -220,7 +220,7 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().family.as_str().unwrap(), "foo g31(w)");
     }
     #[test]
@@ -239,7 +239,7 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
     }
 
