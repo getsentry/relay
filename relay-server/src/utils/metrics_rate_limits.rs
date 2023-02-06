@@ -110,15 +110,17 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
-            TrackOutcome::from_registry().send(TrackOutcome {
-                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                scoping: self.scoping,
-                outcome,
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Transaction,
-                quantity: self.transaction_count as u32,
-            });
+            if let Some(timestamp) = UnixTimestamp::now().as_datetime() {
+                TrackOutcome::from_registry().send(TrackOutcome {
+                    timestamp,
+                    scoping: self.scoping,
+                    outcome,
+                    event_id: None,
+                    remote_addr: None,
+                    category: DataCategory::Transaction,
+                    quantity: self.transaction_count as u32,
+                });
+            }
         }
     }
 

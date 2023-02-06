@@ -871,7 +871,10 @@ impl EnvelopeProcessorService {
     /// At the moment client reports are primarily used to transfer outcomes from
     /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
     /// system.
-    fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
+    fn process_client_reports(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
         if !self.config.emit_outcomes().any() || !self.config.emit_client_outcomes() {
@@ -881,7 +884,7 @@ impl EnvelopeProcessorService {
                     .envelope
                     .retain_items(|item| item.ty() != &ItemType::ClientReport);
             }
-            return;
+            return Ok(());
         }
 
         let mut timestamp = None;
@@ -944,7 +947,7 @@ impl EnvelopeProcessorService {
         });
 
         if output_events.is_empty() {
-            return;
+            return Ok(());
         }
 
         let timestamp =
@@ -956,21 +959,31 @@ impl EnvelopeProcessorService {
         }
 
         let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
-        if (received - timestamp.as_datetime()) > max_age {
+        if (received
+            - timestamp
+                .as_datetime()
+                .ok_or(ProcessingError::InvalidTimestamp)?)
+            > max_age
+        {
             relay_log::trace!(
                 "skipping client outcomes older than {} days",
                 max_age.num_days()
             );
-            return;
+            return Ok(());
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (timestamp.as_datetime() - received) > max_future {
+        if (timestamp
+            .as_datetime()
+            .ok_or(ProcessingError::InvalidTimestamp)?
+            - received)
+            > max_future
+        {
             relay_log::trace!(
                 "skipping client outcomes more than {}s in the future",
                 max_future.num_seconds()
             );
-            return;
+            return Ok(());
         }
 
         let producer = TrackOutcome::from_registry();
@@ -988,7 +1001,9 @@ impl EnvelopeProcessorService {
             };
 
             producer.send(TrackOutcome {
-                timestamp: timestamp.as_datetime(),
+                timestamp: timestamp
+                    .as_datetime()
+                    .ok_or(ProcessingError::InvalidTimestamp)?,
                 scoping: state.envelope_context.scoping(),
                 outcome,
                 event_id: None,
@@ -997,6 +1012,7 @@ impl EnvelopeProcessorService {
                 quantity,
             });
         }
+        Ok(())
     }
 
     /// Remove profiles if the feature flag is not enabled
@@ -2136,7 +2152,7 @@ impl EnvelopeProcessorService {
         }
 
         self.process_sessions(state);
-        self.process_client_reports(state);
+        self.process_client_reports(state)?;
         self.process_user_reports(state);
         self.process_profiles(state);
         self.process_replays(state)?;

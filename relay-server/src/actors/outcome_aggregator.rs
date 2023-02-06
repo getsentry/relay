@@ -139,19 +139,22 @@ impl OutcomeAggregator {
                 category,
             } = bucket_key;
 
-            let timestamp = UnixTimestamp::from_secs(offset * bucket_interval);
-            let outcome = TrackOutcome {
-                timestamp: timestamp.as_datetime(),
-                scoping,
-                outcome,
-                event_id: None,
-                remote_addr,
-                category,
-                quantity,
-            };
+            if let Some(timestamp) =
+                UnixTimestamp::from_secs(offset * bucket_interval).as_datetime()
+            {
+                let outcome = TrackOutcome {
+                    timestamp,
+                    scoping,
+                    outcome,
+                    event_id: None,
+                    remote_addr,
+                    category,
+                    quantity,
+                };
 
-            relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-            outcome_producer.send(outcome);
+                relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
+                outcome_producer.send(outcome);
+            }
         }
     }
 
