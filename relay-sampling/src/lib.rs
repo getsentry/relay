@@ -374,14 +374,6 @@ pub enum SamplingValue {
     Factor { value: f64 },
 }
 
-impl Default for SamplingValue {
-    fn default() -> Self {
-        // This default implementation aims at handling backward compatibility with old sampling
-        // rules that do not have the "sampling_value" field.
-        SamplingValue::SampleRate { value: 1.0 }
-    }
-}
-
 /// A decaying function definition.
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
@@ -2207,31 +2199,6 @@ mod tests {
     }
 
     #[test]
-    fn test_non_decaying_sampling_rule_deserialization_with_old_config_format() {
-        let serialized_rule = r#"{
-            "condition":{
-                "op":"and",
-                "inner": [
-                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
-                ]
-            },
-            "sampleRate": 0.5,
-            "type": "trace",
-            "id": 1
-        }"#;
-        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
-
-        assert!(rule.is_ok());
-        let rule = rule.unwrap();
-        assert_eq!(rule.sample_rate, 0.5);
-        assert_eq!(
-            rule.sampling_value,
-            SamplingValue::SampleRate { value: 1.0 }
-        );
-        assert_eq!(rule.ty, RuleType::Trace);
-    }
-
-    #[test]
     fn test_non_decaying_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
@@ -2248,7 +2215,6 @@ mod tests {
 
         assert!(rule.is_ok());
         let rule = rule.unwrap();
-        assert_eq!(rule.sample_rate, 1.0);
         assert_eq!(
             rule.sampling_value,
             SamplingValue::SampleRate { value: 0.7f64 }
@@ -2273,7 +2239,6 @@ mod tests {
 
         assert!(rule.is_ok());
         let rule = rule.unwrap();
-        assert_eq!(rule.sample_rate, 1.0);
         assert_eq!(rule.sampling_value, SamplingValue::Factor { value: 5.0 });
         assert_eq!(rule.ty, RuleType::Trace);
     }
