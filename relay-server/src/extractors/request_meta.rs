@@ -162,7 +162,7 @@ fn make_false() -> bool {
 }
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RequestMeta<D = PartialDsn> {
     /// The DSN describing the target of this envelope.
     dsn: D,
@@ -286,23 +286,6 @@ impl RequestMeta {
             remote_addr: None,
             forwarded_for: "".to_string(),
             user_agent: Some(crate::constants::SERVER.to_owned()),
-            no_cache: false,
-            start_time: Instant::now(),
-            client_hints: ClientHints::default(),
-        }
-    }
-
-    #[cfg(test)]
-    // TODO: Remove Dsn here?
-    pub fn new(dsn: relay_common::Dsn) -> Self {
-        RequestMeta {
-            dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
-            client: Some("sentry/client".to_string()),
-            version: 7,
-            origin: Some("http://origin/".parse().unwrap()),
-            remote_addr: Some("192.168.0.1".parse().unwrap()),
-            forwarded_for: String::new(),
-            user_agent: Some("sentry/agent".to_string()),
             no_cache: false,
             start_time: Instant::now(),
             client_hints: ClientHints::default(),
@@ -600,3 +583,129 @@ impl FromRequest<ServiceState> for EnvelopeMeta {
         Ok(Box::new(future))
     }
 }
+
+//   insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    impl Eq for RequestMeta {}
+
+    #[test]
+    fn test_request_meta_roundtrip() {
+        let json = r#"{
+  "dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42",
+  "client": "sentry-client",
+  "version": 7,
+  "origin": "http://origin/",
+  "remote_addr": "192.168.0.1",
+  "forwarded_for": "8.8.8.8",
+  "user_agent": "0x8000",
+  "no_cache": false,
+  "client_hints":  {
+    "sec_ch_ua_platform": "macOS",
+    "sec_ch_ua_platform_version": "13.1.0",
+    "sec_ch_ua": "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
+  }
+}"#;
+
+        let mut deserialized: RequestMeta = serde_json::from_str(json).unwrap();
+
+        let reqmeta = RequestMeta {
+            dsn: PartialDsn::from_str("https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42")
+                .unwrap(),
+            client: Some("sentry-client".to_owned()),
+            version: 7,
+            origin: Some(Url::parse("http://origin/").unwrap()),
+            remote_addr: Some(IpAddr::from_str("192.168.0.1").unwrap()),
+            forwarded_for: "8.8.8.8".to_string(),
+            user_agent: Some("0x8000".to_string()),
+            no_cache: false,
+            start_time: Instant::now(),
+            client_hints: ClientHints {
+                sec_ch_ua_platform: Some("macOS".to_owned()),
+                sec_ch_ua_platform_version: Some("13.1.0".to_owned()),
+                sec_ch_ua: Some(
+                    "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
+                        .to_owned(),
+                ),
+                sec_ch_ua_model: None,
+            },
+        };
+        deserialized.start_time = reqmeta.start_time;
+        assert_eq!(deserialized, reqmeta);
+    }
+
+    impl RequestMeta {
+        // TODO: Remove Dsn here?
+        pub fn new(dsn: relay_common::Dsn) -> Self {
+            Self {
+                dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
+                client: Some("sentry/client".to_string()),
+                version: 7,
+                origin: Some("http://origin/".parse().unwrap()),
+                remote_addr: Some("192.168.0.1".parse().unwrap()),
+                forwarded_for: String::new(),
+                user_agent: Some("sentry/agent".to_string()),
+                no_cache: false,
+                start_time: Instant::now(),
+                client_hints: ClientHints::default(),
+            }
+        }
+    }
+}
+
+/*
+
+    pub struct PartialDsn {
+    pub scheme: Scheme,
+    pub public_key: ProjectKey,
+    pub host: String,
+    pub port: u16,
+    pub path: String,
+    pub project_id: Option<ProjectId>,
+
+    /// The DSN describing the target of this envelope.
+    dsn: D,
+
+    /// The client SDK that sent this event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client: Option<String>,
+
+    /// The protocol version that the client speaks.
+    #[serde(default = "default_version")]
+    version: u16,
+
+    /// Value of the origin header in the incoming request, if present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin: Option<Url>,
+
+    /// IP address of the submitting remote.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    remote_addr: Option<IpAddr>,
+
+    /// The full chain of request forward addresses, including the `remote_addr`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    forwarded_for: String,
+
+    /// The user agent that sent this event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    user_agent: Option<String>,
+
+    /// A flag that indicates that project options caching should be bypassed.
+    #[serde(default = "make_false", skip_serializing_if = "is_false")]
+    no_cache: bool,
+
+    /// The time at which the request started.
+    //
+    // NOTE: This is internal-only and not exposed to Envelope headers.
+    #[serde(skip, default = "Instant::now")]
+    start_time: Instant,
+
+    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
+    client_hints: ClientHints<String>
+
+
+
+
+*/
