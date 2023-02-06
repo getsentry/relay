@@ -2156,7 +2156,6 @@ impl EnvelopeProcessorService {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_replays(state);
         self.process_replays(state)?;
 
         // Remove profiles from the payload if the feature is not enabled
