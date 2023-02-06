@@ -1162,6 +1162,7 @@ impl EnvelopeProcessorService {
                 match parsed_recording {
                     Ok(recording) => {
                         item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        true
                     }
                     Err(e) => {
                         relay_log::warn!("replay-recording-event: {e} {event_id:?}");
@@ -1170,12 +1171,9 @@ impl EnvelopeProcessorService {
                             DataCategory::Replay,
                             1,
                         );
+                        false
                     }
                 }
-
-                // XXX: For now replays that could not be parsed are still accepted while we
-                // determine the impact of the recording parser.
-                true
             }
             _ => true,
         });
