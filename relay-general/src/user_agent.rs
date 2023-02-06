@@ -93,6 +93,9 @@ pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
 }
 
 impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+    /// Checks if key matches a user agent header, in which case it sets the value accordingly.
+    /// Extracted out from from_headers so that it can be called from another crate with different
+    /// header-types. Perhaps we could make it generic over different header types instead.
     pub fn extract_header(&mut self, key: &str, value: Option<S>) {
         match key.to_lowercase().as_str() {
             "user-agent" => self.user_agent = value,
