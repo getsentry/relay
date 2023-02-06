@@ -332,7 +332,6 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: eq("event.transaction", &["healthcheck"], true),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 0.1 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
@@ -341,7 +340,6 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("event.transaction", &["bar"], true),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::Factor { value: 1.0 },
                     ty: RuleType::Transaction,
                     id: RuleId(2),
@@ -350,7 +348,6 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("event.transaction", &["foo"], true),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Transaction,
                     id: RuleId(3),
@@ -361,7 +358,6 @@ mod tests {
                 // be considered if put within a non-root project.
                 SamplingRule {
                     condition: RuleCondition::all(),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(4),
@@ -378,7 +374,6 @@ mod tests {
             rules: vec![
                 SamplingRule {
                     condition: eq("trace.release", &["3.0"], true),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::Factor { value: 1.5 },
                     ty: RuleType::Trace,
                     id: RuleId(5),
@@ -387,7 +382,6 @@ mod tests {
                 },
                 SamplingRule {
                     condition: eq("trace.environment", &["dev"], true),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 1.0 },
                     ty: RuleType::Trace,
                     id: RuleId(6),
@@ -396,7 +390,6 @@ mod tests {
                 },
                 SamplingRule {
                     condition: RuleCondition::all(),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(7),
@@ -411,7 +404,6 @@ mod tests {
     fn mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -> SamplingRule {
         SamplingRule {
             condition: RuleCondition::all(),
-            sample_rate: 1.0,
             sampling_value: SamplingValue::SampleRate { value: sample_rate },
             ty,
             id: RuleId(id),
@@ -429,7 +421,6 @@ mod tests {
     ) -> SamplingRule {
         SamplingRule {
             condition: RuleCondition::all(),
-            sample_rate: 1.0,
             sampling_value,
             ty: RuleType::Transaction,
             id: RuleId(id),
@@ -693,7 +684,6 @@ mod tests {
             &mut project_state,
             SamplingRule {
                 condition: RuleCondition::Unsupported,
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Transaction,
                 id: RuleId(1),
@@ -757,7 +747,6 @@ mod tests {
             &mut project_state,
             SamplingRule {
                 condition: RuleCondition::all(),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(1),
@@ -787,7 +776,6 @@ mod tests {
             &mut project_state,
             SamplingRule {
                 condition: RuleCondition::all(),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(10),
@@ -817,7 +805,6 @@ mod tests {
             &mut project_state,
             SamplingRule {
                 condition: RuleCondition::all(),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Error,
                 id: RuleId(10),
@@ -1014,7 +1001,6 @@ mod tests {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![SamplingRule {
                 condition: eq("event.transaction", &["foo"], true),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Transaction,
                 id: RuleId(3),

@@ -456,15 +456,6 @@ impl ActiveRule {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
     pub condition: RuleCondition,
-    // We keep the original sample rate for forward compatibility. This is because POP and processing
-    // Relays will have the latest version but customer Relays might be out of date for an arbitrary
-    // amount of time. Because inner Relays get the configurations, deserialize them and serialize them
-    // before sending them to customer Relays, we would like to keep knowledge of the old sample rate field,
-    // otherwise serialization will result in sample rate missing and customer Relays failing.
-    //
-    // TL;DR We plan to remove this field 1/2 years from the implementation of the new sampling value.
-    pub sample_rate: f64,
-    #[serde(default)]
     pub sampling_value: SamplingValue,
     #[serde(rename = "type")]
     pub ty: RuleType,
@@ -2249,7 +2240,6 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1
@@ -2275,7 +2265,6 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 1.0,
             "samplingValue": {"type": "factor", "value": 5.0},
             "type": "trace",
             "id": 1
@@ -2298,7 +2287,6 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 1.0,
             "samplingValue": {"type": "factor", "value": 5.0},
             "type": "trace",
             "id": 1,
@@ -2329,7 +2317,6 @@ mod tests {
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 1.0},
             "type": "trace",
             "id": 1,
@@ -2502,7 +2489,6 @@ mod tests {
             &mocked_sampling_config(vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::Factor { value: 2.0 },
                     ty: RuleType::Transaction,
                     id: RuleId(1),
@@ -2514,7 +2500,6 @@ mod tests {
                         glob("trace.release", &["1.1.1"]),
                         eq("trace.environment", &["prod"], true),
                     ]),
-                    sample_rate: 1.0,
                     sampling_value: SamplingValue::SampleRate { value: 0.5 },
                     ty: RuleType::Trace,
                     id: RuleId(2),
@@ -2541,7 +2526,6 @@ mod tests {
         let config = mocked_sampling_config(vec![
             SamplingRule {
                 condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.1 },
                 ty: RuleType::Transaction,
                 id: RuleId(1),
@@ -2550,7 +2534,6 @@ mod tests {
             },
             SamplingRule {
                 condition: and(vec![glob("trace.environment", &["*dev*"])]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 1.0 },
                 ty: RuleType::Trace,
                 id: RuleId(2),
@@ -2559,7 +2542,6 @@ mod tests {
             },
             SamplingRule {
                 condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::Factor { value: 2.0 },
                 ty: RuleType::Transaction,
                 id: RuleId(3),
@@ -2571,7 +2553,6 @@ mod tests {
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.user.segment", &["vip"], true),
                 ]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Trace,
                 id: RuleId(4),
@@ -2583,7 +2564,6 @@ mod tests {
                     eq("trace.release", &["1.1.1"], true),
                     eq("trace.environment", &["prod"], true),
                 ]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::Factor { value: 1.5 },
                 ty: RuleType::Trace,
                 id: RuleId(5),
@@ -2592,7 +2572,6 @@ mod tests {
             },
             SamplingRule {
                 condition: and(vec![]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.02 },
                 ty: RuleType::Trace,
                 id: RuleId(6),
@@ -2673,7 +2652,6 @@ mod tests {
                     eq("trace.release", &["1.1.1"], true),
                     eq("trace.environment", &["dev"], true),
                 ]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::Factor { value: 2.0 },
                 ty: RuleType::Trace,
                 id: RuleId(1),
@@ -2688,7 +2666,6 @@ mod tests {
                     eq("trace.release", &["1.1.1"], true),
                     eq("trace.environment", &["prod"], true),
                 ]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.6 },
                 ty: RuleType::Trace,
                 id: RuleId(2),
@@ -2700,7 +2677,6 @@ mod tests {
             },
             SamplingRule {
                 condition: and(vec![]),
-                sample_rate: 1.0,
                 sampling_value: SamplingValue::SampleRate { value: 0.02 },
                 ty: RuleType::Trace,
                 id: RuleId(3),
@@ -2975,7 +2951,6 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "trace",
-            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
@@ -2988,7 +2963,6 @@ mod tests {
         let rule: SamplingRule = serde_json::from_value(serde_json::json!({
             "id": 1,
             "type": "new_rule_type_unknown_to_this_relay",
-            "sampleRate": 1.0,
             "samplingValue": {"type": "sampleRate", "value": 1.0},
             "condition": {"op": "and", "inner": []}
         }))
