@@ -1,10 +1,48 @@
 use std::fmt;
+use std::mem;
 use std::str;
+use std::sync::{Arc, Mutex};
 
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::macros::impl_str_serde;
+
+/// Wraps either the provided pattern string, which will be consumed and replaced with compiled
+/// regex, when the `compiled` function is called.
+#[derive(Debug, Clone)]
+struct GlobRegex {
+    // Note: Mutex and Arc here used to make sure this struct can be Send and Sync. Also that we
+    // could use interior mutabilty in order to be able to consume the value when needed.
+    value: Arc<Mutex<String>>,
+    re: OnceCell<Regex>,
+}
+
+impl GlobRegex {
+    /// Creates a new `GlobRegex` from the string pattern.
+    fn new(pattern: String) -> Self {
+        Self {
+            value: Arc::new(Mutex::new(pattern)),
+            re: OnceCell::new(),
+        }
+    }
+
+    /// Returns the either `Some` of the compiled regex, or `None` if there is an error while the
+    /// regex was created.
+    ///
+    /// This will compile regex once and will reuse it later on consecutive calls.
+    ///
+    /// By compiling the regex we consume value pattern, replacing it with empty string buffer,
+    /// which is very inexpensive operation.
+    fn compiled(&self) -> Option<&Regex> {
+        self.re
+            .get_or_try_init(|| {
+                let pattern = mem::take(&mut *self.value.lock().unwrap());
+                Regex::new(&pattern)
+            })
+            .ok()
+    }
+}
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
@@ -88,8 +126,7 @@ impl<'g> GlobBuilder<'g> {
 
         Glob {
             value: self.value.to_owned(),
-            re_pattern: pattern,
-            glob: OnceCell::new(),
+            re: GlobRegex::new(pattern),
         }
     }
 }
@@ -101,8 +138,7 @@ impl<'g> GlobBuilder<'g> {
 #[derive(Clone)]
 pub struct Glob {
     value: String,
-    re_pattern: String,
-    glob: OnceCell<Regex>,
+    re: GlobRegex,
 }
 
 impl Glob {
@@ -124,19 +160,10 @@ impl Glob {
         &self.value
     }
 
-    /// Returns the compiled regex based on the prepared pattern.
-    ///
-    /// This will return `None` if the pattern is invalid and it cannot be compiled to regex.
-    fn compiled(&self) -> Option<&Regex> {
-        self.glob
-            .get_or_try_init(|| Regex::new(&self.re_pattern))
-            .ok()
-    }
-
     /// Checks if some value matches the glob.
     pub fn is_match(&self, value: &str) -> bool {
-        if let Some(glob) = self.compiled() {
-            return glob.is_match(value);
+        if let Some(re) = self.re.compiled() {
+            return re.is_match(value);
         }
         false
     }
@@ -147,8 +174,8 @@ impl Glob {
         let mut output = String::new();
         let mut current = 0;
 
-        if let Some(glob) = self.compiled() {
-            for caps in glob.captures_iter(input) {
+        if let Some(re) = self.re.compiled() {
+            for caps in re.captures_iter(input) {
                 // Create the iter on subcaptures and ignore the first capture, since this is always
                 // the entire string.
                 for cap in caps.iter().flatten().skip(1) {
@@ -166,7 +193,7 @@ impl Glob {
 
     /// Checks if the value matches and returns the wildcard matches.
     pub fn matches<'t>(&self, value: &'t str) -> Option<Vec<&'t str>> {
-        self.compiled()?.captures(value).map(|caps| {
+        self.re.compiled()?.captures(value).map(|caps| {
             caps.iter()
                 .skip(1)
                 .map(|x| x.map_or("", |x| x.as_str()))
