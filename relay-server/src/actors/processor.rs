@@ -1000,6 +1000,7 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Remove profiles from the envelope if the feature flag is not enabled
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| match item.ty() {
@@ -1008,7 +1009,7 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Remove profiles if the feature flag is not enabled
+    /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| match item.ty() {
@@ -2157,8 +2158,6 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_replays(state)?;
-
-        // Remove profiles from the payload if the feature is not enabled
         self.filter_profiles(state);
 
         if state.creates_event() {
