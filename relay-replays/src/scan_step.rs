@@ -17,23 +17,24 @@ fn transform_breadcrumbs(bytes: &[u8]) -> Result<Vec<u8>, ScanError> {
 
     // Store the transformed output in a new buffer.
     let mut buffer: Vec<u8> = Vec::new();
-    fill_buffer(&mut buffer, bytes, positions);
+    recurse_positions(&mut buffer, bytes, positions);
 
     // Success.
     Ok(buffer)
 }
 
-fn fill_buffer(buffer: &mut Vec<u8>, bytes: &[u8], positions: Vec<(usize, usize)>) {
+fn recurse_positions(buffer: &mut Vec<u8>, bytes: &[u8], positions: Vec<(usize, usize)>) {
     match positions[..] {
         [(start, end), ..] => {
             let (prefix, rest) = bytes.split_at(start);
             let (breadcrumb, bits) = rest.split_at(end);
 
             buffer.extend(prefix);
-            buffer.extend(scrub_pii(breadcrumb));
+            buffer.extend(scrub_breadcrumb_pii(breadcrumb));
 
+            // How do we get the remaining positions from the pattern match? Possible in rust?
             let (_, rest) = positions.split_at(1);
-            fill_buffer(buffer, bits, rest.to_owned())
+            recurse_positions(buffer, bits, rest.to_owned())
         }
         // The empty case accepts the contents of bytes and pushes it into
         // the output buffer.
@@ -41,7 +42,8 @@ fn fill_buffer(buffer: &mut Vec<u8>, bytes: &[u8], positions: Vec<(usize, usize)
     }
 }
 
-fn scrub_pii(bytes: &[u8]) -> Vec<u8> {
+fn scrub_breadcrumb_pii(bytes: &[u8]) -> Vec<u8> {
+    // Fill this in later.
     bytes.to_owned()
 }
 
