@@ -123,6 +123,28 @@ OsContext {
     }
 
     #[test]
+    fn test_ignore_empty_os() {
+        let headers = Headers({
+            let headers = vec![
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                    Annotated::new(r#"macOS"#.to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+
+        let from_hints = OsContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
+    }
+
+    #[test]
     fn test_fallback_on_ua_string_for_os() {
         let headers = Headers({
             let headers = vec![

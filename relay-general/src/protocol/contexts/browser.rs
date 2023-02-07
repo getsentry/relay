@@ -157,6 +157,27 @@ mod tests {
     }
 
     #[test]
+    fn test_ignore_empty_browser() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA".to_string().into()),
+                Annotated::new(
+                    // browser field missing
+                    r#"Not_A Brand";v="99", "";v="109", "Chromium";v="109"#
+                        .to_string()
+                        .into(),
+                ),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+
+        let from_hints = BrowserContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
+    }
+
+    #[test]
     fn test_client_hints_with_unknown_browser() {
         let headers = Headers({
             let headers = vec![

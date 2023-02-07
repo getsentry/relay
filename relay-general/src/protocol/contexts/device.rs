@@ -249,6 +249,22 @@ mod tests {
     }
 
     #[test]
+    fn test_ignore_empty_device() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
+                Annotated::new("".to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+
+        let from_hints = DeviceContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
+    }
+
+    #[test]
     fn test_device_context_roundtrip() {
         let json = r#"{
   "name": "iphone",
