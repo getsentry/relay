@@ -119,7 +119,7 @@ jobs:
       - name: Pull built image
         run: |
           set -euxo pipefail
-          if docker pull -q "$IMG_VERSIONED"; then
+          if ! docker pull -q "$IMG_VERSIONED"; then
             echo "Could not pull built image!"
             exit 1
           fi
