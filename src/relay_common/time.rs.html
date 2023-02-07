@@ -460,8 +460,8 @@
     </span>}
 
     <span class="doccomment">/// Returns the timestamp as chrono datetime.
-    </span><span class="kw">pub fn </span>as_datetime(<span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
-        DateTime::from_utc(NaiveDateTime::from_timestamp(<span class="self">self</span>.<span class="number">0 </span><span class="kw">as </span>i64, <span class="number">0</span>), Utc)
+    </span><span class="kw">pub fn </span>as_datetime(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt; {
+        NaiveDateTime::from_timestamp_opt(<span class="self">self</span>.<span class="number">0 </span><span class="kw">as </span>i64, <span class="number">0</span>).map(|n| DateTime::from_utc(n, Utc))
     }
 
     <span class="doccomment">/// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
