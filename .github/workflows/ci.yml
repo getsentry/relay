@@ -112,10 +112,6 @@ jobs:
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
       IMG_PROD: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
       - name: Pull built image
         run: |
           set -euxo pipefail
