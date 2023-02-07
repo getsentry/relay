@@ -320,7 +320,8 @@ struct ProjectSource {
 }
 
 impl ProjectSource {
-    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
+    /// Starts all project source services in the current runtime.
+    pub fn start(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
         let upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
 
@@ -399,30 +400,21 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
-/// Service implementing the [`ProjectCache`] interface.
-pub struct ProjectCacheService {
+/// Main broker of the [`ProjectCacheService`].
+///
+/// This handles incoming public messages, merges resolved project states, and maintains the actual
+/// cache of project states.
+#[derive(Debug)]
+struct ProjectCacheBroker {
     config: Arc<Config>,
     // need hashbrown because drain_filter is not stable in std yet
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    state_rx: mpsc::UnboundedReceiver<UpdateProjectState>,
 }
 
-impl ProjectCacheService {
-    pub fn new(config: Arc<Config>, redis: Option<RedisPool>) -> Self {
-        let (state_tx, state_rx) = mpsc::unbounded_channel();
-        Self {
-            config: config.clone(),
-            projects: hashbrown::HashMap::new(),
-            garbage_disposal: GarbageDisposal::new(),
-            source: ProjectSource::new(config, redis),
-            state_tx,
-            state_rx,
-        }
-    }
-
+impl ProjectCacheBroker {
     /// Evict projects that are over its expiry date.
     ///
     /// Ideally, we would use `check_expiry` to determine expiry here.
@@ -590,21 +582,50 @@ impl ProjectCacheService {
     }
 }
 
+/// Service implementing the [`ProjectCache`] interface.
+#[derive(Debug)]
+pub struct ProjectCacheService {
+    config: Arc<Config>,
+    redis: Option<RedisPool>,
+}
+
+impl ProjectCacheService {
+    /// Creates a new `ProjectCacheService`.
+    pub fn new(config: Arc<Config>, redis: Option<RedisPool>) -> Self {
+        Self { config, redis }
+    }
+}
+
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let Self { config, redis } = self;
+
         tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(self.config.cache_eviction_interval());
+            let mut ticker = tokio::time::interval(config.cache_eviction_interval());
             relay_log::info!("project cache started");
+
+            // Channel for async project state responses back into the project cache.
+            let (state_tx, mut state_rx) = mpsc::unbounded_channel();
+
+            // Main broker that serializes public and internal messages, and triggers project state
+            // fetches via the project source.
+            let mut broker = ProjectCacheBroker {
+                config: config.clone(),
+                projects: hashbrown::HashMap::new(),
+                garbage_disposal: GarbageDisposal::new(),
+                source: ProjectSource::start(config, redis),
+                state_tx,
+            };
 
             loop {
                 tokio::select! {
                     biased;
 
-                    Some(message) = self.state_rx.recv() => self.merge_state(message),
-                    _ = ticker.tick() => self.evict_stale_project_caches(),
-                    Some(message) = rx.recv() => self.handle_message(message),
+                    Some(message) = state_rx.recv() => broker.merge_state(message),
+                    _ = ticker.tick() => broker.evict_stale_project_caches(),
+                    Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
                 }
             }
