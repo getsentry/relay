@@ -54,7 +54,7 @@ impl FromUserAgentInfo for OsContext {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 
-        if platform.is_empty() || version.is_empty() {
+        if platform.trim().is_empty() || version.trim().is_empty() {
             return None;
         }
 
@@ -139,7 +139,6 @@ OsContext {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-
         let from_hints = OsContext::from_client_hints(&client_hints);
         assert!(from_hints.is_none())
     }
