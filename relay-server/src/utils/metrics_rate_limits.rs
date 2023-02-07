@@ -1,4 +1,5 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
+use chrono::Utc;
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
@@ -110,8 +111,9 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
+            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             TrackOutcome::from_registry().send(TrackOutcome {
-                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                timestamp,
                 scoping: self.scoping,
                 outcome,
                 event_id: None,

@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::config::RedisConfig;
 
 /// This is an unconstructable type to make `Option<RedisPool>` zero-sized.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RedisPool;
 
 /// An error returned from `RedisPool`.
