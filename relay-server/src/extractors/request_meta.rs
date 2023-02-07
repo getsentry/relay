@@ -359,7 +359,7 @@ impl PartialMeta {
         let mut ua = RawUserAgentInfo::default();
 
         for (key, value) in request.headers() {
-            ua.extract_header(key.as_str(), value.to_str().ok().map(str::to_string));
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
         }
 
         RequestMeta {
@@ -588,23 +588,41 @@ impl FromRequest<ServiceState> for EnvelopeMeta {
 mod tests {
     use super::*;
 
+    impl RequestMeta {
+        // TODO: Remove Dsn here?
+        pub fn new(dsn: relay_common::Dsn) -> Self {
+            Self {
+                dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
+                client: Some("sentry/client".to_string()),
+                version: 7,
+                origin: Some("http://origin/".parse().unwrap()),
+                remote_addr: Some("192.168.0.1".parse().unwrap()),
+                forwarded_for: String::new(),
+                user_agent: Some("sentry/agent".to_string()),
+                no_cache: false,
+                start_time: Instant::now(),
+                client_hints: ClientHints::default(),
+            }
+        }
+    }
+
     #[test]
     fn test_request_meta_roundtrip() {
         let json = r#"{
-  "dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42",
-  "client": "sentry-client",
-  "version": 7,
-  "origin": "http://origin/",
-  "remote_addr": "192.168.0.1",
-  "forwarded_for": "8.8.8.8",
-  "user_agent": "0x8000",
-  "no_cache": false,
-  "client_hints":  {
-    "sec_ch_ua_platform": "macOS",
-    "sec_ch_ua_platform_version": "13.1.0",
-    "sec_ch_ua": "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
-  }
-}"#;
+            "dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42",
+            "client": "sentry-client",
+            "version": 7,
+            "origin": "http://origin/",
+            "remote_addr": "192.168.0.1",
+            "forwarded_for": "8.8.8.8",
+            "user_agent": "0x8000",
+            "no_cache": false,
+            "client_hints":  {
+            "sec_ch_ua_platform": "macOS",
+            "sec_ch_ua_platform_version": "13.1.0",
+            "sec_ch_ua": "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
+            }
+        }"#;
 
         let mut deserialized: RequestMeta = serde_json::from_str(json).unwrap();
 
@@ -631,23 +649,5 @@ mod tests {
         };
         deserialized.start_time = reqmeta.start_time;
         assert_eq!(deserialized, reqmeta);
-    }
-
-    impl RequestMeta {
-        // TODO: Remove Dsn here?
-        pub fn new(dsn: relay_common::Dsn) -> Self {
-            Self {
-                dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
-                client: Some("sentry/client".to_string()),
-                version: 7,
-                origin: Some("http://origin/".parse().unwrap()),
-                remote_addr: Some("192.168.0.1".parse().unwrap()),
-                forwarded_for: String::new(),
-                user_agent: Some("sentry/agent".to_string()),
-                no_cache: false,
-                start_time: Instant::now(),
-                client_hints: ClientHints::default(),
-            }
-        }
     }
 }

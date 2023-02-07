@@ -1089,16 +1089,16 @@ impl EnvelopeProcessorService {
         let mut scrubber =
             ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
-        state.envelope.retain_items(|item| match item.ty() {
+        let user_agent = &RawUserAgentInfo {
+            user_agent: meta.user_agent(),
+            client_hints: meta.client_hints().as_deref(),
+        };
+
+        state.envelope.retain_items(move |item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
                     return false;
                 }
-
-                let user_agent = RawUserAgentInfo {
-                    user_agent: meta.user_agent(),
-                    client_hints: meta.client_hints().as_deref(),
-                };
 
                 match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
@@ -1200,7 +1200,7 @@ impl EnvelopeProcessorService {
         payload: &Bytes,
         config: &ProjectConfig,
         client_ip: Option<NetIPAddr>,
-        user_agent: RawUserAgentInfo<&str>,
+        user_agent: &RawUserAgentInfo<&str>,
     ) -> Result<Annotated<Replay>, ReplayError> {
         let mut replay =
             Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;

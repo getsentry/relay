@@ -94,9 +94,8 @@ pub struct RawUserAgentInfo<S: Default + AsRef<str>> {
 
 impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     /// Checks if key matches a user agent header, in which case it sets the value accordingly.
-    /// Extracted out from from_headers so that it can be called from another crate with different
-    /// header-types. Perhaps we could make it generic over different header types instead.
-    pub fn extract_header(&mut self, key: &str, value: Option<S>) {
+    ///  TODO(tor): make it generic over different header types.
+    pub fn set_ua_field_from_header(&mut self, key: &str, value: Option<S>) {
         match key.to_lowercase().as_str() {
             "user-agent" => self.user_agent = value,
 
@@ -113,16 +112,11 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     pub fn is_empty(&self) -> bool {
         self.user_agent.is_none() && self.client_hints.is_empty()
     }
-
-    pub fn from_ua(s: S) -> Self {
-        Self {
-            user_agent: Some(s),
-            client_hints: ClientHints::default(),
-        }
-    }
 }
 
 impl RawUserAgentInfo<String> {
+    pub const USER_AGENT: &str = "User-Agent";
+
     pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
         RawUserAgentInfo::<&str> {
             user_agent: self.user_agent.as_deref(),
@@ -138,7 +132,7 @@ impl<'a> RawUserAgentInfo<&'a str> {
         for item in headers.iter() {
             if let Some((ref o_k, ref v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
-                    contexts.extract_header(k, v.as_str());
+                    contexts.set_ua_field_from_header(k, v.as_str());
                 }
             }
         }
@@ -170,6 +164,11 @@ impl<S: AsRef<str> + Default> ClientHints<S> {
 }
 
 impl ClientHints<String> {
+    pub const SEC_CH_UA_PLATFORM: &str = "SEC-CH-UA-Platform";
+    pub const SEC_CH_UA_PLATFORM_VERSION: &str = "SEC-CH-UA-Platform-Version";
+    pub const SEC_CH_UA: &str = "SEC-CH-UA";
+    pub const SEC_CH_UA_MODEL: &str = "SEC-CH-UA-Model";
+
     pub fn as_deref(&self) -> ClientHints<&str> {
         ClientHints::<&str> {
             sec_ch_ua_platform: self.sec_ch_ua_platform.as_deref(),

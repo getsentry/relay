@@ -25,7 +25,7 @@ use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
-use crate::user_agent::RawUserAgentInfo;
+use crate::user_agent::{ClientHints, RawUserAgentInfo};
 
 pub mod breakdowns;
 mod contexts;
@@ -602,17 +602,20 @@ fn normalize_security_report(
             }
         };
 
-        insert_header("User-Agent", user_agent.user_agent);
+        insert_header(RawUserAgentInfo::USER_AGENT, user_agent.user_agent);
         insert_header(
-            "SEC-CH-UA-Platform",
+            ClientHints::SEC_CH_UA_PLATFORM,
             user_agent.client_hints.sec_ch_ua_platform,
         );
         insert_header(
-            "SEC-CH-UA-Platform-Version",
+            ClientHints::SEC_CH_UA_PLATFORM_VERSION,
             user_agent.client_hints.sec_ch_ua_platform_version,
         );
-        insert_header("SEC-CH-UA", user_agent.client_hints.sec_ch_ua);
-        insert_header("SEC-CH-UA-Model", user_agent.client_hints.sec_ch_ua_model);
+        insert_header(ClientHints::SEC_CH_UA, user_agent.client_hints.sec_ch_ua);
+        insert_header(
+            ClientHints::SEC_CH_UA_MODEL,
+            user_agent.client_hints.sec_ch_ua_model,
+        );
     }
 }
 
