@@ -84,7 +84,7 @@ jobs:
               --file Dockerfile.release \
               .
 
-      - name: ghcr.io push
+      - name: Push to ghcr.io
         if: matrix.arch == 'amd64'
         run: |
           set -euxo pipefail
@@ -95,7 +95,7 @@ jobs:
           docker push ghcr.io/getsentry/relay:latest
 
   push-prod-image:
-    name: Push Docker Image to Prod
+    name: Push Docker Image
     timeout-minutes: 5
     needs: build
     runs-on: ubuntu-latest
@@ -110,7 +110,7 @@ jobs:
     env:
       # GITHUB_SHA in pull requests points to the merge commit
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
-      IMG_PROD: us.gcr.io/sentryio/relay:${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
+      IMG_PROD: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -128,26 +128,18 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v1
         with:
-          token_format: access_token
           workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-          service_account: github-actions-demo@sentryio.iam.gserviceaccount.com
+          service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
 
       - name: Configure docker
         run: |
           gcloud auth configure-docker us.gcr.io
 
-
-        # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
-        #
-        # - name: push gcr.io
-        #   # TODO: this actually should be the same like in cloudbuild now, build and push on every commit in PR as well.
-        #   if: github.event_name != 'pull_request'
-        #   run: |
-        #     set -euxo pipefail
-        #     # TODO: get creadentials for pushing this and remove ./cloudbuild.yaml so they won't conflict
-        #     # docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' us.gcr.io
-        #     docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.sha }}"
-        #     docker push "us.gcr.io/sentryio/relay:${{ github.sha }}"
+      - name: Push to us.gcr.io
+        run: |
+          set -euxo pipefail
+          docker tag "$IMG_VERSIONED" "$IMG_PROD"
+          docker push "$IMG_PROD"
 
   lint:
     name: Lint
