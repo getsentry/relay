@@ -94,6 +94,18 @@ jobs:
           docker push $IMG_DEFAULT
           docker push ghcr.io/getsentry/relay:latest
 
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+          service_account: github-actions-demo@sentryio.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker
+
+
         # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
         #
         # - name: push gcr.io
