@@ -24,15 +24,16 @@
 //!     },
 //! }
 //! ```
+
+use std::fmt::Display;
+use std::net::IpAddr as RealIPAddr;
+
 use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
-use crate::store::is_valid_platform;
-use crate::store::user_agent::normalize_user_agent_info_generic;
+use crate::store::{self, user_agent};
 use crate::types::{Annotated, Array};
 use crate::user_agent::RawUserAgentInfo;
-use std::fmt::Display;
-use std::net::IpAddr as RealIPAddr;
 
 #[derive(Debug)]
 pub enum ReplayError {
@@ -273,14 +274,14 @@ impl Replay {
             None => return,
         };
 
-        let mut user_agent_info = RawUserAgentInfo::new(headers);
+        let mut user_agent_info = RawUserAgentInfo::from_headers(headers);
 
         if user_agent_info.user_agent.is_none() {
             user_agent_info.user_agent = default_user_agent;
         }
 
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        normalize_user_agent_info_generic(contexts, &self.platform, &user_agent_info);
+        user_agent::normalize_user_agent_info_generic(contexts, &self.platform, &user_agent_info);
     }
 
     fn normalize_platform(&mut self) {
@@ -288,47 +289,13 @@ impl Replay {
         let platform = self.platform.get_or_insert_with(|| "other".to_string());
 
         // Normalize bad platforms to "other" type.
-        if !is_valid_platform(platform) {
+        if !store::is_valid_platform(platform) {
             self.platform = Annotated::from("other".to_string());
         }
     }
 
     fn normalize_type(&mut self) {
         self.ty = Annotated::from("replay_event".to_string());
-    }
-
-    pub fn scrub_ip_address(&mut self) {
-        if let Some(user) = self.user.value_mut() {
-            user.ip_address.set_value(None);
-        }
-    }
-
-    pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
-        if let Some(tags) = self.tags.value() {
-            tags.get(tag_key)
-        } else {
-            None
-        }
-    }
-
-    pub fn sdk_name(&self) -> &str {
-        if let Some(sdk) = self.sdk.value() {
-            if let Some(name) = sdk.name.as_str() {
-                return name;
-            }
-        }
-
-        "unknown"
-    }
-
-    pub fn sdk_version(&self) -> &str {
-        if let Some(sdk) = self.sdk.value() {
-            if let Some(version) = sdk.version.as_str() {
-                return version;
-            }
-        }
-
-        "unknown"
     }
 }
 

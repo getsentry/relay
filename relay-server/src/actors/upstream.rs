@@ -810,7 +810,7 @@ impl SharedClient {
 
             Some(upstream_limits)
         } else {
-            None // TODO(ja): Check if we still need to consume responses
+            None
         };
 
         // At this point, we consume the Response. This means we need to consume the response

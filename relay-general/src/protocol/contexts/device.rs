@@ -175,6 +175,11 @@ impl DeviceContext {
 impl FromUserAgentInfo for DeviceContext {
     fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
         let device = client_hints.sec_ch_ua_model?.to_owned();
+
+        if device.trim().is_empty() {
+            return None;
+        }
+
         Some(Self {
             model: Annotated::new(device),
             ..Default::default()
@@ -220,7 +225,7 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().family.as_str().unwrap(), "foo g31(w)");
     }
     #[test]
@@ -239,8 +244,23 @@ mod tests {
             PairList(headers)
         });
 
-        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::new(&headers));
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
         assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
+    }
+
+    #[test]
+    fn test_ignore_empty_device() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
+                Annotated::new("".to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = DeviceContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
     }
 
     #[test]

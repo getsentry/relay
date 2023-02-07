@@ -79,6 +79,7 @@ fn collect_rules(
             };
             collect_rules(config, rules, &a.rule, parent);
         }
+        RuleType::Unknown(_) => {}
         _ => {
             rules.insert(rule);
         }
