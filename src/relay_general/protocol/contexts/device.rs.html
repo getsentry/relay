@@ -340,6 +340,26 @@
 <a href="#339" id="339">339</a>
 <a href="#340" id="340">340</a>
 <a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::FromUserAgentInfo;
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::is_known;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -517,6 +537,11 @@
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>DeviceContext {
     <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>device = client_hints.sec_ch_ua_model<span class="question-mark">?</span>.to_owned();
+
+        <span class="kw">if </span>device.trim().is_empty() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
             model: Annotated::new(device),
             ..Default::default()
@@ -583,6 +608,21 @@
 
         <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers));
         <span class="macro">assert_eq!</span>(device.unwrap().model.as_str().unwrap(), <span class="string">&quot;moto g31(w)&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_ignore_empty_device() {
+        <span class="kw">let </span>headers = Headers({
+            <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;SEC-CH-UA-MODEL&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
+        <span class="kw">let </span>from_hints = DeviceContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="macro">assert!</span>(from_hints.is_none())
     }
 
     <span class="attr">#[test]
