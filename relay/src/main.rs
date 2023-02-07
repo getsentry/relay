@@ -43,8 +43,10 @@
 //!  - [`relay-kafka`]: Kafka-related functionality.
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
+//!  - [`relay-profiling`]: Profiling protocol and processing.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-server`]: Endpoints and services.
@@ -75,8 +77,10 @@
 //! [`relay-kafka`]: ../relay_kafka/index.html
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
+//! [`relay-profiling`]: ../relay_profiling/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
+//! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-server`]: ../relay_server/index.html
