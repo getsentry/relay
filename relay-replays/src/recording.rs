@@ -1,3 +1,12 @@
+//! Replay recordings payload and processor.
+//!
+//! # Data Scrubbing
+//!
+//! Since recordings contain snapshot of the browser's DOM, network traffic, and console logs, they
+//! are likely to contain sensitive data. This module provides [`RecordingScrubber`], which applies
+//! data scrubbing on the payload of recordings while leaving their structure and required fields
+//! intact.
+
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{BufReader, Read};
@@ -11,16 +20,23 @@ use relay_general::types::Meta;
 
 use crate::transform::{self, Transform};
 
+/// Error returned from [`RecordingScrubber`].
 #[derive(Debug)]
 pub enum ParseRecordingError {
-    Json(serde_json::Error),
+    /// An error parsing the payload.
+    ///
+    /// This error can be caused by invalid compression or invalid JSON.
+    Parse(serde_json::Error),
+    /// Validation of the payload failed.
+    ///
+    /// The body is empty, is missing the headers, or the body.
     Message(&'static str),
 }
 
 impl fmt::Display for ParseRecordingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ParseRecordingError::Json(serde_error) => write!(f, "{serde_error}"),
+            ParseRecordingError::Parse(serde_error) => write!(f, "{serde_error}"),
             ParseRecordingError::Message(message) => write!(f, "{message}"),
         }
     }
@@ -29,7 +45,7 @@ impl fmt::Display for ParseRecordingError {
 impl std::error::Error for ParseRecordingError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            ParseRecordingError::Json(e) => Some(e),
+            ParseRecordingError::Parse(e) => Some(e),
             ParseRecordingError::Message(_) => None,
         }
     }
@@ -37,7 +53,7 @@ impl std::error::Error for ParseRecordingError {
 
 impl From<serde_json::Error> for ParseRecordingError {
     fn from(err: serde_json::Error) -> Self {
-        ParseRecordingError::Json(err)
+        ParseRecordingError::Parse(err)
     }
 }
 
@@ -49,19 +65,39 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     )
 });
 
-/// A utility that performs data scrubbing on Replay payloads.
-pub struct ReplayScrubber<'a> {
+/// A utility that performs data scrubbing on compressed Replay recording payloads.
+///
+/// ### Example
+///
+/// ```
+/// use relay_replays::recording::RecordingScrubber;
+/// use relay_general::pii::PiiConfig;
+///
+/// // Obtain a PII config from the project state or create one on-demand.
+/// let pii_config = PiiConfig::default();
+/// let mut scrubber = RecordingScrubber::new(1_000_000, Some(&pii_config), None);
+///
+/// let payload = b"{}\n[]";
+/// let result = scrubber.process_recording(payload.as_slice());
+/// ```
+pub struct RecordingScrubber<'a> {
     limit: usize,
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
 }
 
-impl<'a> ReplayScrubber<'a> {
-    /// Creates a new `ReplayScrubber` from PII configs.
+impl<'a> RecordingScrubber<'a> {
+    /// Creates a new `RecordingScrubber` from PII configs.
     ///
     /// `limit` controls the maximum size in bytes during decompression. This function returns an
     /// `Err` if decompressed contents exceed the limit. The two optional configs to be passed here
     /// are from data scrubbing settings and from the dedicated PII config.
+    ///
+    /// # Performance
+    ///
+    /// The passed PII configs are [compiled](PiiConfig::compiled) by this constructor if their
+    /// compiled version is not yet cached. This can be a CPU-intensive process and should be called
+    /// from a blocking context.
     pub fn new(
         limit: usize,
         config1: Option<&'a PiiConfig>,
@@ -109,9 +145,24 @@ impl<'a> ReplayScrubber<'a> {
         }
     }
 
-    /// Parses compressed replay recording payloads and applies data scrubbers.
+    /// Parses a replay recording payloads and applies data scrubbers.
     ///
-    /// To avoid redundant parsing, check [`is_empty`](Self::is_empty) first.
+    /// # Compression
+    ///
+    /// The recording `bytes` passed to this function can be a raw recording payload or compressed
+    /// with zlib. The result is always compressed, regardless of the input.
+    ///
+    /// During decompression, the scrubber applies a `limit`. If the decompressed buffer exceeds the
+    /// configured size, an `Err` is returned. This does not apply to decompressed payloads.
+    ///
+    /// # Errors
+    ///
+    /// This function requires a full recording payload including headers and body. This function
+    /// will return errors if:
+    ///  - Headers or the body are missing.
+    ///  - Headers and the body are separated by exactly one UNIX newline (`\n`).
+    ///  - The payload size exceeds the configured `limit` of the scrubber after decompression.
+    ///  - On errors during decompression or JSON parsing.
     pub fn process_recording(&mut self, bytes: &[u8]) -> Result<Vec<u8>, ParseRecordingError> {
         // Check for null byte condition.
         if bytes.is_empty() {
@@ -140,7 +191,7 @@ impl<'a> ReplayScrubber<'a> {
     }
 }
 
-impl Transform for &'_ mut ReplayScrubber<'_> {
+impl Transform for &'_ mut RecordingScrubber<'_> {
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
@@ -174,7 +225,7 @@ mod tests {
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
-    use super::ReplayScrubber;
+    use super::RecordingScrubber;
 
     fn default_pii_config() -> PiiConfig {
         let mut scrubbing_config = DataScrubbingConfig::default();
@@ -184,8 +235,8 @@ mod tests {
         scrubbing_config.pii_config_uncached().unwrap().unwrap()
     }
 
-    fn scrubber(config: &PiiConfig) -> ReplayScrubber {
-        ReplayScrubber::new(usize::MAX, Some(config), None)
+    fn scrubber(config: &PiiConfig) -> RecordingScrubber {
+        RecordingScrubber::new(usize::MAX, Some(config), None)
     }
 
     #[test]
@@ -239,7 +290,7 @@ mod tests {
         let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
-            super::ParseRecordingError::Json(_),
+            super::ParseRecordingError::Parse(_),
         ));
     }
 

@@ -4,7 +4,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use flate2::{bufread::ZlibEncoder, Compression};
 
 use relay_general::pii::DataScrubbingConfig;
-use relay_replays::recording::ReplayScrubber;
+use relay_replays::recording::RecordingScrubber;
 
 fn bench_recording(c: &mut Criterion) {
     let payload = include_bytes!("../tests/fixtures/rrweb.json");
@@ -21,7 +21,7 @@ fn bench_recording(c: &mut Criterion) {
     scrubbing_config.scrub_ip_addresses = true;
     let pii_config = scrubbing_config.pii_config_uncached().unwrap().unwrap();
 
-    let mut scrubber = ReplayScrubber::new(usize::MAX, Some(&pii_config), None);
+    let mut scrubber = RecordingScrubber::new(usize::MAX, Some(&pii_config), None);
 
     c.bench_with_input(BenchmarkId::new("rrweb", 1), &compressed, |b, &_| {
         b.iter(|| {
