@@ -86,6 +86,10 @@ fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
         let browser = captures.get(1)?.as_str().to_owned();
         let version = captures.get(2)?.as_str().to_owned();
 
+        if browser.trim().is_empty() || version.trim().is_empty() {
+            return None;
+        }
+
         return Some((browser, version));
     }
     None
@@ -150,6 +154,26 @@ mod tests {
             other: {},
         }
         "###);
+    }
+
+    #[test]
+    fn test_ignore_empty_browser() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA".to_string().into()),
+                Annotated::new(
+                    // browser field missing
+                    r#"Not_A Brand";v="99", " ";v="109", "Chromium";v="109"#
+                        .to_string()
+                        .into(),
+                ),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = BrowserContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
     }
 
     #[test]

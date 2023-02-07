@@ -54,6 +54,10 @@ impl FromUserAgentInfo for OsContext {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 
+        if platform.trim().is_empty() || version.trim().is_empty() {
+            return None;
+        }
+
         Some(Self {
             name: Annotated::new(platform.to_owned()),
             version: Annotated::new(version.to_owned()),
@@ -116,6 +120,27 @@ OsContext {
     other: {},
 }
         "###);
+    }
+
+    #[test]
+    fn test_ignore_empty_os() {
+        let headers = Headers({
+            let headers = vec![
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                    Annotated::new(r#"macOS"#.to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = OsContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
     }
 
     #[test]

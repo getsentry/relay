@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use relay_general::user_agent::RawUserAgentInfo;
-use relay_replays::recording::ReplayScrubber;
+use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -1087,7 +1087,7 @@ impl EnvelopeProcessorService {
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
             .as_ref();
         let mut scrubber =
-            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
+            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         let user_agent = &RawUserAgentInfo {
             user_agent: meta.user_agent(),
