@@ -95,6 +95,7 @@ jobs:
           docker push ghcr.io/getsentry/relay:latest
 
   push-prod-image:
+    name: Push Docker Image to Prod
     timeout-minutes: 5
     needs: build
     runs-on: ubuntu-latest
