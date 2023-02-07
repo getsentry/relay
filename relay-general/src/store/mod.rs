@@ -39,6 +39,7 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
     pub user_agent: Option<String>,
+    pub client_hints: ClientHints<String>,
     pub received_at: Option<DateTime<Utc>>,
     pub sent_at: Option<DateTime<Utc>>,
 
@@ -64,8 +65,6 @@ pub struct StoreConfig {
 
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
-
-    pub client_hints: ClientHints<String>,
 }
 
 /// The processor that normalizes events for store.

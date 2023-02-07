@@ -191,6 +191,9 @@ pub struct RequestMeta<D = PartialDsn> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
 
+    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
+    client_hints: ClientHints<String>,
+
     /// A flag that indicates that project options caching should be bypassed.
     #[serde(default = "make_false", skip_serializing_if = "is_false")]
     no_cache: bool,
@@ -200,9 +203,6 @@ pub struct RequestMeta<D = PartialDsn> {
     // NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip, default = "Instant::now")]
     start_time: Instant,
-
-    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
-    client_hints: ClientHints<String>,
 }
 
 impl<D> RequestMeta<D> {
