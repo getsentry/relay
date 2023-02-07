@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recording.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../relay_replays/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/recording.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recording.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../relay_replays/index.html">
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -380,7 +381,67 @@
 <a href="#380" id="380">380</a>
 <a href="#381" id="381">381</a>
 <a href="#382" id="382">382</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+</pre><pre class="rust"><code><span class="doccomment">//! Replay recordings payload and processor.
+//!
+//! # Data Scrubbing
+//!
+//! Since recordings contain snapshot of the browser&#39;s DOM, network traffic, and console logs, they
+//! are likely to contain sensitive data. This module provides [`RecordingScrubber`], which applies
+//! data scrubbing on the payload of recordings while leaving their structure and required fields
+//! intact.
+
+</span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io::{BufReader, Read};
 
@@ -393,16 +454,23 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::transform::{<span class="self">self</span>, Transform};
 
-<span class="attr">#[derive(Debug)]
+<span class="doccomment">/// Error returned from [`RecordingScrubber`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ParseRecordingError {
-    Json(serde_json::Error),
-    Message(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
+    <span class="doccomment">/// An error parsing the payload.
+    ///
+    /// This error can be caused by invalid compression or invalid JSON.
+    </span>Parse(serde_json::Error),
+    <span class="doccomment">/// Validation of the payload failed.
+    ///
+    /// The body is empty, is missing the headers, or the body.
+    </span>Message(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseRecordingError {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            ParseRecordingError::Json(serde_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{serde_error}&quot;</span>),
+            ParseRecordingError::Parse(serde_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{serde_error}&quot;</span>),
             ParseRecordingError::Message(message) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{message}&quot;</span>),
         }
     }
@@ -411,7 +479,7 @@
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseRecordingError {
     <span class="kw">fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>std::error::Error + <span class="lifetime">&#39;static</span>)&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            ParseRecordingError::Json(e) =&gt; <span class="prelude-val">Some</span>(e),
+            ParseRecordingError::Parse(e) =&gt; <span class="prelude-val">Some</span>(e),
             ParseRecordingError::Message(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -419,7 +487,7 @@
 
 <span class="kw">impl </span>From&lt;serde_json::Error&gt; <span class="kw">for </span>ParseRecordingError {
     <span class="kw">fn </span>from(err: serde_json::Error) -&gt; <span class="self">Self </span>{
-        ParseRecordingError::Json(err)
+        ParseRecordingError::Parse(err)
     }
 }
 
@@ -431,19 +499,39 @@
     )
 });
 
-<span class="doccomment">/// A utility that performs data scrubbing on Replay payloads.
-</span><span class="kw">pub struct </span>ReplayScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="doccomment">/// A utility that performs data scrubbing on compressed Replay recording payloads.
+///
+/// ### Example
+///
+/// ```
+/// use relay_replays::recording::RecordingScrubber;
+/// use relay_general::pii::PiiConfig;
+///
+/// // Obtain a PII config from the project state or create one on-demand.
+/// let pii_config = PiiConfig::default();
+/// let mut scrubber = RecordingScrubber::new(1_000_000, Some(&amp;pii_config), None);
+///
+/// let payload = b&quot;{}\n[]&quot;;
+/// let result = scrubber.process_recording(payload.as_slice());
+/// ```
+</span><span class="kw">pub struct </span>RecordingScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
     limit: usize,
     processor1: <span class="prelude-ty">Option</span>&lt;PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
     processor2: <span class="prelude-ty">Option</span>&lt;PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ReplayScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Creates a new `ReplayScrubber` from PII configs.
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RecordingScrubber&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Creates a new `RecordingScrubber` from PII configs.
     ///
     /// `limit` controls the maximum size in bytes during decompression. This function returns an
     /// `Err` if decompressed contents exceed the limit. The two optional configs to be passed here
     /// are from data scrubbing settings and from the dedicated PII config.
+    ///
+    /// # Performance
+    ///
+    /// The passed PII configs are [compiled](PiiConfig::compiled) by this constructor if their
+    /// compiled version is not yet cached. This can be a CPU-intensive process and should be called
+    /// from a blocking context.
     </span><span class="kw">pub fn </span>new(
         limit: usize,
         config1: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PiiConfig&gt;,
@@ -491,9 +579,24 @@
         }
     }
 
-    <span class="doccomment">/// Parses compressed replay recording payloads and applies data scrubbers.
+    <span class="doccomment">/// Parses replay recording payloads and applies data scrubbers.
     ///
-    /// To avoid redundant parsing, check [`is_empty`](Self::is_empty) first.
+    /// # Compression
+    ///
+    /// The recording `bytes` passed to this function can be a raw recording payload or compressed
+    /// with zlib. The result is always compressed, regardless of the input.
+    ///
+    /// During decompression, the scrubber applies a `limit`. If the decompressed buffer exceeds the
+    /// configured size, an `Err` is returned. This does not apply to decompressed payloads.
+    ///
+    /// # Errors
+    ///
+    /// This function requires a full recording payload including headers and body. This function
+    /// will return errors if:
+    ///  - Headers or the body are missing.
+    ///  - Headers and the body are separated by exactly one UNIX newline (`\n`).
+    ///  - The payload size exceeds the configured `limit` of the scrubber after decompression.
+    ///  - On errors during decompression or JSON parsing.
     </span><span class="kw">pub fn </span>process_recording(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ParseRecordingError&gt; {
         <span class="comment">// Check for null byte condition.
         </span><span class="kw">if </span>bytes.is_empty() {
@@ -522,7 +625,7 @@
     }
 }
 
-<span class="kw">impl </span>Transform <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>ReplayScrubber&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>Transform <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>RecordingScrubber&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>transform_str&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
         <span class="self">self</span>.transform_string(v.to_owned())
     }
@@ -556,7 +659,7 @@
 
     </span><span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
-    <span class="kw">use </span><span class="kw">super</span>::ReplayScrubber;
+    <span class="kw">use </span><span class="kw">super</span>::RecordingScrubber;
 
     <span class="kw">fn </span>default_pii_config() -&gt; PiiConfig {
         <span class="kw">let </span><span class="kw-2">mut </span>scrubbing_config = DataScrubbingConfig::default();
@@ -566,8 +669,8 @@
         scrubbing_config.pii_config_uncached().unwrap().unwrap()
     }
 
-    <span class="kw">fn </span>scrubber(config: <span class="kw-2">&amp;</span>PiiConfig) -&gt; ReplayScrubber {
-        ReplayScrubber::new(usize::MAX, <span class="prelude-val">Some</span>(config), <span class="prelude-val">None</span>)
+    <span class="kw">fn </span>scrubber(config: <span class="kw-2">&amp;</span>PiiConfig) -&gt; RecordingScrubber {
+        RecordingScrubber::new(usize::MAX, <span class="prelude-val">Some</span>(config), <span class="prelude-val">None</span>)
     }
 
     <span class="attr">#[test]
@@ -621,7 +724,7 @@
         <span class="kw">let </span>result = scrubber(<span class="kw-2">&amp;</span>config).process_recording(payload);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             result.unwrap_err(),
-            <span class="kw">super</span>::ParseRecordingError::Json(<span class="kw">_</span>),
+            <span class="kw">super</span>::ParseRecordingError::Parse(<span class="kw">_</span>),
         ));
     }
 

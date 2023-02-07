@@ -3229,7 +3229,7 @@
 <a href="#3228" id="3228">3228</a>
 <a href="#3229" id="3229">3229</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>relay_replays::recording::ReplayScrubber;
+<span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -4317,7 +4317,7 @@
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))<span class="question-mark">?
             </span>.as_ref();
         <span class="kw">let </span><span class="kw-2">mut </span>scrubber =
-            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
+            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
