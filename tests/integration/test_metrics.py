@@ -558,7 +558,9 @@ def test_transaction_metrics(
 
     if discard_data:
         # Make sure Relay drops the transaction
-        config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+        ds = config.setdefault("dynamicSampling", {})
+        ds.setdefault("rules", [])
+        ds.setdefault("rulesV2", []).append(
             {
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": discard_data,
