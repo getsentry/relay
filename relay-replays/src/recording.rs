@@ -79,7 +79,7 @@ impl<'a> ReplayScrubber<'a> {
         self.processor1.is_none() && self.processor2.is_none()
     }
 
-    fn scrub_replay<R, W>(&mut self, read: R, write: W) -> Result<(), ParseRecordingError>
+    pub fn scrub_replay<R, W>(&mut self, read: R, write: W) -> Result<(), ParseRecordingError>
     where
         R: std::io::Read,
         W: std::io::Write,
