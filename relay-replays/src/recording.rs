@@ -145,7 +145,7 @@ impl<'a> RecordingScrubber<'a> {
         }
     }
 
-    /// Parses a replay recording payloads and applies data scrubbers.
+    /// Parses replay recording payloads and applies data scrubbers.
     ///
     /// # Compression
     ///
