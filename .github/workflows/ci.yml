@@ -103,7 +103,7 @@ jobs:
 
       - name: Configure docker
         run: |
-          gcloud auth configure-docker
+          gcloud auth configure-docker us.gcr.io
 
 
         # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
