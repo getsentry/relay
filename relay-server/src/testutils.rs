@@ -26,7 +26,11 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    project_state_with_config(SamplingConfig { rules, mode })
+    project_state_with_config(SamplingConfig {
+        rules: vec![],
+        rules_v2: rules,
+        mode,
+    })
 }
 
 pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectState {

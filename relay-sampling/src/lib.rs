@@ -886,8 +886,10 @@ pub struct SamplingConfigMatchResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
-    /// The ordered sampling rules for the project from highest to lowest priority.
+    /// The ordered sampling rules for the project.
     pub rules: Vec<SamplingRule>,
+    /// The ordered sampling rules v2 for the project.
+    pub rules_v2: Vec<SamplingRule>,
     /// Defines which population of items a dynamic sample rate applies to.
     #[serde(default)]
     pub mode: SamplingMode,
@@ -934,7 +936,7 @@ impl SamplingConfig {
     }
 
     pub fn has_unsupported_rules(&self) -> bool {
-        !self.rules.iter().all(SamplingRule::supported)
+        !self.rules_v2.iter().all(SamplingRule::supported)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -960,7 +962,7 @@ impl SamplingConfig {
         let mut has_matched_trace_rule = false;
         let mut accumulated_factors = 1.0;
 
-        for rule in self.rules.iter() {
+        for rule in self.rules_v2.iter() {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
@@ -1323,7 +1325,8 @@ mod tests {
 
     fn mocked_sampling_config(rules: Vec<SamplingRule>) -> SamplingConfig {
         SamplingConfig {
-            rules,
+            rules: vec![],
+            rules_v2: rules,
             mode: SamplingMode::Received,
         }
     }
@@ -2305,6 +2308,34 @@ mod tests {
     }
 
     #[test]
+    fn test_sampling_config_with_rule_and_rules_v2() {
+        let serialized_rule = r#"{
+            "rules": [],
+            "rulesV2": [
+                {
+                    "condition":{
+                        "op":"and",
+                        "inner": [
+                            { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                        ]
+                    },
+                    "samplingValue": {"type": "sampleRate", "value": 1.0},
+                    "type": "trace",
+                    "id": 1
+                }
+            ],
+            "mode": "received"
+        }"#;
+        let config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
+
+        assert!(config.rules.is_empty());
+        assert_eq!(
+            config.rules_v2[0].sampling_value,
+            SamplingValue::SampleRate { value: 1.0 }
+        );
+    }
+
+    #[test]
     fn test_partial_trace_matches() {
         let condition = and(vec![
             eq("trace.environment", &["debug"], true),
@@ -2546,14 +2577,9 @@ mod tests {
         ]);
 
         // early return of first rule
-        let event = &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
-        let dsc = &mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "debug",
-            "vip",
-            "user-id",
-        );
+        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "debug", "vip", "user-id");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         transaction_match!(result, 0.1, event, 1);
 

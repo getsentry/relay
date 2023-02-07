@@ -75,7 +75,7 @@ impl SamplingConfigs {
     fn get_merged_config(&self) -> SamplingConfig {
         let event_rules = self
             .sampling_config
-            .rules
+            .rules_v2
             .clone()
             .into_iter()
             .filter(|rule| rule.ty != RuleType::Trace);
@@ -83,12 +83,13 @@ impl SamplingConfigs {
         let parent_rules = self
             .root_sampling_config
             .clone()
-            .map_or(vec![], |config| config.rules)
+            .map_or(vec![], |config| config.rules_v2)
             .into_iter()
             .filter(|rule| rule.ty == RuleType::Trace || rule.ty == RuleType::Unsupported);
 
         SamplingConfig {
-            rules: event_rules.chain(parent_rules).collect(),
+            rules: vec![],
+            rules_v2: event_rules.chain(parent_rules).collect(),
             // We want to take field priority on the fields from the sampling config of the project
             // to which the incoming transaction belongs.
             //
@@ -329,7 +330,8 @@ mod tests {
 
     fn mocked_project_state(mode: SamplingMode) -> ProjectState {
         project_state_with_config(SamplingConfig {
-            rules: vec![
+            rules: vec![],
+            rules_v2: vec![
                 SamplingRule {
                     condition: eq("event.transaction", &["healthcheck"], true),
                     sampling_value: SamplingValue::SampleRate { value: 0.1 },
@@ -371,7 +373,8 @@ mod tests {
 
     fn mocked_root_project_state(mode: SamplingMode) -> ProjectState {
         project_state_with_config(SamplingConfig {
-            rules: vec![
+            rules: vec![],
+            rules_v2: vec![
                 SamplingRule {
                     condition: eq("trace.release", &["3.0"], true),
                     sampling_value: SamplingValue::Factor { value: 1.5 },
@@ -434,18 +437,20 @@ mod tests {
         root_rules: Vec<SamplingRule>,
     ) -> Vec<SamplingRule> {
         let project_state = project_state_with_config(SamplingConfig {
-            rules,
+            rules: vec![],
+            rules_v2: rules,
             mode: SamplingMode::Received,
         });
         let root_project_state = project_state_with_config(SamplingConfig {
-            rules: root_rules,
+            rules: vec![],
+            rules_v2: root_rules,
             mode: SamplingMode::Received,
         });
 
         SamplingConfigs::new(project_state.config.dynamic_sampling.as_ref().unwrap())
             .add_root_config(Some(&root_project_state))
             .get_merged_config()
-            .rules
+            .rules_v2
     }
 
     fn add_sampling_rule_to_project_state(
@@ -457,7 +462,7 @@ mod tests {
             .dynamic_sampling
             .as_mut()
             .unwrap()
-            .rules
+            .rules_v2
             .push(sampling_rule);
     }
 
@@ -833,7 +838,8 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 Some(now - DateDuration::days(1)),
                 Some(now + DateDuration::days(1)),
@@ -847,7 +853,8 @@ mod tests {
         transaction_match!(result, 0.75, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 Some(now),
                 Some(now + DateDuration::days(1)),
@@ -861,7 +868,8 @@ mod tests {
         transaction_match!(result, 1.0, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 Some(now - DateDuration::days(1)),
                 Some(now),
@@ -882,7 +890,8 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 Some(now - DateDuration::days(1)),
                 None,
@@ -896,7 +905,8 @@ mod tests {
         no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 None,
                 Some(now + DateDuration::days(1)),
@@ -910,7 +920,8 @@ mod tests {
         no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_decaying_sampling_rule(
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
                 1,
                 None,
                 None,
@@ -932,7 +943,8 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
+            rules: vec![],
+            rules_v2: vec![
                 mocked_decaying_sampling_rule(
                     1,
                     Some(now - DateDuration::days(1)),
@@ -970,7 +982,8 @@ mod tests {
     /// Tests that an event is kept when there is a match and we have 100% sample rate.
     fn test_should_keep_event_return_keep_with_match_and_100_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
             mode: SamplingMode::Received,
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
@@ -983,7 +996,8 @@ mod tests {
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
     fn test_should_keep_event_return_drop_with_match_and_0_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
             mode: SamplingMode::Received,
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
@@ -999,7 +1013,8 @@ mod tests {
     /// Tests that an event is kept when there is no match.
     fn test_should_keep_event_return_keep_with_no_match() {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![SamplingRule {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
                 condition: eq("event.transaction", &["foo"], true),
                 sampling_value: SamplingValue::SampleRate { value: 0.5 },
                 ty: RuleType::Transaction,
@@ -1019,7 +1034,8 @@ mod tests {
     /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
     fn test_should_keep_event_return_keep_with_unsupported_rule() {
         let project_state = project_state_with_config(SamplingConfig {
-            rules: vec![
+            rules: vec![],
+            rules_v2: vec![
                 mocked_sampling_rule(1, RuleType::Unsupported, 0.0),
                 mocked_sampling_rule(2, RuleType::Transaction, 0.0),
             ],
