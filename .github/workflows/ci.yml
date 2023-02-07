@@ -34,69 +34,69 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      #
-      # - uses: swatinem/rust-cache@v2
-      #   with:
-      #     key: ${{ github.job }}-${{ matrix.arch }}
-      #
-      # - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
-      #   if: matrix.arch == 'arm64'
-      #
-      # - name: ghcr.io login
-      #   run: docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-      #
-      # - name: build-deps
-      #   run: |
-      #     set -euxo pipefail
-      #     args=()
-      #     if docker pull -q "$IMG_DEPS"; then
-      #       args+=(--cache-from "$IMG_DEPS")
-      #     fi
-      #     docker buildx build \
-      #         "${args[@]}" \
-      #         --cache-to type=inline \
-      #         --platform linux/${{ matrix.arch }} \
-      #         --tag "$IMG_DEPS" \
-      #         --target relay-deps \
-      #         --push \
-      #         .
-      #
-      # - name: build
-      #   run: |
-      #     if [ "${{ matrix.arch }}" = "amd64" ]; then
-      #       BUILD_TARGET="x86_64-unknown-linux-gnu"
-      #     elif [ "${{ matrix.arch }}" = "arm64" ]; then
-      #       BUILD_TARGET="aarch64-unknown-linux-gnu"
-      #     fi
-      #
-      #     docker run \
-      #         -v "$(pwd):/work" \
-      #         --platform linux/${{ matrix.arch }} \
-      #         -e TARGET="$BUILD_TARGET" \
-      #         "$IMG_DEPS" \
-      #         scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
-      #
-      #     # Fix permissions for shared directories
-      #     USER_ID=$(id -u)
-      #     GROUP_ID=$(id -g)
-      #     sudo chown -R ${USER_ID}:${GROUP_ID} target/
-      #
-      #     docker buildx build \
-      #         --platform linux/${{ matrix.arch }} \
-      #         --tag "$IMG_VERSIONED" \
-      #         --push \
-      #         --file Dockerfile.release \
-      #         .
-      #
-      # - name: ghcr.io push
-      #   if: matrix.arch == 'amd64'
-      #   run: |
-      #     set -euxo pipefail
-      #     # for now arm64 is too slow so just retag this with "latest" and current SHA
-      #     docker tag "$IMG_VERSIONED" "$IMG_DEFAULT"
-      #     docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
-      #     docker push $IMG_DEFAULT
-      #     docker push ghcr.io/getsentry/relay:latest
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}-${{ matrix.arch }}
+
+      - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
+        if: matrix.arch == 'arm64'
+
+      - name: ghcr.io login
+        run: docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+
+      - name: build-deps
+        run: |
+          set -euxo pipefail
+          args=()
+          if docker pull -q "$IMG_DEPS"; then
+            args+=(--cache-from "$IMG_DEPS")
+          fi
+          docker buildx build \
+              "${args[@]}" \
+              --cache-to type=inline \
+              --platform linux/${{ matrix.arch }} \
+              --tag "$IMG_DEPS" \
+              --target relay-deps \
+              --push \
+              .
+
+      - name: build
+        run: |
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            BUILD_TARGET="x86_64-unknown-linux-gnu"
+          elif [ "${{ matrix.arch }}" = "arm64" ]; then
+            BUILD_TARGET="aarch64-unknown-linux-gnu"
+          fi
+
+          docker run \
+              -v "$(pwd):/work" \
+              --platform linux/${{ matrix.arch }} \
+              -e TARGET="$BUILD_TARGET" \
+              "$IMG_DEPS" \
+              scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
+
+          # Fix permissions for shared directories
+          USER_ID=$(id -u)
+          GROUP_ID=$(id -g)
+          sudo chown -R ${USER_ID}:${GROUP_ID} target/
+
+          docker buildx build \
+              --platform linux/${{ matrix.arch }} \
+              --tag "$IMG_VERSIONED" \
+              --push \
+              --file Dockerfile.release \
+              .
+
+      - name: ghcr.io push
+        if: matrix.arch == 'amd64'
+        run: |
+          set -euxo pipefail
+          # for now arm64 is too slow so just retag this with "latest" and current SHA
+          docker tag "$IMG_VERSIONED" "$IMG_DEFAULT"
+          docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
+          docker push $IMG_DEFAULT
+          docker push ghcr.io/getsentry/relay:latest
 
       - name: Google Auth
         id: auth
@@ -106,13 +106,9 @@ jobs:
           workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
           service_account: github-actions-demo@sentryio.iam.gserviceaccount.com
 
-      - name: 'Get info about token'
-        run: |-
-          curl "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${{ steps.auth.outputs.access_token }}"
-
-      # - name: Configure docker
-      #   run: |
-      #     gcloud auth configure-docker us.gcr.io
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us.gcr.io
 
 
         # Uncomment and update when the push creadentials for GCR are available and we can remove cloudbuild altogether.
