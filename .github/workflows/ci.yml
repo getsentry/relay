@@ -95,12 +95,13 @@ jobs:
           docker push ghcr.io/getsentry/relay:latest
 
   push-prod-image:
+    timeout-minutes: 5
     needs: build
+    runs-on: ubuntu-latest
     # required for google auth
     permissions:
       contents: 'read'
       id-token: 'write'
-    timeout-minutes: 5
     strategy:
       matrix:
         # the arm64 build takes too long, so disable for now
