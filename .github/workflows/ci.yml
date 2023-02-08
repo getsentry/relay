@@ -429,11 +429,6 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - name: Checkout Relay
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
         uses: actions/checkout@v3
@@ -492,8 +487,6 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
       - name: Run Sentry self-hosted e2e CI
         uses: getsentry/action-self-hosted-e2e-tests@627c9b50cb168c546ed6e2c461dae76d5d0c7cdb
         with:
