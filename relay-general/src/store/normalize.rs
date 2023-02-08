@@ -584,38 +584,15 @@ fn normalize_security_report(
     }
 
     if !user_agent.is_empty() {
-        let request = event
+        let headers = event
             .request
             .value_mut()
-            .get_or_insert_with(Request::default);
-
-        let headers = request
+            .get_or_insert_with(Request::default)
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
 
-        let mut insert_header = |key: &str, val: Option<&str>| {
-            if let Some(val) = val {
-                if !headers.contains(key) {
-                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
-                }
-            }
-        };
-
-        insert_header(RawUserAgentInfo::USER_AGENT, user_agent.user_agent);
-        insert_header(
-            ClientHints::SEC_CH_UA_PLATFORM,
-            user_agent.client_hints.sec_ch_ua_platform,
-        );
-        insert_header(
-            ClientHints::SEC_CH_UA_PLATFORM_VERSION,
-            user_agent.client_hints.sec_ch_ua_platform_version,
-        );
-        insert_header(ClientHints::SEC_CH_UA, user_agent.client_hints.sec_ch_ua);
-        insert_header(
-            ClientHints::SEC_CH_UA_MODEL,
-            user_agent.client_hints.sec_ch_ua_model,
-        );
+        user_agent.populate_event_headers(headers);
     }
 }
 

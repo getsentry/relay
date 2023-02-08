@@ -10,7 +10,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use uaparser::{Parser, UserAgentParser};
 
-use crate::protocol::{Headers, Request};
+use crate::protocol::{Event, HeaderName, HeaderValue, Headers, Request};
 use crate::types::Annotated;
 
 #[doc(inline)]
@@ -126,6 +126,31 @@ impl RawUserAgentInfo<String> {
 }
 
 impl<'a> RawUserAgentInfo<&'a str> {
+    pub fn populate_event_headers(&self, headers: &mut Headers) {
+        let mut insert_header = |key: &str, val: Option<&str>| {
+            if let Some(val) = val {
+                if !headers.contains(key) {
+                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
+                }
+            }
+        };
+
+        insert_header(RawUserAgentInfo::USER_AGENT, self.user_agent);
+        insert_header(
+            ClientHints::SEC_CH_UA_PLATFORM,
+            self.client_hints.sec_ch_ua_platform,
+        );
+        insert_header(
+            ClientHints::SEC_CH_UA_PLATFORM_VERSION,
+            self.client_hints.sec_ch_ua_platform_version,
+        );
+        insert_header(ClientHints::SEC_CH_UA, self.client_hints.sec_ch_ua);
+        insert_header(
+            ClientHints::SEC_CH_UA_MODEL,
+            self.client_hints.sec_ch_ua_model,
+        );
+    }
+
     pub fn from_headers(headers: &'a Headers) -> Self {
         let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
@@ -155,7 +180,7 @@ pub struct ClientHints<S: Default + AsRef<str>> {
 }
 
 impl<S: AsRef<str> + Default> ClientHints<S> {
-    /// Checks every field of a passed-in ClientHints if it contains a value, and if it does,
+    /// Checks every field of a passed-in ClientHints instance if it contains a value, and if it does,
     /// copy it to self.
     pub fn copy_from(&mut self, other: ClientHints<S>) {
         if other.sec_ch_ua_platform_version.is_some() {
