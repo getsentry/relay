@@ -1071,8 +1071,7 @@ impl EnvelopeProcessorService {
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let project_state = &mut state.project_state;
         let replays_enabled = project_state.has_feature(Feature::SessionReplay);
-        // let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-        let scrubbing_enabled = true; // TODO(ja): Revert this after test
+        let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
