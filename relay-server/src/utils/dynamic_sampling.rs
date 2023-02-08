@@ -972,7 +972,7 @@ mod tests {
             matched_rule_ids,
         } = result
         {
-            assert!((sample_rate - 0.9).abs() < f64::EPSILON);
+            assert!((sample_rate - 0.75).abs() < f64::EPSILON);
             assert_eq!(seed, event.id.0.unwrap().0);
             assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
         }

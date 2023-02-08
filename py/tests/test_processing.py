@@ -239,7 +239,8 @@ def test_validate_sampling_configuration():
     Tests that a valid sampling rule configuration passes
     """
     config = """{
-        "rules": [
+        "rules": [],
+        "rulesV2": [
             {
                 "type": "trace",
                 "samplingValue": {

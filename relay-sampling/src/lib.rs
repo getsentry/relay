@@ -374,6 +374,15 @@ pub enum SamplingValue {
     Factor { value: f64 },
 }
 
+impl SamplingValue {
+    fn get_sampling_base_value(&self) -> f64 {
+        *match self {
+            SamplingValue::SampleRate { value: sample_rate } => sample_rate,
+            SamplingValue::Factor { value: factor } => factor,
+        }
+    }
+}
+
 /// A decaying function definition.
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
@@ -472,6 +481,8 @@ impl SamplingRule {
     /// The checking of the "active" state of a SamplingRule is performed independently
     /// based on the specified DecayingFunction, which defaults to constant.
     fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
+        let sampling_base_value = self.sampling_value.get_sampling_base_value();
+
         match self.decaying_fn {
             DecayingFunction::Linear { decayed_value } => {
                 if let TimeRange {
@@ -480,13 +491,13 @@ impl SamplingRule {
                 } = self.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if self.get_sampling_base_value() > decayed_value && start <= now && now < end {
+                    if sampling_base_value > decayed_value && start <= now && now < end {
                         return Some(ActiveRule {
                             id: self.id,
                             evaluator: SamplingValueEvaluator::Linear {
                                 start,
                                 end,
-                                initial_value: self.get_sampling_base_value(),
+                                initial_value: sampling_base_value,
                                 decayed_value,
                             },
                         });
@@ -498,7 +509,7 @@ impl SamplingRule {
                     return Some(ActiveRule {
                         id: self.id,
                         evaluator: SamplingValueEvaluator::Constant {
-                            initial_value: self.get_sampling_base_value(),
+                            initial_value: sampling_base_value,
                         },
                     });
                 }
@@ -509,17 +520,7 @@ impl SamplingRule {
     }
 
     fn is_sample_rate_rule(&self) -> bool {
-        match self.sampling_value {
-            SamplingValue::SampleRate { value: _ } => true,
-            SamplingValue::Factor { value: _ } => false,
-        }
-    }
-
-    fn get_sampling_base_value(&self) -> f64 {
-        match self.sampling_value {
-            SamplingValue::SampleRate { value: sample_rate } => sample_rate,
-            SamplingValue::Factor { value: factor } => factor,
-        }
+        matches!(self.sampling_value, SamplingValue::SampleRate { .. })
     }
 }
 
@@ -874,9 +875,16 @@ impl Display for MatchedRuleIds {
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SamplingConfigMatchResult {
+pub struct SamplingMatch {
+    /// The sample rate to use for the incoming event.
     pub sample_rate: f64,
+    /// The seed to feed to the random number generator which allows the same number to be
+    /// generated given the same seed.
+    ///
+    /// This is especially important for trace sampling, even though we can have inconsistent
+    /// traces due to multi-matching.
     pub seed: Uuid,
+    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
     pub matched_rule_ids: MatchedRuleIds,
 }
 
@@ -902,6 +910,10 @@ pub struct SamplingConfig {
 }
 
 impl SamplingConfig {
+    pub fn has_unsupported_rules(&self) -> bool {
+        !self.rules_v2.iter().all(SamplingRule::supported)
+    }
+
     /// Generates the seed used for the random number generation that is used for sampling decisions.
     fn get_seed(
         event: &Event,
@@ -934,15 +946,7 @@ impl SamplingConfig {
             }
         }
 
-        if let Some(event_id) = event_id {
-            return Some(event_id.0);
-        }
-
-        None
-    }
-
-    pub fn has_unsupported_rules(&self) -> bool {
-        !self.rules_v2.iter().all(SamplingRule::supported)
+        event_id.map(|id| id.0)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -963,7 +967,7 @@ impl SamplingConfig {
         dsc: Option<&DynamicSamplingContext>,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<SamplingConfigMatchResult> {
+    ) -> Option<SamplingMatch> {
         let mut matched_rule_ids = vec![];
         let mut has_matched_trace_rule = false;
         let mut accumulated_factors = 1.0;
@@ -998,7 +1002,7 @@ impl SamplingConfig {
 
                     let value = active_rule.get_sampling_value(now);
                     if rule.is_sample_rate_rule() {
-                        return Some(SamplingConfigMatchResult {
+                        return Some(SamplingMatch {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
                             seed: match Self::get_seed(event, dsc, has_matched_trace_rule) {
                                 Some(seed) => seed,
@@ -1249,7 +1253,7 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                Some(SamplingConfigMatchResult {
+                Some(SamplingMatch {
                     sample_rate: $sr,
                     seed: $sd.id.value().unwrap().0,
                     matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
@@ -1262,7 +1266,7 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                Some(SamplingConfigMatchResult {
+                Some(SamplingMatch {
                     sample_rate: $sr,
                     seed: $sd.trace_id,
                     matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
@@ -1380,7 +1384,7 @@ mod tests {
         event: &Event,
         dsc: &DynamicSamplingContext,
         time: DateTime<Utc>,
-    ) -> Option<SamplingConfigMatchResult> {
+    ) -> Option<SamplingMatch> {
         config.match_against_rules(event, Some(dsc), None, time)
     }
 
@@ -2773,7 +2777,7 @@ mod tests {
             &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        assert!(matches!(result, Some(SamplingConfigMatchResult { .. })));
+        assert!(matches!(result, Some(SamplingMatch { .. })));
         if let Some(spec) = result {
             assert!(
                 (spec.sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
