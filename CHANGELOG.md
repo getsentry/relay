@@ -10,7 +10,7 @@
 
 **Bug Fixes**:
 
-- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
+- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
 
 **Internal**:
 
