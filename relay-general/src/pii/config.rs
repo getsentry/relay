@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
-use std::ops::Deref;
 
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
-use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
@@ -17,51 +15,62 @@ pub enum PiiConfigError {
     RegexError(#[source] regex::Error),
 }
 
-/// A regex pattern for text replacement.
-#[derive(Clone)]
-pub struct Pattern(pub Regex);
+/// Wrapper for the regex and the raw pattern string.
+///
+/// The regex will be compiled only when it used once, and the compiled version will be reused on
+/// consecutive calls.
+#[derive(Debug, Clone)]
+pub struct LazyPattern {
+    raw: String,
+    case_insensitive: bool,
+    pattern: OnceCell<Regex>,
+}
 
-impl Deref for Pattern {
-    type Target = Regex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl PartialEq for LazyPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw
     }
 }
 
-impl From<&'static str> for Pattern {
-    fn from(pattern: &'static str) -> Pattern {
-        Pattern(Regex::new(pattern).unwrap())
+impl LazyPattern {
+    /// Create a new [`LazyPattern`] from a raw string.
+    pub fn new(raw: String, case_insensitive: bool) -> Self {
+        Self {
+            raw,
+            case_insensitive,
+            pattern: OnceCell::new(),
+        }
+    }
+
+    /// Compiles the regex from the internal raw string.
+    pub fn compiled(&self) -> Result<&Regex, PiiConfigError> {
+        self.pattern
+            .get_or_try_init(|| {
+                RegexBuilder::new(&self.raw)
+                    .size_limit(COMPILED_PATTERN_MAX_SIZE)
+                    .case_insensitive(self.case_insensitive)
+                    .build()
+            })
+            .map_err(PiiConfigError::RegexError)
     }
 }
 
-impl fmt::Debug for Pattern {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, f)
+impl From<&'static str> for LazyPattern {
+    fn from(pattern: &'static str) -> LazyPattern {
+        LazyPattern::new(pattern.to_string(), false)
     }
 }
 
-impl Serialize for Pattern {
+impl Serialize for LazyPattern {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0.to_string())
+        serializer.serialize_str(&self.raw)
     }
 }
 
-impl<'de> Deserialize<'de> for Pattern {
+impl<'de> Deserialize<'de> for LazyPattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        let pattern = RegexBuilder::new(&raw)
-            .size_limit(COMPILED_PATTERN_MAX_SIZE)
-            .build()
-            .map_err(Error::custom)?;
-        Ok(Pattern(pattern))
-    }
-}
-
-impl PartialEq for Pattern {
-    fn eq(&self, other: &Pattern) -> bool {
-        // unclear if we could derive Eq as well, but better not. We don't need it.
-        self.0.as_str() == other.0.as_str()
+        Ok(LazyPattern::new(raw, false))
     }
 }
 
@@ -77,7 +86,7 @@ fn replace_groups_default() -> Option<BTreeSet<u8>> {
 #[serde(rename_all = "camelCase")]
 pub struct PatternRule {
     /// The regular expression to apply.
-    pub pattern: Pattern,
+    pub pattern: LazyPattern,
     /// The match group indices to replace.
     #[serde(default = "replace_groups_default")]
     pub replace_groups: Option<BTreeSet<u8>>,
@@ -110,7 +119,7 @@ pub struct AliasRule {
 #[serde(rename_all = "camelCase")]
 pub struct RedactPairRule {
     /// A pattern to match for keys.
-    pub key_pattern: Pattern,
+    pub key_pattern: LazyPattern,
 }
 
 /// Supported stripping rules.

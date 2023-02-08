@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
+use relay_log::LogError;
 use smallvec::{smallvec, SmallVec};
 
 use crate::pii::RuleType;
@@ -52,11 +53,13 @@ pub fn get_regex_for_rule_type(
     let kv = PatternType::KeyValue;
 
     match ty {
-        RuleType::RedactPair(ref redact_pair) => smallvec![(
-            kv,
-            &redact_pair.key_pattern.0,
-            ReplaceBehavior::replace_value()
-        )],
+        RuleType::RedactPair(ref redact_pair) => match redact_pair.key_pattern.compiled() {
+            Ok(pattern) => smallvec![(kv, pattern, ReplaceBehavior::replace_value())],
+            Err(err) => {
+                relay_log::error!("Unable to compile regex: {}", LogError(&err));
+                smallvec![]
+            }
+        },
         RuleType::Password => {
             smallvec![(kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
         }
@@ -68,8 +71,13 @@ pub fn get_regex_for_rule_type(
                 }
                 None => ReplaceBehavior::replace_match(),
             };
-
-            smallvec![(v, &r.pattern.0, replace_behavior)]
+            match r.pattern.compiled() {
+                Ok(pattern) => smallvec![(v, pattern, replace_behavior)],
+                Err(err) => {
+                    relay_log::error!("Unable to compile regex: {}", LogError(&err));
+                    smallvec![]
+                }
+            }
         }
 
         RuleType::Imei => smallvec![(v, &*IMEI_REGEX, ReplaceBehavior::replace_match())],
