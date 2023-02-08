@@ -410,19 +410,7 @@ impl PartialMeta {
             complete.user_agent = self.user_agent;
         }
 
-        if self.client_hints.sec_ch_ua_platform_version.is_some() {
-            complete.client_hints.sec_ch_ua_platform_version =
-                self.client_hints.sec_ch_ua_platform_version;
-        }
-        if self.client_hints.sec_ch_ua_platform.is_some() {
-            complete.client_hints.sec_ch_ua_platform = self.client_hints.sec_ch_ua_platform;
-        }
-        if self.client_hints.sec_ch_ua_model.is_some() {
-            complete.client_hints.sec_ch_ua_model = self.client_hints.sec_ch_ua_model;
-        }
-        if self.client_hints.sec_ch_ua.is_some() {
-            complete.client_hints.sec_ch_ua = self.client_hints.sec_ch_ua;
-        }
+        complete.client_hints.copy_from(self.client_hints);
 
         if self.no_cache {
             complete.no_cache = true;

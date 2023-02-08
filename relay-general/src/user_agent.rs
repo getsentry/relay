@@ -155,6 +155,24 @@ pub struct ClientHints<S: Default + AsRef<str>> {
 }
 
 impl<S: AsRef<str> + Default> ClientHints<S> {
+    /// Checks every field of self if it is empty, and if it is, copy the data from another
+    /// ClientHints instance.
+    pub fn copy_from(&mut self, other: ClientHints<S>) {
+        if other.sec_ch_ua_platform_version.is_some() {
+            self.sec_ch_ua_platform_version = other.sec_ch_ua_platform_version;
+        }
+        if other.sec_ch_ua_platform.is_some() {
+            self.sec_ch_ua_platform = other.sec_ch_ua_platform;
+        }
+        if other.sec_ch_ua_model.is_some() {
+            self.sec_ch_ua_model = other.sec_ch_ua_model;
+        }
+        if other.sec_ch_ua.is_some() {
+            self.sec_ch_ua = other.sec_ch_ua;
+        }
+    }
+
+    /// Checks if every field is of value None.
     pub fn is_empty(&self) -> bool {
         self.sec_ch_ua_platform.is_none()
             && self.sec_ch_ua_platform_version.is_none()
