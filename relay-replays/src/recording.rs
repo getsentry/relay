@@ -6,6 +6,10 @@
 //! are likely to contain sensitive data. This module provides [`RecordingScrubber`], which applies
 //! data scrubbing on the payload of recordings while leaving their structure and required fields
 //! intact.
+//!
+//! Data scrubbing applies to only Sentry event payloads within the recording event stream,
+//! identified by `type: 5`. The scrubber skips all other node types and does not perform any
+//! validation beyond JSON parsing.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -73,7 +77,7 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
-/// This is used by [`EventStreamVisitor`] to scrub recording events.
+/// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
 struct ScrubberTransform<'a> {
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
@@ -132,6 +136,12 @@ struct EventStreamVisitor<'a, S> {
 }
 
 impl<'a, S> EventStreamVisitor<'a, S> {
+    /// The proprietary rrweb node type that identifies Sentry payloads.
+    ///
+    /// The visitor exclusively scrubs these nodes.
+    const SENTRY_EVENT_TYPE: u8 = 5;
+
+    /// Creates a new visitor wrapping a `serializer`.
     fn new(serializer: S, scrubber: Rc<RefCell<ScrubberTransform<'a>>>) -> Self {
         Self {
             serializer,
@@ -154,6 +164,7 @@ where
     where
         A: de::SeqAccess<'de>,
     {
+        /// Efficiently deserializes the type discriminator of event nodes.
         #[derive(Clone, Copy, serde::Deserialize)]
         struct TypeHelper {
             #[serde(rename = "type")]
@@ -163,10 +174,24 @@ where
         use serde::ser::SerializeSeq;
         let mut seq = self.serializer.serialize_seq(v.size_hint()).map_err(s2d)?;
 
+        // NOTE on performance: This loop parses every element 2-3 times:
+        //  1. In the call to next_element() to obtain the raw value. This pass is highly efficient
+        //     and cannot be removed.
+        //  2. Deserializing `TypeHelper` to obtain the node type. It skips most of the content, but
+        //     does require a full pass through the raw value.
+        //  3. If scrubbing is required, `ScrubbedValue` internally parses the value and runs it
+        //     through a transforming deserializer.
+        //
+        // These redundant passes come with slight performance overhead compared to an
+        // implementation that directly parses the `type` and raw `data` into a structure. Together
+        // with decompression and data scrubbing, the difference in benchmarks was small. In case
+        // this becomes a performance bottleneck, it is worth to first focus on data scrubbing, and
+        // then at the redundant parsing.
+
         while let Some(raw) = v.next_element::<&'de RawValue>()? {
-            // filter for sentry-specific events
             let helper = serde_json::from_str::<TypeHelper>(raw.get()).unwrap();
-            if helper.ty == 5 {
+            // Scrub only sentry-specific events and serialize all others without modification.
+            if helper.ty == Self::SENTRY_EVENT_TYPE {
                 seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
                     .map_err(s2d)?;
             } else {
@@ -178,6 +203,7 @@ where
     }
 }
 
+/// Maps a serialization error to a deserialization error.
 fn s2d<S, D>(s: S) -> D
 where
     S: ser::Error,
@@ -274,7 +300,7 @@ impl<'a> RecordingScrubber<'a> {
         }
     }
 
-    /// Parses a replay recording payloads and applies data scrubbers.
+    /// Parses a replay recording payload and applies data scrubbers.
     ///
     /// # Compression
     ///
@@ -425,20 +451,20 @@ mod tests {
 
     // RRWeb Payload Coverage
 
-    // NOTE: Disabled because this tests for type 3 nodes.
-    // #[test]
-    // fn test_pii_credit_card_removal() {
-    //     let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
+    #[ignore = "type 3 nodes are not supported"]
+    #[test]
+    fn test_pii_credit_card_removal() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
 
-    //     let mut transcoded = Vec::new();
-    //     let config = default_pii_config();
-    //     scrubber(&config)
-    //         .scrub_replay(payload.as_slice(), &mut transcoded)
-    //         .unwrap();
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
-    //     let parsed = std::str::from_utf8(&transcoded).unwrap();
-    //     assert!(parsed.contains(r#"{"type":3,"textContent":"[Filtered]","id":284}"#));
-    // }
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
+        assert!(parsed.contains(r#"{"type":3,"textContent":"[Filtered]","id":284}"#));
+    }
 
     #[test]
     fn test_scrub_pii_navigation() {
@@ -468,56 +494,56 @@ mod tests {
         assert!(parsed.contains("https://sentry.io?credit-card=[Filtered]"));
     }
 
-    // NOTE: Disabled because this tests for type 3 nodes.
-    // #[test]
-    // fn test_pii_ip_address_removal() {
-    //     let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
+    #[ignore = "type 3 nodes are not supported"]
+    #[test]
+    fn test_pii_ip_address_removal() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
 
-    //     let mut transcoded = Vec::new();
-    //     let config = default_pii_config();
-    //     scrubber(&config)
-    //         .scrub_replay(payload.as_slice(), &mut transcoded)
-    //         .unwrap();
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
-    //     let parsed = std::str::from_utf8(&transcoded).unwrap();
-    //     assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
-    //     assert!(parsed.contains("\"textContent\":\"[ip]\"")) // Assert text node was mutated.
-    // }
+        let parsed = std::str::from_utf8(&transcoded).unwrap();
+        assert!(parsed.contains("\"value\":\"[ip]\"")); // Assert texts were mutated.
+        assert!(parsed.contains("\"textContent\":\"[ip]\"")) // Assert text node was mutated.
+    }
 
     // Event Parsing and Scrubbing.
 
-    // NOTE: Disabled because this tests for type 2 nodes.
-    // #[test]
-    // fn test_scrub_pii_full_snapshot_event() {
-    //     let payload = include_bytes!("../tests/fixtures/rrweb-event-2.json");
+    #[ignore = "type 2 nodes are not supported"]
+    #[test]
+    fn test_scrub_pii_full_snapshot_event() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-event-2.json");
 
-    //     let mut transcoded = Vec::new();
-    //     let config = default_pii_config();
-    //     scrubber(&config)
-    //         .scrub_replay(payload.as_slice(), &mut transcoded)
-    //         .unwrap();
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
-    //     let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
-    //     // NOTE: The normalization below was removed
-    //     // assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
-    //     assert!(scrubbed_result.contains("\"textContent\":\"my ssn is [Filtered]\""));
-    // }
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        // NOTE: The normalization below was removed
+        // assert!(scrubbed_result.contains("\"attributes\":{\"src\":\"#\"}"));
+        assert!(scrubbed_result.contains("\"textContent\":\"my ssn is [Filtered]\""));
+    }
 
-    // NOTE: Disabled because this tests for type 3 nodes.
-    // #[test]
-    // fn test_scrub_pii_incremental_snapshot_event() {
-    //     let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
+    #[ignore = "type 3 nodes are not supported"]
+    #[test]
+    fn test_scrub_pii_incremental_snapshot_event() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");
 
-    //     let mut transcoded = Vec::new();
-    //     let config = default_pii_config();
-    //     scrubber(&config)
-    //         .scrub_replay(payload.as_slice(), &mut transcoded)
-    //         .unwrap();
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
 
-    //     let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
-    //     assert!(scrubbed_result.contains("\"textContent\":\"[Filtered]\""));
-    //     assert!(scrubbed_result.contains("\"value\":\"[Filtered]\""));
-    // }
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        assert!(scrubbed_result.contains("\"textContent\":\"[Filtered]\""));
+        assert!(scrubbed_result.contains("\"value\":\"[Filtered]\""));
+    }
 
     #[test]
     fn test_scrub_pii_custom_event() {
