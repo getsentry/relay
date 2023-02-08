@@ -155,8 +155,8 @@ pub struct ClientHints<S: Default + AsRef<str>> {
 }
 
 impl<S: AsRef<str> + Default> ClientHints<S> {
-    /// Checks every field of self if it is empty, and if it is, copy the data from another
-    /// ClientHints instance.
+    /// Checks every field of a passed-in ClientHints if it contains a value, and if it does,
+    /// copy it to self.
     pub fn copy_from(&mut self, other: ClientHints<S>) {
         if other.sec_ch_ua_platform_version.is_some() {
             self.sec_ch_ua_platform_version = other.sec_ch_ua_platform_version;
