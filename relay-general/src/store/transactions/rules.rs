@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
-use relay_common::Glob;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::protocol::{TransactionInfo, TransactionSource};
+use crate::utils::Glob;
 
 /// Helper function to deserialize the string patter into the [`relay_common::Glob`].
 fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<Glob, D::Error>

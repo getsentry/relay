@@ -410,12 +410,11 @@ mod tests {
     use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
-    use relay_common::Glob;
-
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
+    use crate::utils::Glob;
 
     use super::*;
 
