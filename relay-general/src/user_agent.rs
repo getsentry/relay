@@ -10,7 +10,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use uaparser::{Parser, UserAgentParser};
 
-use crate::protocol::{Event, HeaderName, HeaderValue, Headers, Request};
+use crate::protocol::{HeaderName, HeaderValue, Headers, Request};
 use crate::types::Annotated;
 
 #[doc(inline)]

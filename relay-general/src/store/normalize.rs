@@ -16,16 +16,15 @@ use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
-    VALID_PLATFORMS,
+    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
-use crate::user_agent::{ClientHints, RawUserAgentInfo};
+use crate::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
 mod contexts;
