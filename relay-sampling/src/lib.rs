@@ -2314,7 +2314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sampling_config_with_rules_and_rules_v2() {
+    fn test_sampling_config_with_rules_and_rules_v2_deserialization() {
         let serialized_rule = r#"{
                "rules": [
                   {
@@ -2354,6 +2354,58 @@ mod tests {
             config.rules_v2[0].sampling_value,
             SamplingValue::SampleRate { value: 0.5 }
         );
+    }
+
+    #[test]
+    fn test_sampling_config_with_rules_and_rules_v2_serialization() {
+        let config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                sampling_value: SamplingValue::Factor { value: 2.0 },
+                ty: RuleType::Transaction,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+
+        let serialized_config = serde_json::to_string_pretty(&config).unwrap();
+        let expected_serialized_config = r#"{
+  "rules": [],
+  "rulesV2": [
+    {
+      "condition": {
+        "op": "and",
+        "inner": [
+          {
+            "op": "eq",
+            "name": "event.transaction",
+            "value": [
+              "foo"
+            ],
+            "options": {
+              "ignoreCase": true
+            }
+          }
+        ]
+      },
+      "samplingValue": {
+        "type": "factor",
+        "value": 2.0
+      },
+      "type": "transaction",
+      "id": 1,
+      "decayingFn": {
+        "type": "constant"
+      }
+    }
+  ],
+  "mode": "received"
+}"#;
+
+        assert_eq!(serialized_config, expected_serialized_config)
     }
 
     #[test]
