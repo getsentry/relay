@@ -278,14 +278,16 @@ impl Replay {
             None => return,
         };
 
-        let mut user_agent_info = RawUserAgentInfo::from_headers(headers);
+        let user_agent_info = RawUserAgentInfo::from_headers(headers);
 
-        if user_agent_info.is_empty() {
-            user_agent_info = default_user_agent.clone();
-        }
+        let user_agent_info = if user_agent_info.is_empty() {
+            default_user_agent
+        } else {
+            &user_agent_info
+        };
 
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        user_agent::normalize_user_agent_info_generic(contexts, &self.platform, &user_agent_info);
+        user_agent::normalize_user_agent_info_generic(contexts, &self.platform, user_agent_info);
     }
 
     fn normalize_platform(&mut self) {
