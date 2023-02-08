@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use relay_replays::recording::ReplayScrubber;
+use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -957,7 +957,12 @@ impl EnvelopeProcessorService {
         }
 
         let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
-        if (received - timestamp.as_datetime()) > max_age {
+        // also if we unable to parse the timestamp, we assume it's way too old here.
+        let in_past = timestamp
+            .as_datetime()
+            .map(|ts| (received - ts) > max_age)
+            .unwrap_or(true);
+        if in_past {
             relay_log::trace!(
                 "skipping client outcomes older than {} days",
                 max_age.num_days()
@@ -966,7 +971,12 @@ impl EnvelopeProcessorService {
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (timestamp.as_datetime() - received) > max_future {
+        // also if we unable to parse the timestamp, we assume it's way far in the future here.
+        let in_future = timestamp
+            .as_datetime()
+            .map(|ts| (ts - received) > max_future)
+            .unwrap_or(true);
+        if in_future {
             relay_log::trace!(
                 "skipping client outcomes more than {}s in the future",
                 max_future.num_seconds()
@@ -989,7 +999,10 @@ impl EnvelopeProcessorService {
             };
 
             producer.send(TrackOutcome {
-                timestamp: timestamp.as_datetime(),
+                // If we get to this point, the unwrap should not be used anymore, since we know by
+                // now that the timestamp can be parsed, but just incase we fallback to UTC current
+                // `DateTime`.
+                timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
                 scoping: state.envelope_context.scoping(),
                 outcome,
                 event_id: None,
@@ -1093,7 +1106,7 @@ impl EnvelopeProcessorService {
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
             .as_ref();
         let mut scrubber =
-            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
+            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
