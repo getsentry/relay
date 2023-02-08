@@ -887,6 +887,7 @@ pub struct SamplingConfigMatchResult {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
     /// The ordered sampling rules for the project.
+    #[serde(default, skip_deserializing)]
     pub rules: Vec<SamplingRule>,
     /// The ordered sampling rules v2 for the project.
     pub rules_v2: Vec<SamplingRule>,
@@ -2308,30 +2309,45 @@ mod tests {
     }
 
     #[test]
-    fn test_sampling_config_with_rule_and_rules_v2() {
+    fn test_sampling_config_with_rules_and_rules_v2() {
         let serialized_rule = r#"{
-            "rules": [],
-            "rulesV2": [
-                {
-                    "condition":{
-                        "op":"and",
-                        "inner": [
-                            { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
-                        ]
-                    },
-                    "samplingValue": {"type": "sampleRate", "value": 1.0},
-                    "type": "trace",
-                    "id": 1
-                }
-            ],
-            "mode": "received"
+               "rules": [
+                  {
+                     "sampleRate": 0.5,
+                     "type": "trace",
+                     "active": true,
+                     "condition": {
+                        "op": "and",
+                        "inner": []
+                     },
+                     "id": 1000
+                 }
+               ],
+               "rulesV2": [
+                  {
+                     "samplingValue":{
+                        "type": "sampleRate",
+                        "value": 0.5
+                     },
+                     "type": "trace",
+                     "active": true,
+                     "condition": {
+                        "op": "and",
+                        "inner": []
+                     },
+                     "id": 1000
+                  }
+               ],
+               "mode": "received"
         }"#;
         let config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
 
+        // We want to make sure that we serialize an empty array of rule, irrespectively of the
+        // received payload.
         assert!(config.rules.is_empty());
         assert_eq!(
             config.rules_v2[0].sampling_value,
-            SamplingValue::SampleRate { value: 1.0 }
+            SamplingValue::SampleRate { value: 0.5 }
         );
     }
 
