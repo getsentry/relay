@@ -887,6 +887,11 @@ pub struct SamplingConfigMatchResult {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
     /// The ordered sampling rules for the project.
+    ///
+    /// This field will remain here to serve only for old customer Relays to which we will
+    /// forward the sampling config. The idea is that those Relays will get the old rules as
+    /// empty array, which will result in them not sampling and forwarding sampling decisions to
+    /// upstream Relays.
     #[serde(default, skip_deserializing)]
     pub rules: Vec<SamplingRule>,
     /// The ordered sampling rules v2 for the project.
