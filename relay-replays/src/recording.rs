@@ -6,27 +6,35 @@
 //! are likely to contain sensitive data. This module provides [`RecordingScrubber`], which applies
 //! data scrubbing on the payload of recordings while leaving their structure and required fields
 //! intact.
+//!
+//! Data scrubbing applies to only Sentry event payloads within the recording event stream,
+//! identified by `type: 5`. The scrubber skips all other node types and does not perform any
+//! validation beyond JSON parsing.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fmt;
-use std::io::{BufReader, Read};
+use std::io::Read;
+use std::rc::Rc;
 
 use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
 use once_cell::sync::Lazy;
+use serde::{de, ser, Deserializer};
+use serde_json::value::RawValue;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
 
-use crate::transform::{self, Transform};
+use crate::transform::Transform;
 
 /// Error returned from [`RecordingScrubber`].
 #[derive(Debug)]
 pub enum ParseRecordingError {
-    /// An error parsing the payload.
-    ///
-    /// This error can be caused by invalid compression or invalid JSON.
+    /// An error parsing the JSON payload.
     Parse(serde_json::Error),
+    /// Invalid or broken compression.
+    Compression(std::io::Error),
     /// Validation of the payload failed.
     ///
     /// The body is empty, is missing the headers, or the body.
@@ -37,6 +45,7 @@ impl fmt::Display for ParseRecordingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseRecordingError::Parse(serde_error) => write!(f, "{serde_error}"),
+            ParseRecordingError::Compression(error) => write!(f, "{error}"),
             ParseRecordingError::Message(message) => write!(f, "{message}"),
         }
     }
@@ -46,6 +55,7 @@ impl std::error::Error for ParseRecordingError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             ParseRecordingError::Parse(e) => Some(e),
+            ParseRecordingError::Compression(e) => Some(e),
             ParseRecordingError::Message(_) => None,
         }
     }
@@ -65,6 +75,143 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
     )
 });
 
+/// The [`Transform`] implementation for data scrubbing.
+///
+/// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
+struct ScrubberTransform<'a> {
+    processor1: Option<PiiProcessor<'a>>,
+    processor2: Option<PiiProcessor<'a>>,
+}
+
+impl Transform for &'_ mut ScrubberTransform<'_> {
+    fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
+        self.transform_string(v.to_owned())
+    }
+
+    fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
+        if let Some(ref mut processor) = self.processor1 {
+            if processor
+                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .is_err()
+            {
+                return Cow::Borrowed("");
+            }
+        }
+
+        if let Some(ref mut processor) = self.processor2 {
+            if processor
+                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .is_err()
+            {
+                return Cow::Borrowed("");
+            }
+        }
+
+        Cow::Owned(value)
+    }
+}
+
+/// Helper that runs data scrubbing on a raw JSON value during serialization.
+///
+/// This is used by [`EventStreamVisitor`] to serialize recording events on-the-fly from a stream.
+/// It uses a [`ScrubberTransform`] holding all state to perform the actual work.
+struct ScrubbedValue<'a, 'b>(&'a RawValue, Rc<RefCell<ScrubberTransform<'b>>>);
+
+impl serde::Serialize for ScrubbedValue<'_, '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut transform = self.1.borrow_mut();
+        let mut deserializer = serde_json::Deserializer::from_str(self.0.get());
+        let scrubber = crate::transform::Deserializer::new(&mut deserializer, &mut *transform);
+        serde_transcode::transcode(scrubber, serializer)
+    }
+}
+
+/// A visitor that deserializes, scrubs, and serializes a stream of recording events.
+struct EventStreamVisitor<'a, S> {
+    serializer: S,
+    scrubber: Rc<RefCell<ScrubberTransform<'a>>>,
+}
+
+impl<'a, S> EventStreamVisitor<'a, S> {
+    /// The proprietary rrweb node type that identifies Sentry payloads.
+    ///
+    /// The visitor exclusively scrubs these nodes.
+    const SENTRY_EVENT_TYPE: u8 = 5;
+
+    /// Creates a new visitor wrapping a `serializer`.
+    fn new(serializer: S, scrubber: Rc<RefCell<ScrubberTransform<'a>>>) -> Self {
+        Self {
+            serializer,
+            scrubber,
+        }
+    }
+}
+
+impl<'de, 'a, S> de::Visitor<'de> for EventStreamVisitor<'a, S>
+where
+    S: ser::Serializer,
+{
+    type Value = S::Ok;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a replay recording event stream")
+    }
+
+    fn visit_seq<A>(self, mut v: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        /// Efficiently deserializes the type discriminator of event nodes.
+        #[derive(Clone, Copy, serde::Deserialize)]
+        struct TypeHelper {
+            #[serde(rename = "type")]
+            ty: u8,
+        }
+
+        use serde::ser::SerializeSeq;
+        let mut seq = self.serializer.serialize_seq(v.size_hint()).map_err(s2d)?;
+
+        // NOTE on performance: This loop parses every element 2-3 times:
+        //  1. In the call to next_element() to obtain the raw value. This pass is highly efficient
+        //     and cannot be removed.
+        //  2. Deserializing `TypeHelper` to obtain the node type. It skips most of the content, but
+        //     does require a full pass through the raw value.
+        //  3. If scrubbing is required, `ScrubbedValue` internally parses the value and runs it
+        //     through a transforming deserializer.
+        //
+        // These redundant passes come with slight performance overhead compared to an
+        // implementation that directly parses the `type` and raw `data` into a structure. Together
+        // with decompression and data scrubbing, the difference in benchmarks was small. In case
+        // this becomes a performance bottleneck, it is worth to first focus on data scrubbing, and
+        // then at the redundant parsing.
+
+        while let Some(raw) = v.next_element::<&'de RawValue>()? {
+            let helper = serde_json::from_str::<TypeHelper>(raw.get()).unwrap();
+            // Scrub only sentry-specific events and serialize all others without modification.
+            if helper.ty == Self::SENTRY_EVENT_TYPE {
+                seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
+                    .map_err(s2d)?;
+            } else {
+                seq.serialize_element(raw).map_err(s2d)?;
+            }
+        }
+
+        seq.end().map_err(s2d)
+    }
+}
+
+/// Maps a serialization error to a deserialization error.
+fn s2d<S, D>(s: S) -> D
+where
+    S: ser::Error,
+    D: de::Error,
+{
+    D::custom(s.to_string())
+}
+
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
 /// ### Example
@@ -82,8 +229,7 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 /// ```
 pub struct RecordingScrubber<'a> {
     limit: usize,
-    processor1: Option<PiiProcessor<'a>>,
-    processor2: Option<PiiProcessor<'a>>,
+    transform: Rc<RefCell<ScrubberTransform<'a>>>,
 }
 
 impl<'a> RecordingScrubber<'a> {
@@ -105,26 +251,30 @@ impl<'a> RecordingScrubber<'a> {
     ) -> Self {
         Self {
             limit,
-            processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
-            processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+            transform: Rc::new(RefCell::new(ScrubberTransform {
+                processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
+                processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+            })),
         }
     }
 
     /// Returns `true` if both configs are empty and no scrubbing would occur.
     pub fn is_empty(&self) -> bool {
-        self.processor1.is_none() && self.processor2.is_none()
+        let tmp = self.transform.borrow();
+        tmp.processor1.is_none() && tmp.processor2.is_none()
     }
 
-    fn scrub_replay<R, W>(&mut self, read: R, write: W) -> Result<(), ParseRecordingError>
+    fn scrub_replay<W>(&mut self, json: &[u8], write: W) -> Result<(), ParseRecordingError>
     where
-        R: std::io::Read,
         W: std::io::Write,
     {
-        let mut deserializer = serde_json::Deserializer::from_reader(read);
+        let mut deserializer = serde_json::Deserializer::from_slice(json);
         let mut serializer = serde_json::Serializer::new(write);
 
-        let transformer = transform::Deserializer::new(&mut deserializer, self);
-        serde_transcode::transcode(transformer, &mut serializer)?;
+        deserializer.deserialize_seq(EventStreamVisitor::new(
+            &mut serializer,
+            self.transform.clone(),
+        ))?;
 
         Ok(())
     }
@@ -140,12 +290,17 @@ impl<'a> RecordingScrubber<'a> {
         if body.first() == Some(&b'[') {
             self.scrub_replay(body, encoder)
         } else {
-            let decoder = ZlibDecoder::new(body).take(self.limit as u64);
-            self.scrub_replay(BufReader::new(decoder), encoder)
+            let mut decompressed = Vec::with_capacity(8 * 1024);
+            let mut decoder = ZlibDecoder::new(body).take(self.limit as u64);
+            decoder
+                .read_to_end(&mut decompressed)
+                .map_err(ParseRecordingError::Compression)?;
+
+            self.scrub_replay(&decompressed, encoder)
         }
     }
 
-    /// Parses replay recording payloads and applies data scrubbers.
+    /// Parses a replay recording payload and applies data scrubbers.
     ///
     /// # Compression
     ///
@@ -188,34 +343,6 @@ impl<'a> RecordingScrubber<'a> {
         self.transcode_replay(body, &mut output)?;
 
         Ok(output)
-    }
-}
-
-impl Transform for &'_ mut RecordingScrubber<'_> {
-    fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
-        self.transform_string(v.to_owned())
-    }
-
-    fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        if let Some(ref mut processor) = self.processor1 {
-            if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
-                .is_err()
-            {
-                return Cow::Borrowed("");
-            }
-        }
-
-        if let Some(ref mut processor) = self.processor2 {
-            if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
-                .is_err()
-            {
-                return Cow::Borrowed("");
-            }
-        }
-
-        Cow::Owned(value)
     }
 }
 
@@ -290,7 +417,7 @@ mod tests {
         let result = scrubber(&config).process_recording(payload);
         assert!(matches!(
             result.unwrap_err(),
-            super::ParseRecordingError::Parse(_),
+            super::ParseRecordingError::Compression(_),
         ));
     }
 
@@ -324,6 +451,7 @@ mod tests {
 
     // RRWeb Payload Coverage
 
+    #[ignore = "type 3 nodes are not supported"]
     #[test]
     fn test_pii_credit_card_removal() {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
@@ -366,6 +494,7 @@ mod tests {
         assert!(parsed.contains("https://sentry.io?credit-card=[Filtered]"));
     }
 
+    #[ignore = "type 3 nodes are not supported"]
     #[test]
     fn test_pii_ip_address_removal() {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
@@ -383,6 +512,7 @@ mod tests {
 
     // Event Parsing and Scrubbing.
 
+    #[ignore = "type 2 nodes are not supported"]
     #[test]
     fn test_scrub_pii_full_snapshot_event() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-2.json");
@@ -399,6 +529,7 @@ mod tests {
         assert!(scrubbed_result.contains("\"textContent\":\"my ssn is [Filtered]\""));
     }
 
+    #[ignore = "type 3 nodes are not supported"]
     #[test]
     fn test_scrub_pii_incremental_snapshot_event() {
         let payload = include_bytes!("../tests/fixtures/rrweb-event-3.json");

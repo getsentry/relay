@@ -7,10 +7,11 @@
 - Add support for client hints. ([#1752](https://github.com/getsentry/relay/pull/1752))
 - Apply all configured data scrubbing rules on Replays. ([#1731](https://github.com/getsentry/relay/pull/1731))
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
+- Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
 
 **Bug Fixes**:
 
-- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800))
+- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
 
 **Internal**:
 

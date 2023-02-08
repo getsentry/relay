@@ -1,28 +1,57 @@
 use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
-use relay_common::Glob;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::protocol::{TransactionInfo, TransactionSource};
+use crate::utils::Glob;
 
-/// Helper function to deserialize the string patter into the [`relay_common::Glob`].
-fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<Glob, D::Error>
+/// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
+///
+/// This allows to compile the Glob with internal regexes only then whent they are used.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LazyGlob {
+    raw: String,
+    glob: OnceCell<Glob>,
+}
+
+impl LazyGlob {
+    /// Create a new [`LazyGlob`] from the raw string.
+    pub fn new(raw: String) -> Self {
+        Self {
+            raw,
+            glob: OnceCell::new(),
+        }
+    }
+
+    /// Returns the compiled version of the [`crate::utils::Glob`].
+    pub fn compiled(&self) -> &Glob {
+        self.glob.get_or_init(|| {
+            Glob::builder(&self.raw)
+                .capture_star(true)
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build()
+        })
+    }
+}
+
+impl Serialize for LazyGlob {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.raw)
+    }
+}
+
+/// Helper function to deserialize the string patter into the [`LazyGlob`].
+fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<LazyGlob, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let pattern = String::deserialize(deserializer)?;
-    let glob = Glob::builder(&pattern)
-        .capture_star(true)
-        .capture_double_star(false)
-        .capture_question_mark(false)
-        .build();
-    Ok(glob)
-}
-
-/// Default value for substitution in [`RedactionRule`].
-fn default_substitution() -> String {
-    "*".to_string()
+    String::deserialize(deserializer).map(LazyGlob::new)
 }
 
 /// Contains transaction attribute the rule must only be applied to.
@@ -38,6 +67,11 @@ impl Default for RuleScope {
             source: TransactionSource::Url,
         }
     }
+}
+
+/// Default value for substitution in [`RedactionRule`].
+fn default_substitution() -> String {
+    "*".to_string()
 }
 
 /// Describes what to do with the matched pattern.
@@ -65,7 +99,7 @@ impl Default for RedactionRule {
 pub struct TransactionNameRule {
     /// The pattern which will be applied to transaction name.
     #[serde(deserialize_with = "deserialize_glob_pattern")]
-    pub pattern: Glob,
+    pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
     /// Object containing transaction attributes the rules must only be applied to.
@@ -104,9 +138,10 @@ impl TransactionNameRule {
     /// Note: currently only `url` source for rules supported.
     pub fn apply(&self, value: &str) -> String {
         match &self.redaction {
-            RedactionRule::Replace { substitution } => {
-                self.pattern.replace_captures(value, substitution)
-            }
+            RedactionRule::Replace { substitution } => self
+                .pattern
+                .compiled()
+                .replace_captures(value, substitution),
             _ => {
                 relay_log::trace!("Replacement rule type is unsupported!");
                 value.to_owned()
@@ -123,7 +158,7 @@ impl TransactionNameRule {
             .map(|s| s == &self.scope.source)
             .unwrap_or_default()
             && self.expiry > now
-            && self.pattern.is_match(transaction)
+            && self.pattern.compiled().is_match(transaction)
     }
 }
 
@@ -152,7 +187,7 @@ mod tests {
 
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
-            pattern: Glob::new("/auth/login/*/**"),
+            pattern: LazyGlob::new("/auth/login/*/**".to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
             scope: Default::default(),
             redaction: RedactionRule::Replace {
@@ -179,7 +214,7 @@ mod tests {
 
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
-            pattern: Glob::new("/auth/login/*/**"),
+            pattern: LazyGlob::new("/auth/login/*/**".to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
             scope: Default::default(),
             redaction: RedactionRule::Replace {
