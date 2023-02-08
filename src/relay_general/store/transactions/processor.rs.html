@@ -1872,19 +1872,6 @@
 <a href="#1871" id="1871">1871</a>
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -1931,7 +1918,7 @@
             transaction.apply(|transaction, meta| {
                 <span class="kw">let </span>result = <span class="self">self</span>.tx_name_rules.iter().find_map(|rule| {
                     rule.match_and_apply(Cow::Borrowed(transaction), info)
-                        .map(|applied_result| (rule.pattern.pattern(), applied_result))
+                        .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
                 });
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
@@ -2297,10 +2284,9 @@
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span>relay_common::Glob;
-
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
+    <span class="kw">use </span><span class="kw">crate</span>::store::LazyGlob;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
     <span class="kw">use </span><span class="kw">crate</span>::types::Object;
 
@@ -3389,29 +3375,20 @@
         &quot;#</span>;
 
         <span class="kw">let </span>rule1 = TransactionNameRule {
-            pattern: Glob::builder(<span class="string">&quot;/foo/*/user/*/**&quot;</span>)
-                .capture_double_star(<span class="bool-val">false</span>)
-                .capture_question_mark(<span class="bool-val">false</span>)
-                .build(),
+            pattern: LazyGlob::new(<span class="string">&quot;/foo/*/user/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),
         };
         <span class="kw">let </span>rule2 = TransactionNameRule {
-            pattern: Glob::builder(<span class="string">&quot;/foo/*/**&quot;</span>)
-                .capture_double_star(<span class="bool-val">false</span>)
-                .capture_question_mark(<span class="bool-val">false</span>)
-                .build(),
+            pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),
         };
         <span class="comment">// This should not happend, such rules shouldn&#39;t be sent to relay at all.
         </span><span class="kw">let </span>rule3 = TransactionNameRule {
-            pattern: Glob::builder(<span class="string">&quot;/*/**&quot;</span>)
-                .capture_double_star(<span class="bool-val">false</span>)
-                .capture_question_mark(<span class="bool-val">false</span>)
-                .build(),
+            pattern: LazyGlob::new(<span class="string">&quot;/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),
@@ -3545,14 +3522,14 @@
         &quot;#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
         <span class="kw">let </span>rule1 = TransactionNameRule {
-            pattern: Glob::new(<span class="string">&quot;/foo/*/**&quot;</span>),
+            pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),
         };
         <span class="comment">// This should not happend, such rules shouldn&#39;t be sent to relay at all.
         </span><span class="kw">let </span>rule2 = TransactionNameRule {
-            pattern: Glob::new(<span class="string">&quot;/*/**&quot;</span>),
+            pattern: LazyGlob::new(<span class="string">&quot;/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),
@@ -3616,10 +3593,7 @@
         &quot;#</span>;
 
         <span class="kw">let </span>rule = TransactionNameRule {
-            pattern: Glob::builder(<span class="string">&quot;/foo/*/**&quot;</span>)
-                .capture_double_star(<span class="bool-val">false</span>)
-                .capture_question_mark(<span class="bool-val">false</span>)
-                .build(),
+            pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_string()),
             expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
             scope: Default::default(),
             redaction: Default::default(),

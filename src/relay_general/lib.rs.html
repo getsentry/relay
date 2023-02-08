@@ -26,6 +26,7 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
 </pre><pre class="rust"><code><span class="comment">// Clippy throws errors in situations where a closure is clearly the better way. An example is
 // `Annotated::as_str`, which can&#39;t be used directly because it&#39;s part of two impl blocks.
 </span><span class="attr">#![allow(clippy::redundant_closure)]
@@ -51,6 +52,7 @@
 <span class="kw">pub mod </span>protocol;
 <span class="kw">pub mod </span>store;
 <span class="kw">pub mod </span>types;
+<span class="kw">pub mod </span>utils;
 
 <span class="kw">pub mod </span>user_agent;
 </code></pre></div>
