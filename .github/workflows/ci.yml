@@ -240,9 +240,9 @@ jobs:
 
     env:
       IMG_BASE: ghcr.io/getsentry/relay
-      IMG_DEPS: "$IMG_BASE:${{ matrix.arch }}"
+      IMG_DEPS: ghcr.io/getsentry/relay:${{ matrix.arch }}
       # GITHUB_SHA in pull requests points to the merge commit
-      IMG_VERSIONED: "$IMG_BASE:${{ github.event.pull_request.head.sha || github.sha }}"
+      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
       ARCH: ${{ matrix.arch }}
 
     steps:
