@@ -25,7 +25,7 @@ impl LazyGlob {
         }
     }
 
-    /// Returns the compiled version of the glob
+    /// Returns the compiled version of the [`crate::utils::Glob`].
     pub fn compiled(&self) -> &Glob {
         self.glob.get_or_init(|| {
             Glob::builder(&self.raw)
@@ -51,8 +51,7 @@ fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<LazyGlob, D::Erro
 where
     D: Deserializer<'de>,
 {
-    let pattern = String::deserialize(deserializer)?;
-    Ok(LazyGlob::new(pattern))
+    String::deserialize(deserializer).map(LazyGlob::new)
 }
 
 /// Contains transaction attribute the rule must only be applied to.
