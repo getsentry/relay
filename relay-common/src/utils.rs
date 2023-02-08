@@ -1,48 +1,10 @@
 use std::fmt;
-use std::mem;
 use std::str;
-use std::sync::{Arc, Mutex};
 
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::macros::impl_str_serde;
-
-/// Wraps either the provided pattern string, which will be consumed and replaced with compiled
-/// regex, when the `compiled` function is called.
-#[derive(Debug, Clone)]
-struct GlobRegex {
-    // Note: Mutex and Arc here used to make sure this struct can be Send and Sync. Also that we
-    // could use interior mutabilty in order to be able to consume the value when needed.
-    value: Arc<Mutex<String>>,
-    re: OnceCell<Regex>,
-}
-
-impl GlobRegex {
-    /// Creates a new `GlobRegex` from the string pattern.
-    fn new(pattern: String) -> Self {
-        Self {
-            value: Arc::new(Mutex::new(pattern)),
-            re: OnceCell::new(),
-        }
-    }
-
-    /// Returns the either `Some` of the compiled regex, or `None` if there is an error while the
-    /// regex was created.
-    ///
-    /// This will compile regex once and will reuse it later on consecutive calls.
-    ///
-    /// By compiling the regex we consume value pattern, replacing it with empty string buffer,
-    /// which is very inexpensive operation.
-    fn compiled(&self) -> Option<&Regex> {
-        self.re
-            .get_or_try_init(|| {
-                let pattern = mem::take(&mut *self.value.lock().unwrap());
-                Regex::new(&pattern)
-            })
-            .ok()
-    }
-}
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
@@ -99,9 +61,6 @@ impl<'g> GlobBuilder<'g> {
     }
 
     /// Create a new [`Glob`] from this builder.
-    ///
-    /// This build the string pattern, which will be later lazily compiled to regex when used first
-    /// time.
     pub fn build(self) -> Glob {
         let mut pattern = String::with_capacity(&self.value.len() + 100);
         let mut last = 0;
@@ -126,7 +85,7 @@ impl<'g> GlobBuilder<'g> {
 
         Glob {
             value: self.value.to_owned(),
-            re: GlobRegex::new(pattern),
+            pattern: Regex::new(&pattern).unwrap(),
         }
     }
 }
@@ -138,7 +97,7 @@ impl<'g> GlobBuilder<'g> {
 #[derive(Clone)]
 pub struct Glob {
     value: String,
-    re: GlobRegex,
+    pattern: Regex,
 }
 
 impl Glob {
@@ -162,10 +121,7 @@ impl Glob {
 
     /// Checks if some value matches the glob.
     pub fn is_match(&self, value: &str) -> bool {
-        if let Some(re) = self.re.compiled() {
-            return re.is_match(value);
-        }
-        false
+        self.pattern.is_match(value)
     }
 
     /// Currently support replacing only all `*` in the input string with provided replacement.
@@ -174,26 +130,23 @@ impl Glob {
         let mut output = String::new();
         let mut current = 0;
 
-        if let Some(re) = self.re.compiled() {
-            for caps in re.captures_iter(input) {
-                // Create the iter on subcaptures and ignore the first capture, since this is always
-                // the entire string.
-                for cap in caps.iter().flatten().skip(1) {
-                    output.push_str(&input[current..cap.start()]);
-                    output.push_str(replacement);
-                    current = cap.end();
-                }
+        for caps in self.pattern.captures_iter(input) {
+            // Create the iter on subcaptures and ignore the first capture, since this is always
+            // the entire string.
+            for cap in caps.iter().flatten().skip(1) {
+                output.push_str(&input[current..cap.start()]);
+                output.push_str(replacement);
+                current = cap.end();
             }
-
-            output.push_str(&input[current..]);
-            return output;
         }
-        input.to_string()
+
+        output.push_str(&input[current..]);
+        output
     }
 
     /// Checks if the value matches and returns the wildcard matches.
     pub fn matches<'t>(&self, value: &'t str) -> Option<Vec<&'t str>> {
-        self.re.compiled()?.captures(value).map(|caps| {
+        self.pattern.captures(value).map(|caps| {
             caps.iter()
                 .skip(1)
                 .map(|x| x.map_or("", |x| x.as_str()))
