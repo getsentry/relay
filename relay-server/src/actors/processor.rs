@@ -61,6 +61,7 @@ use {
     crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
+    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -1013,27 +1014,39 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles if the feature flag is not enabled
-    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+    /// Remove profiles from the envelope if the feature flag is not enabled
+    fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let envelope = &mut state.envelope;
-
-        envelope.retain_items(|item| match item.ty() {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => profiling_enabled,
             _ => true,
         });
+    }
 
-        if !self.config.processing_enabled() {
-            return;
-        }
-
-        envelope.retain_items(|item| match item.ty() {
+    /// Process profiles and set the profile ID in the profile context on the transaction if successful
+    #[cfg(feature = "processing")]
+    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok(payload) => {
+                Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
+                        if let Some(event) = state.event.value_mut() {
+                            if event.ty.value() == Some(&EventType::Transaction) {
+                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
+                                    profile_id: Annotated::new(profile_id),
+                                })));
+                            }
+                        }
                         item.set_payload(ContentType::Json, payload);
                         true
                     } else {
+                        if let Some(event) = state.event.value_mut() {
+                            if event.ty.value() == Some(&EventType::Transaction) {
+                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                contexts.remove(ProfileContext::default_key());
+                            }
+                        }
                         state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
@@ -1047,13 +1060,19 @@ impl EnvelopeProcessorService {
                     }
                 }
                 Err(err) => {
+                    if let Some(event) = state.event.value_mut() {
+                        if event.ty.value() == Some(&EventType::Transaction) {
+                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                            contexts.remove(ProfileContext::default_key());
+                        }
+                    }
+
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
                             relay_log::warn!("invalid profile: {}", LogError(&err));
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-
                     state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -2162,8 +2181,8 @@ impl EnvelopeProcessorService {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_profiles(state);
         self.process_replays(state)?;
+        self.filter_profiles(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
@@ -2195,6 +2214,8 @@ impl EnvelopeProcessorService {
 
         if_processing!({
             self.enforce_quotas(state)?;
+            // We need the event parsed in order to set the profile context on it
+            self.process_profiles(state);
         });
 
         if state.has_event() {
