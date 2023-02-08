@@ -995,11 +995,12 @@ mod tests {
 
     use crate::processor::process_value;
     use crate::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
         Span, SpanId, TagEntry, TraceId, Values,
     };
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
+    use crate::user_agent::ClientHints;
 
     use super::*;
 
@@ -2428,5 +2429,57 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_normalize_security_report() {
+        let mut event = Event {
+            csp: Annotated::from(Csp::default()),
+            ..Default::default()
+        };
+        let ipaddr = IpAddr("213.164.1.114".to_string());
+
+        let client_ip = Some(&ipaddr);
+        let user_agent = RawUserAgentInfo::new_test_dummy();
+
+        normalize_security_report(&mut event, client_ip, &user_agent);
+
+        let headers = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default)
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        assert_eq!(
+            event.user.value().unwrap().ip_address,
+            Annotated::from(ipaddr)
+        );
+        assert_eq!(
+            headers.get_header(RawUserAgentInfo::USER_AGENT),
+            user_agent.user_agent
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA),
+            user_agent.client_hints.sec_ch_ua,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_MODEL),
+            user_agent.client_hints.sec_ch_ua_model,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM),
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM_VERSION),
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+
+        assert!(
+            std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
+            "If you add new fields, update the test accordingly"
+        );
     }
 }

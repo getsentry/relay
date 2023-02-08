@@ -226,6 +226,22 @@ impl ClientHints<String> {
 mod tests {
     use super::*;
 
+    //impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
+    impl RawUserAgentInfo<&str> {
+        pub fn new_test_dummy() -> Self {
+            Self {
+                user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0"),
+                client_hints: ClientHints {
+                    sec_ch_ua_platform: Some("macOS"),
+                    sec_ch_ua_platform_version: Some("13.2.0"),
+                    sec_ch_ua: Some(r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#),
+                    sec_ch_ua_model: Some("some model"),
+                }
+
+            }
+        }
+    }
+
     #[test]
     fn test_default_empty() {
         assert!(RawUserAgentInfo::<&str>::default().is_empty());
