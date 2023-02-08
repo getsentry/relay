@@ -8,6 +8,7 @@ clean:
 .PHONY: clean
 
 run: clean
+	mkdir -p input output tmp diffs
 	./pretty-json.sh input
 	cargo run -q
 	./pretty-json.sh output

@@ -1,13 +1,54 @@
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_replays::recording::ReplayScrubber;
 use std::fs;
+use std::io::Error;
+use std::io::{BufWriter, Write};
 use std::sync::mpsc::channel;
 use threadpool::ThreadPool;
 
-enum ScrubbingResult {
+enum ScrubbingStatus {
     Scrubbed,
     NotScrubbed,
     Skipped,
+}
+
+#[derive(Debug)]
+struct ScrubbingResult {
+    scrubbed: i32,
+    not_scrubbed: i32,
+}
+
+impl ScrubbingResult {
+    pub fn new() -> Self {
+        Self {
+            scrubbed: 0,
+            not_scrubbed: 0,
+        }
+    }
+    pub fn incr_scrubbed(self) -> Self {
+        Self {
+            scrubbed: self.scrubbed + 1,
+            not_scrubbed: self.not_scrubbed,
+        }
+    }
+    pub fn incr_not_scrubbed(self) -> Self {
+        Self {
+            scrubbed: self.scrubbed,
+            not_scrubbed: self.not_scrubbed + 1,
+        }
+    }
+}
+
+fn identity_scrubbing_function<R, W>(input: R, output: W)
+where
+    R: std::io::Read,
+    W: std::io::Write,
+{
+    let byte_iterator = input.bytes();
+    let collected_bytes_result: Result<Vec<u8>, Error> = byte_iterator.collect();
+
+    let input_bytes = collected_bytes_result.unwrap();
+
+    let mut bufwriter = BufWriter::new(output);
+    Write::write(&mut bufwriter, &input_bytes).unwrap();
 }
 
 fn scrubbing_function<R, W>(input: R, output: W)
@@ -15,18 +56,25 @@ where
     R: std::io::Read,
     W: std::io::Write,
 {
-    let binding = default_pii_config();
-    let mut scrubber = ReplayScrubber::new(usize::MAX, Some(&binding), None);
+    // a no-op scrubbing function
+    identity_scrubbing_function(input, output);
 
-    scrubber.scrub_replay(input, output).unwrap();
+    // replace with your scrubbing function
+    // EG:
+    // use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    // use relay_replays::recording::ReplayScrubber;
+    // let binding = default_pii_config();
+    // let mut scrubber = ReplayScrubber::new(usize::MAX, Some(&binding), None);
 
-    fn default_pii_config() -> PiiConfig {
-        let mut scrubbing_config = DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
-        scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.pii_config_uncached().unwrap().unwrap()
-    }
+    // scrubber.scrub_replay(input, output).unwrap();
+
+    // fn default_pii_config() -> PiiConfig {
+    //     let mut scrubbing_config = DataScrubbingConfig::default();
+    //     scrubbing_config.scrub_data = true;
+    //     scrubbing_config.scrub_defaults = true;
+    //     scrubbing_config.scrub_ip_addresses = true;
+    //     scrubbing_config.pii_config_uncached().unwrap().unwrap()
+    // }
 }
 
 fn main() {
@@ -45,46 +93,45 @@ fn main() {
             let file_name = path.file_name().unwrap().to_string_lossy().into_owned();
             let path_name = path.to_string_lossy().into_owned();
 
-            if file_name == ".DS_Store" {
-                tx.send(ScrubbingResult::Skipped)
-                    .expect("channel will be there waiting for the pool");
-                return;
-            }
+            tx.send(match file_name.as_str() {
+                ".DS_Store" => ScrubbingStatus::Skipped,
+                _ => {
+                    let file_contents = fs::read_to_string(path_name).unwrap();
+                    let replay_data_str = file_contents.as_str();
+                    let mut transcoded = Vec::new();
 
-            let file_contents =
-                fs::read_to_string(path_name).expect("Should have been able to read the file");
+                    scrubbing_function(replay_data_str.as_bytes(), &mut transcoded);
 
-            let replay_data_str = file_contents.as_str();
+                    let parsed = std::str::from_utf8(&transcoded).unwrap();
 
-            let mut transcoded = Vec::new();
-
-            scrubbing_function(replay_data_str.as_bytes(), &mut transcoded);
-
-            let parsed = std::str::from_utf8(&transcoded).unwrap();
-
-            if parsed != replay_data_str {
-                println!("scrubing-modified {file_name}");
-                writefile(&file_name, parsed).expect("file should have been written");
-                tx.send(ScrubbingResult::Scrubbed)
-                    .expect("channel will be there waiting for the pool");
-                // scrubbed += 1;
-            } else {
-                println!("scrubing did not modify {file_name}");
-                tx.send(ScrubbingResult::NotScrubbed)
-                    .expect("channel will be there waiting for the pool");
-            }
+                    if parsed != replay_data_str {
+                        println!("scrubbing modified {file_name}");
+                        writefile(&file_name, parsed).unwrap();
+                        ScrubbingStatus::Scrubbed
+                    } else {
+                        println!("scrubbing did not modify {file_name}");
+                        ScrubbingStatus::NotScrubbed
+                    }
+                }
+            })
+            .unwrap();
         });
     }
 
-    let mut scrubbed = 0;
-    let mut not_scrubbed = 0;
-    rx.iter().take(num_paths).for_each(|result| match result {
-        ScrubbingResult::Scrubbed => scrubbed += 1,
-        ScrubbingResult::NotScrubbed => not_scrubbed += 1,
-        ScrubbingResult::Skipped => (),
-    });
+    let init = ScrubbingResult::new();
 
-    println!("Finished running scrubbing! Scrubbed: {scrubbed}, Not Scrubbed: {not_scrubbed}");
+    let final_result =
+        rx.iter()
+            .take(num_paths)
+            .fold(init, |acc, scrub_status| match scrub_status {
+                ScrubbingStatus::Skipped => acc,
+                ScrubbingStatus::NotScrubbed => acc.incr_not_scrubbed(),
+                ScrubbingStatus::Scrubbed => acc.incr_scrubbed(),
+            });
+    println!(
+        "Finished running scrubbing! Scrubbed: {}, Not Scrubbed: {}",
+        final_result.scrubbed, final_result.not_scrubbed
+    );
 }
 
 fn writefile(name: &str, s: &str) -> std::io::Result<()> {
