@@ -31,6 +31,8 @@ fi
 
 docker buildx build \
     "${args[@]}" \
+    --build-arg UID="$(id -u)" \
+    --build-arg GID="$(id -g)" \
     --cache-to type=inline \
     --platform "linux/$ARCH" \
     --tag "$IMG_DEPS" \

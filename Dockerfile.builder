@@ -2,8 +2,7 @@ FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM centos:7 AS relay-deps
 
 # Pin the Rust version for now
-
-ARG RUST_TOOLCHAIN_VERSION=1.67.0
+ARG RUST_TOOLCHAIN_VERSION=1.67.1
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
 RUN yum -y update \
@@ -20,10 +19,18 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
+ARG UID=10000
+ARG GID=10000
+
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
     && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
-    && chmod 777 $CARGO_HOME
+    # Adding user and group is the workaround for the old git version,
+    # which cannot checkout the repos failing with error:
+    # fatal: unable to look up current user in the passwd file: no such user
+    && groupadd -f -g ${GID} builder \
+    && useradd -o -ms /bin/bash -g ${GID} -u ${UID} builder \
+    && chown -R ${UID}:${GID} $CARGO_HOME
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
