@@ -38,20 +38,20 @@ docker buildx build \
     --file Dockerfile.builder \
     .
 
-# Get uid and gid of the current user.
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
-
 # Build the binary inside of the builder image.
 docker run \
     --volume "$PWD:/work:rw" \
     --platform "linux/$ARCH" \
     -e TARGET="$BUILD_TARGET" \
-    --user "$USER_ID:$GROUP_ID" \
     "$IMG_DEPS" \
     scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
 
-# Create a release image
+# Fix permissions for shared directories.
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
+sudo chown -R "${USER_ID}:${GROUP_ID}" target/
+
+# Create a release image.
 docker buildx build \
     --platform "linux/$ARCH" \
     --tag "$IMG_VERSIONED" \
