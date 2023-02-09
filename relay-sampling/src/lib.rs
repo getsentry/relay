@@ -897,7 +897,7 @@ impl SamplingMatch {
     ///
     /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
     /// rules from the root project and concatenate them.
-    pub fn get_merged_rules<'a>(
+    pub fn merge_rules_from_configs<'a>(
         sampling_config: &'a SamplingConfig,
         root_sampling_config: Option<&'a SamplingConfig>,
         default_value: &'a Vec<SamplingRule>,
@@ -1431,9 +1431,13 @@ mod tests {
         let sampling_config = mocked_sampling_config(rules);
         let root_sampling_config = mocked_sampling_config(root_rules);
 
-        SamplingMatch::get_merged_rules(&sampling_config, Some(&root_sampling_config), &vec![])
-            .cloned()
-            .collect()
+        SamplingMatch::merge_rules_from_configs(
+            &sampling_config,
+            Some(&root_sampling_config),
+            &vec![],
+        )
+        .cloned()
+        .collect()
     }
 
     #[test]

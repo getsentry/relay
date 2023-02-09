@@ -99,7 +99,11 @@ fn get_sampling_match_result(
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let default_root_rules = vec![];
     let mut match_result = no_match_if_none!(SamplingMatch::match_against_rules(
-        SamplingMatch::get_merged_rules(sampling_config, root_sampling_config, &default_root_rules,),
+        SamplingMatch::merge_rules_from_configs(
+            sampling_config,
+            root_sampling_config,
+            &default_root_rules
+        ),
         event,
         dsc,
         ip_addr,
