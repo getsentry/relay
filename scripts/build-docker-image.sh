@@ -6,14 +6,18 @@ set -euxo pipefail
 ARCH=${ARCH:-$(uname -m)}
 
 # Set the correct build target and update the arch if required.
-if [[ "$ARCH" = "amd64" ]]; then
-  BUILD_TARGET="x86_64-unknown-linux-gnu"
-elif [[ "$ARCH" = "arm64" ]]; then
-  BUILD_TARGET="aarch64-unknown-linux-gnu"
-elif [[ "$ARCH" = "aarch64" ]]; then
-  BUILD_TARGET="aarch64-unknown-linux-gnu"
-  ARCH="arm64"
-fi
+case "$ARCH" in
+  "amd64")
+    BUILD_TARGET="x86_64-unknown-linux-gnu"
+    ;;
+  "arm64" | "aarch64" )
+    BUILD_TARGET="aarch64-unknown-linux-gnu"
+    ARCH="arm64"
+    ;;
+  *)
+    echo "ERROR unsupported architecture"
+    exit 1
+esac
 
 # Images to use and build.
 IMG_DEPS=${IMG_DEPS:-"ghcr.io/getsentry/relay-deps:$ARCH"}
@@ -34,18 +38,18 @@ docker buildx build \
     --file Dockerfile.builder \
     .
 
-# Build the binary inside of the builder image.
-docker run \
-    -v "$(pwd):/work" \
-    --platform "linux/$ARCH" \
-    -e TARGET="$BUILD_TARGET" \
-    "$IMG_DEPS" \
-    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
-
-# Fix permissions for shared directories
+# Get uid and gid of the current user.
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-sudo chown -R "${USER_ID}:${GROUP_ID}" target/
+
+# Build the binary inside of the builder image.
+docker run \
+    --volume "$PWD:/work:rw" \
+    --platform "linux/$ARCH" \
+    -e TARGET="$BUILD_TARGET" \
+    --user "$USER_ID:$GROUP_ID" \
+    "$IMG_DEPS" \
+    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
 
 # Create a release image
 docker buildx build \
