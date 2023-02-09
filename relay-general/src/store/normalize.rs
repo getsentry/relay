@@ -2442,6 +2442,8 @@ mod tests {
         let client_ip = Some(&ipaddr);
         let user_agent = RawUserAgentInfo::new_test_dummy();
 
+        // This call should fill the event headers with info from the user_agent which is
+        // tested below.
         normalize_security_report(&mut event, client_ip, &user_agent);
 
         let headers = event

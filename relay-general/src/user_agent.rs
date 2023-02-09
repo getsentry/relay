@@ -226,7 +226,6 @@ impl ClientHints<String> {
 mod tests {
     use super::*;
 
-    //impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     impl RawUserAgentInfo<&str> {
         pub fn new_test_dummy() -> Self {
             Self {
