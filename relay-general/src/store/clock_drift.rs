@@ -106,7 +106,7 @@ impl ClockDriftProcessor {
     /// Processes the given [`DateTime`].
     pub fn process_datetime(&self, datetime: &mut DateTime<Utc>) {
         if let Some(correction) = self.correction {
-            *datetime = *datetime + correction.drift;
+            *datetime += correction.drift;
         }
     }
 }
@@ -187,8 +187,8 @@ mod tests {
 
     #[test]
     fn test_no_sent_at() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
         let now = end;
 
         // No information on delay, do not default to anything.
@@ -203,8 +203,8 @@ mod tests {
 
     #[test]
     fn test_no_clock_drift() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
 
         let now = end;
 
@@ -220,8 +220,8 @@ mod tests {
 
     #[test]
     fn test_clock_drift_lower_bound() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
 
         let drift = SignedDuration::minutes(1);
         let now = end + drift;
@@ -239,8 +239,8 @@ mod tests {
 
     #[test]
     fn test_clock_drift_from_past() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
 
         let drift = SignedDuration::days(1);
         let now = end + drift;
@@ -257,8 +257,8 @@ mod tests {
 
     #[test]
     fn test_clock_drift_from_future() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
 
         let drift = -SignedDuration::seconds(60);
         let now = end + drift;
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_clock_drift_unix() {
-        let sent_at = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let sent_at = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
         let drift = SignedDuration::days(1);
         let now = sent_at + drift;
 
@@ -288,14 +288,17 @@ mod tests {
 
     #[test]
     fn test_process_datetime() {
-        let sent_at = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let sent_at = Utc.with_ymd_and_hms(2000, 1, 2, 0, 0, 0).unwrap();
         let drift = SignedDuration::days(1);
         let now = sent_at + drift;
 
         let processor = ClockDriftProcessor::new(Some(sent_at), now);
-        let mut datetime = Utc.ymd(2021, 11, 29).and_hms(0, 0, 0);
+        let mut datetime = Utc.with_ymd_and_hms(2021, 11, 29, 0, 0, 0).unwrap();
         processor.process_datetime(&mut datetime);
 
-        assert_eq!(datetime, Utc.ymd(2021, 11, 30).and_hms(0, 0, 0));
+        assert_eq!(
+            datetime,
+            Utc.with_ymd_and_hms(2021, 11, 30, 0, 0, 0).unwrap()
+        );
     }
 }

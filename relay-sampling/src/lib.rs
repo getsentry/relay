@@ -2035,9 +2035,12 @@ mod tests {
 
         assert_eq!(
             time_range.start,
-            Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
+            Some(Utc.with_ymd_and_hms(2022, 10, 10, 0, 0, 0).unwrap())
         );
-        assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
+        assert_eq!(
+            time_range.end,
+            Some(Utc.with_ymd_and_hms(2022, 10, 20, 0, 0, 0).unwrap())
+        );
         assert_eq!(decaying_function, DecayingFunction::Constant);
     }
 
@@ -2425,8 +2428,8 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(1),
                     time_range: TimeRange {
-                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+                        end: Some(Utc.with_ymd_and_hms(1970, 10, 30, 0, 0, 0).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -2437,8 +2440,8 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(2),
                     time_range: TimeRange {
-                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
+                        start: Some(Utc.with_ymd_and_hms(3000, 10, 10, 0, 0, 0).unwrap()),
+                        end: Some(Utc.with_ymd_and_hms(3000, 10, 15, 0, 0, 0).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -2449,8 +2452,8 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(3),
                     time_range: TimeRange {
-                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        start: Some(Utc.with_ymd_and_hms(3000, 10, 10, 0, 0, 0).unwrap()),
+                        end: Some(Utc.with_ymd_and_hms(1970, 10, 30, 0, 0, 0).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -2461,8 +2464,8 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(4),
                     time_range: TimeRange {
-                        start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
-                        end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        start: Some(Utc.with_ymd_and_hms(1970, 10, 30, 0, 0, 0).unwrap()),
+                        end: Some(Utc.with_ymd_and_hms(3000, 10, 10, 0, 0, 0).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -2528,12 +2531,12 @@ mod tests {
 
         let ranges = vec![
             TimeRange {
-                start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
                 end: None,
             },
             TimeRange {
                 start: None,
-                end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                end: Some(Utc.with_ymd_and_hms(3000, 10, 10, 0, 0, 0).unwrap()),
             },
             TimeRange {
                 start: None,

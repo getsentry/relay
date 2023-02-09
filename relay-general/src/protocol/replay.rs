@@ -349,8 +349,10 @@ mod tests {
             )),
             replay_type: Annotated::new("session".to_string()),
             segment_id: Annotated::new(0),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            replay_start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            replay_start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
             urls: Annotated::new(vec![Annotated::new("localhost:9000".to_string())]),
             error_ids: Annotated::new(vec![Annotated::new(
                 "52df9022835246eeb317dbd739ccd059".to_string(),
