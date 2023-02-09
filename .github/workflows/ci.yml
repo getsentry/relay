@@ -315,6 +315,7 @@ jobs:
         with:
           repository: getsentry/sentry
           path: sentry
+          ref: "test/metrics-reenable-extraction" # DO NOT MERGE THIS
 
       - name: Setup steps
         id: setup
