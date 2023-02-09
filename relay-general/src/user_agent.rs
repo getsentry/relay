@@ -126,6 +126,9 @@ impl RawUserAgentInfo<String> {
 }
 
 impl<'a> RawUserAgentInfo<&'a str> {
+    /// Convert user-agent info to HTTP headers as stored in the `Request` interface.
+    ///
+    /// This function does not overwrite any pre-existing headers.
     pub fn populate_event_headers(&self, headers: &mut Headers) {
         let mut insert_header = |key: &str, val: Option<&str>| {
             if let Some(val) = val {
