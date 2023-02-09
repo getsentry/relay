@@ -447,7 +447,7 @@ pub struct ActiveRule {
 
 impl ActiveRule {
     /// Gets the sample rate for the specific rule.
-    pub fn get_sampling_value(&self, now: DateTime<Utc>) -> f64 {
+    pub fn sampling_value(&self, now: DateTime<Utc>) -> f64 {
         self.evaluator.evaluate(now)
     }
 }
@@ -888,30 +888,31 @@ pub struct SamplingMatch {
     pub matched_rule_ids: MatchedRuleIds,
 }
 
-/// Represents the dynamic sampling configuration available to a project.
-///
-/// Note: This comes from the organization data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SamplingConfig {
-    /// The ordered sampling rules for the project.
-    ///
-    /// This field will remain here to serve only for old customer Relays to which we will
-    /// forward the sampling config. The idea is that those Relays will get the old rules as
-    /// empty array, which will result in them not sampling and forwarding sampling decisions to
-    /// upstream Relays.
-    #[serde(default, skip_deserializing)]
-    pub rules: Vec<SamplingRule>,
-    /// The ordered sampling rules v2 for the project.
-    pub rules_v2: Vec<SamplingRule>,
-    /// Defines which population of items a dynamic sample rate applies to.
-    #[serde(default)]
-    pub mode: SamplingMode,
-}
+impl SamplingMatch {
+    pub fn with_new_sample_rate(&mut self, new_sample_rate: f64) {
+        self.sample_rate = new_sample_rate;
+    }
 
-impl SamplingConfig {
-    pub fn has_unsupported_rules(&self) -> bool {
-        !self.rules_v2.iter().all(SamplingRule::supported)
+    /// Returns an iterator of references that chains together and merges rules.
+    ///
+    /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
+    /// rules from the root project and concatenate them.
+    pub fn get_merged_rules<'a>(
+        sampling_config: &'a SamplingConfig,
+        root_sampling_config: Option<&'a SamplingConfig>,
+        default_value: &'a Vec<SamplingRule>,
+    ) -> impl Iterator<Item = &'a SamplingRule> {
+        let event_rules = sampling_config
+            .rules_v2
+            .iter()
+            .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+
+        let parent_rules = root_sampling_config
+            .map_or(default_value, |config| &config.rules_v2)
+            .iter()
+            .filter(|&rule| rule.ty == RuleType::Trace);
+
+        event_rules.chain(parent_rules)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -926,13 +927,16 @@ impl SamplingConfig {
     ///
     /// In case no sample rate rule is matched, we are going to return a None, signaling that no
     /// match has been found.
-    pub fn match_against_rules(
-        &self,
+    pub fn match_against_rules<'a, I>(
+        rules: I,
         event: &Event,
         dsc: Option<&DynamicSamplingContext>,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<SamplingMatch> {
+    ) -> Option<SamplingMatch>
+    where
+        I: Iterator<Item = &'a SamplingRule>,
+    {
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
         // still incur in inconsistent trace sampling because of multi-matching of rules across event
@@ -951,7 +955,7 @@ impl SamplingConfig {
         let mut seed = event.id.value().map(|id| id.0);
         let mut accumulated_factors = 1.0;
 
-        for rule in self.rules_v2.iter() {
+        for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
@@ -982,7 +986,7 @@ impl SamplingConfig {
                         }
                     }
 
-                    let value = active_rule.get_sampling_value(now);
+                    let value = active_rule.sampling_value(now);
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingMatch {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
@@ -1003,6 +1007,33 @@ impl SamplingConfig {
 
         // In case no match is available, we won't return any specification.
         None
+    }
+}
+
+/// Represents the dynamic sampling configuration available to a project.
+///
+/// Note: This comes from the organization data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplingConfig {
+    /// The ordered sampling rules for the project.
+    ///
+    /// This field will remain here to serve only for old customer Relays to which we will
+    /// forward the sampling config. The idea is that those Relays will get the old rules as
+    /// empty array, which will result in them not sampling and forwarding sampling decisions to
+    /// upstream Relays.
+    #[serde(default, skip_deserializing)]
+    pub rules: Vec<SamplingRule>,
+    /// The ordered sampling rules v2 for the project.
+    pub rules_v2: Vec<SamplingRule>,
+    /// Defines which population of items a dynamic sample rate applies to.
+    #[serde(default)]
+    pub mode: SamplingMode,
+}
+
+impl SamplingConfig {
+    pub fn has_unsupported_rules(&self) -> bool {
+        !self.rules_v2.iter().all(SamplingRule::supported)
     }
 }
 
@@ -1257,6 +1288,18 @@ mod tests {
         }
     }
 
+    macro_rules! match_rule_ids {
+        ($exc:expr, $res:expr) => {
+            if ($exc.len() != $res.len()) {
+                panic!("The rule ids don't match.")
+            }
+
+            for (index, rule) in $res.iter().enumerate() {
+                assert_eq!(rule.id.0, $exc[index])
+            }
+        };
+    }
+
     fn default_sampling_context() -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: Uuid::default(),
@@ -1323,6 +1366,17 @@ mod tests {
         }
     }
 
+    fn mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -> SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: sample_rate },
+            ty,
+            id: RuleId(id),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }
+    }
+
     fn mocked_event(
         event_type: EventType,
         transaction: &str,
@@ -1365,9 +1419,21 @@ mod tests {
         config: &SamplingConfig,
         event: &Event,
         dsc: &DynamicSamplingContext,
-        time: DateTime<Utc>,
+        now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
-        config.match_against_rules(event, Some(dsc), None, time)
+        SamplingMatch::match_against_rules(config.rules_v2.iter(), event, Some(dsc), None, now)
+    }
+
+    fn merge_root_and_non_root_configs_with(
+        rules: Vec<SamplingRule>,
+        root_rules: Vec<SamplingRule>,
+    ) -> Vec<SamplingRule> {
+        let sampling_config = mocked_sampling_config(rules);
+        let root_sampling_config = mocked_sampling_config(root_rules);
+
+        SamplingMatch::get_merged_rules(&sampling_config, Some(&root_sampling_config), &vec![])
+            .cloned()
+            .collect()
     }
 
     #[test]
@@ -3018,5 +3084,70 @@ mod tests {
         }))
         .unwrap();
         assert!(!rule.supported());
+    }
+
+    #[test]
+    /// Tests the merged config of the two configs with rules.
+    fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
+        match_rule_ids!(
+            [1, 2, 7],
+            merge_root_and_non_root_configs_with(
+                vec![
+                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
+                    mocked_sampling_rule(2, RuleType::Error, 0.2),
+                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
+                ],
+                vec![
+                    mocked_sampling_rule(5, RuleType::Transaction, 0.4),
+                    mocked_sampling_rule(6, RuleType::Error, 0.5),
+                    mocked_sampling_rule(7, RuleType::Trace, 0.6),
+                    mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
+                ],
+            )
+        );
+    }
+
+    #[test]
+    /// Tests the merged config of the two configs without rules.
+    fn test_get_merged_config_with_no_rules_in_both_project_config_and_root_project_config() {
+        assert!(merge_root_and_non_root_configs_with(vec![], vec![]).is_empty());
+    }
+
+    #[test]
+    /// Tests the merged config of the project config with rules and the root project config
+    /// without rules.
+    fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
+        match_rule_ids!(
+            [1, 2],
+            merge_root_and_non_root_configs_with(
+                vec![
+                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
+                    mocked_sampling_rule(2, RuleType::Error, 0.2),
+                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
+                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
+                ],
+                vec![],
+            )
+        );
+    }
+
+    #[test]
+    /// Tests the merged config of the project config without rules and the root project config
+    /// with rules.
+    fn test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
+    ) {
+        match_rule_ids!(
+            [6],
+            merge_root_and_non_root_configs_with(
+                vec![],
+                vec![
+                    mocked_sampling_rule(4, RuleType::Transaction, 0.4),
+                    mocked_sampling_rule(5, RuleType::Error, 0.5),
+                    mocked_sampling_rule(6, RuleType::Trace, 0.6),
+                    mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
+                ]
+            )
+        );
     }
 }
