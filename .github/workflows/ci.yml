@@ -234,7 +234,7 @@ jobs:
 
     name: Build Docker Image (${{ matrix.arch }})
     runs-on: ubuntu-latest
-      
+
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
@@ -283,8 +283,8 @@ jobs:
 
     # required for google auth
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -457,6 +457,9 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Run Sentry self-hosted e2e CI
         uses: getsentry/action-self-hosted-e2e-tests@627c9b50cb168c546ed6e2c461dae76d5d0c7cdb
         with:
