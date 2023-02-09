@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Addr, NativeImagePath, RegVal};
+use crate::protocol::{Addr, DebugId, NativeImagePath, RegVal};
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -115,6 +115,10 @@ pub struct Frame {
     /// mostly ignored during issue grouping.
     #[metastructure(skip_serialization = "null")]
     pub in_app: Annotated<bool>,
+
+    /// Id that references a particular source map artifact
+    #[metastructure(skip_serialization = "null")]
+    pub debug_id: Annotated<DebugId>,
 
     /// Mapping of local variables and expression names that were available in this frame.
     // XXX: Probably want to trim per-var => new bag size?
@@ -531,6 +535,7 @@ mod tests {
     "}"
   ],
   "in_app": true,
+  "debug_id": "00000000-0000-0000-0000-000000000000",
   "vars": {
     "variable": "value"
   },
@@ -569,6 +574,7 @@ mod tests {
                 );
                 Annotated::new(vars.into())
             },
+            debug_id: Annotated::new("00000000-0000-0000-0000-000000000000".parse().unwrap()),
             data: Annotated::new(FrameData {
                 sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
                 ..Default::default()

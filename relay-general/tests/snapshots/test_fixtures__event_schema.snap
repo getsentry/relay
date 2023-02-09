@@ -1496,6 +1496,18 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "debug_id": {
+              "description": " Id that references a particular source map artifact",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/DebugId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "filename": {
               "description": " The source file name (basename only).",
               "default": null,
