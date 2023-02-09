@@ -390,6 +390,12 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains the breakdowns normalization code
 //!
 //! This module is responsible for generating breakdowns for events, such as span operation breakdowns.
@@ -625,7 +631,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>chrono::{TimeZone, Timelike, Utc};
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
@@ -689,29 +695,35 @@
 
         <span class="kw">let </span>spans = <span class="macro">vec!</span>[
             make_span(
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
                 <span class="string">&quot;http&quot;</span>.to_string(),
             ),
             <span class="comment">// overlapping spans
             </span>make_span(
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">3</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">3</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
                 <span class="string">&quot;db&quot;</span>.to_string(),
             ),
             make_span(
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">2</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">3</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">30</span>, <span class="number">0</span>).unwrap().into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">3</span>, <span class="number">30</span>, <span class="number">0</span>).unwrap().into()),
                 <span class="string">&quot;db.postgres&quot;</span>.to_string(),
             ),
             make_span(
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">4</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">4</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">30</span>, <span class="number">0</span>).unwrap().into()),
                 <span class="string">&quot;db.mongo&quot;</span>.to_string(),
             ),
             make_span(
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">5</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                Annotated::new(Utc.ymd(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">6</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10_000</span>).into()),
+                Annotated::new(Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">5</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+                Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2020</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">6</span>, <span class="number">0</span>, <span class="number">0</span>)
+                        .unwrap()
+                        .with_nanosecond(<span class="number">10_000</span>)
+                        .unwrap()
+                        .into(),
+                ),
                 <span class="string">&quot;browser&quot;</span>.to_string(),
             ),
         ];
@@ -782,4 +794,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

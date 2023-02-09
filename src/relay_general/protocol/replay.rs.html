@@ -534,6 +534,8 @@
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -892,8 +894,10 @@
             )),
             replay_type: Annotated::new(<span class="string">&quot;session&quot;</span>.to_string()),
             segment_id: Annotated::new(<span class="number">0</span>),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            replay_start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            replay_start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             urls: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;localhost:9000&quot;</span>.to_string())]),
             error_ids: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
                 <span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.to_string(),
@@ -1070,4 +1074,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

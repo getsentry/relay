@@ -377,7 +377,7 @@
 }&quot;#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
             category: Annotated::new(<span class="string">&quot;mycategory&quot;</span>.to_string()),
             level: Annotated::new(Level::Fatal),
@@ -411,7 +411,7 @@
         <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0}&quot;#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ..Default::default()
         });
 
@@ -426,7 +426,7 @@
         <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0,&quot;type&quot;:&quot;http&quot;}&quot;#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ty: Annotated::new(<span class="string">&quot;http&quot;</span>.into()),
             ..Default::default()
         });
@@ -436,4 +436,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

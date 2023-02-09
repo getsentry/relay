@@ -2486,6 +2486,12 @@
 <a href="#2485" id="2485">2485</a>
 <a href="#2486" id="2486">2486</a>
 <a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -3744,8 +3750,10 @@
         <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>NormalizeProcessor::default();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">1987</span>, <span class="number">6</span>, <span class="number">5</span>).and_hms(<span class="number">4</span>, <span class="number">3</span>, <span class="number">2</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">1987</span>, <span class="number">6</span>, <span class="number">5</span>).and_hms(<span class="number">4</span>, <span class="number">3</span>, <span class="number">2</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">1987</span>, <span class="number">6</span>, <span class="number">5</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">2</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">1987</span>, <span class="number">6</span>, <span class="number">5</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">2</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -4427,11 +4435,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_future_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>).and_hms(<span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).unwrap().into()),
             ..Default::default()
         });
 
-        <span class="kw">let </span>received_at = <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>));
+        <span class="kw">let </span>received_at = <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap());
         <span class="kw">let </span>max_secs_in_past = <span class="prelude-val">Some</span>(<span class="number">30 </span>* <span class="number">24 </span>* <span class="number">3600</span>);
         <span class="kw">let </span>max_secs_in_future = <span class="prelude-val">Some</span>(<span class="number">60</span>);
 
@@ -4486,11 +4494,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_past_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">3</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ..Default::default()
         });
 
-        <span class="kw">let </span>received_at = <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">2000</span>, <span class="number">3</span>, <span class="number">3</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>));
+        <span class="kw">let </span>received_at = <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap());
         <span class="kw">let </span>max_secs_in_past = <span class="prelude-val">Some</span>(<span class="number">30 </span>* <span class="number">24 </span>* <span class="number">3600</span>);
         <span class="kw">let </span>max_secs_in_future = <span class="prelude-val">Some</span>(<span class="number">60</span>);
 
@@ -4706,8 +4714,8 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_light_normalization_is_idempotent() {
         <span class="comment">// get an event, light normalize it. the result of that must be the same as light normalizing it once more
-        </span><span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+        </span><span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
@@ -4729,8 +4737,12 @@
                 contexts
             })),
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).into()),
-                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
                 span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
 
@@ -4974,4 +4986,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

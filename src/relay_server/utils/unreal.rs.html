@@ -422,6 +422,10 @@
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
 <a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
 </pre><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
@@ -560,7 +564,11 @@
     <span class="kw">for </span>log <span class="kw">in </span>logs {
         <span class="kw">let </span>timestamp = log
             .timestamp
-            .map(|ts| Timestamp(Utc.timestamp(ts.unix_timestamp(), ts.nanosecond())));
+            .and_then(|ts| {
+                Utc.timestamp_opt(ts.unix_timestamp(), ts.nanosecond())
+                    .latest()
+            })
+            .map(Timestamp);
 
         breadcrumbs.push(Annotated::new(Breadcrumb {
             timestamp: Annotated::from(timestamp),
@@ -846,4 +854,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

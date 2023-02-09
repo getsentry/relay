@@ -1872,6 +1872,44 @@
 <a href="#1871" id="1871">1871</a>
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -2293,8 +2331,8 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>new_test_event() -&gt; Annotated&lt;Event&gt; {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
@@ -2361,7 +2399,9 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_replace_missing_timestamp() {
         <span class="kw">let </span>span = Span {
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">1968</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">1968</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>).unwrap().into(),
+            ),
             trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
             span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
             ..Default::default()
@@ -2398,7 +2438,7 @@
     </span><span class="kw">fn </span>test_discards_when_missing_start_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ..Default::default()
         });
 
@@ -2418,8 +2458,10 @@
     </span><span class="kw">fn </span>test_discards_on_missing_contexts_map() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             ..Default::default()
         });
 
@@ -2439,8 +2481,10 @@
     </span><span class="kw">fn </span>test_discards_on_missing_context() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts(Object::new())),
             ..Default::default()
         });
@@ -2461,8 +2505,10 @@
     </span><span class="kw">fn </span>test_discards_on_null_context() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(<span class="string">&quot;trace&quot;</span>.to_owned(), Annotated::empty());
@@ -2487,8 +2533,10 @@
     </span><span class="kw">fn </span>test_discards_on_missing_trace_id_in_context() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2518,8 +2566,10 @@
     </span><span class="kw">fn </span>test_discards_on_missing_span_id_in_context() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2550,8 +2600,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_defaults_missing_op_in_context() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
@@ -2608,8 +2658,10 @@
     </span><span class="kw">fn </span>test_allows_transaction_event_without_span_list() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2641,8 +2693,10 @@
     </span><span class="kw">fn </span>test_allows_transaction_event_with_empty_span_list() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2715,8 +2769,10 @@
     </span><span class="kw">fn </span>test_discards_transaction_event_with_nulled_out_span() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2752,8 +2808,10 @@
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_start_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2770,7 +2828,9 @@
                 contexts
             })),
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -2792,8 +2852,10 @@
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_trace_id() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2810,8 +2872,12 @@
                 contexts
             })),
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -2833,8 +2899,10 @@
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_span_id() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
                 contexts.insert(
@@ -2851,8 +2919,12 @@
                 contexts
             })),
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
                 ..Default::default()
             })]),
@@ -2873,8 +2945,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_defaults_transaction_event_with_span_with_missing_op() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
@@ -2897,8 +2969,12 @@
                 contexts
             })),
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).into()),
-                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
                 span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
 
@@ -3746,4 +3822,4 @@
     </span>);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

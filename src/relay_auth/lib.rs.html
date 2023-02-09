@@ -903,7 +903,7 @@
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use </span>chrono::{DateTime, Duration, TimeZone, Utc};
+<span class="kw">use </span>chrono::{DateTime, Duration, Utc};
 <span class="kw">use </span>data_encoding::BASE64URL_NOPAD;
 <span class="kw">use </span>hmac::{Hmac, Mac};
 <span class="kw">use </span>rand::{rngs::OsRng, thread_rng, RngCore};
@@ -1377,7 +1377,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(max_age) = max_age {
             <span class="kw">let </span>secs = state.timestamp().as_secs() <span class="kw">as </span>i64;
-            <span class="kw">if </span>Utc.timestamp(secs, <span class="number">0</span>) + max_age &lt; Utc::now() {
+            <span class="kw">if </span>secs + max_age.num_seconds() &lt; Utc::now().timestamp() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(UnpackError::SignatureExpired);
             }
         }
@@ -1792,4 +1792,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_auth" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_auth" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

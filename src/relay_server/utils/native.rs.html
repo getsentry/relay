@@ -222,6 +222,11 @@
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
 <a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.
 //!
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
@@ -424,8 +429,13 @@
 
     <span class="comment">// Use the minidump&#39;s timestamp as the event&#39;s primary time. This timestamp can lie multiple
     // days in the past, in which case the event may be rejected in store normalization.
-    </span><span class="kw">let </span>timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), <span class="number">0</span>);
-    event.timestamp.set_value(<span class="prelude-val">Some</span>(timestamp.into()));
+    </span><span class="kw">let </span>timestamp = Utc
+        .timestamp_opt(minidump.header.time_date_stamp.into(), <span class="number">0</span>)
+        .latest();
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(timestamp) = timestamp {
+        event.timestamp.set_value(<span class="prelude-val">Some</span>(timestamp.into()));
+    }
 
     <span class="comment">// Write annotations from the crashpad info stream, but skip gracefully on error. Annotations
     // are non-essential to processing.
@@ -446,4 +456,4 @@
     write_native_placeholder(event, placeholder);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

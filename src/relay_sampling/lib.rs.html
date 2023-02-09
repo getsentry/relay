@@ -2821,6 +2821,9 @@
 <a href="#2820" id="2820">2820</a>
 <a href="#2821" id="2821">2821</a>
 <a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -4858,9 +4861,12 @@
 
         <span class="macro">assert_eq!</span>(
             time_range.start,
-            <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">2022</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>))
+            <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">2022</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap())
         );
-        <span class="macro">assert_eq!</span>(time_range.end, <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">2022</span>, <span class="number">10</span>, <span class="number">20</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)));
+        <span class="macro">assert_eq!</span>(
+            time_range.end,
+            <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">2022</span>, <span class="number">10</span>, <span class="number">20</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap())
+        );
         <span class="macro">assert_eq!</span>(decaying_function, DecayingFunction::Constant);
     }
 
@@ -5248,8 +5254,8 @@
                     ty: <span class="kw-2">*</span>rule_type,
                     id: RuleId(<span class="number">1</span>),
                     time_range: TimeRange {
-                        start: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
-                        end: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                        start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+                        end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -5260,8 +5266,8 @@
                     ty: <span class="kw-2">*</span>rule_type,
                     id: RuleId(<span class="number">2</span>),
                     time_range: TimeRange {
-                        start: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
-                        end: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">15</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                        start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+                        end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">15</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -5272,8 +5278,8 @@
                     ty: <span class="kw-2">*</span>rule_type,
                     id: RuleId(<span class="number">3</span>),
                     time_range: TimeRange {
-                        start: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
-                        end: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                        start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+                        end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -5284,8 +5290,8 @@
                     ty: <span class="kw-2">*</span>rule_type,
                     id: RuleId(<span class="number">4</span>),
                     time_range: TimeRange {
-                        start: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
-                        end: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                        start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+                        end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
                     },
                     decaying_fn: DecayingFunction::Constant,
                 },
@@ -5351,12 +5357,12 @@
 
         <span class="kw">let </span>ranges = <span class="macro">vec!</span>[
             TimeRange {
-                start: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
                 end: <span class="prelude-val">None</span>,
             },
             TimeRange {
                 start: <span class="prelude-val">None</span>,
-                end: <span class="prelude-val">Some</span>(Utc.ymd(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)),
+                end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
             },
             TimeRange {
                 start: <span class="prelude-val">None</span>,
@@ -5644,4 +5650,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

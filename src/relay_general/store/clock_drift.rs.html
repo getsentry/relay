@@ -300,6 +300,9 @@
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
@@ -408,7 +411,7 @@
     <span class="doccomment">/// Processes the given [`DateTime`].
     </span><span class="kw">pub fn </span>process_datetime(<span class="kw-2">&amp;</span><span class="self">self</span>, datetime: <span class="kw-2">&amp;mut </span>DateTime&lt;Utc&gt;) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(correction) = <span class="self">self</span>.correction {
-            <span class="kw-2">*</span>datetime = <span class="kw-2">*</span>datetime + correction.drift;
+            <span class="kw-2">*</span>datetime += correction.drift;
         }
     }
 }
@@ -489,8 +492,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_sent_at() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
         <span class="kw">let </span>now = end;
 
         <span class="comment">// No information on delay, do not default to anything.
@@ -505,8 +508,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_clock_drift() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
 
         <span class="kw">let </span>now = end;
 
@@ -522,8 +525,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_clock_drift_lower_bound() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
 
         <span class="kw">let </span>drift = SignedDuration::minutes(<span class="number">1</span>);
         <span class="kw">let </span>now = end + drift;
@@ -541,8 +544,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_clock_drift_from_past() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
 
         <span class="kw">let </span>drift = SignedDuration::days(<span class="number">1</span>);
         <span class="kw">let </span>now = end + drift;
@@ -559,8 +562,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_clock_drift_from_future() {
-        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
 
         <span class="kw">let </span>drift = -SignedDuration::seconds(<span class="number">60</span>);
         <span class="kw">let </span>now = end + drift;
@@ -577,7 +580,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_clock_drift_unix() {
-        <span class="kw">let </span>sent_at = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>sent_at = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
         <span class="kw">let </span>drift = SignedDuration::days(<span class="number">1</span>);
         <span class="kw">let </span>now = sent_at + drift;
 
@@ -590,16 +593,19 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_process_datetime() {
-        <span class="kw">let </span>sent_at = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>sent_at = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
         <span class="kw">let </span>drift = SignedDuration::days(<span class="number">1</span>);
         <span class="kw">let </span>now = sent_at + drift;
 
         <span class="kw">let </span>processor = ClockDriftProcessor::new(<span class="prelude-val">Some</span>(sent_at), now);
-        <span class="kw">let </span><span class="kw-2">mut </span>datetime = Utc.ymd(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">29</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>datetime = Utc.with_ymd_and_hms(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">29</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
         processor.process_datetime(<span class="kw-2">&amp;mut </span>datetime);
 
-        <span class="macro">assert_eq!</span>(datetime, Utc.ymd(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">30</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>));
+        <span class="macro">assert_eq!</span>(
+            datetime,
+            Utc.with_ymd_and_hms(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">30</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()
+        );
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

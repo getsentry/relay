@@ -685,62 +685,6 @@
 <a href="#684" id="684">684</a>
 <a href="#685" id="685">685</a>
 <a href="#686" id="686">686</a>
-<a href="#687" id="687">687</a>
-<a href="#688" id="688">688</a>
-<a href="#689" id="689">689</a>
-<a href="#690" id="690">690</a>
-<a href="#691" id="691">691</a>
-<a href="#692" id="692">692</a>
-<a href="#693" id="693">693</a>
-<a href="#694" id="694">694</a>
-<a href="#695" id="695">695</a>
-<a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::time::Duration;
 
@@ -981,35 +925,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_skip_exclusive_time() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455604</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455603</span>, <span class="number">500_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455603</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455604</span>, <span class="number">877_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
@@ -1047,35 +987,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_childless_spans() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455604</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455603</span>, <span class="number">500_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455603</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455604</span>, <span class="number">877_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
@@ -1106,39 +1042,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_nested_spans() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">200_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">800_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">400_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">600_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
@@ -1169,39 +1097,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_overlapping_child_spans() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">200_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">600_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">400_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">800_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
@@ -1232,39 +1152,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_child_spans_dont_intersect_parent() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">400_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">400_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">800_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">600_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">200_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">600_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
@@ -1295,39 +1207,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_child_spans_extend_beyond_parent() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">800_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">400_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">600_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">200_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
@@ -1358,39 +1262,31 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_child_spans_consumes_all_of_parent() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">800_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">600_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">400_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">200_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
@@ -1421,27 +1317,23 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_only_immediate_child_spans_affect_calculation() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
-            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
+            Utc.timestamp_opt(<span class="number">1609455600</span>, <span class="number">0</span>).unwrap().into(),
+            Utc.timestamp_opt(<span class="number">1609455605</span>, <span class="number">0</span>).unwrap().into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">0</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">0</span>).unwrap().into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
                 make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">600_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455602</span>, <span class="number">200_000_000</span>).unwrap().into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
@@ -1450,12 +1342,8 @@
                 </span>make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .into(),
-                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">400_000_000</span>).unwrap().into(),
+                    Utc.timestamp_opt(<span class="number">1609455601</span>, <span class="number">800_000_000</span>).unwrap().into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
@@ -1484,4 +1372,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
