@@ -266,7 +266,7 @@
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>BrowserContext {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>user_agent::ClientHints) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>user_agent::ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>(browser, version) = browser_from_client_hints(client_hints.sec_ch_ua<span class="question-mark">?</span>)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{

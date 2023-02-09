@@ -125,6 +125,8 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.
 </span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
@@ -136,6 +138,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, IpAddr};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Meta, ProcessingResult, SpanAttribute};
+<span class="kw">use </span><span class="kw">crate</span>::user_agent::ClientHints;
 
 <span class="kw">mod </span>clock_drift;
 <span class="kw">mod </span>event_error;
@@ -165,6 +168,7 @@
     <span class="kw">pub </span>protocol_version: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>grouping_config: <span class="prelude-ty">Option</span>&lt;Value&gt;,
     <span class="kw">pub </span>user_agent: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="kw">pub </span>client_hints: ClientHints&lt;String&gt;,
     <span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     <span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 

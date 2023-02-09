@@ -535,7 +535,7 @@
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>DeviceContext {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>device = client_hints.sec_ch_ua_model<span class="question-mark">?</span>.to_owned();
 
         <span class="kw">if </span>device.trim().is_empty() {

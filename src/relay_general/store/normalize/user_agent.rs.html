@@ -357,7 +357,7 @@
 <span class="kw">pub fn </span>normalize_user_agent_info_generic(
     contexts: <span class="kw-2">&amp;mut </span>Contexts,
     platform: <span class="kw-2">&amp;</span>Annotated&lt;String&gt;,
-    user_agent_info: <span class="kw-2">&amp;</span>RawUserAgentInfo,
+    user_agent_info: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
 ) {
     <span class="kw">if </span>!contexts.contains_key(BrowserContext::default_key()) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {

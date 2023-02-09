@@ -2438,6 +2438,54 @@
 <a href="#2437" id="2437">2437</a>
 <a href="#2438" id="2438">2438</a>
 <a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2456,15 +2504,15 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     <span class="self">self</span>, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
-    VALID_PLATFORMS,
+    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 <span class="kw">use </span><span class="kw">crate</span>::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
+<span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
 
 <span class="kw">pub mod </span>breakdowns;
 <span class="kw">mod </span>contexts;
@@ -3008,7 +3056,7 @@
 </span><span class="kw">fn </span>normalize_security_report(
     event: <span class="kw-2">&amp;mut </span>Event,
     client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>IpAddr&gt;,
-    user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
 ) {
     <span class="kw">if </span>!is_security_report(event) {
         <span class="comment">// This event is not a security report, exit here.
@@ -3022,23 +3070,16 @@
         user.ip_address = Annotated::new(client_ip.to_owned());
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = user_agent {
-        <span class="kw">let </span>request = event
+    <span class="kw">if </span>!user_agent.is_empty() {
+        <span class="kw">let </span>headers = event
             .request
             .value_mut()
-            .get_or_insert_with(Request::default);
-
-        <span class="kw">let </span>headers = request
+            .get_or_insert_with(Request::default)
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
 
-        <span class="kw">if </span>!headers.contains(<span class="string">&quot;User-Agent&quot;</span>) {
-            headers.insert(
-                HeaderName::new(<span class="string">&quot;User-Agent&quot;</span>),
-                Annotated::new(HeaderValue::new(client)),
-            );
-        }
+        user_agent.populate_event_headers(headers);
     }
 }
 
@@ -3109,7 +3150,7 @@
 <span class="attr">#[derive(Default, Debug)]
 </span><span class="kw">pub struct </span>LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
-    <span class="kw">pub </span>user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
     <span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     <span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
     <span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
@@ -3144,7 +3185,7 @@
         </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
         <span class="comment">// Process security reports first to ensure all props.
-        </span>normalize_security_report(event, config.client_ip, config.user_agent);
+        </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
 
         <span class="comment">// Insert IP addrs before recursing, since geo lookup depends on it.
         </span>normalize_ip_addresses(event, config.client_ip);
@@ -3442,11 +3483,12 @@
 
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
         Span, SpanId, TagEntry, TraceId, Values,
     };
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{get_path, get_value};
     <span class="kw">use </span><span class="kw">crate</span>::types::{FromValue, SerializableAnnotated};
+    <span class="kw">use </span><span class="kw">crate</span>::user_agent::ClientHints;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -4875,6 +4917,60 @@
             ),
         )
         &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_normalize_security_report() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+            csp: Annotated::from(Csp::default()),
+            ..Default::default()
+        };
+        <span class="kw">let </span>ipaddr = IpAddr(<span class="string">&quot;213.164.1.114&quot;</span>.to_string());
+
+        <span class="kw">let </span>client_ip = <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ipaddr);
+        <span class="kw">let </span>user_agent = RawUserAgentInfo::new_test_dummy();
+
+        <span class="comment">// This call should fill the event headers with info from the user_agent which is
+        // tested below.
+        </span>normalize_security_report(<span class="kw-2">&amp;mut </span>event, client_ip, <span class="kw-2">&amp;</span>user_agent);
+
+        <span class="kw">let </span>headers = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default)
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        <span class="macro">assert_eq!</span>(
+            event.user.value().unwrap().ip_address,
+            Annotated::from(ipaddr)
+        );
+        <span class="macro">assert_eq!</span>(
+            headers.get_header(RawUserAgentInfo::USER_AGENT),
+            user_agent.user_agent
+        );
+        <span class="macro">assert_eq!</span>(
+            headers.get_header(ClientHints::SEC_CH_UA),
+            user_agent.client_hints.sec_ch_ua,
+        );
+        <span class="macro">assert_eq!</span>(
+            headers.get_header(ClientHints::SEC_CH_UA_MODEL),
+            user_agent.client_hints.sec_ch_ua_model,
+        );
+        <span class="macro">assert_eq!</span>(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM),
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        <span class="macro">assert_eq!</span>(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM_VERSION),
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+
+        <span class="macro">assert!</span>(
+            std::mem::size_of_val(<span class="kw-2">&amp;</span>ClientHints::&lt;<span class="kw-2">&amp;</span>str&gt;::default()) == <span class="number">64</span>,
+            <span class="string">&quot;If you add new fields, update the test accordingly&quot;
+        </span>);
     }
 }
 </code></pre></div>

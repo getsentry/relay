@@ -302,6 +302,10 @@
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
 </pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -324,6 +328,7 @@
     light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 <span class="kw">use </span>relay_general::types::{Annotated, Remark};
+<span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_sampling::{RuleCondition, SamplingConfig};
 
 <span class="kw">use </span><span class="kw">crate</span>::core::{RelayBuf, RelayStr};
@@ -416,7 +421,10 @@
     <span class="kw">let </span>config = (<span class="kw-2">*</span>processor).config();
     <span class="kw">let </span>light_normalization_config = LightNormalizationConfig {
         client_ip: config.client_ip.as_ref(),
-        user_agent: config.user_agent.as_deref(),
+        user_agent: RawUserAgentInfo {
+            user_agent: config.user_agent.as_deref(),
+            client_hints: config.client_hints.as_deref(),
+        },
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,

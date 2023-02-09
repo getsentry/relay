@@ -3249,7 +3249,19 @@
 <a href="#3248" id="3248">3248</a>
 <a href="#3249" id="3249">3249</a>
 <a href="#3250" id="3250">3250</a>
+<a href="#3251" id="3251">3251</a>
+<a href="#3252" id="3252">3252</a>
+<a href="#3253" id="3253">3253</a>
+<a href="#3254" id="3254">3254</a>
+<a href="#3255" id="3255">3255</a>
+<a href="#3256" id="3256">3256</a>
+<a href="#3257" id="3257">3257</a>
+<a href="#3258" id="3258">3258</a>
+<a href="#3259" id="3259">3259</a>
+<a href="#3260" id="3260">3260</a>
+<a href="#3261" id="3261">3261</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4346,7 +4358,6 @@
         <span class="kw">let </span>context = <span class="kw-2">&amp;</span>state.envelope_context;
         <span class="kw">let </span>meta = state.envelope.meta().clone();
         <span class="kw">let </span>client_addr = meta.client_addr();
-        <span class="kw">let </span>user_agent = meta.user_agent();
         <span class="kw">let </span>event_id = state.envelope.event_id();
 
         <span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
@@ -4359,7 +4370,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>scrubber =
             RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
-        state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        <span class="kw">let </span>user_agent = <span class="kw-2">&amp;</span>RawUserAgentInfo {
+            user_agent: meta.user_agent(),
+            client_hints: meta.client_hints().as_deref(),
+        };
+
+        state.envelope.retain_items(<span class="kw">move </span>|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
                 <span class="kw">if </span>!replays_enabled {
                     <span class="kw">return </span><span class="bool-val">false</span>;
@@ -4465,7 +4481,7 @@
         payload: <span class="kw-2">&amp;</span>Bytes,
         config: <span class="kw-2">&amp;</span>ProjectConfig,
         client_ip: <span class="prelude-ty">Option</span>&lt;NetIPAddr&gt;,
-        user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+        user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Replay&gt;, ReplayError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>replay =
             Annotated::&lt;Replay&gt;::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)<span class="question-mark">?</span>;
@@ -5087,6 +5103,7 @@
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            client_hints: envelope.meta().client_hints().to_owned(),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>store_processor = StoreProcessor::new(store_config, <span class="self">self</span>.geoip_lookup.as_ref());
@@ -5383,10 +5400,15 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+        <span class="kw">let </span>request_meta = state.envelope.meta();
+        <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+
         <span class="kw">let </span>config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent: state.envelope.meta().user_agent(),
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
             received_at: <span class="prelude-val">Some</span>(state.envelope_context.received_at()),
             max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_past()),
             max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_future()),

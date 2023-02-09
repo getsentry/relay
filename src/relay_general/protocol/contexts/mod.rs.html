@@ -412,10 +412,10 @@
 /// With an automatically derived function which tries to first get the context from client hints,
 /// if that fails it tries for the user agent string.
 </span><span class="kw">pub trait </span>FromUserAgentInfo: Sized {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
+    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
     <span class="kw">fn </span>from_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
 
-    <span class="kw">fn </span>from_hints_or_ua(raw_info: <span class="kw-2">&amp;</span>RawUserAgentInfo) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>from_hints_or_ua(raw_info: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="self">Self</span>::from_client_hints(<span class="kw-2">&amp;</span>raw_info.client_hints)
             .or_else(|| raw_info.user_agent.and_then(<span class="self">Self</span>::from_user_agent))
     }
