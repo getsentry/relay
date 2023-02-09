@@ -44,7 +44,7 @@ impl<'r> TransactionsProcessor<'r> {
             transaction.apply(|transaction, meta| {
                 let result = self.tx_name_rules.iter().find_map(|rule| {
                     rule.match_and_apply(Cow::Borrowed(transaction), info)
-                        .map(|applied_result| (rule.pattern.pattern(), applied_result))
+                        .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
                 });
 
                 if let Some((rule, result)) = result {
@@ -410,10 +410,9 @@ mod tests {
     use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
-    use relay_common::Glob;
-
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
+    use crate::store::LazyGlob;
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
@@ -1502,29 +1501,20 @@ mod tests {
         "#;
 
         let rule1 = TransactionNameRule {
-            pattern: Glob::builder("/foo/*/user/*/**")
-                .capture_double_star(false)
-                .capture_question_mark(false)
-                .build(),
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
         };
         let rule2 = TransactionNameRule {
-            pattern: Glob::builder("/foo/*/**")
-                .capture_double_star(false)
-                .capture_question_mark(false)
-                .build(),
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule3 = TransactionNameRule {
-            pattern: Glob::builder("/*/**")
-                .capture_double_star(false)
-                .capture_question_mark(false)
-                .build(),
+            pattern: LazyGlob::new("/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
@@ -1658,14 +1648,14 @@ mod tests {
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
         let rule1 = TransactionNameRule {
-            pattern: Glob::new("/foo/*/**"),
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule2 = TransactionNameRule {
-            pattern: Glob::new("/*/**"),
+            pattern: LazyGlob::new("/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
@@ -1729,10 +1719,7 @@ mod tests {
         "#;
 
         let rule = TransactionNameRule {
-            pattern: Glob::builder("/foo/*/**")
-                .capture_double_star(false)
-                .capture_question_mark(false)
-                .build(),
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),

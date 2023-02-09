@@ -17,8 +17,8 @@ use bytes::Bytes;
 use futures01::{future, sync::oneshot, Future as _};
 use once_cell::sync::Lazy;
 
-use relay_common::GlobMatcher;
 use relay_config::Config;
+use relay_general::utils::GlobMatcher;
 use relay_log::LogError;
 
 use crate::actors::upstream::{

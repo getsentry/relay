@@ -136,14 +136,12 @@ impl ServiceState {
         let outcome_runtime = create_runtime("outcome-rt", 1);
         let mut _store_runtime = None;
 
-        let guard = upstream_runtime.enter();
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        drop(guard);
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
 
-        let guard = outcome_runtime.enter();
-        let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
-        drop(guard);
+        let outcome_producer =
+            OutcomeProducerService::create(config.clone())?.start_in(&outcome_runtime);
+        let outcome_aggregator =
+            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -160,8 +158,7 @@ impl ServiceState {
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
             let rt = create_runtime("store-rt", 1);
-            let _guard = rt.enter();
-            let store = StoreService::create(config.clone())?.start();
+            let store = StoreService::create(config.clone())?.start_in(&rt);
             envelope_manager.set_store_forwarder(store);
             _store_runtime = Some(rt);
         }
@@ -169,9 +166,8 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let guard = project_runtime.enter();
-        let project_cache = ProjectCacheService::new(config.clone(), redis_pool).start();
-        drop(guard);
+        let project_cache =
+            ProjectCacheService::new(config.clone(), redis_pool).start_in(&project_runtime);
 
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
@@ -182,13 +178,11 @@ impl ServiceState {
             }
         }
 
-        let guard = aggregator_runtime.enter();
         let aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             Some(project_cache.clone().recipient()),
         )
-        .start();
-        drop(guard);
+        .start_in(&aggregator_runtime);
 
         REGISTRY
             .set(Box::new(Registry {

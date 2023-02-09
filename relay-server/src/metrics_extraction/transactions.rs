@@ -376,13 +376,22 @@ pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
-    target: &mut Vec<Metric>,
+    project_metrics: &mut Vec<Metric>,
+    sampling_metrics: &mut Vec<Metric>,
+    transaction_from_dsc: Option<&str>,
 ) -> Result<bool, ExtractMetricsError> {
-    let before_len = target.len();
+    let before_len = project_metrics.len();
 
-    extract_transaction_metrics_inner(aggregator_config, config, event, target)?;
+    extract_transaction_metrics_inner(
+        aggregator_config,
+        config,
+        event,
+        transaction_from_dsc,
+        project_metrics,
+        sampling_metrics,
+    )?;
 
-    let added_slice = &mut target[before_len..];
+    let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
     Ok(!added_slice.is_empty())
 }
@@ -391,7 +400,9 @@ fn extract_transaction_metrics_inner(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     event: &Event,
-    metrics: &mut Vec<Metric>, // output parameter
+    transaction_from_dsc: Option<&str>,
+    metrics: &mut Vec<Metric>,          // output parameter
+    sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
@@ -497,6 +508,19 @@ fn extract_transaction_metrics_inner(
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags_with_satisfaction.clone(),
+    ));
+
+    // Count the transaction towards the root
+    sampling_metrics.push(Metric::new_mri(
+        METRIC_NAMESPACE,
+        "count_per_root_project",
+        MetricUnit::None,
+        MetricValue::Counter(1.0),
+        timestamp,
+        match transaction_from_dsc {
+            Some(name) => BTreeMap::from([("transaction".to_owned(), name.to_owned())]),
+            None => BTreeMap::new(),
+        },
     ));
 
     // User
@@ -700,12 +724,15 @@ mod tests {
         assert!(res.is_ok());
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -837,12 +864,15 @@ mod tests {
         assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -925,12 +955,15 @@ mod tests {
         assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1000,12 +1033,15 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1065,12 +1101,15 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         assert_eq!(metrics.len(), 2);
@@ -1124,12 +1163,15 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
@@ -1193,12 +1235,15 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1274,12 +1319,15 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1380,12 +1428,15 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1463,12 +1514,15 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
@@ -1507,12 +1561,15 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1542,12 +1599,15 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1586,12 +1646,15 @@ mod tests {
         });
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         let result = extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         );
 
         assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
@@ -1607,12 +1670,15 @@ mod tests {
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1963,12 +2029,15 @@ mod tests {
         let _ = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
+            Some("test_transaction"),
         )
         .unwrap();
 

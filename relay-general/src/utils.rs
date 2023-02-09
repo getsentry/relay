@@ -4,7 +4,7 @@ use std::str;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
-use crate::macros::impl_str_serde;
+use relay_common::impl_str_serde;
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]

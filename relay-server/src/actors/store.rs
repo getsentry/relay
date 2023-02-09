@@ -955,7 +955,6 @@ struct MetricKafkaMessage {
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     tags: BTreeMap<String, String>,
     retention_days: u16,
 }

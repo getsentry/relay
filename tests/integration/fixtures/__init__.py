@@ -42,7 +42,7 @@ class SentryLike(object):
     def get_dsn_public_key(self, project_id, idx=0):
         """
         Returns a dsn key for a project.
-        By default it returns the first configured dsn key, if idx is specified
+        By default, it returns the first configured dsn key, if idx is specified
         it tries to return the key at the specified index.
         If the index is beyond the number of  available dsn_keys for the project it raises
 
@@ -177,7 +177,13 @@ class SentryLike(object):
             item.headers = {**item.headers, **item_headers}
         self.send_envelope(project_id, envelope)
 
-    def send_transaction(self, project_id, payload, item_headers=None):
+    def send_transaction(
+        self,
+        project_id,
+        payload,
+        item_headers=None,
+        trace_info=None,
+    ):
         envelope = Envelope()
         envelope.add_transaction(payload)
         if item_headers:
@@ -187,10 +193,12 @@ class SentryLike(object):
         if envelope.headers is None:
             envelope.headers = {}
 
-        trace_info = {
-            "trace_id": payload["contexts"]["trace"]["trace_id"],
-            "public_key": self.get_dsn_public_key(project_id),
-        }
+        if trace_info is None:
+            trace_info = {
+                "trace_id": payload["contexts"]["trace"]["trace_id"],
+                "public_key": self.get_dsn_public_key(project_id),
+            }
+
         envelope.headers["trace"] = trace_info
 
         self.send_envelope(project_id, envelope)

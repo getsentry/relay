@@ -5,6 +5,7 @@ use std::thread::JoinHandle;
 /// Garbage disposal agent.
 ///
 /// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].
+#[derive(Debug)]
 pub struct GarbageDisposal<T> {
     tx: mpsc::Sender<T>,
     queue_size: Arc<AtomicUsize>,

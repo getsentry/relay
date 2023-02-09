@@ -16,15 +16,15 @@ use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
-    VALID_PLATFORMS,
+    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
+use crate::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
 mod contexts;
@@ -252,9 +252,12 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// measurements is retained.
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
+    meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
 ) {
     let mut custom_measurements_count = 0;
+    let mut removed_measurements = Object::new();
+
     measurements.retain(|name, value| {
         let measurement = match value.value() {
             Some(m) => m,
@@ -279,8 +282,18 @@ fn remove_invalid_measurements(
             return true;
         }
 
+        // Retain payloads in _meta just for excessive custom measurements.
+        if let Some(measurement) = value.value_mut().take() {
+            removed_measurements.insert(name.clone(), Annotated::new(measurement));
+        }
+
         false
     });
+
+    if !removed_measurements.is_empty() {
+        meta.add_error(Error::invalid("too many measurements"));
+        meta.set_original_value(Some(removed_measurements));
+    }
 }
 
 /// Returns the unit of the provided metric.
@@ -339,10 +352,10 @@ fn normalize_measurements(event: &mut Event, measurements_config: Option<&Measur
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
-    } else if let Some(measurements) = event.measurements.value_mut() {
+    } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, measurements_config);
+            remove_invalid_measurements(measurements, meta, measurements_config);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -555,7 +568,7 @@ fn is_security_report(event: &Event) -> bool {
 fn normalize_security_report(
     event: &mut Event,
     client_ip: Option<&IpAddr>,
-    user_agent: Option<&str>,
+    user_agent: &RawUserAgentInfo<&str>,
 ) {
     if !is_security_report(event) {
         // This event is not a security report, exit here.
@@ -569,23 +582,16 @@ fn normalize_security_report(
         user.ip_address = Annotated::new(client_ip.to_owned());
     }
 
-    if let Some(client) = user_agent {
-        let request = event
+    if !user_agent.is_empty() {
+        let headers = event
             .request
             .value_mut()
-            .get_or_insert_with(Request::default);
-
-        let headers = request
+            .get_or_insert_with(Request::default)
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
 
-        if !headers.contains("User-Agent") {
-            headers.insert(
-                HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(client)),
-            );
-        }
+        user_agent.populate_event_headers(headers);
     }
 }
 
@@ -656,7 +662,7 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
-    pub user_agent: Option<&'a str>,
+    pub user_agent: RawUserAgentInfo<&'a str>,
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
@@ -691,7 +697,7 @@ pub fn light_normalize_event(
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, config.user_agent);
+        normalize_security_report(event, config.client_ip, &config.user_agent);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(event, config.client_ip);
@@ -989,11 +995,12 @@ mod tests {
 
     use crate::processor::process_value;
     use crate::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
         Span, SpanId, TagEntry, TraceId, Values,
     };
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
+    use crate::user_agent::ClientHints;
 
     use super::*;
 
@@ -2184,6 +2191,26 @@ mod tests {
               "unit": "none",
             },
           },
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "too many measurements",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "my_custom_measurement_3": {
+                    "unit": "none",
+                    "value": 456.0,
+                  },
+                }),
+              ))),
+            },
+          },
         }
         "###);
     }
@@ -2402,5 +2429,59 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_normalize_security_report() {
+        let mut event = Event {
+            csp: Annotated::from(Csp::default()),
+            ..Default::default()
+        };
+        let ipaddr = IpAddr("213.164.1.114".to_string());
+
+        let client_ip = Some(&ipaddr);
+        let user_agent = RawUserAgentInfo::new_test_dummy();
+
+        // This call should fill the event headers with info from the user_agent which is
+        // tested below.
+        normalize_security_report(&mut event, client_ip, &user_agent);
+
+        let headers = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default)
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        assert_eq!(
+            event.user.value().unwrap().ip_address,
+            Annotated::from(ipaddr)
+        );
+        assert_eq!(
+            headers.get_header(RawUserAgentInfo::USER_AGENT),
+            user_agent.user_agent
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA),
+            user_agent.client_hints.sec_ch_ua,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_MODEL),
+            user_agent.client_hints.sec_ch_ua_model,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM),
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM_VERSION),
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+
+        assert!(
+            std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
+            "If you add new fields, update the test accordingly"
+        );
     }
 }

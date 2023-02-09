@@ -526,6 +526,7 @@ pub enum OutcomeError {
 }
 
 /// Outcome producer backend via HTTP as [`TrackRawOutcome`].
+#[derive(Debug)]
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
@@ -603,6 +604,7 @@ impl Service for HttpOutcomeProducer {
 }
 
 /// Outcome producer backend via HTTP as [`ClientReport`].
+#[derive(Debug)]
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
@@ -703,6 +705,7 @@ impl Service for ClientReportOutcomeProducer {
 /// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
 /// producer instance internally.
 #[cfg(feature = "processing")]
+#[derive(Debug)]
 struct KafkaOutcomesProducer {
     client: KafkaClient,
 }
@@ -729,14 +732,6 @@ impl KafkaOutcomesProducer {
             client: client_builder.build(),
         })
     }
-}
-
-enum ProducerInner {
-    AsClientReports(Addr<TrackOutcome>),
-    AsHttpOutcomes(Addr<TrackRawOutcome>),
-    #[cfg(feature = "processing")]
-    AsKafkaOutcomes(KafkaOutcomesProducer),
-    Disabled,
 }
 
 /// Produces [`Outcome`]s to a configurable backend.
@@ -781,51 +776,28 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
     }
 }
 
-/// Service implementing the [`OutcomeProducer`] interface.
-pub struct OutcomeProducerService {
-    config: Arc<Config>,
-    producer: ProducerInner,
+fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+    metric!(
+        counter(RelayCounters::Outcomes) += 1,
+        reason = message.reason().as_deref().unwrap_or(""),
+        outcome = message.tag_name(),
+        to = to,
+    );
 }
 
-impl OutcomeProducerService {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
-        let producer = match config.emit_outcomes() {
-            EmitOutcomes::AsOutcomes => {
-                // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
-                // relays.
-                if config.processing_enabled() {
-                    #[cfg(feature = "processing")]
-                    {
-                        ProducerInner::AsKafkaOutcomes(KafkaOutcomesProducer::create(&config)?)
-                    }
+#[derive(Debug)]
+enum OutcomeBroker {
+    ClientReport(Addr<TrackOutcome>),
+    Http(Addr<TrackRawOutcome>),
+    #[cfg(feature = "processing")]
+    Kafka(KafkaOutcomesProducer),
+    Disabled,
+}
 
-                    #[cfg(not(feature = "processing"))]
-                    unreachable!("config parsing should have failed")
-                } else {
-                    relay_log::info!("Configured to emit outcomes via http");
-                    ProducerInner::AsHttpOutcomes(
-                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(),
-                    )
-                }
-            }
-            EmitOutcomes::AsClientReports => {
-                // We emit outcomes as client reports, and we do not
-                // accept any raw outcomes
-                relay_log::info!("Configured to emit outcomes as client reports");
-                ProducerInner::AsClientReports(ClientReportOutcomeProducer::create(&config).start())
-            }
-            EmitOutcomes::None => {
-                relay_log::info!("Configured to drop all outcomes");
-                ProducerInner::Disabled
-            }
-        };
-
-        Ok(Self { config, producer })
-    }
-
-    fn handle_message(&mut self, message: OutcomeProducer) {
+impl OutcomeBroker {
+    fn handle_message(&self, message: OutcomeProducer, config: &Config) {
         match message {
-            OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg),
+            OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg, config),
             OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
         }
     }
@@ -868,68 +840,119 @@ impl OutcomeProducerService {
         }
     }
 
-    fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
-        metric!(
-            counter(RelayCounters::Outcomes) += 1,
-            reason = message.reason().as_deref().unwrap_or(""),
-            outcome = message.tag_name(),
-            to = to,
-        );
-    }
-
-    fn handle_track_outcome(&mut self, message: TrackOutcome) {
-        match &self.producer {
+    fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {
+        match self {
             #[cfg(feature = "processing")]
-            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
-                Self::send_outcome_metric(&message, "kafka");
+            Self::Kafka(kafka_producer) => {
+                send_outcome_metric(&message, "kafka");
                 let organization_id = message.scoping.organization_id;
-                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
+                let raw_message = TrackRawOutcome::from_outcome(message, config);
                 if let Err(error) =
                     self.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
-            ProducerInner::AsClientReports(ref producer) => {
-                Self::send_outcome_metric(&message, "client_report");
+            Self::ClientReport(producer) => {
+                send_outcome_metric(&message, "client_report");
                 producer.send(message);
             }
-            ProducerInner::AsHttpOutcomes(ref producer) => {
-                Self::send_outcome_metric(&message, "http");
-                producer.send(TrackRawOutcome::from_outcome(message, &self.config));
+            Self::Http(producer) => {
+                send_outcome_metric(&message, "http");
+                producer.send(TrackRawOutcome::from_outcome(message, config));
             }
-            ProducerInner::Disabled => (),
+            Self::Disabled => (),
         }
     }
 
-    fn handle_track_raw_outcome(&mut self, message: TrackRawOutcome) {
-        match &self.producer {
+    fn handle_track_raw_outcome(&self, message: TrackRawOutcome) {
+        match self {
             #[cfg(feature = "processing")]
-            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
-                Self::send_outcome_metric(&message, "kafka");
+            Self::Kafka(kafka_producer) => {
+                send_outcome_metric(&message, "kafka");
                 let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
-            ProducerInner::AsHttpOutcomes(ref producer) => {
-                Self::send_outcome_metric(&message, "http");
+            Self::Http(producer) => {
+                send_outcome_metric(&message, "http");
                 producer.send(message);
             }
-            ProducerInner::AsClientReports(_) => (),
-            ProducerInner::Disabled => (),
+            Self::ClientReport(_) => (),
+            Self::Disabled => (),
         }
+    }
+}
+
+#[derive(Debug)]
+enum ProducerInner {
+    #[cfg(feature = "processing")]
+    Kafka(KafkaOutcomesProducer),
+    Http(HttpOutcomeProducer),
+    ClientReport(ClientReportOutcomeProducer),
+    Disabled,
+}
+
+impl ProducerInner {
+    fn start(self) -> OutcomeBroker {
+        match self {
+            #[cfg(feature = "processing")]
+            ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
+            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start()),
+            ProducerInner::ClientReport(inner) => OutcomeBroker::ClientReport(inner.start()),
+            ProducerInner::Disabled => OutcomeBroker::Disabled,
+        }
+    }
+}
+
+/// Service implementing the [`OutcomeProducer`] interface.
+#[derive(Debug)]
+pub struct OutcomeProducerService {
+    config: Arc<Config>,
+    inner: ProducerInner,
+}
+
+impl OutcomeProducerService {
+    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
+        let inner = match config.emit_outcomes() {
+            #[cfg(feature = "processing")]
+            EmitOutcomes::AsOutcomes if config.processing_enabled() => {
+                // We emit raw outcomes, and accept raw outcomes emitted by downstream Relays
+                relay_log::info!("Configured to emit outcomes via kafka");
+                ProducerInner::Kafka(KafkaOutcomesProducer::create(&config)?)
+            }
+            EmitOutcomes::AsOutcomes => {
+                relay_log::info!("Configured to emit outcomes via http");
+                ProducerInner::Http(HttpOutcomeProducer::create(Arc::clone(&config))?)
+            }
+            EmitOutcomes::AsClientReports => {
+                // We emit client reports, and we do NOT accept raw outcomes
+                relay_log::info!("Configured to emit outcomes as client reports");
+                ProducerInner::ClientReport(ClientReportOutcomeProducer::create(&config))
+            }
+            EmitOutcomes::None => {
+                relay_log::info!("Configured to drop all outcomes");
+                ProducerInner::Disabled
+            }
+        };
+
+        Ok(Self { config, inner })
     }
 }
 
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let Self { config, inner } = self;
+
         tokio::spawn(async move {
+            let broker = inner.start();
+
             relay_log::info!("OutcomeProducer started.");
             while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+                broker.handle_message(message, &config);
             }
             relay_log::info!("OutcomeProducer stopped.");
         });
