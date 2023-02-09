@@ -173,7 +173,7 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let device = client_hints.sec_ch_ua_model?.to_owned();
 
         if device.trim().is_empty() {

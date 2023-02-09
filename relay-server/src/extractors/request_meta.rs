@@ -7,6 +7,7 @@ use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures01::{future, Future};
+use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -161,7 +162,7 @@ fn make_false() -> bool {
 }
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RequestMeta<D = PartialDsn> {
     /// The DSN describing the target of this envelope.
     dsn: D,
@@ -189,6 +190,9 @@ pub struct RequestMeta<D = PartialDsn> {
     /// The user agent that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
+
+    #[serde(default, skip_serializing_if = "ClientHints::is_empty")]
+    client_hints: ClientHints<String>,
 
     /// A flag that indicates that project options caching should be bypassed.
     #[serde(default = "make_false", skip_serializing_if = "is_false")]
@@ -256,6 +260,10 @@ impl<D> RequestMeta<D> {
         self.user_agent.as_deref()
     }
 
+    pub fn client_hints(&self) -> &ClientHints<String> {
+        &self.client_hints
+    }
+
     /// Indicates that caches should be bypassed.
     pub fn no_cache(&self) -> bool {
         self.no_cache
@@ -280,22 +288,7 @@ impl RequestMeta {
             user_agent: Some(crate::constants::SERVER.to_owned()),
             no_cache: false,
             start_time: Instant::now(),
-        }
-    }
-
-    #[cfg(test)]
-    // TODO: Remove Dsn here?
-    pub fn new(dsn: relay_common::Dsn) -> Self {
-        RequestMeta {
-            dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
-            client: Some("sentry/client".to_string()),
-            version: 7,
-            origin: Some("http://origin/".parse().unwrap()),
-            remote_addr: Some("192.168.0.1".parse().unwrap()),
-            forwarded_for: String::new(),
-            user_agent: Some("sentry/agent".to_string()),
-            no_cache: false,
-            start_time: Instant::now(),
+            client_hints: ClientHints::default(),
         }
     }
 
@@ -363,6 +356,12 @@ pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 impl PartialMeta {
     /// Extracts header information except for auth info.
     fn from_headers<S>(request: &HttpRequest<S>) -> Self {
+        let mut ua = RawUserAgentInfo::default();
+
+        for (key, value) in request.headers() {
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
         RequestMeta {
             dsn: None,
             version: default_version(),
@@ -371,13 +370,10 @@ impl PartialMeta {
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
             forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: request
-                .headers()
-                .get(header::USER_AGENT)
-                .and_then(|h| h.to_str().ok())
-                .map(str::to_owned),
+            user_agent: ua.user_agent,
             no_cache: false,
             start_time: StartTime::extract(request).into_inner(),
+            client_hints: ua.client_hints,
         }
     }
 
@@ -413,6 +409,9 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
+
+        complete.client_hints.copy_from(self.client_hints);
+
         if self.no_cache {
             complete.no_cache = true;
         }
@@ -523,6 +522,7 @@ impl FromRequest<ServiceState> for RequestMeta {
             user_agent: partial_meta.user_agent,
             no_cache: key_flags.contains(&"no-cache"),
             start_time: partial_meta.start_time,
+            client_hints: partial_meta.client_hints,
         })
     }
 }
@@ -569,5 +569,73 @@ impl FromRequest<ServiceState> for EnvelopeMeta {
         });
 
         Ok(Box::new(future))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl RequestMeta {
+        // TODO: Remove Dsn here?
+        pub fn new(dsn: relay_common::Dsn) -> Self {
+            Self {
+                dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
+                client: Some("sentry/client".to_string()),
+                version: 7,
+                origin: Some("http://origin/".parse().unwrap()),
+                remote_addr: Some("192.168.0.1".parse().unwrap()),
+                forwarded_for: String::new(),
+                user_agent: Some("sentry/agent".to_string()),
+                no_cache: false,
+                start_time: Instant::now(),
+                client_hints: ClientHints::default(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_request_meta_roundtrip() {
+        let json = r#"{
+            "dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42",
+            "client": "sentry-client",
+            "version": 7,
+            "origin": "http://origin/",
+            "remote_addr": "192.168.0.1",
+            "forwarded_for": "8.8.8.8",
+            "user_agent": "0x8000",
+            "no_cache": false,
+            "client_hints":  {
+            "sec_ch_ua_platform": "macOS",
+            "sec_ch_ua_platform_version": "13.1.0",
+            "sec_ch_ua": "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
+            }
+        }"#;
+
+        let mut deserialized: RequestMeta = serde_json::from_str(json).unwrap();
+
+        let reqmeta = RequestMeta {
+            dsn: PartialDsn::from_str("https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42")
+                .unwrap(),
+            client: Some("sentry-client".to_owned()),
+            version: 7,
+            origin: Some(Url::parse("http://origin/").unwrap()),
+            remote_addr: Some(IpAddr::from_str("192.168.0.1").unwrap()),
+            forwarded_for: "8.8.8.8".to_string(),
+            user_agent: Some("0x8000".to_string()),
+            no_cache: false,
+            start_time: Instant::now(),
+            client_hints: ClientHints {
+                sec_ch_ua_platform: Some("macOS".to_owned()),
+                sec_ch_ua_platform_version: Some("13.1.0".to_owned()),
+                sec_ch_ua: Some(
+                    "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\""
+                        .to_owned(),
+                ),
+                sec_ch_ua_model: None,
+            },
+        };
+        deserialized.start_time = reqmeta.start_time;
+        assert_eq!(deserialized, reqmeta);
     }
 }

@@ -247,7 +247,11 @@ impl Replay {
         Ok(())
     }
 
-    pub fn normalize(&mut self, client_ip: Option<RealIPAddr>, user_agent: Option<&str>) {
+    pub fn normalize(
+        &mut self,
+        client_ip: Option<RealIPAddr>,
+        user_agent: &RawUserAgentInfo<&str>,
+    ) {
         self.normalize_platform();
         self.normalize_ip_address(client_ip);
         self.normalize_user_agent(user_agent);
@@ -264,7 +268,7 @@ impl Replay {
         }
     }
 
-    fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
+    fn normalize_user_agent(&mut self, default_user_agent: &RawUserAgentInfo<&str>) {
         let headers = match self
             .request
             .value()
@@ -274,14 +278,16 @@ impl Replay {
             None => return,
         };
 
-        let mut user_agent_info = RawUserAgentInfo::from_headers(headers);
+        let user_agent_info = RawUserAgentInfo::from_headers(headers);
 
-        if user_agent_info.user_agent.is_none() {
-            user_agent_info.user_agent = default_user_agent;
-        }
+        let user_agent_info = if user_agent_info.is_empty() {
+            default_user_agent
+        } else {
+            &user_agent_info
+        };
 
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
-        user_agent::normalize_user_agent_info_generic(contexts, &self.platform, &user_agent_info);
+        user_agent::normalize_user_agent_info_generic(contexts, &self.platform, user_agent_info);
     }
 
     fn normalize_platform(&mut self) {
@@ -310,6 +316,7 @@ mod tests {
     };
     use crate::testutils::get_value;
     use crate::types::Annotated;
+    use crate::user_agent::RawUserAgentInfo;
     use chrono::{TimeZone, Utc};
     use std::net::{IpAddr, Ipv4Addr};
 
@@ -416,7 +423,7 @@ mod tests {
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         let replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(None, None);
+        replay_value.normalize(None, &RawUserAgentInfo::default());
 
         let loaded_browser_context = replay_value
             .contexts
@@ -450,7 +457,7 @@ mod tests {
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         let replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(None, None);
+        replay_value.normalize(None, &RawUserAgentInfo::default());
 
         let user = replay_value.user.value();
         assert!(user.is_none());
@@ -466,7 +473,7 @@ mod tests {
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         let replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(Some(ip_address), None);
+        replay_value.normalize(Some(ip_address), &RawUserAgentInfo::default());
 
         let ipaddr = replay_value
             .user
@@ -486,7 +493,7 @@ mod tests {
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         let replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(None, None);
+        replay_value.normalize(None, &RawUserAgentInfo::default());
 
         let user = replay_value.user.value().unwrap();
         assert!(user.ip_address.value().unwrap().as_str() == "127.1.1.1");
