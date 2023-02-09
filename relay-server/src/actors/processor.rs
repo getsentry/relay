@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use relay_general::user_agent::RawUserAgentInfo;
 use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -1095,7 +1096,6 @@ impl EnvelopeProcessorService {
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
-        let user_agent = meta.user_agent();
         let event_id = state.envelope.event_id();
 
         let limit = self.config.max_replay_size();
@@ -1108,7 +1108,12 @@ impl EnvelopeProcessorService {
         let mut scrubber =
             RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
-        state.envelope.retain_items(|item| match item.ty() {
+        let user_agent = &RawUserAgentInfo {
+            user_agent: meta.user_agent(),
+            client_hints: meta.client_hints().as_deref(),
+        };
+
+        state.envelope.retain_items(move |item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
                     return false;
@@ -1214,7 +1219,7 @@ impl EnvelopeProcessorService {
         payload: &Bytes,
         config: &ProjectConfig,
         client_ip: Option<NetIPAddr>,
-        user_agent: Option<&str>,
+        user_agent: &RawUserAgentInfo<&str>,
     ) -> Result<Annotated<Replay>, ReplayError> {
         let mut replay =
             Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
@@ -1836,6 +1841,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            client_hints: envelope.meta().client_hints().to_owned(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -2132,10 +2138,15 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+        let request_meta = state.envelope.meta();
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent: state.envelope.meta().user_agent(),
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),

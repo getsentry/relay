@@ -8,6 +8,7 @@ use relay_general::processor::{process_value, SelectorSpec};
 use relay_general::protocol::{Event, IpAddr};
 use relay_general::store::{StoreConfig, StoreProcessor};
 use relay_general::types::Annotated;
+use relay_general::user_agent::ClientHints;
 
 fn load_all_fixtures() -> Vec<BenchmarkInput<String>> {
     let mut rv = Vec::new();
@@ -93,6 +94,7 @@ fn bench_store_processor(c: &mut Criterion) {
         breakdowns: None,
         span_attributes: Default::default(),
         client_sample_rate: None,
+        client_hints: ClientHints::default(),
     };
 
     let mut processor = StoreProcessor::new(config, None);

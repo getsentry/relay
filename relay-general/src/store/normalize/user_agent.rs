@@ -31,7 +31,7 @@ pub fn normalize_user_agent(event: &mut Event) {
 pub fn normalize_user_agent_info_generic(
     contexts: &mut Contexts,
     platform: &Annotated<String>,
-    user_agent_info: &RawUserAgentInfo,
+    user_agent_info: &RawUserAgentInfo<&str>,
 ) {
     if !contexts.contains_key(BrowserContext::default_key()) {
         if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
