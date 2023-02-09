@@ -914,41 +914,6 @@ impl SamplingConfig {
         !self.rules_v2.iter().all(SamplingRule::supported)
     }
 
-    /// Generates the seed used for the random number generation that is used for sampling decisions.
-    fn get_seed(
-        event: &Event,
-        dsc: Option<&DynamicSamplingContext>,
-        has_matched_trace_rule: bool,
-    ) -> Option<Uuid> {
-        // If we are in a situation in which we have matched a trace rule, we want to use the trace id
-        // as the seed for the random number generation, to guarantee the same sampling result
-        // across transactions of the same trace. The problem here is that this logic won't help
-        // in cases in which we have multiple matches of transaction and trace rules because they will
-        // effectively apply on different payloads. The transaction rule will match the event itself which differs
-        // between each component of the trace and the trace rule will match the dynamic sampling context that
-        // is the same across all components of the trace.
-        //
-        // An example of the aforementioned case:
-        // /hello -> /world -> /transaction belong to trace_id = abc
-        // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
-        // * each project has a single transaction rule with different factors (2, 3, 4)
-        //
-        // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
-        // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
-        // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
-        //
-        // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
-        let event_id = event.id.value();
-
-        if has_matched_trace_rule {
-            if let Some(dsc) = dsc {
-                return Some(dsc.trace_id);
-            }
-        }
-
-        event_id.map(|id| id.0)
-    }
-
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
     ///
     /// The multi-matching algorithm used iterates by collecting and multiplying factor rules until
@@ -969,7 +934,21 @@ impl SamplingConfig {
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
         let mut matched_rule_ids = vec![];
-        let mut has_matched_trace_rule = false;
+        // Even though this seed is changed based on whether we match event or trace rules, we will
+        // still incur in inconsistent trace sampling because of multi-matching of rules across event
+        // and trace rules.
+        //
+        // An example of inconsistent trace sampling could be:
+        // /hello -> /world -> /transaction belong to trace_id = abc
+        // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
+        // * each project has a single transaction rule with different factors (2, 3, 4)
+        //
+        // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
+        // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
+        // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
+        //
+        // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
+        let mut seed = event.id.value().map(|id| id.0);
         let mut accumulated_factors = 1.0;
 
         for rule in self.rules_v2.iter() {
@@ -997,14 +976,17 @@ impl SamplingConfig {
                     matched_rule_ids.push(rule.id);
 
                     if rule.ty == RuleType::Trace {
-                        has_matched_trace_rule = true
+                        seed = match dsc {
+                            Some(dsc) => Some(dsc.trace_id),
+                            None => seed,
+                        }
                     }
 
                     let value = active_rule.get_sampling_value(now);
                     if rule.is_sample_rate_rule() {
                         return Some(SamplingMatch {
                             sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
-                            seed: match Self::get_seed(event, dsc, has_matched_trace_rule) {
+                            seed: match seed {
                                 Some(seed) => seed,
                                 // In case we are not able to generate a seed, we will return a no
                                 // match.
