@@ -1256,8 +1256,10 @@ mod tests {
         let processor = &mut NormalizeProcessor::default();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
-            start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -1939,11 +1941,11 @@ mod tests {
     #[test]
     fn test_future_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 2, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -1998,11 +2000,11 @@ mod tests {
     #[test]
     fn test_past_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 3, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -2218,8 +2220,8 @@ mod tests {
     #[test]
     fn test_light_normalization_is_idempotent() {
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
@@ -2241,8 +2243,12 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 

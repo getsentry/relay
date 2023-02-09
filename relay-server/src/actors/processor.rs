@@ -2768,8 +2768,8 @@ mod tests {
 
     #[test]
     fn test_breadcrumbs_order_with_none() {
-        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
 
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
@@ -2791,8 +2791,8 @@ mod tests {
 
     #[test]
     fn test_breadcrumbs_reversed_with_none() {
-        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
 
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
