@@ -22,7 +22,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
-    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config
+    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
+    && chmod 777 $CARGO_HOME
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 

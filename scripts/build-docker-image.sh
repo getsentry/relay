@@ -3,7 +3,7 @@
 
 set -euxo pipefail
 
-ARCH=${ARCH:-$(uname -m)}
+ARCH=${1:-$(uname -m)}
 
 # Set the correct build target and update the arch if required.
 case "$ARCH" in
@@ -42,14 +42,10 @@ docker buildx build \
 docker run \
     --volume "$PWD:/work:rw" \
     --platform "linux/$ARCH" \
+    --user "$(id -u):$(id -g)" \
     -e TARGET="$BUILD_TARGET" \
     "$IMG_DEPS" \
     scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
-
-# Fix permissions for shared directories.
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
-sudo chown -R "${USER_ID}:${GROUP_ID}" target/
 
 # Create a release image.
 docker buildx build \

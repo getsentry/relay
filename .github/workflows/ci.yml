@@ -258,7 +258,7 @@ jobs:
         if: matrix.arch == 'arm64'
 
       - name: build
-        run: ./scripts/build-docker-image.sh
+        run: ./scripts/build-docker-image.sh "$ARCH"
 
       - name: Push to ghcr.io
         run: |
