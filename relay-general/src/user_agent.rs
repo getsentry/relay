@@ -109,6 +109,34 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
         }
     }
 
+    /// Convert user-agent info to HTTP headers as stored in the `Request` interface.
+    ///
+    /// This function does not overwrite any pre-existing headers.
+    pub fn populate_event_headers(&self, headers: &mut Headers) {
+        let mut insert_header = |key: &str, val: Option<&S>| {
+            if let Some(val) = val {
+                if !headers.contains(key) {
+                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
+                }
+            }
+        };
+
+        insert_header(RawUserAgentInfo::USER_AGENT, self.user_agent.as_ref());
+        insert_header(
+            ClientHints::SEC_CH_UA_PLATFORM,
+            self.client_hints.sec_ch_ua_platform.as_ref(),
+        );
+        insert_header(
+            ClientHints::SEC_CH_UA_PLATFORM_VERSION,
+            self.client_hints.sec_ch_ua_platform_version.as_ref(),
+        );
+        insert_header(ClientHints::SEC_CH_UA, self.client_hints.sec_ch_ua.as_ref());
+        insert_header(
+            ClientHints::SEC_CH_UA_MODEL,
+            self.client_hints.sec_ch_ua_model.as_ref(),
+        );
+    }
+
     pub fn is_empty(&self) -> bool {
         self.user_agent.is_none() && self.client_hints.is_empty()
     }
@@ -126,34 +154,6 @@ impl RawUserAgentInfo<String> {
 }
 
 impl<'a> RawUserAgentInfo<&'a str> {
-    /// Convert user-agent info to HTTP headers as stored in the `Request` interface.
-    ///
-    /// This function does not overwrite any pre-existing headers.
-    pub fn populate_event_headers(&self, headers: &mut Headers) {
-        let mut insert_header = |key: &str, val: Option<&str>| {
-            if let Some(val) = val {
-                if !headers.contains(key) {
-                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
-                }
-            }
-        };
-
-        insert_header(RawUserAgentInfo::USER_AGENT, self.user_agent);
-        insert_header(
-            ClientHints::SEC_CH_UA_PLATFORM,
-            self.client_hints.sec_ch_ua_platform,
-        );
-        insert_header(
-            ClientHints::SEC_CH_UA_PLATFORM_VERSION,
-            self.client_hints.sec_ch_ua_platform_version,
-        );
-        insert_header(ClientHints::SEC_CH_UA, self.client_hints.sec_ch_ua);
-        insert_header(
-            ClientHints::SEC_CH_UA_MODEL,
-            self.client_hints.sec_ch_ua_model,
-        );
-    }
-
     pub fn from_headers(headers: &'a Headers) -> Self {
         let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
