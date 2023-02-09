@@ -656,7 +656,7 @@ mod tests {
                 Annotated::new(map)
             },
             platform: Annotated::new("myplatform".to_string()),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             server_name: Annotated::new("myhost".to_string()),
             release: Annotated::new("myrelease".to_string().into()),
             dist: Annotated::new("mydist".to_string()),

@@ -1,5 +1,6 @@
 use bytes::Bytes;
-use relay_replays::recording::ReplayScrubber;
+use relay_general::user_agent::RawUserAgentInfo;
+use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -60,6 +61,7 @@ use {
     crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
+    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -956,7 +958,12 @@ impl EnvelopeProcessorService {
         }
 
         let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
-        if (received - timestamp.as_datetime()) > max_age {
+        // also if we unable to parse the timestamp, we assume it's way too old here.
+        let in_past = timestamp
+            .as_datetime()
+            .map(|ts| (received - ts) > max_age)
+            .unwrap_or(true);
+        if in_past {
             relay_log::trace!(
                 "skipping client outcomes older than {} days",
                 max_age.num_days()
@@ -965,7 +972,12 @@ impl EnvelopeProcessorService {
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (timestamp.as_datetime() - received) > max_future {
+        // also if we unable to parse the timestamp, we assume it's way far in the future here.
+        let in_future = timestamp
+            .as_datetime()
+            .map(|ts| (ts - received) > max_future)
+            .unwrap_or(true);
+        if in_future {
             relay_log::trace!(
                 "skipping client outcomes more than {}s in the future",
                 max_future.num_seconds()
@@ -988,7 +1000,10 @@ impl EnvelopeProcessorService {
             };
 
             producer.send(TrackOutcome {
-                timestamp: timestamp.as_datetime(),
+                // If we get to this point, the unwrap should not be used anymore, since we know by
+                // now that the timestamp can be parsed, but just incase we fallback to UTC current
+                // `DateTime`.
+                timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
                 scoping: state.envelope_context.scoping(),
                 outcome,
                 event_id: None,
@@ -999,27 +1014,39 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles if the feature flag is not enabled
-    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+    /// Remove profiles from the envelope if the feature flag is not enabled
+    fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let envelope = &mut state.envelope;
-
-        envelope.retain_items(|item| match item.ty() {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => profiling_enabled,
             _ => true,
         });
+    }
 
-        if !self.config.processing_enabled() {
-            return;
-        }
-
-        envelope.retain_items(|item| match item.ty() {
+    /// Process profiles and set the profile ID in the profile context on the transaction if successful
+    #[cfg(feature = "processing")]
+    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok(payload) => {
+                Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
+                        if let Some(event) = state.event.value_mut() {
+                            if event.ty.value() == Some(&EventType::Transaction) {
+                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
+                                    profile_id: Annotated::new(profile_id),
+                                })));
+                            }
+                        }
                         item.set_payload(ContentType::Json, payload);
                         true
                     } else {
+                        if let Some(event) = state.event.value_mut() {
+                            if event.ty.value() == Some(&EventType::Transaction) {
+                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                contexts.remove(ProfileContext::default_key());
+                            }
+                        }
                         state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
@@ -1033,13 +1060,19 @@ impl EnvelopeProcessorService {
                     }
                 }
                 Err(err) => {
+                    if let Some(event) = state.event.value_mut() {
+                        if event.ty.value() == Some(&EventType::Transaction) {
+                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                            contexts.remove(ProfileContext::default_key());
+                        }
+                    }
+
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
                             relay_log::warn!("invalid profile: {}", LogError(&err));
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-
                     state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -1063,7 +1096,6 @@ impl EnvelopeProcessorService {
         let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
-        let user_agent = meta.user_agent();
         let event_id = state.envelope.event_id();
 
         let limit = self.config.max_replay_size();
@@ -1074,9 +1106,14 @@ impl EnvelopeProcessorService {
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
             .as_ref();
         let mut scrubber =
-            ReplayScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
+            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
 
-        state.envelope.retain_items(|item| match item.ty() {
+        let user_agent = &RawUserAgentInfo {
+            user_agent: meta.user_agent(),
+            client_hints: meta.client_hints().as_deref(),
+        };
+
+        state.envelope.retain_items(move |item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
                     return false;
@@ -1182,7 +1219,7 @@ impl EnvelopeProcessorService {
         payload: &Bytes,
         config: &ProjectConfig,
         client_ip: Option<NetIPAddr>,
-        user_agent: Option<&str>,
+        user_agent: &RawUserAgentInfo<&str>,
     ) -> Result<Annotated<Replay>, ReplayError> {
         let mut replay =
             Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
@@ -1804,6 +1841,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            client_hints: envelope.meta().client_hints().to_owned(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -2100,10 +2138,15 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+        let request_meta = state.envelope.meta();
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
-            user_agent: state.envelope.meta().user_agent(),
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -2138,8 +2181,8 @@ impl EnvelopeProcessorService {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_profiles(state);
         self.process_replays(state)?;
+        self.filter_profiles(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
@@ -2171,6 +2214,8 @@ impl EnvelopeProcessorService {
 
         if_processing!({
             self.enforce_quotas(state)?;
+            // We need the event parsed in order to set the profile context on it
+            self.process_profiles(state);
         });
 
         if state.has_event() {
@@ -2723,8 +2768,8 @@ mod tests {
 
     #[test]
     fn test_breadcrumbs_order_with_none() {
-        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
 
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
@@ -2746,8 +2791,8 @@ mod tests {
 
     #[test]
     fn test_breadcrumbs_reversed_with_none() {
-        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
 
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
