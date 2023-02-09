@@ -75,7 +75,7 @@ pub fn to_pii_config(
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: LazyPattern::new(key_pattern, true),
+                        key_pattern: LazyPattern::new(key_pattern).case_insensitive(true),
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },

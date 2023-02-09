@@ -1,8 +1,11 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+use relay_log::LogError;
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
@@ -21,43 +24,62 @@ pub enum PiiConfigError {
 /// consecutive calls.
 #[derive(Debug, Clone)]
 pub struct LazyPattern {
-    raw: String,
+    raw: Cow<'static, str>,
     case_insensitive: bool,
-    pattern: OnceCell<Regex>,
+    pattern: OnceCell<Result<Regex, PiiConfigError>>,
 }
 
 impl PartialEq for LazyPattern {
     fn eq(&self, other: &Self) -> bool {
-        self.raw == other.raw
+        self.raw.to_lowercase() == other.raw.to_lowercase()
     }
 }
 
 impl LazyPattern {
     /// Create a new [`LazyPattern`] from a raw string.
-    pub fn new(raw: String, case_insensitive: bool) -> Self {
+    pub fn new<S>(raw: S) -> Self
+    where
+        Cow<'static, str>: From<S>,
+    {
         Self {
-            raw,
-            case_insensitive,
+            raw: raw.into(),
+            case_insensitive: false,
             pattern: OnceCell::new(),
         }
     }
 
+    /// Change the case sensativity settings for the underlying regex.
+    ///
+    /// It's possible to set the case sensativity on already compiled [`LazyPattern`], which will
+    /// be recompiled (re-built) once it's used again.
+    pub fn case_insensitive(mut self, value: bool) -> Self {
+        self.case_insensitive = value;
+        self.pattern.take();
+        self
+    }
+
     /// Compiles the regex from the internal raw string.
-    pub fn compiled(&self) -> Result<&Regex, PiiConfigError> {
+    pub fn compiled(&self) -> Result<&Regex, &PiiConfigError> {
         self.pattern
-            .get_or_try_init(|| {
-                RegexBuilder::new(&self.raw)
+            .get_or_init(|| {
+                let regex_result = RegexBuilder::new(&self.raw)
                     .size_limit(COMPILED_PATTERN_MAX_SIZE)
                     .case_insensitive(self.case_insensitive)
                     .build()
+                    .map_err(PiiConfigError::RegexError);
+
+                if let Err(ref err) = regex_result {
+                    relay_log::error!("Unable to compile pattern into regex: {}", LogError(err));
+                }
+                regex_result
             })
-            .map_err(PiiConfigError::RegexError)
+            .as_ref()
     }
 }
 
 impl From<&'static str> for LazyPattern {
     fn from(pattern: &'static str) -> LazyPattern {
-        LazyPattern::new(pattern.to_string(), false)
+        LazyPattern::new(pattern)
     }
 }
 
@@ -70,7 +92,7 @@ impl Serialize for LazyPattern {
 impl<'de> Deserialize<'de> for LazyPattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        Ok(LazyPattern::new(raw, false))
+        Ok(LazyPattern::new(raw))
     }
 }
 
