@@ -273,6 +273,11 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>smallvec::{smallvec, SmallVec};
@@ -327,11 +332,13 @@
     <span class="kw">let </span>kv = PatternType::KeyValue;
 
     <span class="kw">match </span>ty {
-        RuleType::RedactPair(<span class="kw-2">ref </span>redact_pair) =&gt; <span class="macro">smallvec!</span>[(
-            kv,
-            <span class="kw-2">&amp;</span>redact_pair.key_pattern.<span class="number">0</span>,
-            ReplaceBehavior::replace_value()
-        )],
+        RuleType::RedactPair(<span class="kw-2">ref </span>redact_pair) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(pattern) = redact_pair.key_pattern.compiled() {
+                <span class="macro">smallvec!</span>[(kv, pattern, ReplaceBehavior::replace_value())]
+            } <span class="kw">else </span>{
+                <span class="macro">smallvec!</span>[]
+            }
+        }
         RuleType::Password =&gt; {
             <span class="macro">smallvec!</span>[(kv, <span class="kw-2">&amp;*</span>PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
         }
@@ -343,8 +350,11 @@
                 }
                 <span class="prelude-val">None </span>=&gt; ReplaceBehavior::replace_match(),
             };
-
-            <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;</span>r.pattern.<span class="number">0</span>, replace_behavior)]
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(pattern) = r.pattern.compiled() {
+                <span class="macro">smallvec!</span>[(v, pattern, replace_behavior)]
+            } <span class="kw">else </span>{
+                <span class="macro">smallvec!</span>[]
+            }
         }
 
         RuleType::Imei =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>IMEI_REGEX, ReplaceBehavior::replace_match())],

@@ -1473,14 +1473,24 @@
 <a href="#1472" id="1472">1472</a>
 <a href="#1473" id="1473">1473</a>
 <a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>regex::RegexBuilder;
 
 <span class="kw">use </span><span class="kw">crate</span>::pii::{
-    DataScrubbingConfig, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction, RuleSpec,
-    RuleType, Vars,
+    DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
+    RuleSpec, RuleType, Vars,
 };
 <span class="kw">use </span><span class="kw">crate</span>::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
@@ -1551,12 +1561,7 @@
                 <span class="string">&quot;strip-fields&quot;</span>.to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern(
-                            RegexBuilder::new(<span class="kw-2">&amp;</span>key_pattern)
-                                .case_insensitive(<span class="bool-val">true</span>)
-                                .build()
-                                .map_err(PiiConfigError::RegexError)<span class="question-mark">?</span>,
-                        ),
+                        key_pattern: LazyPattern::new(key_pattern).case_insensitive(<span class="bool-val">true</span>),
                     }),
                     redaction: Redaction::Replace(<span class="string">&quot;[Filtered]&quot;</span>.to_owned().into()),
                 },
@@ -1771,15 +1776,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_sensitive_fields_too_large() {
-        <span class="kw">let </span>result = to_pii_config_impl(<span class="kw-2">&amp;</span>DataScrubbingConfig {
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+            <span class="macro">serde_json::json!</span>({
+                <span class="string">&quot;user&quot;</span>: {
+                    <span class="string">&quot;data&quot;</span>: {
+                        <span class="string">&quot;1&quot;</span>: <span class="string">&quot;test&quot;
+                    </span>}
+                }
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>config = to_pii_config_impl(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>]
-                .repeat(<span class="number">999999</span>) <span class="comment">// lowest number that will fail
+                .repeat(<span class="number">99999</span>) <span class="comment">// lowest number that will fail
                 </span>.into_iter()
                 .map(|x| x.to_string())
                 .collect(),
             ..simple_enabled_config()
-        });
-        <span class="macro">assert!</span>(result.is_err());
+        })
+        .unwrap()
+        .unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(config.compiled());
+        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+        <span class="comment">// The data won&#39;t be scrubbed here, since the regex cannot be compiled.
+        </span><span class="macro">assert_annotated_snapshot!</span>(data);
     }
 
     <span class="attr">#[test]

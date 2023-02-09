@@ -240,13 +240,45 @@
 <a href="#239" id="239">239</a>
 <a href="#240" id="240">240</a>
 <a href="#241" id="241">241</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::ops::Deref;
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::{Regex, RegexBuilder};
-<span class="kw">use </span>serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+<span class="kw">use </span>relay_log::LogError;
 
 <span class="kw">use </span><span class="kw">crate</span>::pii::{CompiledPiiConfig, Redaction};
 <span class="kw">use </span><span class="kw">crate</span>::processor::SelectorSpec;
@@ -259,51 +291,81 @@
     </span>RegexError(<span class="attr">#[source] </span>regex::Error),
 }
 
-<span class="doccomment">/// A regex pattern for text replacement.
-</span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>Pattern(<span class="kw">pub </span>Regex);
+<span class="doccomment">/// Wrapper for the regex and the raw pattern string.
+///
+/// The regex will be compiled only when it used once, and the compiled version will be reused on
+/// consecutive calls.
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>LazyPattern {
+    raw: Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;,
+    case_insensitive: bool,
+    pattern: OnceCell&lt;<span class="prelude-ty">Result</span>&lt;Regex, PiiConfigError&gt;&gt;,
+}
 
-<span class="kw">impl </span>Deref <span class="kw">for </span>Pattern {
-    <span class="kw">type </span>Target = Regex;
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>LazyPattern {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.raw.to_lowercase() == other.raw.to_lowercase()
+    }
+}
 
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+<span class="kw">impl </span>LazyPattern {
+    <span class="doccomment">/// Create a new [`LazyPattern`] from a raw string.
+    </span><span class="kw">pub fn </span>new&lt;S&gt;(raw: S) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;: From&lt;S&gt;,
+    {
+        <span class="self">Self </span>{
+            raw: raw.into(),
+            case_insensitive: <span class="bool-val">false</span>,
+            pattern: OnceCell::new(),
+        }
+    }
+
+    <span class="doccomment">/// Change the case sensativity settings for the underlying regex.
+    ///
+    /// It&#39;s possible to set the case sensativity on already compiled [`LazyPattern`], which will
+    /// be recompiled (re-built) once it&#39;s used again.
+    </span><span class="kw">pub fn </span>case_insensitive(<span class="kw-2">mut </span><span class="self">self</span>, value: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.case_insensitive = value;
+        <span class="self">self</span>.pattern.take();
+        <span class="self">self
     </span>}
-}
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; <span class="kw">for </span>Pattern {
-    <span class="kw">fn </span>from(pattern: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; Pattern {
-        Pattern(Regex::new(pattern).unwrap())
+    <span class="doccomment">/// Compiles the regex from the internal raw string.
+    </span><span class="kw">pub fn </span>compiled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>Regex, <span class="kw-2">&amp;</span>PiiConfigError&gt; {
+        <span class="self">self</span>.pattern
+            .get_or_init(|| {
+                <span class="kw">let </span>regex_result = RegexBuilder::new(<span class="kw-2">&amp;</span><span class="self">self</span>.raw)
+                    .size_limit(COMPILED_PATTERN_MAX_SIZE)
+                    .case_insensitive(<span class="self">self</span>.case_insensitive)
+                    .build()
+                    .map_err(PiiConfigError::RegexError);
+
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>err) = regex_result {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Unable to compile pattern into regex: {}&quot;</span>, LogError(err));
+                }
+                regex_result
+            })
+            .as_ref()
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Pattern {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, f)
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; <span class="kw">for </span>LazyPattern {
+    <span class="kw">fn </span>from(pattern: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; LazyPattern {
+        LazyPattern::new(pattern)
     }
 }
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Pattern {
+<span class="kw">impl </span>Serialize <span class="kw">for </span>LazyPattern {
     <span class="kw">fn </span>serialize&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
-        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.to_string())
+        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.raw)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Pattern {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>LazyPattern {
     <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
         <span class="kw">let </span>raw = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">let </span>pattern = RegexBuilder::new(<span class="kw-2">&amp;</span>raw)
-            .size_limit(COMPILED_PATTERN_MAX_SIZE)
-            .build()
-            .map_err(Error::custom)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(Pattern(pattern))
-    }
-}
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Pattern {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Pattern) -&gt; bool {
-        <span class="comment">// unclear if we could derive Eq as well, but better not. We don&#39;t need it.
-        </span><span class="self">self</span>.<span class="number">0</span>.as_str() == other.<span class="number">0</span>.as_str()
+        <span class="prelude-val">Ok</span>(LazyPattern::new(raw))
     }
 }
 
@@ -319,7 +381,7 @@
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>PatternRule {
     <span class="doccomment">/// The regular expression to apply.
-    </span><span class="kw">pub </span>pattern: Pattern,
+    </span><span class="kw">pub </span>pattern: LazyPattern,
     <span class="doccomment">/// The match group indices to replace.
     </span><span class="attr">#[serde(default = <span class="string">&quot;replace_groups_default&quot;</span>)]
     </span><span class="kw">pub </span>replace_groups: <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;u8&gt;&gt;,
@@ -352,7 +414,7 @@
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>RedactPairRule {
     <span class="doccomment">/// A pattern to match for keys.
-    </span><span class="kw">pub </span>key_pattern: Pattern,
+    </span><span class="kw">pub </span>key_pattern: LazyPattern,
 }
 
 <span class="doccomment">/// Supported stripping rules.
