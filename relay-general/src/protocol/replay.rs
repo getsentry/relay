@@ -31,7 +31,7 @@ use std::net::IpAddr as RealIPAddr;
 use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
-use crate::store::{self, normalize_ip_addresses_generic, user_agent};
+use crate::store::{self, user_agent};
 use crate::types::{Annotated, Array};
 use crate::user_agent::RawUserAgentInfo;
 
@@ -259,10 +259,10 @@ impl Replay {
     }
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
-        normalize_ip_addresses_generic(
+        store::normalize_ip_addresses(
             &mut self.request,
             &mut self.user,
-            &self.platform,
+            self.platform.as_str(),
             ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
         )
     }
