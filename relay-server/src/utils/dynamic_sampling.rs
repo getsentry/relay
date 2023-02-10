@@ -13,15 +13,6 @@ use relay_sampling::{
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
-macro_rules! no_match_if_none {
-    ($e:expr) => {
-        match $e {
-            Some(x) => x,
-            None => return SamplingMatchResult::NoMatch,
-        }
-    };
-}
-
 /// The result of a sampling operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SamplingResult {
@@ -30,26 +21,6 @@ pub enum SamplingResult {
     Keep,
     /// Drop the event, due to the rule with provided identifier.
     Drop(MatchedRuleIds),
-}
-
-/// The result of the dynamic sampling matching executed on the sampling config.
-#[derive(Clone, Debug, PartialEq)]
-enum SamplingMatchResult {
-    /// The incoming event/dynamic sampling context matched the sampling configuration.
-    Match { match_result: SamplingMatch },
-    /// The incoming event/dynamic sampling context didn't match the sampling configuration.
-    NoMatch,
-}
-
-/// Returns the sampling configuration of the root project if present, otherwise none.
-fn get_root_sampling_config(root_project_state: Option<&ProjectState>) -> Option<&SamplingConfig> {
-    if let Some(root_project_state) = root_project_state {
-        return root_project_state.config.dynamic_sampling.as_ref();
-    } else {
-        relay_log::trace!("found dynamic sampling context, but no corresponding project state");
-    }
-
-    None
 }
 
 /// Checks whether unsupported rules result in a direct keep of the event or depending on the
@@ -83,32 +54,24 @@ fn get_sampling_match_result(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
-) -> SamplingMatchResult {
+) -> Option<SamplingMatch> {
     // We get all the required data for transaction-based dynamic sampling.
-    let event = no_match_if_none!(event);
-    let sampling_config = no_match_if_none!(&project_state.config.dynamic_sampling);
-    let root_sampling_config = get_root_sampling_config(root_project_state);
+    let event = event?;
+    let sampling_config = project_state.config.dynamic_sampling.as_ref()?;
+    let root_sampling_config =
+        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
     // We check if there are unsupported rules in any of the two configurations.
-    no_match_if_none!(check_unsupported_rules(
-        processing_enabled,
-        sampling_config,
-        root_sampling_config
-    ));
+    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let default_root_rules = vec![];
-    let mut match_result = no_match_if_none!(SamplingMatch::match_against_rules(
-        SamplingMatch::merge_rules_from_configs(
-            sampling_config,
-            root_sampling_config,
-            &default_root_rules
-        ),
-        event,
-        dsc,
-        ip_addr,
-        now
-    ));
+    let rules = SamplingMatch::merge_rules_from_configs(
+        sampling_config,
+        root_sampling_config,
+        &default_root_rules,
+    );
+    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
@@ -127,13 +90,13 @@ fn get_sampling_match_result(
                 relay_log::error!("found unsupported sampling mode even as processing Relay");
             }
 
-            return SamplingMatchResult::NoMatch;
+            return None;
         }
     });
 
     // Only if we arrive at this stage, it means that we have found a match and we want to prepare
     // the data for making the sampling decision.
-    SamplingMatchResult::Match { match_result }
+    Some(match_result)
 }
 
 /// Checks whether an incoming event should be kept or dropped based on the result of the sampling
@@ -157,14 +120,11 @@ pub fn should_keep_event(
         // requires it.
         Utc::now(),
     ) {
-        SamplingMatchResult::Match {
-            match_result:
-                SamplingMatch {
-                    sample_rate,
-                    matched_rule_ids,
-                    seed,
-                },
-        } => {
+        Some(SamplingMatch {
+            sample_rate,
+            matched_rule_ids,
+            seed,
+        }) => {
             let random_number = relay_sampling::pseudo_random_from_uuid(seed);
             relay_log::trace!("sampling envelope with {} sample rate", sample_rate);
             if random_number >= sample_rate {
@@ -175,7 +135,7 @@ pub fn should_keep_event(
                 SamplingResult::Keep
             }
         }
-        SamplingMatchResult::NoMatch => {
+        None => {
             relay_log::trace!("keeping envelope that didn't match the configuration");
             SamplingResult::Keep
         }
@@ -219,13 +179,12 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                SamplingMatchResult::Match {
-                    match_result: SamplingMatch {
+                Some(SamplingMatch {
                         sample_rate: $sr,
                         seed: $sd.id.value().unwrap().0,
                         matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                    }
-                }
+                        }                )
+
             )
         }
     }
@@ -234,20 +193,19 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                SamplingMatchResult::Match {
-                    match_result: SamplingMatch {
+                Some(SamplingMatch {
                         sample_rate: $sr,
                         seed: $sd.trace_id,
                         matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                    }
-                }
+        })
+
             )
         }
     }
 
     macro_rules! no_match {
         ($res:expr) => {
-            assert_eq!($res, SamplingMatchResult::NoMatch)
+            assert_eq!($res, None)
         };
     }
 
@@ -838,15 +796,12 @@ mod tests {
 
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        assert!(matches!(result, SamplingMatchResult::Match { .. }));
-        if let SamplingMatchResult::Match {
-            match_result:
-                SamplingMatch {
-                    sample_rate,
-                    seed,
-                    matched_rule_ids,
-                },
-        } = result
+        assert!(result.is_some());
+        if let Some(SamplingMatch {
+            sample_rate,
+            seed,
+            matched_rule_ids,
+        }) = result
         {
             assert!((sample_rate - 0.9).abs() < f64::EPSILON);
             assert_eq!(seed, event.id.0.unwrap().0);
