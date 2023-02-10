@@ -1891,6 +1891,11 @@ mod tests {
         "/testing/*/1"
     );
     transaction_name_test!(
+        test_transaction_name_normalize_in_segments_3,
+        "/testing/open19close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
         test_transaction_name_normalize_url_encode_1,
         "/%2Ftest%2Fopen%20and%20help%2F1%0A",
         "/%2Ftest%2Fopen%20and%20help%2F1%0A"
@@ -1903,12 +1908,17 @@ mod tests {
     transaction_name_test!(
         test_transaction_name_normalize_url_encode_3,
         "/foo/hello%20world-4711/",
-        "/foo/hello%20world-4711/"
+        "/foo/*/"
     );
     transaction_name_test!(
         test_transaction_name_normalize_url_encode_4,
         "/foo/hello%20world-0xdeadbeef/",
-        "/foo/hello%20world-0xdeadbeef/"
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_5,
+        "/foo/hello%20world-4711/",
+        "/foo/*/"
     );
     transaction_name_test!(
         test_transaction_name_normalize_sha,
