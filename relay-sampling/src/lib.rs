@@ -846,11 +846,11 @@ pub struct MatchedRuleIds(pub Vec<RuleId>);
 
 impl MatchedRuleIds {
     /// Creates a MatchedRuleIds struct from a string formatted with the following format:
-    /// rule_id_1;rule_id_2;...
+    /// rule_id_1,rule_id_2,...
     pub fn from_string(value: &str) -> Result<MatchedRuleIds, ParseIntError> {
         let mut rule_ids = vec![];
 
-        for rule_id in value.split(';') {
+        for rule_id in value.split(',') {
             let int_rule_id = rule_id.parse()?;
             rule_ids.push(RuleId(int_rule_id));
         }
@@ -868,9 +868,30 @@ impl Display for MatchedRuleIds {
                 .iter()
                 .map(|rule_id| format!("{rule_id}"))
                 .collect::<Vec<String>>()
-                .join(";")
+                .join(",")
         )
     }
+}
+
+/// Returns an iterator of references that chains together and merges rules.
+///
+/// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
+/// rules from the root project and concatenate them.
+pub fn merge_rules_from_configs<'a>(
+    sampling_config: &'a SamplingConfig,
+    root_sampling_config: Option<&'a SamplingConfig>,
+) -> impl Iterator<Item = &'a SamplingRule> {
+    let event_rules = sampling_config
+        .rules_v2
+        .iter()
+        .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+
+    let parent_rules = root_sampling_config
+        .into_iter()
+        .flat_map(|config| config.rules_v2.iter())
+        .filter(|&rule| rule.ty == RuleType::Trace);
+
+    event_rules.chain(parent_rules)
 }
 
 /// Represents the specification for sampling an incoming event.
@@ -889,30 +910,9 @@ pub struct SamplingMatch {
 }
 
 impl SamplingMatch {
-    pub fn with_new_sample_rate(&mut self, new_sample_rate: f64) {
+    /// Setter for `sample_rate`.
+    pub fn set_sample_rate(&mut self, new_sample_rate: f64) {
         self.sample_rate = new_sample_rate;
-    }
-
-    /// Returns an iterator of references that chains together and merges rules.
-    ///
-    /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
-    /// rules from the root project and concatenate them.
-    pub fn merge_rules_from_configs<'a>(
-        sampling_config: &'a SamplingConfig,
-        root_sampling_config: Option<&'a SamplingConfig>,
-        default_value: &'a Vec<SamplingRule>,
-    ) -> impl Iterator<Item = &'a SamplingRule> {
-        let event_rules = sampling_config
-            .rules_v2
-            .iter()
-            .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
-
-        let parent_rules = root_sampling_config
-            .map_or(default_value, |config| &config.rules_v2)
-            .iter()
-            .filter(|&rule| rule.ty == RuleType::Trace);
-
-        event_rules.chain(parent_rules)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -980,9 +980,8 @@ impl SamplingMatch {
                     matched_rule_ids.push(rule.id);
 
                     if rule.ty == RuleType::Trace {
-                        seed = match dsc {
-                            Some(dsc) => Some(dsc.trace_id),
-                            None => seed,
+                        if let Some(dsc) = dsc {
+                            seed = Some(dsc.trace_id);
                         }
                     }
 
@@ -1262,7 +1261,7 @@ mod tests {
 
     use super::*;
 
-    macro_rules! transaction_match {
+    macro_rules! assert_transaction_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
@@ -1275,7 +1274,7 @@ mod tests {
         }
     }
 
-    macro_rules! trace_match {
+    macro_rules! assert_trace_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
@@ -1288,7 +1287,7 @@ mod tests {
         }
     }
 
-    macro_rules! match_rule_ids {
+    macro_rules! assert_rule_ids_eq {
         ($exc:expr, $res:expr) => {
             if ($exc.len() != $res.len()) {
                 panic!("The rule ids don't match.")
@@ -1431,13 +1430,9 @@ mod tests {
         let sampling_config = mocked_sampling_config(rules);
         let root_sampling_config = mocked_sampling_config(root_rules);
 
-        SamplingMatch::merge_rules_from_configs(
-            &sampling_config,
-            Some(&root_sampling_config),
-            &vec![],
-        )
-        .cloned()
-        .collect()
+        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+            .cloned()
+            .collect()
     }
 
     #[test]
@@ -2276,10 +2271,8 @@ mod tests {
             "type": "trace",
             "id": 1
         }"#;
-        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
-        assert!(rule.is_ok());
-        let rule = rule.unwrap();
+        let rule: SamplingRule = serde_json::from_str(serialized_rule).unwrap();
         assert_eq!(
             rule.sampling_value,
             SamplingValue::SampleRate { value: 0.7f64 }
@@ -2300,10 +2293,8 @@ mod tests {
             "type": "trace",
             "id": 1
         }"#;
-        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
-        assert!(rule.is_ok());
-        let rule = rule.unwrap();
+        let rule: SamplingRule = serde_json::from_str(serialized_rule).unwrap();
         assert_eq!(rule.sampling_value, SamplingValue::Factor { value: 5.0 });
         assert_eq!(rule.ty, RuleType::Trace);
     }
@@ -2576,7 +2567,7 @@ mod tests {
     /// Tests if the MatchedRuleIds struct is displayed correctly as string.
     fn test_matched_rule_ids_to_string() {
         let matched_rule_ids = MatchedRuleIds(vec![RuleId(123), RuleId(456)]);
-        assert_eq!(format!("{matched_rule_ids}"), "123;456");
+        assert_eq!(format!("{matched_rule_ids}"), "123,456");
 
         let matched_rule_ids = MatchedRuleIds(vec![RuleId(123)]);
         assert_eq!(format!("{matched_rule_ids}"), "123");
@@ -2589,7 +2580,7 @@ mod tests {
     /// Tests if the MatchRuleIds struct is created correctly from its string representation.
     fn test_matched_rule_ids_from_string() {
         assert_eq!(
-            MatchedRuleIds::from_string("123;456"),
+            MatchedRuleIds::from_string("123,456"),
             Ok(MatchedRuleIds(vec![RuleId(123), RuleId(456)]))
         );
 
@@ -2600,11 +2591,11 @@ mod tests {
 
         assert!(matches!(MatchedRuleIds::from_string(""), Err(_)));
 
-        assert!(matches!(MatchedRuleIds::from_string(";"), Err(_)));
+        assert!(matches!(MatchedRuleIds::from_string(","), Err(_)));
 
         assert!(matches!(MatchedRuleIds::from_string("123.456"), Err(_)));
 
-        assert!(matches!(MatchedRuleIds::from_string("a;b"), Err(_)));
+        assert!(matches!(MatchedRuleIds::from_string("a,b"), Err(_)));
     }
 
     #[test]
@@ -2710,14 +2701,14 @@ mod tests {
         let dsc =
             mocked_dynamic_sampling_context("root_transaction", "1.1.1", "debug", "vip", "user-id");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        transaction_match!(result, 0.1, event, 1);
+        assert_transaction_match!(result, 0.1, event, 1);
 
         // early return of second rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
         let dsc =
             mocked_dynamic_sampling_context("root_transaction", "1.1.1", "dev", "vip", "user-id");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        trace_match!(result, 1.0, dsc, 2);
+        assert_trace_match!(result, 1.0, dsc, 2);
 
         // factor match third rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -2729,14 +2720,14 @@ mod tests {
             "user-id",
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        trace_match!(result, 0.04, dsc, 3, 6);
+        assert_trace_match!(result, 0.04, dsc, 3, 6);
 
         // factor match third rule and early return fourth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
         let dsc =
             mocked_dynamic_sampling_context("root_transaction", "1.1.1", "prod", "vip", "user-id");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        trace_match!(result, 1.0, dsc, 3, 4);
+        assert_trace_match!(result, 1.0, dsc, 3, 4);
 
         // factor match third, fifth rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -2748,7 +2739,7 @@ mod tests {
             "user-id",
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        trace_match!(result, 0.06, dsc, 3, 5, 6);
+        assert_trace_match!(result, 0.06, dsc, 3, 5, 6);
 
         // factor match fifth and early return sixth rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
@@ -2760,7 +2751,7 @@ mod tests {
             "user-id",
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        trace_match!(result, 0.03, dsc, 5, 6);
+        assert_trace_match!(result, 0.03, dsc, 5, 6);
     }
 
     #[test]
@@ -2816,7 +2807,7 @@ mod tests {
             &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        trace_match!(result, 0.03, dsc, 1, 3);
+        assert_trace_match!(result, 0.03, dsc, 1, 3);
 
         // early return second rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
@@ -2853,7 +2844,7 @@ mod tests {
             &dsc,
             Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
         );
-        trace_match!(result, 0.02, dsc, 3);
+        assert_trace_match!(result, 0.02, dsc, 3);
     }
 
     #[test]
@@ -3093,7 +3084,7 @@ mod tests {
     #[test]
     /// Tests the merged config of the two configs with rules.
     fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
-        match_rule_ids!(
+        assert_rule_ids_eq!(
             [1, 2, 7],
             merge_root_and_non_root_configs_with(
                 vec![
@@ -3122,7 +3113,7 @@ mod tests {
     /// Tests the merged config of the project config with rules and the root project config
     /// without rules.
     fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
-        match_rule_ids!(
+        assert_rule_ids_eq!(
             [1, 2],
             merge_root_and_non_root_configs_with(
                 vec![
@@ -3141,7 +3132,7 @@ mod tests {
     /// with rules.
     fn test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
     ) {
-        match_rule_ids!(
+        assert_rule_ids_eq!(
             [6],
             merge_root_and_non_root_configs_with(
                 vec![],

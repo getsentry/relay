@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
 use relay_sampling::{
-    DynamicSamplingContext, MatchedRuleIds, SamplingConfig, SamplingMatch, SamplingMode,
+    merge_rules_from_configs, DynamicSamplingContext, MatchedRuleIds, SamplingConfig,
+    SamplingMatch, SamplingMode,
 };
 
 use crate::actors::project::ProjectState;
@@ -65,12 +66,7 @@ fn get_sampling_match_result(
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
-    let default_root_rules = vec![];
-    let rules = SamplingMatch::merge_rules_from_configs(
-        sampling_config,
-        root_sampling_config,
-        &default_root_rules,
-    );
+    let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
     let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
@@ -79,7 +75,7 @@ fn get_sampling_match_result(
     // logic, based on multiple matches and decaying functions.
     //
     // We also decide to use the sampling mode of the project to which the event belongs.
-    match_result.with_new_sample_rate(match sampling_config.mode {
+    match_result.set_sample_rate(match sampling_config.mode {
         SamplingMode::Received => match_result.sample_rate,
         SamplingMode::Total => match dsc {
             Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
@@ -175,7 +171,7 @@ mod tests {
 
     use super::*;
 
-    macro_rules! transaction_match {
+    macro_rules! assert_transaction_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
@@ -189,7 +185,7 @@ mod tests {
         }
     }
 
-    macro_rules! trace_match {
+    macro_rules! assert_trace_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
@@ -203,7 +199,7 @@ mod tests {
         }
     }
 
-    macro_rules! no_match {
+    macro_rules! assert_no_match {
         ($res:expr) => {
             assert_eq!($res, None)
         };
@@ -377,7 +373,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        no_match!(result);
+        assert_no_match!(result);
     }
 
     #[test]
@@ -397,7 +393,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.5, event, 3);
+        assert_transaction_match!(result, 0.5, event, 3);
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
         let result = get_sampling_match_result(
@@ -409,7 +405,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.1, event, 1);
+        assert_transaction_match!(result, 0.1, event, 1);
     }
 
     #[test]
@@ -429,7 +425,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.1, event, 1);
+        assert_transaction_match!(result, 0.1, event, 1);
     }
 
     #[test]
@@ -449,7 +445,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        trace_match!(result, 1.0, dsc, 6);
+        assert_trace_match!(result, 1.0, dsc, 6);
     }
 
     #[test]
@@ -469,7 +465,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        trace_match!(result, 0.75, dsc, 2, 5, 7);
+        assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
     }
 
     #[test]
@@ -488,7 +484,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.5, event, 3);
+        assert_transaction_match!(result, 0.5, event, 3);
     }
 
     #[test]
@@ -508,7 +504,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.625, event, 3);
+        assert_transaction_match!(result, 0.625, event, 3);
     }
 
     #[test]
@@ -541,7 +537,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        no_match!(result);
+        assert_no_match!(result);
 
         let result = get_sampling_match_result(
             true,
@@ -552,7 +548,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.5, event, 3);
+        assert_transaction_match!(result, 0.5, event, 3);
     }
 
     #[test]
@@ -572,7 +568,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        no_match!(result);
+        assert_no_match!(result);
     }
 
     #[test]
@@ -601,7 +597,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        no_match!(result);
+        assert_no_match!(result);
     }
 
     #[test]
@@ -630,7 +626,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.5, event, 10);
+        assert_transaction_match!(result, 0.5, event, 10);
     }
 
     #[test]
@@ -659,7 +655,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        transaction_match!(result, 0.5, event, 10);
+        assert_transaction_match!(result, 0.5, event, 10);
     }
 
     #[test]
@@ -681,7 +677,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        transaction_match!(result, 0.75, event, 1);
+        assert_transaction_match!(result, 0.75, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
@@ -696,7 +692,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        transaction_match!(result, 1.0, event, 1);
+        assert_transaction_match!(result, 1.0, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
@@ -711,7 +707,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        no_match!(result);
+        assert_no_match!(result);
     }
 
     #[test]
@@ -733,7 +729,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        no_match!(result);
+        assert_no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
@@ -748,7 +744,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        no_match!(result);
+        assert_no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
@@ -763,7 +759,7 @@ mod tests {
         });
         let result =
             get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
-        no_match!(result);
+        assert_no_match!(result);
     }
 
     #[test]
