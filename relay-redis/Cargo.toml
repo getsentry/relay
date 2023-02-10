@@ -17,8 +17,8 @@ thiserror = "1.0.20"
 
 [features]
 default = []
-tls = ["redis/tls"]
-impl = ["r2d2", "redis"]
+tls = ["redis?/tls"]
+impl = ["dep:r2d2", "dep:redis"]
 
 [dev-dependencies]
 serde_yaml = "0.8.13"
