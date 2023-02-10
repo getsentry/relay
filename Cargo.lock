@@ -2984,7 +2984,7 @@ dependencies = [
  "rand_isaac",
  "rand_jitter",
  "rand_os",
- "rand_pcg 0.1.2",
+ "rand_pcg",
  "rand_xorshift",
  "winapi 0.3.9",
 ]
@@ -3136,15 +3136,6 @@ checksum = "abf9b09b01790cfe0364f52bf32995ea3c39f4d2dd011eac241d2914146d0b44"
 dependencies = [
  "autocfg 0.1.8",
  "rand_core 0.4.2",
-]
-
-[[package]]
-name = "rand_pcg"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
-dependencies = [
- "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -3355,7 +3346,6 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "regex",
- "relay-log",
  "schemars",
  "sentry-types 0.20.1",
  "serde",
@@ -3529,7 +3519,6 @@ name = "relay-profiling"
 version = "23.1.1"
 dependencies = [
  "android_trace_log",
- "bytes 0.4.12",
  "chrono",
  "data-encoding",
  "relay-general",
@@ -3573,16 +3562,12 @@ dependencies = [
  "flate2",
  "insta",
  "once_cell",
- "rand 0.8.5",
- "rand_pcg 0.3.1",
  "relay-common",
- "relay-filter",
  "relay-general",
  "relay-log",
  "serde",
  "serde-transcode",
  "serde_json",
- "unicase",
 ]
 
 [[package]]
@@ -3592,7 +3577,7 @@ dependencies = [
  "chrono",
  "insta",
  "rand 0.6.5",
- "rand_pcg 0.1.2",
+ "rand_pcg",
  "relay-common",
  "relay-filter",
  "relay-general",
@@ -3612,7 +3597,6 @@ dependencies = [
  "brotli2",
  "bytes 0.4.12",
  "chrono",
- "clap 2.34.0",
  "data-encoding",
  "failure",
  "flate2",

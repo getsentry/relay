@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 rdkafka = { version = "0.24", optional = true }
 rdkafka-sys = { version = "2.1.0", optional = true }
-relay-log = { path  = "../relay-log" }
+relay-log = { path  = "../relay-log", optional = true }
 relay-statsd = { path  = "../relay-statsd", optional = true }
 rmp-serde = { version = "0.14.3", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
@@ -26,10 +26,11 @@ serde_yaml = "0.8.13"
 [features]
 default = []
 producer = [
-  "relay-statsd",
-  "rdkafka",
   "rdkafka-sys",
   "rdkafka-sys/cmake-build",
+  "rdkafka",
+  "relay-log",
+  "relay-statsd",
   "rmp-serde",
   "serde_json",
 ]

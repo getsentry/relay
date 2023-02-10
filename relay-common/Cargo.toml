@@ -17,7 +17,6 @@ lru = "0.7.6"
 once_cell = "1.13.1"
 parking_lot = "0.12.1"
 regex = "1.5.5"
-relay-log = { path = "../relay-log" }
 schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 sentry-types = "0.20.0"
 serde = { version = "1.0.114", features = ["derive"] }
