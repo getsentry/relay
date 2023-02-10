@@ -213,6 +213,21 @@
 <a href="#212" id="212">212</a>
 <a href="#213" id="213">213</a>
 <a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{FromUserAgentInfo, LenientString};
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::{get_version, is_known};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -267,15 +282,15 @@
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>OsContext {
     <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>platform = client_hints.sec_ch_ua_platform<span class="question-mark">?</span>;
-        <span class="kw">let </span>version = client_hints.sec_ch_ua_platform_version<span class="question-mark">?</span>;
+        <span class="kw">let </span>version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
 
-        <span class="kw">if </span>platform.trim().is_empty() || version.trim().is_empty() {
+        <span class="kw">if </span>platform.trim().is_empty() {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
             name: Annotated::new(platform.to_owned()),
-            version: Annotated::new(version.to_owned()),
+            version: Annotated::from(version),
             ..Default::default()
         })
     }
@@ -340,10 +355,25 @@ OsContext {
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ignore_empty_os() {
         <span class="kw">let </span>headers = Headers({
+            <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;SEC-CH-UA-PLATFORM&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">r#&quot;&quot;#</span>.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
+        <span class="kw">let </span>from_hints = OsContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="macro">assert!</span>(from_hints.is_none())
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_keep_empty_os_version() {
+        <span class="kw">let </span>headers = Headers({
             <span class="kw">let </span>headers = <span class="macro">vec!</span>[
                 Annotated::new((
                     Annotated::new(<span class="string">&quot;SEC-CH-UA-PLATFORM&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">r#&quot;macOS&quot;#</span>.to_string().into()),
+                    Annotated::new(<span class="string">r#&quot;macOs&quot;#</span>.to_string().into()),
                 )),
                 Annotated::new((
                     Annotated::new(<span class="string">&quot;SEC-CH-UA-PLATFORM-VERSION&quot;</span>.to_string().into()),
@@ -355,7 +385,7 @@ OsContext {
 
         <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
         <span class="kw">let </span>from_hints = OsContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
-        <span class="macro">assert!</span>(from_hints.is_none())
+        <span class="macro">assert!</span>(from_hints.is_some())
     }
 
     <span class="attr">#[test]
