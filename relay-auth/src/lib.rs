@@ -6,7 +6,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
 use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, thread_rng, RngCore};
@@ -480,7 +480,7 @@ impl SignedRegisterState {
 
         if let Some(max_age) = max_age {
             let secs = state.timestamp().as_secs() as i64;
-            if Utc.timestamp(secs, 0) + max_age < Utc::now() {
+            if secs + max_age.num_seconds() < Utc::now().timestamp() {
                 return Err(UnpackError::SignatureExpired);
             }
         }

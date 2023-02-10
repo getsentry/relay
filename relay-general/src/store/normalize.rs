@@ -596,7 +596,12 @@ fn normalize_security_report(
 }
 
 /// Backfills IP addresses in various places.
-fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
+pub fn normalize_ip_addresses(
+    request: &mut Annotated<Request>,
+    user: &mut Annotated<User>,
+    platform: Option<&str>,
+    client_ip: Option<&IpAddr>,
+) {
     // NOTE: This is highly order dependent, in the sense that both the statements within this
     // function need to be executed in a certain order, and that other normalization code
     // (geoip lookup) needs to run after this.
@@ -607,7 +612,7 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
 
     // Resolve {{auto}}
     if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = event.request.value_mut() {
+        if let Some(ref mut request) = request.value_mut() {
             if let Some(ref mut env) = request.env.value_mut() {
                 if let Some(&mut Value::String(ref mut http_ip)) = env
                     .get_mut("REMOTE_ADDR")
@@ -620,7 +625,7 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
             }
         }
 
-        if let Some(ref mut user) = event.user.value_mut() {
+        if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
                 if user_ip.is_auto() {
                     *user_ip = client_ip.to_owned();
@@ -630,8 +635,7 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 
     // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = event
-        .request
+    let http_ip = request
         .value()
         .and_then(|request| request.env.value())
         .and_then(|env| env.get("REMOTE_ADDR"))
@@ -639,14 +643,12 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
         .and_then(|ip| IpAddr::parse(ip).ok());
 
     if let Some(http_ip) = http_ip {
-        let user = event.user.value_mut().get_or_insert_with(User::default);
+        let user = user.value_mut().get_or_insert_with(User::default);
         user.ip_address.value_mut().get_or_insert(http_ip);
     } else if let Some(client_ip) = client_ip {
-        let user = event.user.value_mut().get_or_insert_with(User::default);
+        let user = user.value_mut().get_or_insert_with(User::default);
         // auto is already handled above
         if user.ip_address.value().is_none() {
-            let platform = event.platform.as_str();
-
             // In an ideal world all SDKs would set {{auto}} explicitly.
             if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
                 user.ip_address = Annotated::new(client_ip.to_owned());
@@ -700,7 +702,12 @@ pub fn light_normalize_event(
         normalize_security_report(event, config.client_ip, &config.user_agent);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
-        normalize_ip_addresses(event, config.client_ip);
+        normalize_ip_addresses(
+            &mut event.request,
+            &mut event.user,
+            event.platform.as_str(),
+            config.client_ip,
+        );
 
         // Validate the basic attributes we extract metrics from
         event.release.apply(|release, meta| {
@@ -1256,8 +1263,10 @@ mod tests {
         let processor = &mut NormalizeProcessor::default();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
-            start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -1939,11 +1948,11 @@ mod tests {
     #[test]
     fn test_future_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 2, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -1998,11 +2007,11 @@ mod tests {
     #[test]
     fn test_past_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 3, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -2218,8 +2227,8 @@ mod tests {
     #[test]
     fn test_light_normalization_is_idempotent() {
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
@@ -2241,8 +2250,12 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 

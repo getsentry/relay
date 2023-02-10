@@ -2323,9 +2323,12 @@ mod tests {
 
         assert_eq!(
             time_range.start,
-            Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
+            Some(Utc.with_ymd_and_hms(2022, 10, 10, 0, 0, 0).unwrap())
         );
-        assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
+        assert_eq!(
+            time_range.end,
+            Some(Utc.with_ymd_and_hms(2022, 10, 20, 0, 0, 0).unwrap())
+        );
         assert_eq!(decaying_function, DecayingFunction::Constant);
     }
 

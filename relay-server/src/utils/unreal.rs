@@ -136,7 +136,11 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
     for log in logs {
         let timestamp = log
             .timestamp
-            .map(|ts| Timestamp(Utc.timestamp(ts.unix_timestamp(), ts.nanosecond())));
+            .and_then(|ts| {
+                Utc.timestamp_opt(ts.unix_timestamp(), ts.nanosecond())
+                    .latest()
+            })
+            .map(Timestamp);
 
         breadcrumbs.push(Annotated::new(Breadcrumb {
             timestamp: Annotated::from(timestamp),

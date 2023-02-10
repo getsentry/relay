@@ -52,15 +52,15 @@ impl OsContext {
 impl FromUserAgentInfo for OsContext {
     fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let platform = client_hints.sec_ch_ua_platform?;
-        let version = client_hints.sec_ch_ua_platform_version?;
+        let version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
 
-        if platform.trim().is_empty() || version.trim().is_empty() {
+        if platform.trim().is_empty() {
             return None;
         }
 
         Some(Self {
             name: Annotated::new(platform.to_owned()),
-            version: Annotated::new(version.to_owned()),
+            version: Annotated::from(version),
             ..Default::default()
         })
     }
@@ -125,10 +125,25 @@ OsContext {
     #[test]
     fn test_ignore_empty_os() {
         let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                Annotated::new(r#""#.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = OsContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
+    }
+
+    #[test]
+    fn test_keep_empty_os_version() {
+        let headers = Headers({
             let headers = vec![
                 Annotated::new((
                     Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
-                    Annotated::new(r#"macOS"#.to_string().into()),
+                    Annotated::new(r#"macOs"#.to_string().into()),
                 )),
                 Annotated::new((
                     Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
@@ -140,7 +155,7 @@ OsContext {
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
         let from_hints = OsContext::from_client_hints(&client_hints);
-        assert!(from_hints.is_none())
+        assert!(from_hints.is_some())
     }
 
     #[test]

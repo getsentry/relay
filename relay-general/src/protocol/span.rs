@@ -74,8 +74,10 @@ mod tests {
 }"#;
 
         let span = Annotated::new(Span {
-            timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
-            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(1968, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
             exclusive_time: Annotated::new(1.23),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
