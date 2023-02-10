@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 use clap::{ArgMatches, Shell};
-use dialoguer::{Confirmation, Select};
+use dialoguer::Confirm;
+use dialoguer::Select;
 
 use relay_common::Uuid;
 use relay_config::{
@@ -176,8 +177,8 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
                 Some(value) => value,
                 None => {
                     prompted = true;
-                    if Confirmation::with_theme(get_theme())
-                        .with_text("do you want to generate a random relay id")
+                    if Confirm::with_theme(get_theme())
+                        .with_prompt("do you want to generate a random relay id")
                         .interact()?
                     {
                         Uuid::new_v4()
@@ -199,8 +200,8 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         if config.has_credentials() {
             if matches.is_present("yes")
-                || Confirmation::with_theme(get_theme())
-                    .with_text("Remove stored credentials?")
+                || Confirm::with_theme(get_theme())
+                    .with_prompt("Remove stored credentials?")
                     .interact()?
             {
                 config.replace_credentials(None)?;
@@ -280,8 +281,8 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
 
-            if Confirmation::with_theme(get_theme())
-                .with_text("do you want listen to TLS")
+            if Confirm::with_theme(get_theme())
+                .with_prompt("do you want listen to TLS")
                 .interact()?
             {
                 let mut port = mincfg.relay.port.saturating_add(443);
