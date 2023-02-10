@@ -4,52 +4,18 @@
 )]
 
 use std::collections::HashMap;
-use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use clap::{Parser, ValueEnum};
 use serde::Serialize;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum SchemaFormat {
     Json,
     Yaml,
-}
-
-impl fmt::Display for SchemaFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Json => write!(f, "json"),
-            Self::Yaml => write!(f, "yaml"),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ParseSchemaFormatError;
-
-impl fmt::Display for ParseSchemaFormatError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid schema format")
-    }
-}
-
-impl std::error::Error for ParseSchemaFormatError {}
-
-impl std::str::FromStr for SchemaFormat {
-    type Err = ParseSchemaFormatError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "json" => Ok(Self::Json),
-            "yaml" => Ok(Self::Yaml),
-            _ => Err(ParseSchemaFormatError),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -245,19 +211,19 @@ fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
 }
 
 /// Prints documentation for metrics.
-#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+#[derive(Debug, Parser)]
+#[command(verbatim_doc_comment)]
 struct Cli {
     /// The format to output the documentation in.
-    #[structopt(short, long, default_value = "json")]
+    #[arg(value_enum, short, long, default_value = "json")]
     format: SchemaFormat,
 
     /// Optional output path. By default, documentation is printed on stdout.
-    #[structopt(short, long, value_name = "PATH")]
+    #[arg(short, long)]
     output: Option<PathBuf>,
 
     /// Paths to source files declaring metrics.
-    #[structopt(required = true, value_name = "PATH")]
+    #[arg(required = true)]
     paths: Vec<PathBuf>,
 }
 
@@ -297,8 +263,9 @@ fn print_error(error: &anyhow::Error) {
     }
 }
 
-#[paw::main]
-fn main(cli: Cli) {
+fn main() {
+    let cli = Cli::parse();
+
     match cli.run() {
         Ok(()) => (),
         Err(error) => {
