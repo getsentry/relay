@@ -3,7 +3,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
-use clap::{ArgMatches, Shell};
+use clap::ArgMatches;
+use clap_complete::Shell;
 use dialoguer::Confirm;
 use dialoguer::Select;
 
@@ -36,7 +37,7 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
 pub fn execute() -> Result<()> {
     let app = make_app();
     let matches = app.get_matches();
-    let config_path = matches.value_of("config").unwrap_or(".relay");
+    let config_path = matches.get_one::<PathBuf>("config").unwrap();
 
     // Commands that do not need to load the config:
     if let Some(matches) = matches.subcommand_matches("config") {
@@ -48,7 +49,7 @@ pub fn execute() -> Result<()> {
     }
 
     // Commands that need a loaded config:
-    let mut config = load_config(config_path, matches.value_of("config").is_some())?;
+    let mut config = load_config(config_path, matches.contains_id("config"))?;
     // override file config with environment variables
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
@@ -71,29 +72,29 @@ pub fn execute() -> Result<()> {
 
 /// Extract config arguments from a parsed command line arguments object
 pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
-    let processing = if matches.is_present("processing") {
+    let processing = if matches.get_flag("processing") {
         Some("true".to_owned())
-    } else if matches.is_present("no_processing") {
+    } else if matches.get_flag("no_processing") {
         Some("false".to_owned())
     } else {
         None
     };
 
     OverridableConfig {
-        mode: matches.value_of("mode").map(str::to_owned),
-        upstream: matches.value_of("upstream").map(str::to_owned),
-        upstream_dsn: matches.value_of("upstream_dsn").map(str::to_owned),
-        host: matches.value_of("host").map(str::to_owned),
-        port: matches.value_of("port").map(str::to_owned),
+        mode: matches.get_one("mode").cloned(),
+        upstream: matches.get_one("upstream").cloned(),
+        upstream_dsn: matches.get_one("upstream_dsn").cloned(),
+        host: matches.get_one("host").cloned(),
+        port: matches.get_one("port").cloned(),
         processing,
-        kafka_url: matches.value_of("kafka_broker_url").map(str::to_owned),
-        redis_url: matches.value_of("redis_url").map(str::to_owned),
-        id: matches.value_of("id").map(str::to_owned),
-        public_key: matches.value_of("public_key").map(str::to_owned),
-        secret_key: matches.value_of("secret_key").map(str::to_owned),
-        outcome_source: matches.value_of("source_id").map(str::to_owned),
-        shutdown_timeout: matches.value_of("shutdown_timeout").map(str::to_owned),
-        aws_runtime_api: matches.value_of("aws_runtime_api").map(str::to_owned),
+        kafka_url: matches.get_one("kafka_broker_url").cloned(),
+        redis_url: matches.get_one("redis_url").cloned(),
+        id: matches.get_one("id").cloned(),
+        public_key: matches.get_one("public_key").cloned(),
+        secret_key: matches.get_one("secret_key").cloned(),
+        outcome_source: matches.get_one("source_id").cloned(),
+        shutdown_timeout: matches.get_one("shutdown_timeout").cloned(),
+        aws_runtime_api: matches.get_one("aws_runtime_api").cloned(),
     }
 }
 
@@ -120,11 +121,11 @@ pub fn extract_config_env_vars() -> OverridableConfig {
 pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()> {
     // generate completely new credentials
     if let Some(matches) = matches.subcommand_matches("generate") {
-        if config.has_credentials() && !matches.is_present("overwrite") {
+        if config.has_credentials() && !matches.get_flag("overwrite") {
             bail!("aborting because credentials already exist. Pass --overwrite to force.");
         }
         let credentials = Credentials::generate();
-        if matches.is_present("stdout") {
+        if matches.get_flag("stdout") {
             println!("{}", credentials.to_json_string()?);
         } else {
             config.replace_credentials(Some(credentials))?;
@@ -133,7 +134,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         }
     } else if let Some(matches) = matches.subcommand_matches("set") {
         let mut prompted = false;
-        let secret_key = match matches.value_of("secret_key") {
+        let secret_key = match matches.get_one::<String>("secret_key") {
             Some(value) => Some(
                 value
                     .parse()
@@ -141,7 +142,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             ),
             None => config.credentials().map(|x| x.secret_key.clone()),
         };
-        let public_key = match matches.value_of("secret_key") {
+        let public_key = match matches.get_one::<String>("public_key") {
             Some(value) => Some(
                 value
                     .parse()
@@ -149,7 +150,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             ),
             None => config.credentials().map(|x| x.public_key.clone()),
         };
-        let id = match matches.value_of("id") {
+        let id = match matches.get_one::<String>("id").map(String::as_str) {
             Some("random") => Some(Uuid::new_v4()),
             Some(value) => Some(
                 value
@@ -199,7 +200,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         }
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         if config.has_credentials() {
-            if matches.is_present("yes")
+            if matches.get_flag("yes")
                 || Confirm::with_theme(get_theme())
                     .with_prompt("Remove stored credentials?")
                     .interact()?
@@ -224,11 +225,11 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
     Ok(())
 }
 
-pub fn manage_config(config: &Config, matches: &ArgMatches<'_>) -> Result<()> {
+pub fn manage_config(config: &Config, matches: &ArgMatches) -> Result<()> {
     if let Some(matches) = matches.subcommand_matches("init") {
         init_config(config.path(), matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {
-        match matches.value_of("format").unwrap() {
+        match matches.get_one("format").map(String::as_str).unwrap() {
             "debug" => println!("{:#?}", &config),
             "yaml" => println!("{}", config.to_yaml_string()?),
             _ => unreachable!(),
@@ -330,10 +331,8 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
 }
 
 pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
-    let shell = match matches
-        .value_of("format")
-        .map(|x| x.parse::<Shell>().unwrap())
-    {
+    let shell = match matches.get_one::<Shell>("format") {
+        Some(shell) => *shell,
         None => match env::var("SHELL")
             .ok()
             .as_ref()
@@ -342,20 +341,17 @@ pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
             Some("bash") => Shell::Bash,
             Some("zsh") => Shell::Zsh,
             Some("fish") => Shell::Fish,
-            _ => {
-                #[cfg(windows)]
-                {
-                    Shell::PowerShell
-                }
-                #[cfg(not(windows))]
-                {
-                    Shell::Bash
-                }
-            }
+            #[cfg(windows)]
+            _ => Shell::PowerShell,
+            #[cfg(not(windows))]
+            _ => Shell::Bash,
         },
-        Some(shell) => shell,
     };
-    make_app().gen_completions_to("relay", shell, &mut io::stdout());
+
+    let mut app = make_app();
+    let name = app.get_name().to_string();
+    clap_complete::generate(shell, &mut app, name, &mut io::stdout());
+
     Ok(())
 }
 
