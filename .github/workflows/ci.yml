@@ -225,6 +225,100 @@ jobs:
       - name: Run Python Tests
         run: pytest -v py
 
+  build:
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        # the arm64 build takes too long, so disable for now
+        arch: [amd64]
+
+    name: Build Docker Image (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    env:
+      IMG_BASE: ghcr.io/getsentry/relay
+      IMG_DEPS: ghcr.io/getsentry/relay-deps:${{ matrix.arch }}
+      # GITHUB_SHA in pull requests points to the merge commit
+      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      ARCH: ${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}-${{ matrix.arch }}
+
+      - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
+        if: matrix.arch == 'arm64'
+
+      - name: Build
+        run: ./scripts/build-docker-image.sh "$ARCH"
+
+      - name: Push to ghcr.io
+        run: |
+          set -euxo pipefail
+          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+          docker push $IMG_DEPS
+          docker push $IMG_VERSIONED
+
+      - name: Push nightly to ghcr.io
+        if: github.ref == 'refs/heads/master'
+        run: |
+          set -euxo pipefail
+          docker tag "$IMG_VERSIONED" "$IMG_BASE:nightly"
+          docker push "$IMG_BASE:nightly"
+
+  push-prod-image:
+    timeout-minutes: 5
+    needs: build
+
+    name: Push GCR Docker Image
+    runs-on: ubuntu-latest
+
+    # required for google auth
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    env:
+      # GITHUB_SHA in pull requests points to the merge commit
+      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+          service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us.gcr.io
+
+      - name: Push to us.gcr.io
+        run: |
+          set -euxo pipefail
+          docker pull -q "$IMG_VERSIONED"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
+          docker push "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
+
+      - name: Push nightly to us.gcr.io
+        if: github.ref == 'refs/heads/master'
+        run: |
+          set -euxo pipefail
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:nightly"
+          docker push "us.gcr.io/sentryio/relay:nightly"
+
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -299,16 +393,12 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: build
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - name: Checkout Relay
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
         uses: actions/checkout@v3
@@ -320,7 +410,7 @@ jobs:
         id: setup
         run: |
           # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          RELAY_TEST_IMAGE=ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
           echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
           # We cannot execute actions that are not placed under .github of the main repo
@@ -336,8 +426,6 @@ jobs:
           snuba: true
           kafka: true
 
-      # We wait on GCB producing the Docker image because it can built it faster than the GH runners
-      # If the GCB fails to push the image, this job will keep pulling until it times out
       - name: Pull the image
         env:
           RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
@@ -363,6 +451,7 @@ jobs:
   self-hosted-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: build
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -370,10 +459,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+
       - name: Run Sentry self-hosted e2e CI
         uses: getsentry/action-self-hosted-e2e-tests@627c9b50cb168c546ed6e2c461dae76d5d0c7cdb
         with:
           project_name: relay
-          image_url: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           docker_repo: getsentry/relay
           docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
