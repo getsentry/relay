@@ -1,22 +1,13 @@
-ARG DOCKER_ARCH=amd64
-
 ##################
 ### Deps stage ###
 ##################
 
 FROM getsentry/sentry-cli:1 AS sentry-cli
-FROM $DOCKER_ARCH/centos:7 AS relay-deps
+FROM centos:7 AS relay-deps
 
-ARG DOCKER_ARCH
-ARG BUILD_ARCH=x86_64
 # Pin the Rust version for now
 ARG RUST_TOOLCHAIN_VERSION=1.67.1
-
-ENV DOCKER_ARCH=${DOCKER_ARCH}
-ENV BUILD_ARCH=${BUILD_ARCH}
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
-
-ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
 RUN yum -y update \
     && yum -y install centos-release-scl epel-release \
@@ -33,7 +24,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION}
+    | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
+    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
@@ -51,19 +43,19 @@ ENV RELAY_FEATURES=${RELAY_FEATURES}
 COPY . .
 
 # Build with the modern compiler toolchain enabled
-RUN echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
+RUN : \
+    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
     && scl enable devtoolset-10 llvm-toolset-7.0 -- \
     make build-linux-release \
     TARGET=${BUILD_TARGET} \
     RELAY_FEATURES=${RELAY_FEATURES}
 
-RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
-    && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
-
 # Collect source bundle
-RUN sentry-cli --version \
-    && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/relay.debug \
-    && mv ./target/$BUILD_TARGET/release/relay.src.zip /opt/relay.src.zip
+# Produces `relay-bin`, `relay-debug.zip` and `relay.src.zip` in current directory
+RUN : \
+    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
+    && make collect-source-bundle \
+    TARGET=${BUILD_TARGET}
 
 ###################
 ### Final stage ###
@@ -91,8 +83,8 @@ WORKDIR /work
 
 EXPOSE 3000
 
-COPY --from=relay-builder /bin/relay /bin/relay
-COPY --from=relay-builder /opt/relay-debug.zip /opt/relay.src.zip /opt/
+COPY --from=relay-builder /work/relay-bin /bin/relay
+COPY --from=relay-builder /work/relay-debug.zip /work/relay.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]

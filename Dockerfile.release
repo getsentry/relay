@@ -1,0 +1,29 @@
+FROM debian:buster-slim
+
+RUN apt-get update \
+    && apt-get install -y ca-certificates gosu curl --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV \
+    RELAY_UID=10001 \
+    RELAY_GID=10001
+
+# Create a new user and group with fixed uid/gid
+RUN groupadd --system relay --gid $RELAY_GID \
+    && useradd --system --gid relay --uid $RELAY_UID relay
+
+RUN mkdir /work /etc/relay \
+    && chown relay:relay /work /etc/relay
+VOLUME ["/work", "/etc/relay"]
+WORKDIR /work
+
+EXPOSE 3000
+
+COPY ./relay-bin /bin/relay
+COPY relay-debug.zip relay.src.zip /opt/
+
+COPY ./docker-entrypoint.sh /
+ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
+CMD ["run"]
+
