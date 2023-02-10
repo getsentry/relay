@@ -536,6 +536,20 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -797,13 +811,12 @@
     }
 
     <span class="kw">fn </span>normalize_ip_address(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ip_address: <span class="prelude-ty">Option</span>&lt;RealIPAddr&gt;) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(addr) = ip_address {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = <span class="self">self</span>.user.value_mut() {
-                <span class="kw">if </span>user.ip_address.value().is_none() {
-                    user.ip_address.set_value(<span class="prelude-val">Some</span>(IpAddr(addr.to_string())));
-                }
-            }
-        }
+        store::normalize_ip_addresses(
+            <span class="kw-2">&amp;mut </span><span class="self">self</span>.request,
+            <span class="kw-2">&amp;mut </span><span class="self">self</span>.user,
+            <span class="self">self</span>.platform.as_str(),
+            ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        )
     }
 
     <span class="kw">fn </span>normalize_user_agent(<span class="kw-2">&amp;mut </span><span class="self">self</span>, default_user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;) {
@@ -993,12 +1006,27 @@
     </span><span class="kw">fn </span>test_missing_user() {
         <span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">&quot;../../tests/fixtures/replays/replay_missing_user.json&quot;</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
-        <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
-        replay_value.normalize(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        <span class="kw">let </span><span class="kw-2">mut </span>annotated_replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
+        <span class="kw">let </span>replay = annotated_replay.value_mut().as_mut().unwrap();
 
-        <span class="kw">let </span>user = replay_value.user.value();
+        <span class="comment">// No user object and no ip-address was provided.
+        </span>replay.normalize(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        <span class="kw">let </span>user = replay.user.value();
         <span class="macro">assert!</span>(user.is_none());
+
+        <span class="comment">// No user object but an ip-address was provided.
+        </span><span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
+        replay.normalize(<span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+
+        <span class="kw">let </span>ip_addr = replay
+            .user
+            .value()
+            .unwrap()
+            .ip_address
+            .value()
+            .unwrap()
+            .as_str();
+        <span class="macro">assert!</span>(ip_addr == <span class="string">&quot;127.0.0.1&quot;</span>);
     }
 
     <span class="attr">#[test]
