@@ -22,7 +22,6 @@ pub fn make_app() -> Command {
                 .global(true)
                 .value_hint(ValueHint::DirPath)
                 .value_parser(ValueParser::path_buf())
-                .default_value(".relay")
                 .help("The path to the config folder."),
         )
         .subcommand(

@@ -37,7 +37,9 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
 pub fn execute() -> Result<()> {
     let app = make_app();
     let matches = app.get_matches();
-    let config_path = matches.get_one::<PathBuf>("config").unwrap();
+    let config_path = matches
+        .get_one::<PathBuf>("config")
+        .map_or(Path::new(".relay"), PathBuf::as_path);
 
     // Commands that do not need to load the config:
     if let Some(matches) = matches.subcommand_matches("config") {
