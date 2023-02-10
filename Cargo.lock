@@ -3653,7 +3653,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.1",
  "similar-asserts",
- "smallvec 1.8.0",
  "smallvec 1.10.0",
  "symbolic-common",
  "symbolic-unreal",
