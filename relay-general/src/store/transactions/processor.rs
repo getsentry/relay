@@ -1901,6 +1901,16 @@ mod tests {
         "/this/*/%E2%9C%85/foo/bar/*"
     );
     transaction_name_test!(
+        test_transaction_name_normalize_url_encode_3,
+        "/foo/hello%20world-4711/",
+        "/foo/hello%20world-4711/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_4,
+        "/foo/hello%20world-0xdeadbeef/",
+        "/foo/hello%20world-0xdeadbeef/"
+    );
+    transaction_name_test!(
         test_transaction_name_normalize_sha,
         "/hash/4c79f60c11214eb38604f4ae0781bfb2/diff",
         "/hash/*/diff"
