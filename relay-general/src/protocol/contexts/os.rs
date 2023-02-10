@@ -50,7 +50,7 @@ impl OsContext {
 }
 
 impl FromUserAgentInfo for OsContext {
-    fn from_client_hints(client_hints: &ClientHints) -> Option<Self> {
+    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version?;
 

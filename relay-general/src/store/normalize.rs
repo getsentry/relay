@@ -16,15 +16,15 @@ use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
-    VALID_PLATFORMS,
+    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
 };
+use crate::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
 mod contexts;
@@ -568,7 +568,7 @@ fn is_security_report(event: &Event) -> bool {
 fn normalize_security_report(
     event: &mut Event,
     client_ip: Option<&IpAddr>,
-    user_agent: Option<&str>,
+    user_agent: &RawUserAgentInfo<&str>,
 ) {
     if !is_security_report(event) {
         // This event is not a security report, exit here.
@@ -582,23 +582,16 @@ fn normalize_security_report(
         user.ip_address = Annotated::new(client_ip.to_owned());
     }
 
-    if let Some(client) = user_agent {
-        let request = event
+    if !user_agent.is_empty() {
+        let headers = event
             .request
             .value_mut()
-            .get_or_insert_with(Request::default);
-
-        let headers = request
+            .get_or_insert_with(Request::default)
             .headers
             .value_mut()
             .get_or_insert_with(Headers::default);
 
-        if !headers.contains("User-Agent") {
-            headers.insert(
-                HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(client)),
-            );
-        }
+        user_agent.populate_event_headers(headers);
     }
 }
 
@@ -669,7 +662,7 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
-    pub user_agent: Option<&'a str>,
+    pub user_agent: RawUserAgentInfo<&'a str>,
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
@@ -704,7 +697,7 @@ pub fn light_normalize_event(
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, config.user_agent);
+        normalize_security_report(event, config.client_ip, &config.user_agent);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(event, config.client_ip);
@@ -1002,11 +995,12 @@ mod tests {
 
     use crate::processor::process_value;
     use crate::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
         Span, SpanId, TagEntry, TraceId, Values,
     };
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
+    use crate::user_agent::ClientHints;
 
     use super::*;
 
@@ -1262,8 +1256,10 @@ mod tests {
         let processor = &mut NormalizeProcessor::default();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
-            start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(1987, 6, 5, 4, 3, 2).unwrap().into(),
+            ),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -1945,11 +1941,11 @@ mod tests {
     #[test]
     fn test_future_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 2, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -2004,11 +2000,11 @@ mod tests {
     #[test]
     fn test_past_timestamp() {
         let mut event = Annotated::new(Event {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap().into()),
             ..Default::default()
         });
 
-        let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+        let received_at = Some(Utc.with_ymd_and_hms(2000, 3, 3, 0, 0, 0).unwrap());
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
@@ -2224,8 +2220,8 @@ mod tests {
     #[test]
     fn test_light_normalization_is_idempotent() {
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
@@ -2247,8 +2243,12 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 
@@ -2435,5 +2435,59 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_normalize_security_report() {
+        let mut event = Event {
+            csp: Annotated::from(Csp::default()),
+            ..Default::default()
+        };
+        let ipaddr = IpAddr("213.164.1.114".to_string());
+
+        let client_ip = Some(&ipaddr);
+        let user_agent = RawUserAgentInfo::new_test_dummy();
+
+        // This call should fill the event headers with info from the user_agent which is
+        // tested below.
+        normalize_security_report(&mut event, client_ip, &user_agent);
+
+        let headers = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default)
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        assert_eq!(
+            event.user.value().unwrap().ip_address,
+            Annotated::from(ipaddr)
+        );
+        assert_eq!(
+            headers.get_header(RawUserAgentInfo::USER_AGENT),
+            user_agent.user_agent
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA),
+            user_agent.client_hints.sec_ch_ua,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_MODEL),
+            user_agent.client_hints.sec_ch_ua_model,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM),
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM_VERSION),
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+
+        assert!(
+            std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
+            "If you add new fields, update the test accordingly"
+        );
     }
 }

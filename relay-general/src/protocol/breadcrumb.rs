@@ -158,7 +158,7 @@ mod tests {
 }"#;
 
         let breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             ty: Annotated::new("mytype".to_string()),
             category: Annotated::new("mycategory".to_string()),
             level: Annotated::new(Level::Fatal),
@@ -192,7 +192,7 @@ mod tests {
         let output = r#"{"timestamp":946684800.0}"#;
 
         let breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             ..Default::default()
         });
 
@@ -207,7 +207,7 @@ mod tests {
         let output = r#"{"timestamp":946684800.0,"type":"http"}"#;
 
         let breadcrumb = Annotated::new(Breadcrumb {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             ty: Annotated::new("http".into()),
             ..Default::default()
         });

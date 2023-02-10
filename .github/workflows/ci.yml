@@ -257,7 +257,7 @@ jobs:
       - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
         if: matrix.arch == 'arm64'
 
-      - name: build
+      - name: Build
         run: ./scripts/build-docker-image.sh "$ARCH"
 
       - name: Push to ghcr.io
