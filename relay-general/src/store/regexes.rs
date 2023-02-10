@@ -43,9 +43,14 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     (?P<hex>[^/\\]*
         \b0[xX][0-9a-fA-F]+\b
     [^/\\]*) |
-    (?P<int>[^/\\]*
-        \b\d{2,}\b
-    [^/\\]*)"#,
+    (?:
+        (?:[^/\\]*
+            %[0-9A-F]{2}
+        [^/\\]*) |
+        (?P<int>[^/\\]*
+            \b\d{2,}\b
+        [^/\\]*)
+    )"#,
     )
     .unwrap()
 });
