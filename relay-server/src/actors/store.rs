@@ -9,7 +9,7 @@ use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use serde::{ser::Error, Serialize};
 
-use relay_common::{EventType, ProjectId, UnixTimestamp, Uuid};
+use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
@@ -199,46 +199,59 @@ impl StoreService {
             }
         }
 
-        match event_item {
-            Some(event_item) if !matches!(event_item.ty(), ItemType::Transaction) => {
-                relay_log::trace!("Sending event item of envelope to kafka");
+        if let Some(event_item) = event_item {
+            if !matches!(event_item.ty(), ItemType::Transaction) {
+                attachments = vec![];
+                self.send_attachments_to_kafka(attachments.clone(), &event_id, &scoping, topic)?;
+            }
+            relay_log::trace!("Sending event item of envelope to kafka");
 
-                let event_message = KafkaMessage::Event(EventKafkaMessage {
-                    payload: event_item.payload(),
-                    start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            let event_message = KafkaMessage::Event(EventKafkaMessage {
+                payload: event_item.payload(),
+                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                event_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+                attachments,
+            });
+
+            self.produce(topic, scoping.organization_id, event_message)?;
+
+            metric!(
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                event_type = &event_item.ty().to_string()
+            );
+        } else {
+            self.send_attachments_to_kafka(attachments, &event_id, &scoping, topic)?;
+        }
+        Ok(())
+    }
+
+    fn send_attachments_to_kafka(
+        &self,
+        attachments: Vec<ChunkedAttachment>,
+        event_id: &Option<EventId>,
+        scoping: &Scoping,
+        topic: KafkaTopic,
+    ) -> Result<(), StoreError> {
+        if !attachments.is_empty() {
+            relay_log::trace!("Sending individual attachments of envelope to kafka");
+
+            for attachment in attachments {
+                let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id: event_id.ok_or(StoreError::NoEventId)?,
                     project_id: scoping.project_id,
-                    remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
-                    attachments,
+                    attachment,
                 });
 
-                self.produce(topic, scoping.organization_id, event_message)?;
-
+                self.produce(topic, scoping.organization_id, attachment_message)?;
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = &event_item.ty().to_string()
+                    event_type = "attachment"
                 );
             }
-            _ => {
-                if !attachments.is_empty() {
-                    relay_log::trace!("Sending individual attachments of envelope to kafka");
-
-                    for attachment in attachments {
-                        let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                            event_id: event_id.ok_or(StoreError::NoEventId)?,
-                            project_id: scoping.project_id,
-                            attachment,
-                        });
-
-                        self.produce(topic, scoping.organization_id, attachment_message)?;
-                        metric!(
-                            counter(RelayCounters::ProcessingMessageProduced) += 1,
-                            event_type = "attachment"
-                        );
-                    }
-                }
-            }
         }
+
         Ok(())
     }
 
@@ -751,7 +764,7 @@ impl Service for StoreService {
 }
 
 /// Common attributes for both standalone attachments and processing-relevant attachments.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct ChunkedAttachment {
     /// The attachment ID within the event.
     ///
