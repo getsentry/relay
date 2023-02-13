@@ -375,7 +375,7 @@ pub enum SamplingValue {
 }
 
 impl SamplingValue {
-    fn get_sampling_base_value(&self) -> f64 {
+    fn value(&self) -> f64 {
         *match self {
             SamplingValue::SampleRate { value: sample_rate } => sample_rate,
             SamplingValue::Factor { value: factor } => factor,
@@ -481,7 +481,7 @@ impl SamplingRule {
     /// The checking of the "active" state of a SamplingRule is performed independently
     /// based on the specified DecayingFunction, which defaults to constant.
     fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
-        let sampling_base_value = self.sampling_value.get_sampling_base_value();
+        let sampling_base_value = self.sampling_value.value();
 
         match self.decaying_fn {
             DecayingFunction::Linear { decayed_value } => {
