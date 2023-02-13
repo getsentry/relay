@@ -279,14 +279,14 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
             }
         }
 
-        // Sort by the longest match end.
-        caps.sort_by_key(|(m, _)| m.end());
+        // Sort by the capture end position.
+        caps.sort_by_key(|(capture, _)| capture.end());
         let mut changed = String::with_capacity(trans.len());
         let mut last_end = 0usize;
-        for (m, remark) in caps {
-            changed.push_str(&trans[last_end..m.start()]);
+        for (capture, remark) in caps {
+            changed.push_str(&trans[last_end..capture.start()]);
             changed.push('*');
-            last_end = m.end();
+            last_end = capture.end();
             meta.add_remark(remark);
         }
         changed.push_str(&trans[last_end..]);
