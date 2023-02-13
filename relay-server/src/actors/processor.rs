@@ -3204,12 +3204,12 @@ mod tests {
         ));
 
         assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab,12"),
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
             Err(())
         ));
 
         assert_eq!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123;456"),
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
             Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
                 RuleId(123),
                 RuleId(456)

@@ -2770,8 +2770,8 @@ mod tests {
                 ty: RuleType::Trace,
                 id: RuleId(1),
                 time_range: TimeRange {
-                    start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                    end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
+                    start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+                    end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
                 },
                 decaying_fn: DecayingFunction::Linear { decayed_value: 1.0 },
             },
@@ -2784,8 +2784,8 @@ mod tests {
                 ty: RuleType::Trace,
                 id: RuleId(2),
                 time_range: TimeRange {
-                    start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
-                    end: Some(Utc.ymd(1970, 10, 12).and_hms(0, 0, 0)),
+                    start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+                    end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
                 },
                 decaying_fn: DecayingFunction::Linear { decayed_value: 0.3 },
             },
@@ -2808,7 +2808,7 @@ mod tests {
             &config,
             &event,
             &dsc,
-            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
         assert_trace_match!(result, 0.03, dsc, 1, 3);
 
@@ -2821,7 +2821,7 @@ mod tests {
             &config,
             &event,
             &dsc,
-            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
         assert!(matches!(result, Some(SamplingMatch { .. })));
         if let Some(spec) = result {
@@ -2845,7 +2845,7 @@ mod tests {
             &config,
             &event,
             &dsc,
-            Utc.ymd(1970, 10, 11).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
         assert_trace_match!(result, 0.02, dsc, 3);
     }
