@@ -266,10 +266,12 @@ impl Enforcement {
         self.event.is_active()
     }
 
-    /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
-    ///
-    /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+    /// Helper for `track_outcomes`.
+    fn get_outcomes(
+        self,
+        envelope: &Envelope,
+        scoping: &Scoping,
+    ) -> impl Iterator<Item = TrackOutcome> {
         let Self {
             event,
             attachments,
@@ -278,22 +280,33 @@ impl Enforcement {
             replays,
             event_metrics,
         } = self;
+        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let scoping = *scoping;
+        let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().remote_addr();
 
-        for limit in [event, attachments, profiles, replays, event_metrics] {
-            if limit.is_active() {
-                let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                TrackOutcome::from_registry().send(TrackOutcome {
-                    timestamp,
-                    scoping: *scoping,
-                    outcome: Outcome::RateLimited(limit.reason_code),
-                    event_id: envelope.event_id(),
-                    remote_addr: envelope.meta().remote_addr(),
-                    category: limit.category,
-                    // XXX: on the limiter we have quantity of usize, but in the protocol
-                    // and data store we're limited to u32.
-                    quantity: limit.quantity as u32,
-                });
-            }
+        [event, attachments, profiles, replays, event_metrics]
+            .into_iter()
+            .filter(move |limit| limit.is_active())
+            .map(move |limit| TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(limit.reason_code),
+                event_id,
+                remote_addr,
+                category: limit.category,
+                // XXX: on the limiter we have quantity of usize, but in the protocol
+                // and data store we're limited to u32.
+                quantity: limit.quantity as u32,
+            })
+    }
+
+    /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
+    ///
+    /// Relay generally does not emit outcomes for sessions, so those are skipped.
+    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+        for outcome in self.get_outcomes(envelope, scoping) {
+            TrackOutcome::from_registry().send(outcome);
         }
     }
 }
@@ -848,13 +861,19 @@ mod tests {
         let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Profile);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
         assert_eq!(mock.called, BTreeMap::from([(DataCategory::Profile, 2)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
     }
 
     #[test]
@@ -1072,6 +1091,20 @@ mod tests {
         assert!(enforcement.profiles.is_active());
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::Profile, None);
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            outcomes,
+            vec![
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Profile, 1),
+                (DataCategory::Transaction, 1)
+            ]
+        );
     }
 
     #[test]
