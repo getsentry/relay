@@ -1038,6 +1038,24 @@ mod tests {
     }
 
     #[test]
+    fn test_enforce_transaction_profile_enforced() {
+        let mut envelope = envelope![Transaction, Profile];
+        let config = config_with_tx_metrics();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+
+        let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(enforcement.profiles.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::Profile, None);
+
+        // TODO: Also test track_outcomes
+    }
+
+    #[test]
     fn test_enforce_transaction_attachment_enforced_metrics_extracted_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(&mut envelope, ItemType::Transaction);
