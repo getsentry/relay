@@ -1910,6 +1910,67 @@
 <a href="#1909" id="1909">1909</a>
 <a href="#1910" id="1910">1910</a>
 <a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -2178,26 +2239,37 @@
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     transaction.apply(|trans, meta| {
+        <span class="kw">let </span><span class="kw-2">mut </span>caps = Vec::new();
         <span class="comment">// Collect all the remarks if anything matches.
-        </span><span class="kw">for </span>matches <span class="kw">in </span>TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+        </span><span class="kw">for </span>captures <span class="kw">in </span>TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
             <span class="kw">for </span>name <span class="kw">in </span><span class="kw-2">&amp;</span>capture_names {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(m) = matches.name(name) {
-                    <span class="kw">let </span>remark =
-                        Remark::with_range(RemarkType::Substituted, <span class="kw-2">*</span>name, (m.start(), m.end()));
-                    meta.add_remark(remark);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(capture) = captures.name(name) {
+                    <span class="kw">let </span>remark = Remark::with_range(
+                        RemarkType::Substituted,
+                        <span class="kw-2">*</span>name,
+                        (capture.start(), capture.end()),
+                    );
+                    caps.push((capture, remark));
                     <span class="kw">break</span>;
                 }
             }
         }
 
-        <span class="kw">let </span>changed = TRANSACTION_NAME_NORMALIZER_REGEX
-            .replace_all(trans, <span class="string">&quot;*&quot;</span>)
-            .to_string();
-        <span class="kw">if </span><span class="kw-2">*</span>trans != changed &amp;&amp; changed != <span class="string">&quot;*&quot; </span>{
+        <span class="comment">// Sort by the capture end position.
+        </span>caps.sort_by_key(|(capture, <span class="kw">_</span>)| capture.end());
+        <span class="kw">let </span><span class="kw-2">mut </span>changed = String::with_capacity(trans.len());
+        <span class="kw">let </span><span class="kw-2">mut </span>last_end = <span class="number">0usize</span>;
+        <span class="kw">for </span>(capture, remark) <span class="kw">in </span>caps {
+            changed.push_str(<span class="kw-2">&amp;</span>trans[last_end..capture.start()]);
+            changed.push(<span class="string">&#39;*&#39;</span>);
+            last_end = capture.end();
+            meta.add_remark(remark);
+        }
+        changed.push_str(<span class="kw-2">&amp;</span>trans[last_end..]);
+
+        <span class="kw">if </span>!changed.is_empty() &amp;&amp; changed != <span class="string">&quot;*&quot; </span>{
             meta.set_original_value(<span class="prelude-val">Some</span>(trans.to_string()));
             <span class="kw-2">*</span>trans = changed
-        } <span class="kw">else </span>{
-            meta.clear_remarks();
         }
         <span class="prelude-val">Ok</span>(())
     })
@@ -3405,7 +3477,7 @@
               &quot;&quot;: {
                 &quot;rem&quot;: [
                   [
-                    &quot;sha1&quot;,
+                    &quot;int&quot;,
                     &quot;s&quot;,
                     5,
                     45
@@ -3793,6 +3865,56 @@
         test_transaction_name_normalize_in_segments_2,
         <span class="string">&quot;/testing/open-19-close/1&quot;</span>,
         <span class="string">&quot;/testing/*/1&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_in_segments_3,
+        <span class="string">&quot;/testing/open19close/1&quot;</span>,
+        <span class="string">&quot;/testing/*/1&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_in_segments_4,
+        <span class="string">&quot;/testing/asdf012/asdf034/asdf056&quot;</span>,
+        <span class="string">&quot;/testing/*/*/*&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_in_segments_5,
+        <span class="string">&quot;/foo/test%A33/1234&quot;</span>,
+        <span class="string">&quot;/foo/test%A33/*&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_1,
+        <span class="string">&quot;/%2Ftest%2Fopen%20and%20help%2F1%0A&quot;</span>,
+        <span class="string">&quot;/%2Ftest%2Fopen%20and%20help%2F1%0A&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_2,
+        <span class="string">&quot;/this/1234/%E2%9C%85/foo/bar/098123908213&quot;</span>,
+        <span class="string">&quot;/this/*/%E2%9C%85/foo/bar/*&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_3,
+        <span class="string">&quot;/foo/hello%20world-4711/&quot;</span>,
+        <span class="string">&quot;/foo/*/&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_4,
+        <span class="string">&quot;/foo/hello%20world-0xdeadbeef/&quot;</span>,
+        <span class="string">&quot;/foo/*/&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_5,
+        <span class="string">&quot;/foo/hello%20world-4711/&quot;</span>,
+        <span class="string">&quot;/foo/*/&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_6,
+        <span class="string">&quot;/foo/hello%2Fworld/&quot;</span>,
+        <span class="string">&quot;/foo/hello%2Fworld/&quot;
+    </span>);
+    <span class="macro">transaction_name_test!</span>(
+        test_transaction_name_normalize_url_encode_7,
+        <span class="string">&quot;/foo/hello%201/&quot;</span>,
+        <span class="string">&quot;/foo/hello%201/&quot;
     </span>);
     <span class="macro">transaction_name_test!</span>(
         test_transaction_name_normalize_sha,

@@ -50,6 +50,7 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -95,8 +96,9 @@
     (?P&lt;hex&gt;[^/\\]*
         \b0[xX][0-9a-fA-F]+\b
     [^/\\]*) |
-    (?P&lt;int&gt;[^/\\]*
-        \b\d{2,}\b
+    (?:^|[/\\])
+    (?P&lt;int&gt;
+        (:?[^%/\\]|%[0-9a-fA-F]{2})*\d{2,}
     [^/\\]*)&quot;#</span>,
     )
     .unwrap()
