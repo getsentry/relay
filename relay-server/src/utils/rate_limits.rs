@@ -462,6 +462,11 @@ where
                 longest,
             );
 
+            // It makes no sense to store profiles without transactions, so if the event
+            // is rate limited, rate limit profiles as well.
+            enforcement.profiles =
+                CategoryLimit::new(DataCategory::Profile, summary.profile_quantity, longest);
+
             rate_limits.merge(event_limits);
         }
 
@@ -493,7 +498,7 @@ where
             rate_limits.merge(session_limits);
         }
 
-        if summary.profile_quantity > 0 {
+        if !enforcement.event.is_active() && summary.profile_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
@@ -836,6 +841,22 @@ mod tests {
         mock.assert_call(DataCategory::Session, None);
     }
 
+    /// Limit stand-alone profiles.
+    #[test]
+    fn test_enforce_limit_profiles() {
+        let mut envelope = envelope![Profile, Profile];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Profile);
+        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Profile, 2)]));
+    }
+
     #[test]
     fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
@@ -1051,8 +1072,6 @@ mod tests {
         assert!(enforcement.profiles.is_active());
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::Profile, None);
-
-        // TODO: Also test track_outcomes
     }
 
     #[test]
