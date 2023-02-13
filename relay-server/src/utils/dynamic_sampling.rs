@@ -122,17 +122,17 @@ pub fn should_keep_event(
             seed,
         }) => {
             let random_number = relay_sampling::pseudo_random_from_uuid(seed);
-            relay_log::trace!("sampling envelope with {} sample rate", sample_rate);
+            relay_log::trace!("sampling event with sample rate {}", sample_rate);
             if random_number >= sample_rate {
-                relay_log::trace!("dropping envelope that matched the configuration");
+                relay_log::trace!("dropping event that matched the configuration");
                 SamplingResult::Drop(matched_rule_ids)
             } else {
-                relay_log::trace!("keeping envelope that matched the configuration");
+                relay_log::trace!("keeping event that matched the configuration");
                 SamplingResult::Keep
             }
         }
         None => {
-            relay_log::trace!("keeping envelope that didn't match the configuration");
+            relay_log::trace!("keeping event that didn't match the configuration");
             SamplingResult::Keep
         }
     }
