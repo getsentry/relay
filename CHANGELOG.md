@@ -12,7 +12,8 @@
 **Bug Fixes**:
 
 - Fix a bug where the replays ip-address normalization was not being applied when the user object was omitted. ([#1805](https://github.com/getsentry/relay/pull/1805))
-- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
+- Improve performance for replays, especially memory usage during data scrubbing. ([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
+- When a transaction is rate limited, also remove associated profiles. ([#1843](https://github.com/getsentry/relay/pull/1843))
 
 **Internal**:
 
