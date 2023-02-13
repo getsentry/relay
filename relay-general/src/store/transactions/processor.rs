@@ -268,12 +268,15 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
     transaction.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
-        for matches in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+        for captures in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
             for name in &capture_names {
-                if let Some(m) = matches.name(name) {
-                    let remark =
-                        Remark::with_range(RemarkType::Substituted, *name, (m.start(), m.end()));
-                    caps.push((m, remark));
+                if let Some(capture) = captures.name(name) {
+                    let remark = Remark::with_range(
+                        RemarkType::Substituted,
+                        *name,
+                        (capture.start(), capture.end()),
+                    );
+                    caps.push((capture, remark));
                     break;
                 }
             }
