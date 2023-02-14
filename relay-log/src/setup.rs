@@ -1,6 +1,7 @@
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{DateTime, Utc};
 use log::{Level, LevelFilter};
@@ -116,6 +117,49 @@ fn capture_native_envelope(data: &[u8]) {
     }
 }
 
+/// Configures the given log level for all of Relay's crates.
+fn set_filter(builder: &mut env_logger::Builder, level: LevelFilter) -> &mut env_logger::Builder {
+    let filters = match level {
+        LevelFilter::Off => "",
+        LevelFilter::Error => "ERROR",
+        LevelFilter::Warn => "WARN",
+        LevelFilter::Info => {
+            "INFO,\
+                 trust_dns_proto=WARN"
+        }
+        LevelFilter::Debug => {
+            "INFO,\
+                 trust_dns_proto=WARN,\
+                 actix_web::pipeline=DEBUG,\
+                 relay_auth=DEBUG,\
+                 relay_common=DEBUG,\
+                 relay_config=DEBUG,\
+                 relay_filter=DEBUG,\
+                 relay_general=DEBUG,\
+                 relay_quotas=DEBUG,\
+                 relay_redis=DEBUG,\
+                 relay_server=DEBUG,\
+                 relay=DEBUG"
+        }
+        LevelFilter::Trace => {
+            "INFO,\
+                 trust_dns_proto=WARN,\
+                 actix_web::pipeline=DEBUG,\
+                 relay_auth=TRACE,\
+                 relay_common=TRACE,\
+                 relay_config=TRACE,\
+                 relay_filter=TRACE,\
+                 relay_general=TRACE,\
+                 relay_quotas=TRACE,\
+                 relay_redis=TRACE,\
+                 relay_server=TRACE,\
+                 relay=TRACE"
+        }
+    };
+
+    builder.parse_filters(filters)
+}
+
 /// Initialize the logging system and reporting to Sentry.
 ///
 /// # Example
@@ -135,107 +179,15 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         env::set_var("RUST_BACKTRACE", "full");
     }
 
-    if env::var("RUST_LOG").is_err() {
-        let log = match config.level {
-            LevelFilter::Off => "",
-            LevelFilter::Error => "ERROR",
-            LevelFilter::Warn => "WARN",
-            LevelFilter::Info => {
-                "INFO,\
-                 trust_dns_proto=WARN"
-            }
-            LevelFilter::Debug => {
-                "INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=DEBUG,\
-                 relay_common=DEBUG,\
-                 relay_config=DEBUG,\
-                 relay_filter=DEBUG,\
-                 relay_general=DEBUG,\
-                 relay_quotas=DEBUG,\
-                 relay_redis=DEBUG,\
-                 relay_server=DEBUG,\
-                 relay=DEBUG"
-            }
-            LevelFilter::Trace => {
-                "INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=TRACE,\
-                 relay_common=TRACE,\
-                 relay_config=TRACE,\
-                 relay_filter=TRACE,\
-                 relay_general=TRACE,\
-                 relay_quotas=TRACE,\
-                 relay_redis=TRACE,\
-                 relay_server=TRACE,\
-                 relay=TRACE"
-            }
-        }
-        .to_string();
-
-        env::set_var("RUST_LOG", log);
+    let mut log_builder = env_logger::Builder::from_env(env_logger::DEFAULT_FILTER_ENV);
+    if env::var(env_logger::DEFAULT_FILTER_ENV).is_err() {
+        set_filter(&mut log_builder, config.level);
     }
 
-    let mut log_builder = {
-        match (config.format, console::user_attended()) {
-            (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
-                pretty_env_logger::formatted_builder()
-            }
-            (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
-                let mut builder = env_logger::Builder::new();
-                builder.format(|buf, record| {
-                    let ts = buf.timestamp();
-                    writeln!(
-                        buf,
-                        "{} [{}] {}: {}",
-                        ts,
-                        record.module_path().unwrap_or("<unknown>"),
-                        record.level(),
-                        record.args()
-                    )
-                });
-                builder
-            }
-            (LogFormat::Json, _) => {
-                #[derive(Serialize, Deserialize, Debug)]
-                struct LogRecord<'a> {
-                    timestamp: DateTime<Utc>,
-                    level: Level,
-                    logger: &'a str,
-                    message: String,
-                    module_path: Option<&'a str>,
-                    filename: Option<&'a str>,
-                    lineno: Option<u32>,
-                }
-
-                let mut builder = env_logger::Builder::new();
-                builder.format(|mut buf, record| -> io::Result<()> {
-                    serde_json::to_writer(
-                        &mut buf,
-                        &LogRecord {
-                            timestamp: Utc::now(),
-                            level: record.level(),
-                            logger: record.target(),
-                            message: record.args().to_string(),
-                            module_path: record.module_path(),
-                            filename: record.file(),
-                            lineno: record.line(),
-                        },
-                    )
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-                    buf.write_all(b"\n")?;
-                    Ok(())
-                });
-                builder
-            }
-        }
-    };
-
-    match env::var("RUST_LOG") {
-        Ok(rust_log) => log_builder.parse_filters(&rust_log),
-        Err(_) => log_builder.filter_level(config.level),
+    match (config.format, console::user_attended()) {
+        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => log_builder.format(format_pretty),
+        (LogFormat::Auto, false) | (LogFormat::Simplified, _) => log_builder.format(format_plain),
+        (LogFormat::Json, _) => log_builder.format(format_json),
     };
 
     let dest_log = log_builder.build();
@@ -280,4 +232,76 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             }
         }
     }
+}
+
+static MAX_MODULE_WIDTH: AtomicUsize = AtomicUsize::new(0);
+
+fn max_target_width(target: &str) -> usize {
+    let len = target.len();
+    MAX_MODULE_WIDTH.fetch_max(len, Ordering::Relaxed).max(len)
+}
+
+fn format_pretty(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+    let color = match record.level() {
+        Level::Trace => env_logger::fmt::Color::Magenta,
+        Level::Debug => env_logger::fmt::Color::Blue,
+        Level::Info => env_logger::fmt::Color::Green,
+        Level::Warn => env_logger::fmt::Color::Yellow,
+        Level::Error => env_logger::fmt::Color::Red,
+    };
+
+    let mut style = f.style();
+    let styled_level = style.set_color(color).value(record.level());
+
+    let mut style = f.style();
+    let target = record.target();
+    let styled_target = style.set_bold(true).value(target);
+
+    writeln!(
+        f,
+        " {styled_level} {styled_target:width$} > {}",
+        record.args(),
+        width = max_target_width(target),
+    )
+}
+
+fn format_plain(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+    let ts = f.timestamp();
+
+    writeln!(
+        f,
+        "{} [{}] {}: {}",
+        ts,
+        record.module_path().unwrap_or("<unknown>"),
+        record.level(),
+        record.args()
+    )
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LogRecord<'a> {
+    timestamp: DateTime<Utc>,
+    level: Level,
+    logger: &'a str,
+    message: String,
+    module_path: Option<&'a str>,
+    filename: Option<&'a str>,
+    lineno: Option<u32>,
+}
+
+fn format_json(mut f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+    let record = LogRecord {
+        timestamp: Utc::now(),
+        level: record.level(),
+        logger: record.target(),
+        message: record.args().to_string(),
+        module_path: record.module_path(),
+        filename: record.file(),
+        lineno: record.line(),
+    };
+
+    serde_json::to_writer(&mut f, &record)
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+
+    f.write_all(b"\n")
 }

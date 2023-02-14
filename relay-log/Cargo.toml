@@ -12,10 +12,9 @@ build = "build.rs"
 
 [dependencies]
 chrono = { version = "0.4.19", optional = true, features = ["serde"] }
-console = { version = "0.10.0", optional = true }
-env_logger = { version = "0.7.1", optional = true }
+console = { version = "0.15.5", optional = true }
+env_logger = { version = "0.10.0", optional = true }
 log = { version = "0.4.11", features = ["serde"] }
-pretty_env_logger = { version = "0.4.0", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
 sentry = { version = "0.27.0", features = ["debug-images", "log"], optional = true }
 sentry-core = { version = "0.27.0" }
@@ -31,7 +30,6 @@ init = [
     "dep:chrono",
     "dep:console",
     "dep:env_logger",
-    "dep:pretty_env_logger",
     "dep:sentry",
     "dep:serde",
     "dep:serde_json",
