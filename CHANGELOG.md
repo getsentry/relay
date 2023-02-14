@@ -8,6 +8,7 @@
 - Apply all configured data scrubbing rules on Replays. ([#1731](https://github.com/getsentry/relay/pull/1731))
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
 - Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
+- Implement a new sampling algorithm with factors and multi-matching. ([#1790](https://github.com/getsentry/relay/pull/1790)
 
 **Bug Fixes**:
 

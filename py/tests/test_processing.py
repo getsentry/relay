@@ -239,10 +239,14 @@ def test_validate_sampling_configuration():
     Tests that a valid sampling rule configuration passes
     """
     config = """{
-        "rules": [
+        "rules": [],
+        "rulesV2": [
             {
                 "type": "trace",
-                "sampleRate": 0.7,
+                "samplingValue": {
+                    "type": "sampleRate",
+                    "value": 0.7
+                },
                 "condition": {
                     "op": "custom",
                     "name": "event.legacy_browser",
@@ -252,7 +256,10 @@ def test_validate_sampling_configuration():
             },
             {
                 "type": "trace",
-                "sampleRate": 0.9,
+                "samplingValue": {
+                    "type": "sampleRate",
+                    "value": 0.9
+                },
                 "condition": {
                     "op": "eq",
                     "name": "event.release",

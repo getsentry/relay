@@ -69,6 +69,7 @@ tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
 zstd = { version = "0.11.2"}
+similar-asserts = "1.4.2"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

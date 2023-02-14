@@ -20,6 +20,7 @@ rand = "0.6.5"
 rand_pcg = "0.1.2"
 unicase = "2.6.0"
 chrono = "0.4.11"
+similar-asserts = "1.4.2"
 
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["ron"] }
