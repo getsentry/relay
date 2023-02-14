@@ -18,7 +18,6 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-use relay_common::RetryBackoff;
 use relay_config::{Config, Credentials, RelayMode};
 use relay_log::LogError;
 use relay_quotas::{
@@ -31,7 +30,7 @@ use relay_system::{
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 pub use reqwest::Method;
 

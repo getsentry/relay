@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use relay_auth::{PublicKey, RelayId};
-use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 use relay_system::{
@@ -16,7 +15,7 @@ use relay_system::{
 
 use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
-use crate::utils::SleepHandle;
+use crate::utils::{RetryBackoff, SleepHandle};
 
 /// Resolves [`RelayInfo`] by it's [identifier](RelayId).
 ///

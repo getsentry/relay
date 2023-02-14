@@ -10,7 +10,6 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-backoff = "0.1.6"
 chrono = "0.4.11"
 globset = "0.4.5"
 lru = "0.7.6"

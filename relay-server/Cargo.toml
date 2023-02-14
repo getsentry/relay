@@ -34,6 +34,7 @@ processing = [
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false }
 anyhow = "1.0.66"
+backoff = "0.4.0"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }

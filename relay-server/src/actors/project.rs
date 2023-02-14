@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{ProjectId, ProjectKey, RetryBackoff};
+use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -35,7 +35,9 @@ use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
+use crate::utils::{
+    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, RetryBackoff,
+};
 
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
