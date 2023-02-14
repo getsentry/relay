@@ -1056,6 +1056,76 @@
 <a href="#1055" id="1055">1055</a>
 <a href="#1056" id="1056">1056</a>
 <a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1324,10 +1394,12 @@
         <span class="self">self</span>.event.is_active()
     }
 
-    <span class="doccomment">/// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
-    ///
-    /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    </span><span class="kw">pub fn </span>track_outcomes(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, scoping: <span class="kw-2">&amp;</span>Scoping) {
+    <span class="doccomment">/// Helper for `track_outcomes`.
+    </span><span class="kw">fn </span>get_outcomes(
+        <span class="self">self</span>,
+        envelope: <span class="kw-2">&amp;</span>Envelope,
+        scoping: <span class="kw-2">&amp;</span>Scoping,
+    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = TrackOutcome&gt; {
         <span class="kw">let </span><span class="self">Self </span>{
             event,
             attachments,
@@ -1336,22 +1408,33 @@
             replays,
             event_metrics,
         } = <span class="self">self</span>;
+        <span class="kw">let </span>timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        <span class="kw">let </span>scoping = <span class="kw-2">*</span>scoping;
+        <span class="kw">let </span>event_id = envelope.event_id();
+        <span class="kw">let </span>remote_addr = envelope.meta().remote_addr();
 
-        <span class="kw">for </span>limit <span class="kw">in </span>[event, attachments, profiles, replays, event_metrics] {
-            <span class="kw">if </span>limit.is_active() {
-                <span class="kw">let </span>timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                TrackOutcome::from_registry().send(TrackOutcome {
-                    timestamp,
-                    scoping: <span class="kw-2">*</span>scoping,
-                    outcome: Outcome::RateLimited(limit.reason_code),
-                    event_id: envelope.event_id(),
-                    remote_addr: envelope.meta().remote_addr(),
-                    category: limit.category,
-                    <span class="comment">// XXX: on the limiter we have quantity of usize, but in the protocol
-                    // and data store we&#39;re limited to u32.
-                    </span>quantity: limit.quantity <span class="kw">as </span>u32,
-                });
-            }
+        [event, attachments, profiles, replays, event_metrics]
+            .into_iter()
+            .filter(<span class="kw">move </span>|limit| limit.is_active())
+            .map(<span class="kw">move </span>|limit| TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(limit.reason_code),
+                event_id,
+                remote_addr,
+                category: limit.category,
+                <span class="comment">// XXX: on the limiter we have quantity of usize, but in the protocol
+                // and data store we&#39;re limited to u32.
+                </span>quantity: limit.quantity <span class="kw">as </span>u32,
+            })
+    }
+
+    <span class="doccomment">/// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
+    ///
+    /// Relay generally does not emit outcomes for sessions, so those are skipped.
+    </span><span class="kw">pub fn </span>track_outcomes(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, scoping: <span class="kw-2">&amp;</span>Scoping) {
+        <span class="kw">for </span>outcome <span class="kw">in </span><span class="self">self</span>.get_outcomes(envelope, scoping) {
+            TrackOutcome::from_registry().send(outcome);
         }
     }
 }
@@ -1520,6 +1603,11 @@
                 longest,
             );
 
+            <span class="comment">// It makes no sense to store profiles without transactions, so if the event
+            // is rate limited, rate limit profiles as well.
+            </span>enforcement.profiles =
+                CategoryLimit::new(DataCategory::Profile, summary.profile_quantity, longest);
+
             rate_limits.merge(event_limits);
         }
 
@@ -1551,7 +1639,7 @@
             rate_limits.merge(session_limits);
         }
 
-        <span class="kw">if </span>summary.profile_quantity &gt; <span class="number">0 </span>{
+        <span class="kw">if </span>!enforcement.event.is_active() &amp;&amp; summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Profile);
             <span class="kw">let </span>profile_limits = (<span class="self">self</span>.check)(item_scoping, summary.profile_quantity)<span class="question-mark">?</span>;
             enforcement.profiles = CategoryLimit::new(
@@ -1894,6 +1982,28 @@
         mock.assert_call(DataCategory::Session, <span class="prelude-val">None</span>);
     }
 
+    <span class="doccomment">/// Limit stand-alone profiles.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_enforce_limit_profiles() {
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Profile, Profile];
+        <span class="kw">let </span>config = ProjectConfig::default();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::Profile);
+        <span class="kw">let </span>(enforcement, limits) = EnvelopeLimiter::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), |s, q| mock.check(s, q))
+            .enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping())
+            .unwrap();
+
+        <span class="macro">assert!</span>(limits.is_limited());
+        <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(mock.called, BTreeMap::from([(DataCategory::Profile, <span class="number">2</span>)]));
+
+        <span class="kw">let </span>outcomes = enforcement
+            .get_outcomes(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;</span>scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="macro">assert_eq!</span>(outcomes, <span class="macro">vec!</span>[(DataCategory::Profile, <span class="number">2</span>),]);
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_enforce_pass_minidump() {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Attachment::Minidump];
@@ -2093,6 +2203,36 @@
         <span class="macro">assert!</span>(enforcement.attachments.is_active());
         mock.assert_call(DataCategory::Transaction, <span class="prelude-val">Some</span>(<span class="number">0</span>));
         mock.assert_call(DataCategory::Attachment, <span class="prelude-val">None</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_enforce_transaction_profile_enforced() {
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Transaction, Profile];
+        <span class="kw">let </span>config = config_with_tx_metrics();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::Transaction);
+        <span class="kw">let </span>limiter = EnvelopeLimiter::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), |s, q| mock.check(s, q));
+
+        <span class="kw">let </span>(enforcement, _limits) = limiter.enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping()).unwrap();
+
+        <span class="macro">assert!</span>(enforcement.event.is_active());
+        <span class="macro">assert!</span>(enforcement.profiles.is_active());
+        mock.assert_call(DataCategory::Transaction, <span class="prelude-val">Some</span>(<span class="number">0</span>));
+        mock.assert_call(DataCategory::Profile, <span class="prelude-val">None</span>);
+
+        <span class="kw">let </span>outcomes = enforcement
+            .get_outcomes(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;</span>scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
+        <span class="macro">assert_eq!</span>(
+            outcomes,
+            <span class="macro">vec!</span>[
+                (DataCategory::TransactionIndexed, <span class="number">1</span>),
+                (DataCategory::Profile, <span class="number">1</span>),
+                (DataCategory::Transaction, <span class="number">1</span>)
+            ]
+        );
     }
 
     <span class="attr">#[test]
