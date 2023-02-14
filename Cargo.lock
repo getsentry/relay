@@ -223,7 +223,7 @@ dependencies = [
  "flate2",
  "futures-core",
  "memchr",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "tokio 1.25.0",
 ]
 
@@ -444,12 +444,6 @@ dependencies = [
  "iovec",
  "serde",
 ]
-
-[[package]]
-name = "bytes"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "bytes"
@@ -1537,7 +1531,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "pin-utils",
  "slab",
 ]
@@ -1770,7 +1764,7 @@ checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
  "bytes 1.4.0",
  "http 0.2.8",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -1813,7 +1807,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa 1.0.5",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "socket2 0.4.7",
  "tokio 1.25.0",
  "tower-service 0.3.2",
@@ -2757,12 +2751,6 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257b64915a082f7811703966789728173279bdebb956b143dbcd23f6f970a777"
-
-[[package]]
-name = "pin-project-lite"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0a7ae3ac2f1173085d398531c705756c94a4c56843785df85a60c1a0afac116"
@@ -3112,25 +3100,27 @@ dependencies = [
 
 [[package]]
 name = "rdkafka"
-version = "0.24.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db594dc221933be6f2ad804b997b48a57a63436c26ab924222c28e9a36ad210a"
+checksum = "bd7c5d6d17442bcb9f943aae96d67d98c6d36af60442dd5da62aaa7fcbb25c48"
 dependencies = [
- "futures 0.3.26",
+ "futures-channel",
+ "futures-util",
  "libc",
  "log",
  "rdkafka-sys",
  "serde",
  "serde_derive",
  "serde_json",
- "tokio 0.2.25",
+ "slab",
+ "tokio 1.25.0",
 ]
 
 [[package]]
 name = "rdkafka-sys"
-version = "2.1.0+1.5.0"
+version = "4.3.0+1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d3f17044cba41c7309facedc72ca9bf25f177bf1e06756318e010f043713017"
+checksum = "d222a401698c7f2010e3967353eae566d9934dcda49c29910da922414ab4e3f4"
 dependencies = [
  "cmake",
  "libc",
@@ -3649,7 +3639,7 @@ dependencies = [
  "native-tls",
  "once_cell",
  "percent-encoding 2.2.0",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.1",
@@ -4560,17 +4550,6 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6703a273949a90131b290be1fe7b039d0fc884aa1935860dfcbe056f28cd8092"
-dependencies = [
- "bytes 0.5.6",
- "pin-project-lite 0.1.12",
- "slab",
-]
-
-[[package]]
-name = "tokio"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8e00990ebabbe4c14c08aca901caed183ecd5c09562a12c824bb53d3c3fd3af"
@@ -4581,7 +4560,7 @@ dependencies = [
  "memchr",
  "mio 0.8.5",
  "num_cpus",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "socket2 0.4.7",
  "tokio-macros",
  "windows-sys 0.42.0",
@@ -4803,7 +4782,7 @@ dependencies = [
  "bytes 1.4.0",
  "futures-core",
  "futures-sink",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "tokio 1.25.0",
  "tracing",
 ]
@@ -4848,7 +4827,7 @@ checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if 1.0.0",
  "log",
- "pin-project-lite 0.2.9",
+ "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
 ]
