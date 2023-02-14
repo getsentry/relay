@@ -511,7 +511,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-integer",
- "num-traits 0.2.15",
+ "num-traits",
  "serde",
  "time 0.1.45",
  "wasm-bindgen",
@@ -765,7 +765,7 @@ dependencies = [
  "criterion-plot",
  "itertools",
  "lazy_static",
- "num-traits 0.2.15",
+ "num-traits",
  "oorandom",
  "plotters",
  "rayon",
@@ -1016,15 +1016,6 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "debugid"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6ee87af31d84ef885378aebca32be3d682b0e0dc119d5b4860a2c5bb5046730"
-dependencies = [
- "uuid 0.8.2",
-]
-
-[[package]]
-name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
@@ -1241,7 +1232,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c375b9c5eadb68d0a6efee2999fef292f45854c3444c86f09d8ab086ba942b0e"
 dependencies = [
- "num-traits 0.2.15",
+ "num-traits",
  "quote 1.0.23",
  "syn 1.0.107",
 ]
@@ -2292,34 +2283,33 @@ dependencies = [
 
 [[package]]
 name = "minidump"
-version = "0.10.4"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ccb06643400b8a48ebcaf69d5c4b6adf50cacaf3b5d6aa27bfbaf0da21156cc"
+checksum = "94e5cd2ca4f6b85c6c7fb41ae0aebe0b443a6c0558876f1d779c7236d42417cf"
 dependencies = [
- "debugid 0.7.3",
+ "debugid",
  "encoding",
- "log",
  "memmap2",
  "minidump-common",
- "num-traits 0.2.15",
+ "num-traits",
  "range-map",
  "scroll",
  "thiserror",
  "time 0.3.17",
- "uuid 0.8.2",
+ "tracing",
+ "uuid 1.3.0",
 ]
 
 [[package]]
 name = "minidump-common"
-version = "0.10.4"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "190480ae87a21dc26a115c4ef5ce8c05c10074d55ea2042c472be7bf6dc6e592"
+checksum = "694717103b2c15f8c16ddfaec1333fe15673bc22b10ffa6164427415701974ba"
 dependencies = [
  "bitflags",
- "debugid 0.7.3",
+ "debugid",
  "enum-primitive-derive",
- "log",
- "num-traits 0.2.15",
+ "num-traits",
  "range-map",
  "scroll",
  "smart-default",
@@ -2465,16 +2455,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
 dependencies = [
  "autocfg 1.1.0",
- "num-traits 0.2.15",
-]
-
-[[package]]
-name = "num-traits"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92e5113e9fd4cc14ded8e499429f396a20f98c772a47cc8622a736e1ec843c31"
-dependencies = [
- "num-traits 0.2.15",
+ "num-traits",
 ]
 
 [[package]]
@@ -2804,7 +2785,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2538b639e642295546c50fcd545198c9d64ee2a38620a628724a3b266d5fbf97"
 dependencies = [
- "num-traits 0.2.15",
+ "num-traits",
  "plotters-backend",
  "plotters-svg",
  "wasm-bindgen",
@@ -3100,11 +3081,11 @@ dependencies = [
 
 [[package]]
 name = "range-map"
-version = "0.1.5"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87dc8ff3b0f3e32dbba6e49c592c0191a3a2cabbf6f7e5a78e1010050b9a42e1"
+checksum = "12a5a2d6c7039059af621472a4389be1215a816df61aa4d531cfe85264aee95f"
 dependencies = [
- "num-traits 0.1.43",
+ "num-traits",
 ]
 
 [[package]]
@@ -3372,7 +3353,7 @@ dependencies = [
  "chrono",
  "cookie 0.17.0",
  "criterion",
- "debugid 0.8.0",
+ "debugid",
  "dynfmt",
  "enumset",
  "hmac 0.12.1",
@@ -3380,7 +3361,7 @@ dependencies = [
  "itertools",
  "maxminddb",
  "minidump",
- "num-traits 0.2.15",
+ "num-traits",
  "once_cell",
  "pest",
  "pest_derive",
@@ -3712,7 +3693,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44519172358fd6d58656c86ab8e7fbc9e1490c3e8f14d35ed78ca0dd07403c9f"
 dependencies = [
  "byteorder",
- "num-traits 0.2.15",
+ "num-traits",
  "paste",
 ]
 
@@ -4038,7 +4019,7 @@ version = "0.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10d8587b12c0b8211bb3066979ee57af6e8657e23cf439dc6c8581fd86de24e8"
 dependencies = [
- "debugid 0.8.0",
+ "debugid",
  "getrandom",
  "hex",
  "serde",
@@ -4366,7 +4347,7 @@ version = "11.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46939659856f0595dbbdbe0c8271d11c6788c780c859bf9afd834a723dd78fa3"
 dependencies = [
- "debugid 0.8.0",
+ "debugid",
  "memmap2",
  "stable_deref_trait",
  "uuid 1.3.0",
@@ -4866,6 +4847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if 1.0.0",
+ "log",
  "pin-project-lite 0.2.9",
  "tracing-attributes",
  "tracing-core",
