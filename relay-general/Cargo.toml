@@ -48,9 +48,9 @@ pretty-hex = "0.2.0"
 similar-asserts = "1.4.2"
 
 [features]
-mmap = ["maxminddb/mmap", "memmap"]
-jsonschema = ["relay-common/jsonschema", "schemars"]
 default = ["mmap"]
+jsonschema = ["relay-common/jsonschema", "dep:schemars"]
+mmap = ["maxminddb/mmap", "dep:memmap"]
 
 [[bench]]
 name = "benchmarks"

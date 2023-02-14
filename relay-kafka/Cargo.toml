@@ -26,11 +26,10 @@ serde_yaml = "0.8.13"
 [features]
 default = []
 producer = [
-  "rdkafka-sys",
+  "dep:rdkafka",
+  "dep:relay-log",
+  "dep:relay-statsd",
+  "dep:rmp-serde",
+  "dep:serde_json",
   "rdkafka-sys/cmake-build",
-  "rdkafka",
-  "relay-log",
-  "relay-statsd",
-  "rmp-serde",
-  "serde_json",
 ]

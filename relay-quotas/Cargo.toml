@@ -13,8 +13,8 @@ publish = false
 default = []
 tls = ["relay-redis?/tls"]
 redis = [
-    "thiserror",
-    "relay-log",
+    "dep:thiserror",
+    "dep:relay-log",
     "relay-redis/impl",
 ]
 
