@@ -3260,6 +3260,34 @@
 <a href="#3259" id="3259">3259</a>
 <a href="#3260" id="3260">3260</a>
 <a href="#3261" id="3261">3261</a>
+<a href="#3262" id="3262">3262</a>
+<a href="#3263" id="3263">3263</a>
+<a href="#3264" id="3264">3264</a>
+<a href="#3265" id="3265">3265</a>
+<a href="#3266" id="3266">3266</a>
+<a href="#3267" id="3267">3267</a>
+<a href="#3268" id="3268">3268</a>
+<a href="#3269" id="3269">3269</a>
+<a href="#3270" id="3270">3270</a>
+<a href="#3271" id="3271">3271</a>
+<a href="#3272" id="3272">3272</a>
+<a href="#3273" id="3273">3273</a>
+<a href="#3274" id="3274">3274</a>
+<a href="#3275" id="3275">3275</a>
+<a href="#3276" id="3276">3276</a>
+<a href="#3277" id="3277">3277</a>
+<a href="#3278" id="3278">3278</a>
+<a href="#3279" id="3279">3279</a>
+<a href="#3280" id="3280">3280</a>
+<a href="#3281" id="3281">3281</a>
+<a href="#3282" id="3282">3282</a>
+<a href="#3283" id="3283">3283</a>
+<a href="#3284" id="3284">3284</a>
+<a href="#3285" id="3285">3285</a>
+<a href="#3286" id="3286">3286</a>
+<a href="#3287" id="3287">3287</a>
+<a href="#3288" id="3288">3288</a>
+<a href="#3289" id="3289">3289</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
@@ -3297,7 +3325,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
-<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, RuleId};
+<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -3384,7 +3412,7 @@
     </span>QuotasFailed(<span class="attr">#[from] </span>RateLimitingError),
 
     <span class="attr">#[error(<span class="string">&quot;event dropped by sampling rule {0}&quot;</span>)]
-    </span>Sampled(RuleId),
+    </span>Sampled(MatchedRuleIds),
 
     <span class="attr">#[error(<span class="string">&quot;invalid pii config&quot;</span>)]
     </span>PiiConfigError(PiiConfigError),
@@ -3634,9 +3662,8 @@
 </span><span class="kw">fn </span>outcome_from_parts(field: ClientReportField, reason: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Outcome, ()&gt; {
     <span class="kw">match </span>field {
         ClientReportField::FilteredSampling =&gt; <span class="kw">match </span>reason.strip_prefix(<span class="string">&quot;Sampled:&quot;</span>) {
-            <span class="prelude-val">Some</span>(rule_id) =&gt; rule_id
-                .parse()
-                .map(|id| Outcome::FilteredSampling(RuleId(id)))
+            <span class="prelude-val">Some</span>(rule_ids) =&gt; MatchedRuleIds::from_string(rule_ids)
+                .map(Outcome::FilteredSampling)
                 .map_err(|<span class="kw">_</span>| ()),
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(()),
         },
@@ -5378,19 +5405,19 @@
         <span class="kw">let </span>client_ip = state.envelope.meta().client_addr();
 
         <span class="kw">match </span>utils::should_keep_event(
+            <span class="self">self</span>.config.processing_enabled(),
+            <span class="kw-2">&amp;</span>state.project_state,
+            state.sampling_project_state.as_deref(),
             state.envelope.dsc(),
             state.event.value(),
             client_ip,
-            <span class="kw-2">&amp;</span>state.project_state,
-            state.sampling_project_state.as_deref(),
-            <span class="self">self</span>.config.processing_enabled(),
         ) {
-            SamplingResult::Drop(rule_id) =&gt; {
+            SamplingResult::Drop(rule_ids) =&gt; {
                 state
                     .envelope_context
-                    .reject(Outcome::FilteredSampling(rule_id));
+                    .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
-                <span class="prelude-val">Err</span>(ProcessingError::Sampled(rule_id))
+                <span class="prelude-val">Err</span>(ProcessingError::Sampled(rule_ids))
             }
             SamplingResult::Keep =&gt; <span class="prelude-val">Ok</span>(()),
         }
@@ -5762,12 +5789,15 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
+
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
+
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::EventId;
-    <span class="kw">use </span>relay_sampling::{RuleCondition, RuleType, SamplingMode};
+    <span class="kw">use </span>relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
     <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
@@ -6442,18 +6472,44 @@
             outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;adsf&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>)
         ));
+
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>)
         ));
+
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:foo&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>)
         ));
+
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:123&quot;</span>),
-            <span class="prelude-val">Ok</span>(Outcome::FilteredSampling(RuleId(<span class="number">123</span>)))
+            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:&quot;</span>),
+            <span class="prelude-val">Err</span>(())
         ));
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:;&quot;</span>),
+            <span class="prelude-val">Err</span>(())
+        ));
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:ab;12&quot;</span>),
+            <span class="prelude-val">Err</span>(())
+        ));
+
+        <span class="macro">assert_eq!</span>(
+            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:123,456&quot;</span>),
+            <span class="prelude-val">Ok</span>(Outcome::FilteredSampling(MatchedRuleIds(<span class="macro">vec!</span>[
+                RuleId(<span class="number">123</span>),
+                RuleId(<span class="number">456</span>)
+            ])))
+        );
+
+        <span class="macro">assert_eq!</span>(
+            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:123&quot;</span>),
+            <span class="prelude-val">Ok</span>(Outcome::FilteredSampling(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">123</span>)])))
+        );
     }
 
     <span class="attr">#[test]
