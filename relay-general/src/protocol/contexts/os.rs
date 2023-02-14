@@ -50,7 +50,7 @@ impl OsContext {
 }
 
 impl FromUserAgentInfo for OsContext {
-    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
+    fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let platform = client_hints.sec_ch_ua_platform?;
         let version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
 
@@ -65,7 +65,7 @@ impl FromUserAgentInfo for OsContext {
         })
     }
 
-    fn from_user_agent(user_agent: &str) -> Option<Self> {
+    fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let os = parse_os(user_agent);
 
         if !is_known(&os.family) {
@@ -73,7 +73,7 @@ impl FromUserAgentInfo for OsContext {
         }
 
         Some(Self {
-            name: Annotated::from(os.family),
+            name: Annotated::new(os.family.into_owned()),
             version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
             ..OsContext::default()
         })
@@ -133,7 +133,7 @@ OsContext {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-        let from_hints = OsContext::from_client_hints(&client_hints);
+        let from_hints = OsContext::parse_client_hints(&client_hints);
         assert!(from_hints.is_none())
     }
 
@@ -154,7 +154,7 @@ OsContext {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-        let from_hints = OsContext::from_client_hints(&client_hints);
+        let from_hints = OsContext::parse_client_hints(&client_hints);
         assert!(from_hints.is_some())
     }
 

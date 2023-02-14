@@ -35,7 +35,7 @@ serde_urlencoded = "0.7.1"
 sha1 = "0.10.5"
 smallvec = { version = "1.4.0", features = ["serde"] }
 thiserror = "1.0.38"
-uaparser = { version = "0.5.1"  }
+uaparser = { version = "0.6.0"  }
 url = "2.1.1"
 utf16string = "0.2.0"
 

@@ -13,7 +13,7 @@ pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
         let user_agent = user_agent::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
-        let family = match user_agent.family.as_str() {
+        let family = match user_agent.family.as_ref() {
             "IE Mobile" => "IE",
             other => other,
         };

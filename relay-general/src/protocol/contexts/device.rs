@@ -173,7 +173,7 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
+    fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let device = client_hints.sec_ch_ua_model?.to_owned();
 
         if device.trim().is_empty() {
@@ -186,7 +186,7 @@ impl FromUserAgentInfo for DeviceContext {
         })
     }
 
-    fn from_user_agent(user_agent: &str) -> Option<Self> {
+    fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let device = parse_device(user_agent);
 
         if !is_known(&device.family) {
@@ -194,9 +194,9 @@ impl FromUserAgentInfo for DeviceContext {
         }
 
         Some(Self {
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
+            family: Annotated::new(device.family.into_owned()),
+            model: Annotated::from(device.model.map(|cow| cow.into_owned())),
+            brand: Annotated::from(device.brand.map(|cow| cow.into_owned())),
             ..DeviceContext::default()
         })
     }
@@ -259,7 +259,7 @@ mod tests {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-        let from_hints = DeviceContext::from_client_hints(&client_hints);
+        let from_hints = DeviceContext::parse_client_hints(&client_hints);
         assert!(from_hints.is_none())
     }
 
