@@ -5,11 +5,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{DateTime, Utc};
 use log::{Level, LevelFilter};
+use sentry::integrations::log::SentryLogger;
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
+
+// Import CRATE_NAMES, which lists all crates in the workspace.
+include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
 /// Controls the log format.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -118,46 +122,19 @@ fn capture_native_envelope(data: &[u8]) {
 }
 
 /// Configures the given log level for all of Relay's crates.
-fn set_filter(builder: &mut env_logger::Builder, level: LevelFilter) -> &mut env_logger::Builder {
-    let filters = match level {
-        LevelFilter::Off => "",
-        LevelFilter::Error => "ERROR",
-        LevelFilter::Warn => "WARN",
-        LevelFilter::Info => {
-            "INFO,\
-                 trust_dns_proto=WARN"
-        }
-        LevelFilter::Debug => {
-            "INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=DEBUG,\
-                 relay_common=DEBUG,\
-                 relay_config=DEBUG,\
-                 relay_filter=DEBUG,\
-                 relay_general=DEBUG,\
-                 relay_quotas=DEBUG,\
-                 relay_redis=DEBUG,\
-                 relay_server=DEBUG,\
-                 relay=DEBUG"
-        }
-        LevelFilter::Trace => {
-            "INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=TRACE,\
-                 relay_common=TRACE,\
-                 relay_config=TRACE,\
-                 relay_filter=TRACE,\
-                 relay_general=TRACE,\
-                 relay_quotas=TRACE,\
-                 relay_redis=TRACE,\
-                 relay_server=TRACE,\
-                 relay=TRACE"
-        }
-    };
+fn set_default_filters(builder: &mut env_logger::Builder) {
+    builder
+        // Configure INFO as default for all third-party crates.
+        .filter_level(LevelFilter::Info)
+        // Trust DNS is very spammy on INFO, so configure a higher warn level.
+        .filter_module("trust_dns_proto", LevelFilter::Warn)
+        // Actix-web has useful information on the debug stream, so allow this.
+        .filter_module("actix_web::pipeline", LevelFilter::Debug);
 
-    builder.parse_filters(filters)
+    // Add all internal modules with maximum log-level.
+    for name in CRATE_NAMES {
+        builder.filter_module(name, LevelFilter::Trace);
+    }
 }
 
 /// Initialize the logging system and reporting to Sentry.
@@ -181,7 +158,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     let mut log_builder = env_logger::Builder::from_env(env_logger::DEFAULT_FILTER_ENV);
     if env::var(env_logger::DEFAULT_FILTER_ENV).is_err() {
-        set_filter(&mut log_builder, config.level);
+        set_default_filters(&mut log_builder);
     }
 
     match (config.format, console::user_attended()) {
@@ -190,26 +167,13 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         (LogFormat::Json, _) => log_builder.format(format_json),
     };
 
-    let dest_log = log_builder.build();
-    log::set_max_level(dest_log.filter());
-
-    let log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
-    log::set_boxed_logger(Box::new(log)).ok();
+    log::set_max_level(config.level);
+    log::set_boxed_logger(Box::new(SentryLogger::with_dest(log_builder.build()))).ok();
 
     if let Some(dsn) = sentry.enabled_dsn() {
         let guard = sentry::init(sentry::ClientOptions {
             dsn: Some(dsn).cloned(),
-            in_app_include: vec![
-                "relay_auth::",
-                "relay_common::",
-                "relay_config::",
-                "relay_filter::",
-                "relay_general::",
-                "relay_quotas::",
-                "relay_redis::",
-                "relay_server::",
-                "relay::",
-            ],
+            in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             ..Default::default()
