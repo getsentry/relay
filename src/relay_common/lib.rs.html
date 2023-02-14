@@ -24,6 +24,9 @@
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common functionality for the sentry relay.
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -48,6 +51,9 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::time::<span class="kw-2">*</span>;
 
 <span class="kw">pub use </span>sentry_types::protocol::LATEST <span class="kw">as </span>PROTOCOL_VERSION;
-<span class="kw">pub use </span>sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme, Uuid};
+<span class="kw">pub use </span>sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+
+<span class="attr">#[doc(inline)]
+</span><span class="kw">pub use </span>uuid::Uuid;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_common" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

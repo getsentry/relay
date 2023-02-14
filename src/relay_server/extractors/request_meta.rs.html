@@ -721,11 +721,11 @@
 <span class="kw">impl </span>PartialDsn {
     <span class="doccomment">/// Ensures a valid public key and project ID in the DSN.
     </span><span class="kw">fn </span>from_dsn(dsn: Dsn) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseDsnError&gt; {
-        <span class="kw">if </span>dsn.project_id().value() == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ParseDsnError::InvalidProjectId(
-                ParseProjectIdError::InvalidValue,
-            ));
-        }
+        <span class="kw">let </span>project_id = dsn
+            .project_id()
+            .value()
+            .parse()
+            .map_err(|<span class="kw">_</span>| ParseDsnError::NoProjectId)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>public_key = dsn
             .public_key()
@@ -738,7 +738,7 @@
             host: dsn.host().to_owned(),
             port: dsn.port(),
             path: dsn.path().to_owned(),
-            project_id: <span class="prelude-val">Some</span>(dsn.project_id()),
+            project_id: <span class="prelude-val">Some</span>(project_id),
         })
     }
 

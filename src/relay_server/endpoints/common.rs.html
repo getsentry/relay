@@ -977,7 +977,7 @@
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     </span>HttpResponse::Ok()
         .content_type(<span class="string">&quot;text/plain&quot;</span>)
-        .body(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, id.<span class="number">0</span>.to_hyphenated()))
+        .body(id.<span class="number">0</span>.as_hyphenated().to_string())
 }
 
 <span class="doccomment">/// A helper for creating Actix routes that are resilient against double-slashes

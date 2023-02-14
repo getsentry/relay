@@ -814,6 +814,8 @@
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -823,6 +825,8 @@
 </span><span class="kw">use </span>schemars::schema::Schema;
 
 <span class="kw">use </span>serde::{Serialize, Serializer};
+
+<span class="kw">use </span>relay_common::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -839,13 +843,13 @@
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-</span><span class="kw">pub struct </span>EventId(<span class="kw">pub </span>uuid::Uuid);
+</span><span class="kw">pub struct </span>EventId(<span class="kw">pub </span>Uuid);
 
 <span class="kw">impl </span>EventId {
     <span class="doccomment">/// Creates a new event id using a UUID v4.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(uuid::Uuid::new_v4())
+        <span class="self">Self</span>(Uuid::new_v4())
     }
 
     <span class="doccomment">/// Tests if the UUID is nil.
@@ -868,12 +872,12 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>EventId {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>.to_simple_ref())
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>.as_simple())
     }
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>EventId {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= uuid::Error;
+    <span class="kw">type </span><span class="prelude-val">Err </span>= &lt;Uuid <span class="kw">as </span>FromStr&gt;::Err;
 
     <span class="kw">fn </span>from_str(uuid_str: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         uuid_str.parse().map(EventId)

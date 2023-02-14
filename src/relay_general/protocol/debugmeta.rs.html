@@ -912,6 +912,7 @@
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
@@ -923,7 +924,8 @@
 
 <span class="kw">use </span>enumset::EnumSet;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>uuid::Uuid;
+
+<span class="kw">use </span>relay_common::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Addr;

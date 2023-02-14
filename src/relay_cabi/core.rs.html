@@ -365,7 +365,7 @@
 #[relay_ffi::catch_unwind]
 </span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_uuid_to_str(uuid: <span class="kw-2">*const </span>RelayUuid) -&gt; RelayStr {
     <span class="kw">let </span>uuid = Uuid::from_slice(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>uuid).data[..]).unwrap_or_else(|<span class="kw">_</span>| Uuid::nil());
-    RelayStr::from_string(uuid.to_hyphenated_ref().to_string())
+    RelayStr::from_string(uuid.as_hyphenated().to_string())
 }
 
 <span class="doccomment">/// A binary buffer of known length.

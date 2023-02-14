@@ -90,7 +90,7 @@
 }&quot;#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Profile(Box::new(ProfileContext {
             profile_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>).unwrap(),
+                <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.parse().unwrap(),
             )),
         })));
 
@@ -106,7 +106,7 @@
 }&quot;#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Profile(Box::new(ProfileContext {
             profile_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>).unwrap(),
+                <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.parse().unwrap(),
             )),
         })));
 

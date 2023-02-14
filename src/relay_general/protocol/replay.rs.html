@@ -548,8 +548,6 @@
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -858,6 +856,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::net::{IpAddr, Ipv4Addr};
+
+    <span class="kw">use </span>chrono::{TimeZone, Utc};
+
     <span class="kw">use </span><span class="kw">crate</span>::pii::{DataScrubbingConfig, PiiProcessor};
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessingState;
@@ -868,8 +870,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::testutils::get_value;
     <span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
     <span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
-    <span class="kw">use </span>chrono::{TimeZone, Utc};
-    <span class="kw">use </span>std::net::{IpAddr, Ipv4Addr};
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_roundtrip() {
@@ -899,12 +899,8 @@
 }&quot;#</span>;
 
         <span class="kw">let </span>replay = Annotated::new(Replay {
-            event_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>).unwrap(),
-            )),
-            replay_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>).unwrap(),
-            )),
+            event_id: Annotated::new(EventId(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.parse().unwrap())),
+            replay_id: Annotated::new(EventId(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.parse().unwrap())),
             replay_type: Annotated::new(<span class="string">&quot;session&quot;</span>.to_string()),
             segment_id: Annotated::new(<span class="number">0</span>),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
