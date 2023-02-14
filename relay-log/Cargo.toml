@@ -24,17 +24,19 @@ serde_json = { version = "1.0.55", optional = true }
 
 [features]
 default = []
-test = ["env_logger"]
+test = [
+    "dep:env_logger",
+]
 init = [
-    "chrono",
-    "console",
-    "env_logger",
-    "pretty_env_logger",
-    "sentry",
-    "serde",
-    "serde_json"
+    "dep:chrono",
+    "dep:console",
+    "dep:env_logger",
+    "dep:pretty_env_logger",
+    "dep:sentry",
+    "dep:serde",
+    "dep:serde_json",
 ]
 crash-handler = [
     "init",
-    "relay-crash"
+    "dep:relay-crash",
 ]

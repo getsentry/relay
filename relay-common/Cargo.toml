@@ -25,5 +25,5 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_test = "1.0.125"
 
 [features]
-jsonschema = ["schemars"]
 default = []
+jsonschema = ["dep:schemars"]

@@ -14,20 +14,20 @@ publish = false
 default = []
 ssl = [
     "actix-web/tls",
-    "native-tls",
+    "dep:native-tls",
     "relay-quotas/tls",
     "relay-redis/tls",
 ]
 processing = [
-    "minidump",
+    "dep:minidump",
+    "dep:relay-profiling",
+    "dep:symbolic-common",
+    "dep:symbolic-unreal",
+    "dep:zstd",
     "relay-config/processing",
     "relay-kafka/producer",
-    "relay-profiling",
     "relay-quotas/redis",
     "relay-redis/impl",
-    "symbolic-common",
-    "symbolic-unreal",
-    "zstd",
 ]
 
 [dependencies]
