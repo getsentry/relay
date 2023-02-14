@@ -40,3 +40,6 @@ crash-handler = [
     "init",
     "dep:relay-crash",
 ]
+sentry = [
+    "dep:sentry",  # hidden export of the SDK
+]
