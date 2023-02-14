@@ -3,7 +3,8 @@ use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use relay_common::Uuid;
 
 use crate::macros::derive_fromstr_and_display;
 use crate::protocol::utils::null_to_default;

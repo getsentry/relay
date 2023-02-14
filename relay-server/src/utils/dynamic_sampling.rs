@@ -157,7 +157,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use chrono::Duration as DateDuration;
-    use uuid::Uuid;
+    use relay_common::Uuid;
 
     use relay_common::EventType;
     use relay_general::protocol::{EventId, LenientString};

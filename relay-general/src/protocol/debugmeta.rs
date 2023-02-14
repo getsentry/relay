@@ -9,7 +9,8 @@ use schemars::schema::Schema;
 
 use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use relay_common::Uuid;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;

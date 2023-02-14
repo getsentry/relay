@@ -41,7 +41,7 @@ pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectStat
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: uuid::Uuid::new_v4(),
+        trace_id: relay_common::Uuid::new_v4(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,
@@ -62,7 +62,7 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
         format!(
             "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
             transaction_name,
-            event_id.0.to_simple(),
+            event_id.0.as_simple(),
             dsn,
             serde_json::to_string(&create_sampling_context(None)).unwrap(),
         )
@@ -70,7 +70,7 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
         format!(
             "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
             transaction_name,
-            event_id.0.to_simple(),
+            event_id.0.as_simple(),
             dsn,
         )
     };

@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 chrono = "0.4.11"
 ed25519-dalek = "0.9.1"
-thiserror = "1.0.24"
+thiserror = "1.0.38"
 hmac = "0.7.1"
 rand = "0.6.5"
 relay-common = { path = "../relay-common" }
