@@ -35,7 +35,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::{DynamicSamplingContext, RuleId};
+use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -122,7 +122,7 @@ pub enum ProcessingError {
     QuotasFailed(#[from] RateLimitingError),
 
     #[error("event dropped by sampling rule {0}")]
-    Sampled(RuleId),
+    Sampled(MatchedRuleIds),
 
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
@@ -372,9 +372,8 @@ enum ClientReportField {
 fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_id) => rule_id
-                .parse()
-                .map(|id| Outcome::FilteredSampling(RuleId(id)))
+            Some(rule_ids) => MatchedRuleIds::from_string(rule_ids)
+                .map(Outcome::FilteredSampling)
                 .map_err(|_| ()),
             None => Err(()),
         },
@@ -2116,19 +2115,19 @@ impl EnvelopeProcessorService {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
+            self.config.processing_enabled(),
+            &state.project_state,
+            state.sampling_project_state.as_deref(),
             state.envelope.dsc(),
             state.event.value(),
             client_ip,
-            &state.project_state,
-            state.sampling_project_state.as_deref(),
-            self.config.processing_enabled(),
         ) {
-            SamplingResult::Drop(rule_id) => {
+            SamplingResult::Drop(rule_ids) => {
                 state
                     .envelope_context
-                    .reject(Outcome::FilteredSampling(rule_id));
+                    .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
-                Err(ProcessingError::Sampled(rule_id))
+                Err(ProcessingError::Sampled(rule_ids))
             }
             SamplingResult::Keep => Ok(()),
         }
@@ -2500,12 +2499,15 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
-    use relay_sampling::{RuleCondition, RuleType, SamplingMode};
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
@@ -3180,18 +3182,44 @@ mod tests {
             outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
             Err(_)
         ));
+
         assert!(matches!(
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
             Err(_)
         ));
+
         assert!(matches!(
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
             Err(_)
         ));
+
         assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-            Ok(Outcome::FilteredSampling(RuleId(123)))
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(())
         ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
+            Err(())
+        ));
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
+                RuleId(123),
+                RuleId(456)
+            ])))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
+        );
     }
 
     #[test]

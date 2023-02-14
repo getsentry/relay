@@ -8,11 +8,13 @@
 - Apply all configured data scrubbing rules on Replays. ([#1731](https://github.com/getsentry/relay/pull/1731))
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
 - Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
+- Implement a new sampling algorithm with factors and multi-matching. ([#1790](https://github.com/getsentry/relay/pull/1790)
 
 **Bug Fixes**:
 
 - Fix a bug where the replays ip-address normalization was not being applied when the user object was omitted. ([#1805](https://github.com/getsentry/relay/pull/1805))
-- Improve performance for replays, especially memory usage during data scrubbing.([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
+- Improve performance for replays, especially memory usage during data scrubbing. ([#1800](https://github.com/getsentry/relay/pull/1800), [#1825](https://github.com/getsentry/relay/pull/1825))
+- When a transaction is rate limited, also remove associated profiles. ([#1843](https://github.com/getsentry/relay/pull/1843))
 
 **Internal**:
 

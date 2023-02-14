@@ -90,3 +90,4 @@ libc = "0.2.71"
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["json"] }
 relay-test = { path = "../relay-test" }
+similar-asserts = "1.4.2"
