@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["main",""]],"mod":[["cli",""],["cliapp",""],["setup",""],["utils",""]]};
+window.SIDEBAR_ITEMS = {"fn":[["main",""]],"mod":[["cli",""],["cliapp","This module implements the definition of the command line app."],["setup",""],["utils",""]]};

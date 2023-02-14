@@ -57,29 +57,15 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::Display;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>anyhow::Result;
-<span class="kw">use </span>console::Style;
 <span class="kw">use </span>dialoguer::theme::{ColorfulTheme, Theme};
 <span class="kw">use </span>dialoguer::Input;
 <span class="kw">use </span>once_cell::sync::Lazy;
 
-<span class="kw">static </span>THEME: Lazy&lt;ColorfulTheme&gt; = Lazy::new(|| ColorfulTheme {
-    values_style: Style::new().cyan().dim(),
-    indicator_style: Style::new().cyan().bold(),
-    yes_style: Style::new().cyan().dim(),
-    no_style: Style::new().cyan().dim(),
-    ..ColorfulTheme::default()
-});
+<span class="kw">static </span>THEME: Lazy&lt;ColorfulTheme&gt; = Lazy::new(ColorfulTheme::default);
 
 <span class="doccomment">/// Returns the theme to use.
 </span><span class="kw">pub fn </span>get_theme() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span><span class="kw">dyn </span>Theme {

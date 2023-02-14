@@ -68,95 +68,34 @@
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
 </pre><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
 
-</span><span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::fs::File;
+</span><span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io;
 <span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">use </span>anyhow::Result;
-<span class="kw">use </span>structopt::clap::AppSettings;
-<span class="kw">use </span>structopt::StructOpt;
+<span class="kw">use </span>clap::{Parser, ValueEnum};
 
-<span class="attr">#[derive(Clone, Copy, Debug)]
+<span class="attr">#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
 </span><span class="kw">enum </span>SchemaFormat {
     JsonSchema,
 }
 
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SchemaFormat {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::JsonSchema =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;jsonschema&quot;</span>),
-        }
-    }
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>ParseSchemaFormatError;
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseSchemaFormatError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid schema format&quot;</span>)
-    }
-}
-
-<span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseSchemaFormatError {}
-
-<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>SchemaFormat {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseSchemaFormatError;
-
-    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-        <span class="kw">match </span>s {
-            <span class="string">&quot;jsonschema&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::JsonSchema),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ParseSchemaFormatError),
-        }
-    }
-}
-
 <span class="doccomment">/// Prints the event protocol schema.
-</span><span class="attr">#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+</span><span class="attr">#[derive(Debug, Parser)]
+#[command(verbatim_doc_comment)]
 </span><span class="kw">struct </span>Cli {
     <span class="doccomment">/// The format to output the schema in.
-    </span><span class="attr">#[structopt(short, long, default_value = <span class="string">&quot;jsonschema&quot;</span>)]
+    </span><span class="attr">#[arg(value_enum, short, long, default_value = <span class="string">&quot;jsonschema&quot;</span>)]
     </span>format: SchemaFormat,
 
     <span class="doccomment">/// Optional output path. By default, the schema is printed on stdout.
-    </span><span class="attr">#[structopt(short, long, value_name = <span class="string">&quot;PATH&quot;</span>)]
+    </span><span class="attr">#[arg(short, long)]
     </span>output: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
@@ -187,8 +126,9 @@
     }
 }
 
-<span class="attr">#[paw::main]
-</span><span class="kw">fn </span>main(cli: Cli) {
+<span class="kw">fn </span>main() {
+    <span class="kw">let </span>cli = Cli::parse();
+
     <span class="kw">match </span>cli.run() {
         <span class="prelude-val">Ok</span>(()) =&gt; (),
         <span class="prelude-val">Err</span>(error) =&gt; {

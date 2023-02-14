@@ -125,9 +125,8 @@
 <span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
-<span class="kw">use </span>structopt::clap::AppSettings;
-<span class="kw">use </span>structopt::StructOpt;
 
+<span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiConfig};
 
 <span class="doccomment">/// Apply data scrubbing (PII) rules on a minidump file.
@@ -146,18 +145,18 @@
 ///
 /// For more information on how to scrub IP addresses, user file paths and how to define custom
 /// regexes see &lt;https://getsentry.github.io/relay/pii-config/&gt;
-</span><span class="attr">#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+</span><span class="attr">#[derive(Debug, Parser)]
+#[structopt(verbatim_doc_comment)]
 </span><span class="kw">struct </span>Cli {
     <span class="doccomment">/// Path to a PII config JSON file.
-    </span><span class="attr">#[structopt(short, long, value_name = <span class="string">&quot;PATH&quot;</span>)]
+    </span><span class="attr">#[arg(short, long)]
     </span>config: PathBuf,
 
     <span class="doccomment">/// Path to the minidump to rewrite.
     </span>minidump: PathBuf,
 
     <span class="doccomment">/// Optional output path. By default, the minidump file is overwritten.
-    </span><span class="attr">#[structopt(short, long, value_name = <span class="string">&quot;PATH&quot;</span>)]
+    </span><span class="attr">#[arg(short, long)]
     </span>output: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
@@ -223,8 +222,9 @@
     }
 }
 
-<span class="attr">#[paw::main]
-</span><span class="kw">fn </span>main(cli: Cli) {
+<span class="kw">fn </span>main() {
+    <span class="kw">let </span>cli = Cli::parse();
+
     <span class="kw">match </span>cli.run() {
         <span class="prelude-val">Ok</span>(()) =&gt; (),
         <span class="prelude-val">Err</span>(error) =&gt; {

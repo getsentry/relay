@@ -135,6 +135,7 @@
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Read};
 <span class="kw">use </span>std::path::PathBuf;
 
+<span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::Event;
@@ -144,34 +145,32 @@
 <span class="kw">use </span>relay_general::types::Annotated;
 
 <span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
-<span class="kw">use </span>structopt::clap::AppSettings;
-<span class="kw">use </span>structopt::StructOpt;
 
 <span class="doccomment">/// Processes a Sentry event payload.
 ///
 /// This command takes a JSON event payload on stdin and write the processed event payload to
 /// stdout. Optionally, an additional PII config can be supplied.
-</span><span class="attr">#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+</span><span class="attr">#[derive(Debug, Parser)]
+#[structopt(verbatim_doc_comment)]
 </span><span class="kw">struct </span>Cli {
     <span class="doccomment">/// Path to a PII processing config JSON file.
-    </span><span class="attr">#[structopt(short = <span class="string">&quot;c&quot;</span>, long)]
+    </span><span class="attr">#[arg(short = <span class="string">&#39;c&#39;</span>, long)]
     </span>pii_config: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 
     <span class="doccomment">/// Path to an event payload JSON file (defaults to stdin).
-    </span><span class="attr">#[structopt(short, long)]
+    </span><span class="attr">#[arg(short, long)]
     </span>event: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 
     <span class="doccomment">/// Apply full store normalization.
-    </span><span class="attr">#[structopt(long)]
+    </span><span class="attr">#[arg(long)]
     </span>store: bool,
 
     <span class="doccomment">/// Pretty print the output JSON.
-    </span><span class="attr">#[structopt(long, conflicts_with = <span class="string">&quot;debug&quot;</span>)]
+    </span><span class="attr">#[arg(long, conflicts_with = <span class="string">&quot;debug&quot;</span>)]
     </span>pretty: bool,
 
     <span class="doccomment">/// Debug print the internal structure.
-    </span><span class="attr">#[structopt(long)]
+    </span><span class="attr">#[arg(long)]
     </span>debug: bool,
 }
 
@@ -243,8 +242,9 @@
     }
 }
 
-<span class="attr">#[paw::main]
-</span><span class="kw">fn </span>main(cli: Cli) {
+<span class="kw">fn </span>main() {
+    <span class="kw">let </span>cli = Cli::parse();
+
     <span class="kw">match </span>cli.run() {
         <span class="prelude-val">Ok</span>(()) =&gt; (),
         <span class="prelude-val">Err</span>(error) =&gt; {
