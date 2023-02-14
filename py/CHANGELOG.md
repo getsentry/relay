@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+- Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
 - Make sure to scrub all the fields with PII. If the fields contain an object, the entire object will be removed. ([#1789](https://github.com/getsentry/relay/pull/1789))
+- Add new schema for dynamic sampling rules. ([#1790](https://github.com/getsentry/relay/pull/1790)
+- Keep meta for removed custom measurements. ([#1815](https://github.com/getsentry/relay/pull/1815))
 
 ## 0.8.17
 
