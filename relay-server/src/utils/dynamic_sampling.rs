@@ -572,6 +572,37 @@ mod tests {
     }
 
     #[test]
+    /// Tests that only transaction rules are matched in case no root project or dsc are supplied.
+    fn test_get_sampling_match_result_with_invalid_root_project_and_dsc_combination() {
+        let project_state = mocked_project_state(SamplingMode::Received);
+        let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
+
+        let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+        let result = get_sampling_match_result(
+            true,
+            &project_state,
+            None,
+            Some(&dsc),
+            Some(&event),
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+
+        let root_project_state = mocked_root_project_state(SamplingMode::Received);
+        let result = get_sampling_match_result(
+            true,
+            &project_state,
+            Some(&root_project_state),
+            None,
+            Some(&event),
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+    }
+
+    #[test]
     /// Tests that a match of a rule of type error with a transaction event results in no match.
     fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
