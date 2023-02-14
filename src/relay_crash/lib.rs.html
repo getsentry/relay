@@ -184,7 +184,7 @@
 
     <span class="kw">if </span>!buf.is_null() &amp;&amp; len &gt; <span class="number">0 </span>{
         <span class="kw">let </span>transport: Transport = std::mem::transmute(tx_pointer);
-        transport(std::slice::from_raw_parts(buf <span class="kw">as </span><span class="kw-2">*const </span>u8, len <span class="kw">as </span>usize));
+        transport(std::slice::from_raw_parts(buf <span class="kw">as </span><span class="kw-2">*const </span>u8, len));
     }
 
     native::sentry_free(buf <span class="kw">as _</span>);

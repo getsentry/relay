@@ -270,29 +270,22 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::env;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::path::PathBuf;
+<span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>log::{Level, LevelFilter};
+<span class="kw">use </span>sentry::integrations::log::SentryLogger;
 <span class="kw">use </span>sentry::types::Dsn;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// The full release name including the Relay version and SHA.
 </span><span class="kw">const </span>RELEASE: <span class="kw-2">&amp;</span>str = <span class="macro">std::env!</span>(<span class="string">&quot;RELAY_RELEASE&quot;</span>);
+
+<span class="comment">// Import CRATE_NAMES, which lists all crates in the workspace.
+</span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 
 <span class="doccomment">/// Controls the log format.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -400,6 +393,22 @@
     }
 }
 
+<span class="doccomment">/// Configures the given log level for all of Relay&#39;s crates.
+</span><span class="kw">fn </span>set_default_filters(builder: <span class="kw-2">&amp;mut </span>env_logger::Builder) {
+    builder
+        <span class="comment">// Configure INFO as default for all third-party crates.
+        </span>.filter_level(LevelFilter::Info)
+        <span class="comment">// Trust DNS is very spammy on INFO, so configure a higher warn level.
+        </span>.filter_module(<span class="string">&quot;trust_dns_proto&quot;</span>, LevelFilter::Warn)
+        <span class="comment">// Actix-web has useful information on the debug stream, so allow this.
+        </span>.filter_module(<span class="string">&quot;actix_web::pipeline&quot;</span>, LevelFilter::Debug);
+
+    <span class="comment">// Add all internal modules with maximum log-level.
+    </span><span class="kw">for </span>name <span class="kw">in </span>CRATE_NAMES {
+        builder.filter_module(name, LevelFilter::Trace);
+    }
+}
+
 <span class="doccomment">/// Initialize the logging system and reporting to Sentry.
 ///
 /// # Example
@@ -419,129 +428,24 @@
         env::set_var(<span class="string">&quot;RUST_BACKTRACE&quot;</span>, <span class="string">&quot;full&quot;</span>);
     }
 
-    <span class="kw">if </span>env::var(<span class="string">&quot;RUST_LOG&quot;</span>).is_err() {
-        <span class="kw">let </span>log = <span class="kw">match </span>config.level {
-            LevelFilter::Off =&gt; <span class="string">&quot;&quot;</span>,
-            LevelFilter::Error =&gt; <span class="string">&quot;ERROR&quot;</span>,
-            LevelFilter::Warn =&gt; <span class="string">&quot;WARN&quot;</span>,
-            LevelFilter::Info =&gt; {
-                <span class="string">&quot;INFO,\
-                 trust_dns_proto=WARN&quot;
-            </span>}
-            LevelFilter::Debug =&gt; {
-                <span class="string">&quot;INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=DEBUG,\
-                 relay_common=DEBUG,\
-                 relay_config=DEBUG,\
-                 relay_filter=DEBUG,\
-                 relay_general=DEBUG,\
-                 relay_quotas=DEBUG,\
-                 relay_redis=DEBUG,\
-                 relay_server=DEBUG,\
-                 relay=DEBUG&quot;
-            </span>}
-            LevelFilter::Trace =&gt; {
-                <span class="string">&quot;INFO,\
-                 trust_dns_proto=WARN,\
-                 actix_web::pipeline=DEBUG,\
-                 relay_auth=TRACE,\
-                 relay_common=TRACE,\
-                 relay_config=TRACE,\
-                 relay_filter=TRACE,\
-                 relay_general=TRACE,\
-                 relay_quotas=TRACE,\
-                 relay_redis=TRACE,\
-                 relay_server=TRACE,\
-                 relay=TRACE&quot;
-            </span>}
-        }
-        .to_string();
-
-        env::set_var(<span class="string">&quot;RUST_LOG&quot;</span>, log);
+    <span class="kw">let </span><span class="kw-2">mut </span>log_builder = env_logger::Builder::from_env(env_logger::DEFAULT_FILTER_ENV);
+    <span class="kw">if </span>env::var(env_logger::DEFAULT_FILTER_ENV).is_err() {
+        set_default_filters(<span class="kw-2">&amp;mut </span>log_builder);
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>log_builder = {
-        <span class="kw">match </span>(config.format, console::user_attended()) {
-            (LogFormat::Auto, <span class="bool-val">true</span>) | (LogFormat::Pretty, <span class="kw">_</span>) =&gt; {
-                pretty_env_logger::formatted_builder()
-            }
-            (LogFormat::Auto, <span class="bool-val">false</span>) | (LogFormat::Simplified, <span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>builder = env_logger::Builder::new();
-                builder.format(|buf, record| {
-                    <span class="kw">let </span>ts = buf.timestamp();
-                    <span class="macro">writeln!</span>(
-                        buf,
-                        <span class="string">&quot;{} [{}] {}: {}&quot;</span>,
-                        ts,
-                        record.module_path().unwrap_or(<span class="string">&quot;&lt;unknown&gt;&quot;</span>),
-                        record.level(),
-                        record.args()
-                    )
-                });
-                builder
-            }
-            (LogFormat::Json, <span class="kw">_</span>) =&gt; {
-                <span class="attr">#[derive(Serialize, Deserialize, Debug)]
-                </span><span class="kw">struct </span>LogRecord&lt;<span class="lifetime">&#39;a</span>&gt; {
-                    timestamp: DateTime&lt;Utc&gt;,
-                    level: Level,
-                    logger: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
-                    message: String,
-                    module_path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
-                    filename: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
-                    lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-                }
-
-                <span class="kw">let </span><span class="kw-2">mut </span>builder = env_logger::Builder::new();
-                builder.format(|<span class="kw-2">mut </span>buf, record| -&gt; io::Result&lt;()&gt; {
-                    serde_json::to_writer(
-                        <span class="kw-2">&amp;mut </span>buf,
-                        <span class="kw-2">&amp;</span>LogRecord {
-                            timestamp: Utc::now(),
-                            level: record.level(),
-                            logger: record.target(),
-                            message: record.args().to_string(),
-                            module_path: record.module_path(),
-                            filename: record.file(),
-                            lineno: record.line(),
-                        },
-                    )
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))<span class="question-mark">?</span>;
-                    buf.write_all(<span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
-                    <span class="prelude-val">Ok</span>(())
-                });
-                builder
-            }
-        }
+    <span class="kw">match </span>(config.format, console::user_attended()) {
+        (LogFormat::Auto, <span class="bool-val">true</span>) | (LogFormat::Pretty, <span class="kw">_</span>) =&gt; log_builder.format(format_pretty),
+        (LogFormat::Auto, <span class="bool-val">false</span>) | (LogFormat::Simplified, <span class="kw">_</span>) =&gt; log_builder.format(format_plain),
+        (LogFormat::Json, <span class="kw">_</span>) =&gt; log_builder.format(format_json),
     };
 
-    <span class="kw">match </span>env::var(<span class="string">&quot;RUST_LOG&quot;</span>) {
-        <span class="prelude-val">Ok</span>(rust_log) =&gt; log_builder.parse_filters(<span class="kw-2">&amp;</span>rust_log),
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; log_builder.filter_level(config.level),
-    };
-
-    <span class="kw">let </span>dest_log = log_builder.build();
-    log::set_max_level(dest_log.filter());
-
-    <span class="kw">let </span>log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
-    log::set_boxed_logger(Box::new(log)).ok();
+    log::set_max_level(config.level);
+    log::set_boxed_logger(Box::new(SentryLogger::with_dest(log_builder.build()))).ok();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn() {
         <span class="kw">let </span>guard = sentry::init(sentry::ClientOptions {
             dsn: <span class="prelude-val">Some</span>(dsn).cloned(),
-            in_app_include: <span class="macro">vec!</span>[
-                <span class="string">&quot;relay_auth::&quot;</span>,
-                <span class="string">&quot;relay_common::&quot;</span>,
-                <span class="string">&quot;relay_config::&quot;</span>,
-                <span class="string">&quot;relay_filter::&quot;</span>,
-                <span class="string">&quot;relay_general::&quot;</span>,
-                <span class="string">&quot;relay_quotas::&quot;</span>,
-                <span class="string">&quot;relay_redis::&quot;</span>,
-                <span class="string">&quot;relay_server::&quot;</span>,
-                <span class="string">&quot;relay::&quot;</span>,
-            ],
+            in_app_include: <span class="macro">vec!</span>[<span class="string">&quot;relay&quot;</span>],
             release: <span class="prelude-val">Some</span>(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             ..Default::default()
@@ -564,6 +468,78 @@
             }
         }
     }
+}
+
+<span class="kw">static </span>MAX_MODULE_WIDTH: AtomicUsize = AtomicUsize::new(<span class="number">0</span>);
+
+<span class="kw">fn </span>max_target_width(target: <span class="kw-2">&amp;</span>str) -&gt; usize {
+    <span class="kw">let </span>len = target.len();
+    MAX_MODULE_WIDTH.fetch_max(len, Ordering::Relaxed).max(len)
+}
+
+<span class="kw">fn </span>format_pretty(f: <span class="kw-2">&amp;mut </span>env_logger::fmt::Formatter, record: <span class="kw-2">&amp;</span>log::Record) -&gt; io::Result&lt;()&gt; {
+    <span class="kw">let </span>color = <span class="kw">match </span>record.level() {
+        Level::Trace =&gt; env_logger::fmt::Color::Magenta,
+        Level::Debug =&gt; env_logger::fmt::Color::Blue,
+        Level::Info =&gt; env_logger::fmt::Color::Green,
+        Level::Warn =&gt; env_logger::fmt::Color::Yellow,
+        Level::Error =&gt; env_logger::fmt::Color::Red,
+    };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>style = f.style();
+    <span class="kw">let </span>styled_level = style.set_color(color).value(record.level());
+
+    <span class="kw">let </span><span class="kw-2">mut </span>style = f.style();
+    <span class="kw">let </span>target = record.target();
+    <span class="kw">let </span>styled_target = style.set_bold(<span class="bool-val">true</span>).value(target);
+
+    <span class="macro">writeln!</span>(
+        f,
+        <span class="string">&quot; {styled_level} {styled_target:width$} &gt; {}&quot;</span>,
+        record.args(),
+        width = max_target_width(target),
+    )
+}
+
+<span class="kw">fn </span>format_plain(f: <span class="kw-2">&amp;mut </span>env_logger::fmt::Formatter, record: <span class="kw-2">&amp;</span>log::Record) -&gt; io::Result&lt;()&gt; {
+    <span class="kw">let </span>ts = f.timestamp();
+
+    <span class="macro">writeln!</span>(
+        f,
+        <span class="string">&quot;{} [{}] {}: {}&quot;</span>,
+        ts,
+        record.module_path().unwrap_or(<span class="string">&quot;&lt;unknown&gt;&quot;</span>),
+        record.level(),
+        record.args()
+    )
+}
+
+<span class="attr">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">struct </span>LogRecord&lt;<span class="lifetime">&#39;a</span>&gt; {
+    timestamp: DateTime&lt;Utc&gt;,
+    level: Level,
+    logger: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    message: String,
+    module_path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    filename: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+}
+
+<span class="kw">fn </span>format_json(<span class="kw-2">mut </span>f: <span class="kw-2">&amp;mut </span>env_logger::fmt::Formatter, record: <span class="kw-2">&amp;</span>log::Record) -&gt; io::Result&lt;()&gt; {
+    <span class="kw">let </span>record = LogRecord {
+        timestamp: Utc::now(),
+        level: record.level(),
+        logger: record.target(),
+        message: record.args().to_string(),
+        module_path: record.module_path(),
+        filename: record.file(),
+        lineno: record.line(),
+    };
+
+    serde_json::to_writer(<span class="kw-2">&amp;mut </span>f, <span class="kw-2">&amp;</span>record)
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))<span class="question-mark">?</span>;
+
+    f.write_all(<span class="string">b&quot;\n&quot;</span>)
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_log" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
