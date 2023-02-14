@@ -20,8 +20,7 @@ serde_json = { version = "1.0.55", optional = true }
 thiserror = "1.0.38"
 
 [dev-dependencies]
-serde_yaml = "0.8.13"
-
+serde_yaml = "0.9.17"
 
 [features]
 default = []

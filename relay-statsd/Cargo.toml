@@ -10,9 +10,9 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-cadence = "0.26.0"
+cadence = "0.29.0"
 parking_lot = "0.12.1"
-rand = "0.7.3"
+rand = "0.8.5"
 relay-log = { path = "../relay-log" }
 
 [features]

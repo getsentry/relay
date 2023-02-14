@@ -44,8 +44,8 @@ flate2 = "1.0.19"
 fragile = { version = "2.0.0", features = ["slab"] } # used for vendoring sentry-actix
 futures = { version = "0.3", package = "futures", features = ["compat"] }
 futures01 = { version = "0.1.28", package = "futures" }
-hashbrown = "0.12.3"
-itertools = "0.8.2"
+hashbrown = "0.13.2"
+itertools = "0.10.5"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 listenfd = "0.3.3"
 minidump = { version = "0.10.0", optional = true }
@@ -75,14 +75,14 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
-symbolic-common = { version = "10.1.2", optional = true, default-features=false }
-symbolic-unreal = { version = "10.1.2", optional = true, default-features=false, features=["serde"] }
+symbolic-common = { version = "11.1.0", optional = true, default-features=false }
+symbolic-unreal = { version = "11.1.0", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
 thiserror = "1.0.38"
 tokio = { version = "1.0", features = ["rt-multi-thread", "sync", "macros"] }
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
-zstd = { version = "0.11.2", optional = true }
+zstd = { version = "0.12.3", optional = true }
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"
