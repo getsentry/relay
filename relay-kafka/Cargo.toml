@@ -17,7 +17,7 @@ relay-statsd = { path  = "../relay-statsd", optional = true }
 rmp-serde = { version = "0.14.3", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = { version = "1.0.55", optional = true }
-thiserror = "1.0.20"
+thiserror = "1.0.38"
 
 [dev-dependencies]
 serde_yaml = "0.8.13"

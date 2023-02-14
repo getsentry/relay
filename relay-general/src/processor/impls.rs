@@ -1,5 +1,6 @@
 use enumset::EnumSet;
-use uuid::Uuid;
+
+use relay_common::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};

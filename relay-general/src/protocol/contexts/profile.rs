@@ -32,7 +32,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
             profile_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
         })));
 
@@ -48,7 +48,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
             profile_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
         })));
 

@@ -442,7 +442,7 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     HttpResponse::Ok()
         .content_type("text/plain")
-        .body(format!("{}", id.0.to_hyphenated()))
+        .body(id.0.as_hyphenated().to_string())
 }
 
 /// A helper for creating Actix routes that are resilient against double-slashes
