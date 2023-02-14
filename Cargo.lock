@@ -3449,6 +3449,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-projectconfig"
+version = "23.1.1"
+
+[[package]]
 name = "relay-quotas"
 version = "23.2.0"
 dependencies = [
