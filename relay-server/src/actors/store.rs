@@ -111,6 +111,7 @@ impl StoreService {
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+        dbg!("BEGIN@@@@@");
         let StoreEnvelope {
             envelope,
             start_time,
@@ -200,9 +201,12 @@ impl StoreService {
         }
 
         if let Some(event_item) = event_item {
-            if !matches!(event_item.ty(), ItemType::Transaction) {
+            if matches!(event_item.ty(), ItemType::Transaction) {
+                dbg!("THIS IS NOT A TRANSACTION");
                 attachments = vec![];
                 self.send_attachments_to_kafka(attachments.clone(), &event_id, &scoping, topic)?;
+            } else {
+                dbg!("THIS IS A TRANSACTION########");
             }
             relay_log::trace!("Sending event item of envelope to kafka");
 
@@ -222,6 +226,7 @@ impl StoreService {
                 event_type = &event_item.ty().to_string()
             );
         } else {
+            dbg!("$$$$$$$$ THIS IS NOT AN EVENT");
             self.send_attachments_to_kafka(attachments, &event_id, &scoping, topic)?;
         }
         Ok(())
