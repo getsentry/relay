@@ -64,7 +64,7 @@ pipelines:
                           elastic_profile_id: relay
                           tasks:
                               - script: |
-                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}" canary
                       deploy:
                           timeout: 1200
                           elastic_profile_id: relay
@@ -93,7 +93,7 @@ pipelines:
                           elastic_profile_id: relay
                           tasks:
                               - script: |
-                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}" production
                       deploy:
                           timeout: 1200
                           elastic_profile_id: relay

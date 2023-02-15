@@ -26,19 +26,8 @@ pipelines:
                       type: manual
                   fetch_materials: true
                   jobs:
-                      create_sentry_release:
-                          environment_variables:
-                              SENTRY_ORG: sentry
-                              SENTRY_PROJECT: pop-relay
-                              SENTRY_URL: "https://sentry.my.sentry.io/"
-                              # Temporary; self-service encrypted secrets aren't implemented yet.
-                              # This should really be rotated to an internal integration token.
-                              SENTRY_AUTH_TOKEN: "{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}"
-                          timeout: 1200
-                          elastic_profile_id: relay-pop
-                          tasks:
-                              - script: |
-                                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                      # XXX: Can't have pop releases yet unless we give
+                      # permission for relay-pop to read from relay deploy bucket.
                       deploy-pop-europe-1:
                           timeout: 1200
                           elastic_profile_id: relay-pop
