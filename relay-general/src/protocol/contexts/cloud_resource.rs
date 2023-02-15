@@ -1,4 +1,4 @@
-use crate::types::{Annotated};
+use crate::types::Annotated;
 
 /// Cloud Resource Context
 ///
@@ -24,7 +24,6 @@ use crate::types::{Annotated};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct CloudResourceContext {
-
     /// Name of the cloud provider.
     pub cloud_provider: Annotated<String>,
 

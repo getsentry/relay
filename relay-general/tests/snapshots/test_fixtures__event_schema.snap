@@ -2421,6 +2421,73 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "CloudResourceContext": {
+      "description": " Cloud Resource Context\n\n If an event originated in a cloud environment (like AWS, GCP).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "cloud_provider": {
+              "description": " Name of the cloud provider",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud_account_id": {
+              "description": " The cloud account ID the resource is assigned to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud_region": {
+              "description": " The geographical region the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud_availability_zone": {
+              "description": " The zone where the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud_platform": {
+              "description": " The cloud platform in use.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host_id": {
+              "description": " Unique host ID.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host_type": {
+              "description": "  Machine type of host.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "PosixSignal": {
       "description": " POSIX signal with optional extended data.\n\n On Apple systems, signals also carry a code in addition to the signal number describing the\n signal in more detail. On Linux, this code does not exist.",
       "anyOf": [
