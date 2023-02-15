@@ -4,6 +4,7 @@
 //! the browser, os and device information in the event.
 //!
 
+use std::borrow::Cow;
 use std::fmt::Write;
 
 use crate::protocol::{
@@ -70,11 +71,11 @@ pub fn is_known(family: &str) -> bool {
 }
 
 pub fn get_version(
-    major: &Option<String>,
-    minor: &Option<String>,
-    patch: &Option<String>,
+    major: &Option<Cow<'_, str>>,
+    minor: &Option<Cow<'_, str>>,
+    patch: &Option<Cow<'_, str>>,
 ) -> Option<String> {
-    let mut version = major.clone()?;
+    let mut version = major.as_ref()?.to_string();
 
     if let Some(minor) = minor {
         write!(version, ".{minor}").ok();
