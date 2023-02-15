@@ -4,7 +4,7 @@ use std::str;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
-use crate::macros::impl_str_serde;
+use relay_common::impl_str_serde;
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
@@ -68,7 +68,7 @@ impl<'g> GlobBuilder<'g> {
         pattern.push('^');
 
         static GLOB_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\?|\*\*|\*"#).unwrap());
+        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*"#).unwrap());
 
         for m in regex.find_iter(self.value) {
             pattern.push_str(&regex::escape(&self.value[last..m.start()]));
@@ -76,7 +76,7 @@ impl<'g> GlobBuilder<'g> {
                 "?" => pattern.push_str(self.groups.question_mark),
                 "**" => pattern.push_str(self.groups.double_star),
                 "*" => pattern.push_str(self.groups.star),
-                _ => {}
+                _ => pattern.push_str(m.as_str()),
             }
             last = m.end();
         }
@@ -267,6 +267,18 @@ mod tests {
         let g = Glob::new("/api/*/stuff/**");
         assert!(g.is_match("/api/some/stuff/here/store/"));
         assert!(!g.is_match("/api/some/store/"));
+
+        let g = Glob::new(r"/api/\*/stuff");
+        assert!(g.is_match("/api/*/stuff"));
+        assert!(!g.is_match("/api/some/stuff"));
+
+        let g = Glob::new(r"*stuff");
+        assert!(g.is_match("some-stuff"));
+        assert!(!g.is_match("not-stuff-but-things"));
+
+        let g = Glob::new(r"\*stuff");
+        assert!(g.is_match("*stuff"));
+        assert!(!g.is_match("some-stuff"));
     }
 
     #[test]
@@ -315,6 +327,21 @@ mod tests {
 
             assert_eq!(g.replace_captures(transaction, "*"), result);
         }
+    }
+
+    #[test]
+    fn test_do_not_replace() {
+        let g = Glob::builder(r"/foo/\*/*")
+            .capture_star(true)
+            .capture_double_star(false)
+            .capture_question_mark(false)
+            .build();
+
+        // A literal asterisk matches
+        assert_eq!(g.replace_captures("/foo/*/bar", "_"), "/foo/*/_");
+
+        // But only a literal asterisk
+        assert_eq!(g.replace_captures("/foo/nope/bar", "_"), "/foo/nope/bar");
     }
 
     #[test]

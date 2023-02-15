@@ -4,23 +4,18 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 /// Represents an action requested by the Upstream sent in an error message.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayErrorAction {
     Stop,
     #[serde(other)]
+    #[default]
     None,
 }
 
 impl RelayErrorAction {
     fn is_none(&self) -> bool {
         *self == Self::None
-    }
-}
-
-impl Default for RelayErrorAction {
-    fn default() -> Self {
-        RelayErrorAction::None
     }
 }
 
@@ -70,7 +65,7 @@ impl ApiErrorResponse {
 impl fmt::Display for ApiErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref detail) = self.detail {
-            write!(f, "{}", detail)
+            write!(f, "{detail}")
         } else {
             write!(f, "no error details")
         }

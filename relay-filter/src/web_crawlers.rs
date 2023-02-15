@@ -48,7 +48,7 @@ static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
 
 /// Checks if the event originates from a known web crawler.
 pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = user_agent::get_user_agent(event) {
+    if let Some(user_agent) = user_agent::get_user_agent(&event.request) {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false
@@ -125,8 +125,7 @@ mod tests {
             assert_ne!(
                 filter_result,
                 Ok(()),
-                "Failed to filter web crawler with user agent '{}'",
-                banned_user_agent
+                "Failed to filter web crawler with user agent '{banned_user_agent}'"
             );
         }
     }
@@ -149,8 +148,7 @@ mod tests {
             assert_eq!(
                 filter_result,
                 Ok(()),
-                "Failed benign user agent '{}'",
-                user_agent
+                "Failed benign user agent '{user_agent}'"
             );
         }
     }

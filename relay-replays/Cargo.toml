@@ -1,26 +1,29 @@
 [package]
 name = "relay-replays"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Replays functionality for Relay"
+description = "Session replay functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.12.0"
+version = "23.1.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
+flate2 = "1.0.19"
+once_cell = "1.13.1"
 relay-common = { path = "../relay-common" }
 relay-general = { path = "../relay-general" }
 relay-log = { path = "../relay-log" }
 serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
-relay-filter = { path = "../relay-filter" }
-rand = "0.8.5"
-rand_pcg = "0.3.1"
-unicase = "2.6.0"
-flate2 = "1.0.19"
+serde_json = { version ="1.0.55", features = ["raw_value"] }
+serde-transcode = "1.1.1"
 
 [dev-dependencies]
+criterion = "0.4"
 insta = { version = "1.1.0", features = ["ron"] }
 assert-json-diff = "2.0.2"
+
+[[bench]]
+name = "benchmarks"
+harness = false

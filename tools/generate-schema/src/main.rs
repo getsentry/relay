@@ -3,60 +3,29 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::fmt;
 use std::fs::File;
 use std::io;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
+use clap::{Parser, ValueEnum};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "lowercase")]
 enum SchemaFormat {
     JsonSchema,
 }
 
-impl fmt::Display for SchemaFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::JsonSchema => write!(f, "jsonschema"),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ParseSchemaFormatError;
-
-impl fmt::Display for ParseSchemaFormatError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid schema format")
-    }
-}
-
-impl std::error::Error for ParseSchemaFormatError {}
-
-impl std::str::FromStr for SchemaFormat {
-    type Err = ParseSchemaFormatError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "jsonschema" => Ok(Self::JsonSchema),
-            _ => Err(ParseSchemaFormatError),
-        }
-    }
-}
-
 /// Prints the event protocol schema.
-#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+#[derive(Debug, Parser)]
+#[command(verbatim_doc_comment)]
 struct Cli {
     /// The format to output the schema in.
-    #[structopt(short, long, default_value = "jsonschema")]
+    #[arg(value_enum, short, long, default_value = "jsonschema")]
     format: SchemaFormat,
 
     /// Optional output path. By default, the schema is printed on stdout.
-    #[structopt(short, long, value_name = "PATH")]
+    #[arg(short, long)]
     output: Option<PathBuf>,
 }
 
@@ -78,17 +47,18 @@ impl Cli {
 }
 
 fn print_error(error: &anyhow::Error) {
-    eprintln!("Error: {}", error);
+    eprintln!("Error: {error}");
 
     let mut cause = error.source();
     while let Some(ref e) = cause {
-        eprintln!("  caused by: {}", e);
+        eprintln!("  caused by: {e}");
         cause = e.source();
     }
 }
 
-#[paw::main]
-fn main(cli: Cli) {
+fn main() {
+    let cli = Cli::parse();
+
     match cli.run() {
         Ok(()) => (),
         Err(error) => {

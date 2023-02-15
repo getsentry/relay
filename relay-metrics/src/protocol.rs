@@ -172,7 +172,7 @@ fn is_valid_name(name: &str) -> bool {
 ///
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
-/// Everything else is dropped both in the metrics aggregator and in the store actor.
+/// Everything else is dropped both in the metrics aggregator and in the store service.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.

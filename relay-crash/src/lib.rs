@@ -32,7 +32,7 @@ unsafe extern "C" fn transport_proxy(
 
     if !buf.is_null() && len > 0 {
         let transport: Transport = std::mem::transmute(tx_pointer);
-        transport(std::slice::from_raw_parts(buf as *const u8, len as usize));
+        transport(std::slice::from_raw_parts(buf as *const u8, len));
     }
 
     native::sentry_free(buf as _);
@@ -65,7 +65,7 @@ impl<'a> fmt::Debug for CrashHandler<'a> {
         f.debug_struct("CrashHandler")
             .field("dsn", &self.dsn)
             .field("database", &self.database)
-            .field("transport", &format_args!("{}", transport))
+            .field("transport", &format_args!("{transport}"))
             .field("release", &self.release)
             .field("environment", &self.environment)
             .finish()

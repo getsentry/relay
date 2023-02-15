@@ -2,18 +2,11 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result;
-use console::Style;
 use dialoguer::theme::{ColorfulTheme, Theme};
 use dialoguer::Input;
 use once_cell::sync::Lazy;
 
-static THEME: Lazy<ColorfulTheme> = Lazy::new(|| ColorfulTheme {
-    values_style: Style::new().cyan().dim(),
-    indicator_style: Style::new().cyan().bold(),
-    yes_style: Style::new().cyan().dim(),
-    no_style: Style::new().cyan().dim(),
-    ..ColorfulTheme::default()
-});
+static THEME: Lazy<ColorfulTheme> = Lazy::new(ColorfulTheme::default);
 
 /// Returns the theme to use.
 pub fn get_theme() -> &'static dyn Theme {
@@ -36,7 +29,7 @@ where
                 return Ok(());
             }
             Err(err) => {
-                println!("  invalid input: {}", err);
+                println!("  invalid input: {err}");
                 continue;
             }
         }
@@ -57,7 +50,7 @@ where
                 return Ok(value);
             }
             Err(err) => {
-                println!("  invalid input: {}", err);
+                println!("  invalid input: {err}");
                 continue;
             }
         }

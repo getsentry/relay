@@ -8,6 +8,8 @@ use schemars::schema::Schema;
 
 use serde::{Serialize, Serializer};
 
+use relay_common::Uuid;
+
 use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
 use crate::protocol::{
@@ -23,13 +25,13 @@ use crate::types::{
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct EventId(pub uuid::Uuid);
+pub struct EventId(pub Uuid);
 
 impl EventId {
     /// Creates a new event id using a UUID v4.
     #[inline]
     pub fn new() -> Self {
-        Self(uuid::Uuid::new_v4())
+        Self(Uuid::new_v4())
     }
 
     /// Tests if the UUID is nil.
@@ -52,12 +54,12 @@ impl ProcessValue for EventId {}
 
 impl fmt::Display for EventId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.to_simple_ref())
+        write!(f, "{}", self.0.as_simple())
     }
 }
 
 impl FromStr for EventId {
-    type Err = uuid::Error;
+    type Err = <Uuid as FromStr>::Err;
 
     fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
         uuid_str.parse().map(EventId)
@@ -97,7 +99,7 @@ impl IntoValue for EventType {
     where
         Self: Sized,
     {
-        Value::String(format!("{}", self))
+        Value::String(format!("{self}"))
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -656,7 +658,7 @@ mod tests {
                 Annotated::new(map)
             },
             platform: Annotated::new("myplatform".to_string()),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             server_name: Annotated::new("myhost".to_string()),
             release: Annotated::new("myrelease".to_string().into()),
             dist: Annotated::new("mydist".to_string()),

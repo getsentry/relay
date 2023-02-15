@@ -15,11 +15,11 @@ BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 
 # Prepare build environment first
 docker pull $BUILD_IMAGE || true
-docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
-             --build-arg BUILD_ARCH=${BUILD_ARCH} \
-             --cache-from=${BUILD_IMAGE} \
-             --target relay-deps \
-             -t "${BUILD_IMAGE}" .
+docker buildx build \
+     --platform "linux/${DOCKER_ARCH}" \
+     --cache-from=${BUILD_IMAGE} \
+     --target relay-deps \
+     -t "${BUILD_IMAGE}" .
 
 DOCKER_RUN_OPTS="
   -v $(pwd):/work

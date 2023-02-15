@@ -1,5 +1,7 @@
-use crate::protocol::LenientString;
+use crate::protocol::{FromUserAgentInfo, LenientString};
+use crate::store::user_agent::{get_version, is_known};
 use crate::types::{Annotated, Object, Value};
+use crate::user_agent::{parse_os, ClientHints};
 
 /// Operating system information.
 ///
@@ -47,9 +49,153 @@ impl OsContext {
     }
 }
 
-#[test]
-fn test_os_context_roundtrip() {
-    let json = r#"{
+impl FromUserAgentInfo for OsContext {
+    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
+        let platform = client_hints.sec_ch_ua_platform?;
+        let version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
+
+        if platform.trim().is_empty() {
+            return None;
+        }
+
+        Some(Self {
+            name: Annotated::new(platform.to_owned()),
+            version: Annotated::from(version),
+            ..Default::default()
+        })
+    }
+
+    fn from_user_agent(user_agent: &str) -> Option<Self> {
+        let os = parse_os(user_agent);
+
+        if !is_known(&os.family) {
+            return None;
+        }
+
+        Some(Self {
+            name: Annotated::from(os.family),
+            version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
+            ..OsContext::default()
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{Headers, PairList};
+    use crate::user_agent::RawUserAgentInfo;
+
+    /// Verifies that client hints are chosen over ua string when available.
+    #[test]
+    fn test_choose_client_hints_for_os_context() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                Annotated::new(r#"macOS"#.to_string().into()), // no browser field here
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                Annotated::new("13.1.0".to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        insta::assert_debug_snapshot!(os, @r###"
+OsContext {
+    name: "macOS",
+    version: "13.1.0",
+    build: ~,
+    kernel_version: ~,
+    rooted: ~,
+    raw_description: ~,
+    other: {},
+}
+        "###);
+    }
+
+    #[test]
+    fn test_ignore_empty_os() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                Annotated::new(r#""#.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = OsContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_none())
+    }
+
+    #[test]
+    fn test_keep_empty_os_version() {
+        let headers = Headers({
+            let headers = vec![
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                    Annotated::new(r#"macOs"#.to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ];
+            PairList(headers)
+        });
+
+        let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
+        let from_hints = OsContext::from_client_hints(&client_hints);
+        assert!(from_hints.is_some())
+    }
+
+    #[test]
+    fn test_fallback_on_ua_string_for_os() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("invalid header".to_string().into()),
+                Annotated::new(r#"macOS"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                Annotated::new("13.1.0".to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        insta::assert_debug_snapshot!(os, @r###"
+OsContext {
+    name: "Mac OS X",
+    version: "10.15.7",
+    build: ~,
+    kernel_version: ~,
+    rooted: ~,
+    raw_description: ~,
+    other: {},
+}
+        "###);
+    }
+
+    #[test]
+    fn test_os_context_roundtrip() {
+        let json = r#"{
   "name": "iOS",
   "version": "11.4.2",
   "build": "FEEDFACE",
@@ -59,24 +205,25 @@ fn test_os_context_roundtrip() {
   "other": "value",
   "type": "os"
 }"#;
-    use crate::protocol::Context;
-    let context = Annotated::new(Context::Os(Box::new(OsContext {
-        name: Annotated::new("iOS".to_string()),
-        version: Annotated::new("11.4.2".to_string()),
-        build: Annotated::new(LenientString("FEEDFACE".to_string())),
-        kernel_version: Annotated::new("17.4.0".to_string()),
-        rooted: Annotated::new(true),
-        raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        use crate::protocol::Context;
+        let context = Annotated::new(Context::Os(Box::new(OsContext {
+            name: Annotated::new("iOS".to_string()),
+            version: Annotated::new("11.4.2".to_string()),
+            build: Annotated::new(LenientString("FEEDFACE".to_string())),
+            kernel_version: Annotated::new("17.4.0".to_string()),
+            rooted: Annotated::new(true),
+            raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
-    assert_eq!(json, context.to_json_pretty().unwrap());
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
 }

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
+use data_encoding::BASE64_NOPAD;
 use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
@@ -90,7 +91,7 @@ impl AndroidProfile {
     }
 
     fn parse(&mut self) -> Result<(), ProfileError> {
-        let profile_bytes = match base64::decode(&self.sampled_profile) {
+        let profile_bytes = match BASE64_NOPAD.decode(self.sampled_profile.as_bytes()) {
             Ok(profile) => profile,
             Err(_) => return Err(ProfileError::InvalidBase64Value),
         };
@@ -235,7 +236,7 @@ mod tests {
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
 
         let profile = match parse_profile(payload) {
-            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Err(err) => panic!("cannot parse profile: {err:?}"),
             Ok(profile) => profile,
         };
         assert_eq!(

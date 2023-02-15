@@ -107,7 +107,7 @@ impl ResponseError for BadStoreRequest {
                     .json(&body)
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
-                // These errors indicate that something's wrong with our actor system, most likely
+                // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
                 HttpResponse::ServiceUnavailable().json(&body)
@@ -352,7 +352,7 @@ where
 
     metric!(
         counter(RelayCounters::EventProtocol) += 1,
-        version = &format!("{}", version)
+        version = &format!("{version}")
     );
 
     let buffer_guard = request.state().buffer_guard();
@@ -442,7 +442,7 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     HttpResponse::Ok()
         .content_type("text/plain")
-        .body(format!("{}", id.0.to_hyphenated()))
+        .body(id.0.as_hyphenated().to_string())
 }
 
 /// A helper for creating Actix routes that are resilient against double-slashes
@@ -453,12 +453,7 @@ pub fn normpath(route: &str) -> String {
     let mut pattern = String::new();
     for (i, segment) in route.trim_matches('/').split('/').enumerate() {
         // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        let _ = write!(
-            pattern,
-            "/{{multislash{i}:/*}}{segment}",
-            i = i,
-            segment = segment
-        );
+        let _ = write!(pattern, "/{{multislash{i}:/*}}{segment}");
     }
 
     if route.ends_with('/') {

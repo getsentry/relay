@@ -530,7 +530,7 @@ fn parse_max_chars(name: &str) -> TokenStream {
         "tag_value" => quote!(crate::processor::MaxChars::TagValue),
         "environment" => quote!(crate::processor::MaxChars::Environment),
         "distribution" => quote!(crate::processor::MaxChars::Distribution),
-        _ => panic!("invalid max_chars variant '{}'", name),
+        _ => panic!("invalid max_chars variant '{name}'"),
     }
 }
 
@@ -541,7 +541,7 @@ fn parse_bag_size(name: &str) -> TokenStream {
         "large" => quote!(crate::processor::BagSize::Large),
         "larger" => quote!(crate::processor::BagSize::Larger),
         "massive" => quote!(crate::processor::BagSize::Massive),
-        _ => panic!("invalid bag_size variant '{}'", name),
+        _ => panic!("invalid bag_size variant '{name}'"),
     }
 }
 
@@ -756,8 +756,9 @@ impl FieldAttrs {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 enum SkipSerialization {
+    #[default]
     Never,
     Null(bool),
     Empty(bool),
@@ -770,12 +771,6 @@ impl SkipSerialization {
             SkipSerialization::Null(deep) => quote!(crate::types::SkipSerialization::Null(#deep)),
             SkipSerialization::Empty(deep) => quote!(crate::types::SkipSerialization::Empty(#deep)),
         }
-    }
-}
-
-impl Default for SkipSerialization {
-    fn default() -> SkipSerialization {
-        SkipSerialization::Never
     }
 }
 
@@ -843,7 +838,7 @@ fn parse_field_attributes(
                             } else if ident == "omit_from_schema" {
                                 rv.omit_from_schema = true;
                             } else {
-                                panic!("Unknown attribute {}", ident);
+                                panic!("Unknown attribute {ident}");
                             }
                         }
                         Meta::NameValue(name_value) => {
@@ -862,7 +857,7 @@ fn parse_field_attributes(
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.required = Some(true),
                                         "false" => rv.required = Some(false),
-                                        other => panic!("Unknown value {}", other),
+                                        other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
                                         panic!("Got non string literal for required");
@@ -873,7 +868,7 @@ fn parse_field_attributes(
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.nonempty = Some(true),
                                         "false" => rv.nonempty = Some(false),
-                                        other => panic!("Unknown value {}", other),
+                                        other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
                                         panic!("Got non string literal for nonempty");
@@ -884,7 +879,7 @@ fn parse_field_attributes(
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.trim_whitespace = Some(true),
                                         "false" => rv.trim_whitespace = Some(false),
-                                        other => panic!("Unknown value {}", other),
+                                        other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
                                         panic!("Got non string literal for trim_whitespace");
@@ -931,7 +926,7 @@ fn parse_field_attributes(
                                         "true" => rv.pii = Some(Pii::True),
                                         "false" => rv.pii = Some(Pii::False),
                                         "maybe" => rv.pii = Some(Pii::Maybe),
-                                        other => panic!("Unknown value {}", other),
+                                        other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
                                         panic!("Got non string literal for pii");
@@ -942,7 +937,7 @@ fn parse_field_attributes(
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.retain = true,
                                         "false" => rv.retain = false,
-                                        other => panic!("Unknown value {}", other),
+                                        other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
                                         panic!("Got non string literal for retain");
@@ -968,7 +963,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else {
-                                panic!("Unknown argument to metastructure: {}", ident);
+                                panic!("Unknown argument to metastructure: {ident}");
                             }
                         }
                         other => {
@@ -1019,7 +1014,7 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
                             } else if ident == "omit_from_schema" {
                                 rv.omit_from_schema = true;
                             } else {
-                                panic!("Unknown attribute {}", ident);
+                                panic!("Unknown attribute {ident}");
                             }
                         }
                         Meta::NameValue(name_value) => {

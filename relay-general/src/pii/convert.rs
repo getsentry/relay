@@ -1,21 +1,12 @@
 use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
-use regex::RegexBuilder;
 
 use crate::pii::{
-    DataScrubbingConfig, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction, RuleSpec,
-    RuleType, Vars,
+    DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
+    RuleSpec, RuleType, Vars,
 };
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
-
-// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
-// compatibility with Python.
-static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
-    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
-        .parse()
-        .unwrap()
-});
 
 /// Fields that the legacy data scrubber cannot strip.
 ///
@@ -23,6 +14,13 @@ static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
 /// scrubber should be able to strip more.
 static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
     "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value)"
+        .parse()
+        .unwrap()
+});
+
+/// Fields that are known to contain IPs. Used for legacy IP scrubbing.
+static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
+    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
         .parse()
         .unwrap()
 });
@@ -39,7 +37,11 @@ pub fn to_pii_config(
     }
 
     if datascrubbing_config.scrub_ip_addresses {
+        // legacy(?) scrubs all fields that are known to have IPs regardless of actual content
         applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
+
+        // checks actual contents of all fields and scrubs where there is an IP address
+        applied_rules.push("@ip:replace".to_owned());
     }
 
     if datascrubbing_config.scrub_data {
@@ -73,12 +75,7 @@ pub fn to_pii_config(
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern(
-                            RegexBuilder::new(&key_pattern)
-                                .case_insensitive(true)
-                                .build()
-                                .map_err(PiiConfigError::RegexError)?,
-                        ),
+                        key_pattern: LazyPattern::new(key_pattern).case_insensitive(true),
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
@@ -97,6 +94,7 @@ pub fn to_pii_config(
             ValueType::String.into(),
             ValueType::Number.into(),
             ValueType::Array.into(),
+            ValueType::Object.into(),
         ]),
         SelectorSpec::Not(Box::new(DATASCRUBBER_IGNORE.clone())),
     ];
@@ -216,8 +214,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
-              "@common:filter"
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -241,8 +240,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
-              "@common:filter"
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -275,8 +275,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
+              "@ip:replace",
               "strip-fields"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
@@ -289,15 +290,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_sensitive_fields_too_large() {
-        let result = to_pii_config_impl(&DataScrubbingConfig {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "user": {
+                    "data": {
+                        "1": "test"
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let config = to_pii_config_impl(&DataScrubbingConfig {
             sensitive_fields: vec!["1"]
-                .repeat(999999) // lowest number that will fail
+                .repeat(99999) // lowest number that will fail
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
             ..simple_enabled_config()
-        });
-        assert!(result.is_err());
+        })
+        .unwrap()
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        // The data won't be scrubbed here, since the regex cannot be compiled.
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -314,8 +332,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
-              "@common:filter"
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
+              "@common:filter",
+              "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -341,6 +360,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+              "@ip:replace"
+            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
@@ -410,23 +432,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_sdk_client_ip_stripped() {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "sdk": {
-                    "client_ip": "127.0.0.1"
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = simple_enabled_pii_config();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data);
-    }
-
-    #[test]
     fn test_user() {
         let mut data = Event::from_value(
             serde_json::json!({
@@ -445,14 +450,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
+    /// Checks that any fields containing an IP-address is scrubbed.
+    /// Even if it doesn't make sense for there to be an IP-address
+    /// such as in the username field.
     #[test]
-    fn test_user_ip_stripped() {
+    fn test_ip_stripped() {
         let mut data = Event::from_value(
             serde_json::json!({
                 "user": {
-                    "username": "secret",
-                    "ip_address": "73.133.27.120",
+                    "username": "73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "should be stripped despite lacking ip address",
                     "data": sensitive_vars()
+                },
+                "breadcrumbs": {
+                    "values": [
+                        {
+                            "message": "73.133.27.120",
+                            "data": {
+                                "test_data": "73.133.27.120" // test deep wildcard stripping
+                                }
+                        },
+                    ],
+                },
+                "sdk": {
+                    "client_ip": "should also be stripped"
                 }
             })
             .into(),
@@ -1229,8 +1250,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
+              "@ip:replace",
               "strip-fields"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
@@ -1396,6 +1418,66 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         });
 
         let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_scrub_object() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "url": "https://www.example.com/fr/testing/authenticate",
+                    "method": "POST",
+                    "data": {
+                      "password": "test",
+                      "profile": {
+                        "email": "testing@example.com",
+                        "password": {
+                          "$eq": "u{}{}{}]H[[[]]ww6KrA9F.x-F%%"
+                        }
+                      },
+                      "submit": "Se connecter"
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_no_scrub_object_with_safe_fields() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "url": "https://www.example.com/fr/testing/authenticate",
+                    "method": "POST",
+                    "data": {
+                      "password": "test",
+                      "credentials": {
+                        "email": "testing@example.com",
+                        "password": "test",
+                      },
+                      "submit": "Se connecter"
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec![],
+            exclude_fields: vec!["credentials".to_owned()],
+            ..simple_enabled_config()
+        })
+        .unwrap();
+
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);

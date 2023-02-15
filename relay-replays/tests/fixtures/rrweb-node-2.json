@@ -2,13 +2,15 @@
     "type": 2,
     "tagName": "h1",
     "attributes": {
-        "id": "react-tooltip"
+        "id": "react-tooltip",
+        "rr_scrollLeft": 1070,
+        "rr_scrollTop": 385
     },
     "childNodes": [
         {
             "type": 3,
             "textContent": "test",
-            "id": 284
+            "id": -1
         }
     ],
     "id": 283

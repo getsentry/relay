@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
+use clap::Parser;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
@@ -16,34 +17,32 @@ use relay_general::store::{
 use relay_general::types::Annotated;
 
 use anyhow::{format_err, Context, Result};
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 
 /// Processes a Sentry event payload.
 ///
 /// This command takes a JSON event payload on stdin and write the processed event payload to
 /// stdout. Optionally, an additional PII config can be supplied.
-#[derive(Debug, StructOpt)]
-#[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
+#[derive(Debug, Parser)]
+#[structopt(verbatim_doc_comment)]
 struct Cli {
     /// Path to a PII processing config JSON file.
-    #[structopt(short = "c", long)]
+    #[arg(short = 'c', long)]
     pii_config: Option<PathBuf>,
 
     /// Path to an event payload JSON file (defaults to stdin).
-    #[structopt(short, long)]
+    #[arg(short, long)]
     event: Option<PathBuf>,
 
     /// Apply full store normalization.
-    #[structopt(long)]
+    #[arg(long)]
     store: bool,
 
     /// Pretty print the output JSON.
-    #[structopt(long, conflicts_with = "debug")]
+    #[arg(long, conflicts_with = "debug")]
     pretty: bool,
 
     /// Debug print the internal structure.
-    #[structopt(long)]
+    #[arg(long)]
     debug: bool,
 }
 
@@ -94,7 +93,7 @@ impl Cli {
         }
 
         if self.debug {
-            println!("{:#?}", event);
+            println!("{event:#?}");
         } else if self.pretty {
             println!("{}", event.to_json_pretty()?);
         } else {
@@ -106,17 +105,18 @@ impl Cli {
 }
 
 fn print_error(error: &anyhow::Error) {
-    eprintln!("Error: {}", error);
+    eprintln!("Error: {error}");
 
     let mut cause = error.source();
     while let Some(ref e) = cause {
-        eprintln!("  caused by: {}", e);
+        eprintln!("  caused by: {e}");
         cause = e.source();
     }
 }
 
-#[paw::main]
-fn main(cli: Cli) {
+fn main() {
+    let cli = Cli::parse();
+
     match cli.run() {
         Ok(()) => (),
         Err(error) => {

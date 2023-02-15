@@ -52,11 +52,13 @@ pub fn get_regex_for_rule_type(
     let kv = PatternType::KeyValue;
 
     match ty {
-        RuleType::RedactPair(ref redact_pair) => smallvec![(
-            kv,
-            &redact_pair.key_pattern.0,
-            ReplaceBehavior::replace_value()
-        )],
+        RuleType::RedactPair(ref redact_pair) => {
+            if let Ok(pattern) = redact_pair.key_pattern.compiled() {
+                smallvec![(kv, pattern, ReplaceBehavior::replace_value())]
+            } else {
+                smallvec![]
+            }
+        }
         RuleType::Password => {
             smallvec![(kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
         }
@@ -68,8 +70,11 @@ pub fn get_regex_for_rule_type(
                 }
                 None => ReplaceBehavior::replace_match(),
             };
-
-            smallvec![(v, &r.pattern.0, replace_behavior)]
+            if let Ok(pattern) = r.pattern.compiled() {
+                smallvec![(v, pattern, replace_behavior)]
+            } else {
+                smallvec![]
+            }
         }
 
         RuleType::Imei => smallvec![(v, &*IMEI_REGEX, ReplaceBehavior::replace_match())],
@@ -89,7 +94,7 @@ pub fn get_regex_for_rule_type(
         RuleType::Userpath => smallvec![(v, &*PATH_REGEX, ReplaceBehavior::replace_group(1))],
 
         // These ought to have been resolved in CompiledConfig
-        RuleType::Alias(_) | RuleType::Multiple(_) => smallvec![],
+        RuleType::Alias(_) | RuleType::Multiple(_) | RuleType::Unknown(_) => smallvec![],
     }
 }
 

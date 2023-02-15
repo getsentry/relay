@@ -9,7 +9,7 @@ use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
 pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    if let Some(user_agent_string) = user_agent::get_user_agent(event) {
+    if let Some(user_agent_string) = user_agent::get_user_agent(&event.request) {
         let user_agent = user_agent::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
@@ -204,8 +204,7 @@ mod tests {
             assert_ne!(
                 filter_result,
                 Ok(()),
-                "Default filter should have filtered User Agent\n{}",
-                old_user_agent
+                "Default filter should have filtered User Agent\n{old_user_agent}"
             )
         }
     }
@@ -227,8 +226,7 @@ mod tests {
             assert_eq!(
                 filter_result,
                 Ok(()),
-                "Default filter shouldn't have filtered User Agent\n{}",
-                old_user_agent
+                "Default filter shouldn't have filtered User Agent\n{old_user_agent}"
             )
         }
     }
@@ -282,9 +280,7 @@ mod tests {
             assert_ne!(
                 filter_result,
                 Ok(()),
-                "Filters {:?} should have filtered User Agent\n{} for ",
-                active_filters,
-                user_agent
+                "Filters {active_filters:?} should have filtered User Agent\n{user_agent} for "
             )
         }
     }
@@ -311,9 +307,7 @@ mod tests {
             assert_eq!(
                 filter_result,
                 Ok(()),
-                "Filter {:?} shouldn't have filtered User Agent\n{} for ",
-                active_filter,
-                user_agent
+                "Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
             )
         }
     }
@@ -392,9 +386,7 @@ mod tests {
                 assert_ne!(
                     filter_result,
                     Ok(()),
-                    "Filter <{:?}> should have filtered User Agent\n{} for ",
-                    active_filter,
-                    user_agent
+                    "Filter <{active_filter:?}> should have filtered User Agent\n{user_agent} for "
                 )
             }
         }
@@ -423,9 +415,7 @@ mod tests {
                 assert_eq!(
                     filter_result,
                     Ok(()),
-                    "Filter {:?} shouldn't have filtered User Agent\n{} for ",
-                    active_filter,
-                    user_agent
+                    "Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
                 )
             }
         }

@@ -7,17 +7,9 @@ use regex::Regex;
 /// <https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97>
 pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"
-
-    (?x)
+        r#"(?x)
     (?P<uuid>[^/\\]*
-        \b
-            [0-9a-fA-F]{8}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{4}-
-            [0-9a-fA-F]{12}
-        \b
+        \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
     [^/\\]*) |
     (?P<sha1>[^/\\]*
         \b[0-9a-fA-F]{40}\b
@@ -51,10 +43,10 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     (?P<hex>[^/\\]*
         \b0[xX][0-9a-fA-F]+\b
     [^/\\]*) |
-    (?P<int>[^/\\]*
-        \b\d{2,}\b
-    [^/\\]*)
-"#,
+    (?:^|[/\\])
+    (?P<int>
+        (:?[^%/\\]|%[0-9a-fA-F]{2})*\d{2,}
+    [^/\\]*)"#,
     )
     .unwrap()
 });

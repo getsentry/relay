@@ -171,9 +171,12 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => {
-                    self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
-                }
+                ItemType::MetricBuckets => self.produce_metrics(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                    retention,
+                )?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -449,7 +452,7 @@ impl StoreService {
                 received: protocol::datetime_to_timestamp(session.timestamp),
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
-                status: session.status,
+                status: session.status.clone(),
                 errors: session.errors.clamp(
                     (session.status == SessionStatus::Crashed) as _,
                     u16::MAX.into(),
@@ -477,7 +480,7 @@ impl StoreService {
                         scope.set_extra("metric_message.name", message.name.into());
                     },
                     || {
-                        relay_log::error!("Store actor dropping unknown metric usecase");
+                        relay_log::error!("Store service dropping unknown metric usecase");
                     },
                 );
                 return Ok(());
@@ -498,6 +501,7 @@ impl StoreService {
         org_id: u64,
         project_id: ProjectId,
         item: &Item,
+        retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
@@ -511,6 +515,7 @@ impl StoreService {
                     value: bucket.value,
                     timestamp: bucket.timestamp,
                     tags: bucket.tags,
+                    retention_days: retention,
                 },
             )?;
         }
@@ -950,8 +955,8 @@ struct MetricKafkaMessage {
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     tags: BTreeMap<String, String>,
+    retention_days: u16,
 }
 
 #[derive(Clone, Debug, Serialize)]

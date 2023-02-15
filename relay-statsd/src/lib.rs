@@ -492,67 +492,102 @@ pub trait GaugeMetric {
 macro_rules! metric {
     // counter increment
     (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.count_with_tags(&$crate::CounterMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::CounterMetric::name(&$id));
+            }, || {
+                $crate::with_client(|client| {
+                    use $crate::_pred::*;
+                    client.send_metric(
+                        client.count_with_tags(&$crate::CounterMetric::name(&$id), $value)
+                        $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            }
+        )
     };
 
     // counter decrement
     (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.count_with_tags(&$crate::CounterMetric::name(&$id), -$value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::CounterMetric::name(&$id));
+            }, || {
+                $crate::with_client(|client| {
+                    use $crate::_pred::*;
+                    client.send_metric(
+                        client.count_with_tags(&$crate::CounterMetric::name(&$id), -$value)
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            }
+        )
     };
 
     // gauge set
     (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
-            client.send_metric(
-                client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+            relay_log::with_scope(
+                |scope| {
+                    scope.set_tag("key", &$crate::GaugeMetric::name(&$id));
+                }, || {
+                    client.send_metric(
+                        client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                }
             )
         })
     };
 
     // histogram
     (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        use $crate::_pred::*;
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::HistogramMetric::name(&$id));
+            }, || {
+                $crate::with_client(|client| {
+                    client.send_metric(
+                        client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            }
+        )
     };
 
     // sets (count unique occurrences of a value per time interval)
     (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        use $crate::_pred::*;
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::SetMetric::name(&$id));
+            }, || {
+                $crate::with_client(|client| {
+                    client.send_metric(
+                        client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            }
+        )
     };
 
     // timer value (duration)
     (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::TimerMetric::name(&$id));
+            }, || {
+                use $crate::_pred::*;
+                client.send_metric(
+                    client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
+                        $(.with_tag(stringify!($k), $v))*
+                )
+            })
         })
     };
 
@@ -560,13 +595,19 @@ macro_rules! metric {
     (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        });
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("key", &$crate::TimerMetric::name(&$id));
+            }, || {
+                $crate::with_client(|client| {
+                    use $crate::_pred::*;
+                    client.send_metric(
+                        client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                });
+            }
+        );
         rv
     }};
 }
@@ -617,13 +658,13 @@ mod tests {
 
     #[test]
     fn current_client_is_global_client() {
-        let client1 = with_client(|c| format!("{:?}", c));
+        let client1 = with_client(|c| format!("{c:?}"));
         set_client(MetricsClient {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             sample_rate: 1.0,
         });
-        let client2 = with_client(|c| format!("{:?}", c));
+        let client2 = with_client(|c| format!("{c:?}"));
 
         // After setting the global client,the current client must change:
         assert_ne!(client1, client2);
