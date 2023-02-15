@@ -39,7 +39,10 @@ pipelines:
                                     "Integration Tests" \
                                     "Test (macos-latest)" \
                                     "Test (windows-latest)" \
-                                    "Test All Features (ubuntu-latest)"
+                                    "Test All Features (ubuntu-latest)" \
+                                    "self-hosted-end-to-end" \
+                                    "Sentry-Relay Integration Tests" \
+                                    "Test Python 3.8"
                               - script: |
                                     /devinfra/scripts/checks/googlecloud/checkcloudbuild.py \
                                     ${GO_REVISION_RELAY_REPO} \

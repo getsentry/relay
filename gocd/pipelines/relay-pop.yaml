@@ -15,10 +15,10 @@ pipelines:
                 branch: master
                 destination: relay
             # Relay PoPs can't be deployed until the relay deploy pipeline reaches
-            # the mark-as-complete stage.
+            # the promote-to-pops stage.
             pipeline-deploy-relay-completed:
                 pipeline: deploy-relay
-                stage: mark-as-complete
+                stage: promote-to-pops
         stages:
             # checks aren't needed because it's implied by pipeline-deploy-relay-completed.
             - deploy:

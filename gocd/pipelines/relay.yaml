@@ -38,7 +38,10 @@ pipelines:
                                     "Integration Tests" \
                                     "Test (macos-latest)" \
                                     "Test (windows-latest)" \
-                                    "Test All Features (ubuntu-latest)"
+                                    "Test All Features (ubuntu-latest)" \
+                                    "self-hosted-end-to-end" \
+                                    "Sentry-Relay Integration Tests" \
+                                    "Test Python 3.8"
                               - script: |
                                     /devinfra/scripts/checks/googlecloud/checkcloudbuild.py \
                                     ${GO_REVISION_RELAY_REPO} \
@@ -76,7 +79,7 @@ pipelines:
                                     --label-selector="service=relay,deploy_if_production=true" \
                                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                                     --container-name="relay"
-            - mark-as-complete:
+            - promote-to-pops:
                   # Manually completes this pipeline run.
                   # This will trigger relay-pop deployments.
                   approval:
