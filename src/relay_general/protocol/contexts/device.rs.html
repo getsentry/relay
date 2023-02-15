@@ -535,7 +535,7 @@
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>DeviceContext {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>device = client_hints.sec_ch_ua_model<span class="question-mark">?</span>.to_owned();
 
         <span class="kw">if </span>device.trim().is_empty() {
@@ -548,7 +548,7 @@
         })
     }
 
-    <span class="kw">fn </span>from_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>device = parse_device(user_agent);
 
         <span class="kw">if </span>!is_known(<span class="kw-2">&amp;</span>device.family) {
@@ -556,9 +556,9 @@
         }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
+            family: Annotated::new(device.family.into_owned()),
+            model: Annotated::from(device.model.map(|cow| cow.into_owned())),
+            brand: Annotated::from(device.brand.map(|cow| cow.into_owned())),
             ..DeviceContext::default()
         })
     }
@@ -621,7 +621,7 @@
         });
 
         <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
-        <span class="kw">let </span>from_hints = DeviceContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="kw">let </span>from_hints = DeviceContext::parse_client_hints(<span class="kw-2">&amp;</span>client_hints);
         <span class="macro">assert!</span>(from_hints.is_none())
     }
 

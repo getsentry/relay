@@ -6,7 +6,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_auth":["",[],["lib.rs"]],\
 "relay_aws_extension":["",[],["aws_extension.rs","lib.rs"]],\
 "relay_cabi":["",[],["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]],\
-"relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","retry.rs","time.rs"]],\
+"relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","time.rs"]],\
 "relay_config":["",[],["byte_size.rs","config.rs","lib.rs","upstream.rs"]],\
 "relay_crash":["",[],["lib.rs"]],\
 "relay_ffi":["",[],["lib.rs"]],\
@@ -22,7 +22,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_redis":["",[],["config.rs","lib.rs","real.rs"]],\
 "relay_replays":["",[],["lib.rs","recording.rs","transform.rs"]],\
 "relay_sampling":["",[],["lib.rs"]],\
-"relay_server":["",[["actors",[],["envelopes.rs","health_check.rs","mod.rs","outcome.rs","outcome_aggregator.rs","processor.rs","project.rs","project_cache.rs","project_local.rs","project_redis.rs","project_upstream.rs","relays.rs","server.rs","store.rs","test_store.rs","upstream.rs"]],["body",[],["mod.rs","peek_line.rs","request_body.rs","store_body.rs"]],["endpoints",[],["attachments.rs","common.rs","envelope.rs","events.rs","forward.rs","health_check.rs","minidump.rs","mod.rs","outcomes.rs","project_configs.rs","public_keys.rs","security_report.rs","statics.rs","store.rs","unreal.rs"]],["extractors",[],["decoder.rs","forwarded_for.rs","mod.rs","request_meta.rs","shared_payload.rs","signed_json.rs","start_time.rs"]],["metrics_extraction",[],["conditional_tagging.rs","mod.rs","sessions.rs","transactions.rs","utils.rs"]],["utils",[],["api.rs","buffer.rs","dynamic_sampling.rs","envelope_context.rs","error_boundary.rs","garbage.rs","metrics_rate_limits.rs","mod.rs","multipart.rs","native.rs","param_parser.rs","rate_limits.rs","request.rs","semaphore.rs","sizes.rs","sleep_handle.rs","unreal.rs"]]],["constants.rs","envelope.rs","http.rs","lib.rs","middlewares.rs","service.rs","statsd.rs"]],\
+"relay_server":["",[["actors",[],["envelopes.rs","health_check.rs","mod.rs","outcome.rs","outcome_aggregator.rs","processor.rs","project.rs","project_cache.rs","project_local.rs","project_redis.rs","project_upstream.rs","relays.rs","server.rs","store.rs","test_store.rs","upstream.rs"]],["body",[],["mod.rs","peek_line.rs","request_body.rs","store_body.rs"]],["endpoints",[],["attachments.rs","common.rs","envelope.rs","events.rs","forward.rs","health_check.rs","minidump.rs","mod.rs","outcomes.rs","project_configs.rs","public_keys.rs","security_report.rs","statics.rs","store.rs","unreal.rs"]],["extractors",[],["decoder.rs","forwarded_for.rs","mod.rs","request_meta.rs","shared_payload.rs","signed_json.rs","start_time.rs"]],["metrics_extraction",[],["conditional_tagging.rs","mod.rs","sessions.rs","transactions.rs","utils.rs"]],["utils",[],["api.rs","buffer.rs","dynamic_sampling.rs","envelope_context.rs","error_boundary.rs","garbage.rs","metrics_rate_limits.rs","mod.rs","multipart.rs","native.rs","param_parser.rs","rate_limits.rs","request.rs","retry.rs","semaphore.rs","sizes.rs","sleep_handle.rs","unreal.rs"]]],["constants.rs","envelope.rs","http.rs","lib.rs","middlewares.rs","service.rs","statsd.rs"]],\
 "relay_statsd":["",[],["lib.rs"]],\
 "relay_system":["",[],["controller.rs","lib.rs","service.rs","statsd.rs"]],\
 "relay_test":["",[],["lib.rs"]],\

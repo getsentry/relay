@@ -280,7 +280,7 @@
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>OsContext {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>platform = client_hints.sec_ch_ua_platform<span class="question-mark">?</span>;
         <span class="kw">let </span>version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
 
@@ -295,7 +295,7 @@
         })
     }
 
-    <span class="kw">fn </span>from_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>os = parse_os(user_agent);
 
         <span class="kw">if </span>!is_known(<span class="kw-2">&amp;</span>os.family) {
@@ -303,7 +303,7 @@
         }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            name: Annotated::from(os.family),
+            name: Annotated::new(os.family.into_owned()),
             version: Annotated::from(get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch)),
             ..OsContext::default()
         })
@@ -363,7 +363,7 @@ OsContext {
         });
 
         <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
-        <span class="kw">let </span>from_hints = OsContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="kw">let </span>from_hints = OsContext::parse_client_hints(<span class="kw-2">&amp;</span>client_hints);
         <span class="macro">assert!</span>(from_hints.is_none())
     }
 
@@ -384,7 +384,7 @@ OsContext {
         });
 
         <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
-        <span class="kw">let </span>from_hints = OsContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="kw">let </span>from_hints = OsContext::parse_client_hints(<span class="kw-2">&amp;</span>client_hints);
         <span class="macro">assert!</span>(from_hints.is_some())
     }
 

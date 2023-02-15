@@ -266,7 +266,7 @@
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>BrowserContext {
-    <span class="kw">fn </span>from_client_hints(client_hints: <span class="kw-2">&amp;</span>user_agent::ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>user_agent::ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>(browser, version) = browser_from_client_hints(client_hints.sec_ch_ua<span class="question-mark">?</span>)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
@@ -276,7 +276,7 @@
         })
     }
 
-    <span class="kw">fn </span>from_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>browser = user_agent::parse_user_agent(user_agent);
 
         <span class="kw">if </span>!store::user_agent::is_known(<span class="kw-2">&amp;</span>browser.family) {
@@ -284,7 +284,7 @@
         }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            name: Annotated::from(browser.family),
+            name: Annotated::from(browser.family.into_owned()),
             version: Annotated::from(store::user_agent::get_version(
                 <span class="kw-2">&amp;</span>browser.major,
                 <span class="kw-2">&amp;</span>browser.minor,
@@ -409,7 +409,7 @@
         });
 
         <span class="kw">let </span>client_hints = RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers).client_hints;
-        <span class="kw">let </span>from_hints = BrowserContext::from_client_hints(<span class="kw-2">&amp;</span>client_hints);
+        <span class="kw">let </span>from_hints = BrowserContext::parse_client_hints(<span class="kw-2">&amp;</span>client_hints);
         <span class="macro">assert!</span>(from_hints.is_none())
     }
 

@@ -487,7 +487,7 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span>relay_common::{ProjectKey, RetryBackoff};
+<span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
@@ -501,7 +501,7 @@
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{ErrorBoundary, SleepHandle};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ErrorBoundary, RetryBackoff, SleepHandle};
 
 <span class="doccomment">/// A query to retrieve a batch of project states from upstream.
 ///

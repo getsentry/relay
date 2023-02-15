@@ -1223,6 +1223,8 @@
 <a href="#1222" id="1222">1222</a>
 <a href="#1223" id="1223">1223</a>
 <a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1235,7 +1237,7 @@
 <span class="kw">use </span>url::Url;
 
 <span class="kw">use </span>relay_auth::PublicKey;
-<span class="kw">use </span>relay_common::{ProjectId, ProjectKey, RetryBackoff};
+<span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_filter::{matches_any_origin, FiltersConfig};
 <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -1260,7 +1262,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
 <span class="kw">use </span><span class="kw">crate</span>::service::Registry;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{
+    <span class="self">self</span>, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, RetryBackoff,
+};
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;

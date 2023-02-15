@@ -365,7 +365,6 @@
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
 <a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
@@ -375,7 +374,6 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span>relay_auth::{PublicKey, RelayId};
-<span class="kw">use </span>relay_common::RetryBackoff;
 <span class="kw">use </span>relay_config::{Config, RelayInfo};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{
@@ -384,7 +382,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
-<span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, SleepHandle};
 
 <span class="doccomment">/// Resolves [`RelayInfo`] by it&#39;s [identifier](RelayId).
 ///

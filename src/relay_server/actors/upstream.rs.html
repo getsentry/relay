@@ -1485,7 +1485,6 @@
 <a href="#1484" id="1484">1484</a>
 <a href="#1485" id="1485">1485</a>
 <a href="#1486" id="1486">1486</a>
-<a href="#1487" id="1487">1487</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1506,7 +1505,6 @@
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span>relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-<span class="kw">use </span>relay_common::RetryBackoff;
 <span class="kw">use </span>relay_config::{Config, Credentials, RelayMode};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{
@@ -1519,7 +1517,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, RelayErrorAction};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 <span class="kw">pub use </span>reqwest::Method;
 

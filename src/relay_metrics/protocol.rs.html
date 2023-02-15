@@ -901,11 +901,13 @@
 <a href="#900" id="900">900</a>
 <a href="#901" id="901">901</a>
 <a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
 <span class="kw">use </span>std::iter::FusedIterator;
 
-<span class="kw">use </span>hash32::{FnvHasher, Hasher};
+<span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="attr">#[doc(inline)]
@@ -1209,7 +1211,7 @@
 </span><span class="kw">fn </span>hash_set_value(string: <span class="kw-2">&amp;</span>str) -&gt; u32 {
     <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
     hasher.write(string.as_bytes());
-    hasher.finish()
+    hasher.finish32()
 }
 
 <span class="doccomment">/// Parses a metric value given its type.

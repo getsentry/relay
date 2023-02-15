@@ -243,7 +243,9 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::num::NonZeroUsize;
 
 <span class="kw">use </span>globset::GlobBuilder;
 <span class="kw">use </span>lru::LruCache;
@@ -252,10 +254,10 @@
 <span class="kw">use </span>regex::bytes::{Regex, RegexBuilder};
 
 <span class="kw">static </span>GLOB_CACHE: Lazy&lt;Mutex&lt;LruCache&lt;(GlobOptions, String), Regex&gt;&gt;&gt; =
-    Lazy::new(|| Mutex::new(LruCache::new(<span class="number">500</span>)));
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(<span class="number">500</span>).unwrap())));
 
 <span class="kw">static </span>CODEOWNERS_CACHE: Lazy&lt;Mutex&lt;LruCache&lt;String, Regex&gt;&gt;&gt; =
-    Lazy::new(|| Mutex::new(LruCache::new(<span class="number">500</span>)));
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(<span class="number">500</span>).unwrap())));
 
 <span class="doccomment">/// Controls the options of the globber.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

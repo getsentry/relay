@@ -99,9 +99,9 @@
 }
 
 <span class="kw">pub fn </span>hash_value(data: <span class="kw-2">&amp;</span>[u8]) -&gt; String {
-    <span class="kw">let </span><span class="kw-2">mut </span>mac = Hmac::&lt;Sha1&gt;::new_varkey(<span class="kw-2">&amp;</span>[]).unwrap();
-    mac.input(data);
-    <span class="macro">format!</span>(<span class="string">&quot;{:X}&quot;</span>, mac.result().code())
+    <span class="kw">let </span><span class="kw-2">mut </span>mac = Hmac::&lt;Sha1&gt;::new_from_slice(<span class="kw-2">&amp;</span>[]).unwrap();
+    mac.update(data);
+    <span class="macro">format!</span>(<span class="string">&quot;{:X}&quot;</span>, mac.finalize().into_bytes())
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
