@@ -99,6 +99,7 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const TRANSACTION_EXTRACT_VERSION: u16 = 1;
 
+/// Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AcceptTransactionNames {
@@ -123,10 +124,15 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     pub version: u16,
+    /// Deprecated. Still here to be forwarded to external relays.
     pub extract_metrics: BTreeSet<String>,
+    /// Custom event tags that are transferred from the transaction to metrics.
     pub extract_custom_tags: BTreeSet<String>,
+    /// Config for determining user satisfaction (satisfied / tolerated / frustrated)
     pub satisfaction_thresholds: Option<SatisfactionConfig>,
+    /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     pub custom_measurements: CustomMeasurementConfig,
+    /// Defines whether URL transactions should be considered low cardinality.
     pub accept_transaction_names: AcceptTransactionNames,
 }
 
