@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 
 use relay_common::DataCategory;
 use relay_general::protocol::EventId;
-use relay_quotas::Scoping;
+use relay_project_config::quota::Scoping;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};

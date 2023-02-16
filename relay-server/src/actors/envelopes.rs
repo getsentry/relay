@@ -11,7 +11,7 @@ use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
 use relay_metrics::{Bucket, MergeBuckets};
-use relay_quotas::Scoping;
+use relay_project_config::quota::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
 

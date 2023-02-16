@@ -61,7 +61,7 @@ impl SessionMetricsConfig {
 /// The metric on which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum SatisfactionMetric {
+pub enum SatisfactionMetric {
     Duration,
     Lcp,
     #[serde(other)]
@@ -70,20 +70,20 @@ enum SatisfactionMetric {
 
 /// Configuration for a single threshold.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SatisfactionThreshold {
-    metric: SatisfactionMetric,
-    threshold: f64,
+pub struct SatisfactionThreshold {
+    pub metric: SatisfactionMetric,
+    pub threshold: f64,
 }
 
 /// Configuration for applying the user satisfaction threshold.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SatisfactionConfig {
+pub struct SatisfactionConfig {
     /// The project-wide threshold to apply.
-    project_threshold: SatisfactionThreshold,
+    pub project_threshold: SatisfactionThreshold,
     /// Transaction-specific overrides of the project-wide threshold.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
+    pub transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
 /// Configuration for extracting custom measurements from transaction payloads.
@@ -122,17 +122,16 @@ impl Default for AcceptTransactionNames {
 #[serde(default, rename_all = "camelCase")]
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
-    version: u16,
-    extract_metrics: BTreeSet<String>,
-    extract_custom_tags: BTreeSet<String>,
-    satisfaction_thresholds: Option<SatisfactionConfig>,
-    custom_measurements: CustomMeasurementConfig,
-    accept_transaction_names: AcceptTransactionNames,
+    pub version: u16,
+    pub extract_metrics: BTreeSet<String>,
+    pub extract_custom_tags: BTreeSet<String>,
+    pub satisfaction_thresholds: Option<SatisfactionConfig>,
+    pub custom_measurements: CustomMeasurementConfig,
+    pub accept_transaction_names: AcceptTransactionNames,
 }
 
 impl TransactionMetricsConfig {
     /// Creates an enabled configuration with empty defaults.
-    #[cfg(test)]
     pub fn new() -> Self {
         Self {
             version: 1,

@@ -15,7 +15,7 @@ use relay_common::{
     Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
     ProjectKey, Scheme,
 };
-use relay_quotas::Scoping;
+use relay_project_config::quota::Scoping;
 
 use crate::body::PeekLine;
 use crate::extractors::ForwardedFor;

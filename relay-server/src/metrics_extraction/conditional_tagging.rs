@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use relay_project_config::TaggingRule;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 use {relay_general::protocol::Event, relay_metrics::Metric};

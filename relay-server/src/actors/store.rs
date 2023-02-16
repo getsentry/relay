@@ -15,7 +15,7 @@ use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, S
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
-use relay_quotas::Scoping;
+use relay_project_config::quota::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 

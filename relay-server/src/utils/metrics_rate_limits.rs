@@ -3,7 +3,8 @@ use chrono::Utc;
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
-use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+use relay_project_config::quota::{ItemScoping, Quota, Scoping};
+use relay_quotas::RateLimits;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 

@@ -1,14 +1,13 @@
 use std::fmt::{self, Write};
 
-use relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    ReasonCode, Scoping,
+use relay_project_config::quota::{
+    DataCategories, DataCategory, ItemScoping, QuotaScope, ReasonCode, Scoping,
 };
+use relay_project_config::{ErrorBoundary, ProjectConfig};
+use relay_quotas::{RateLimit, RateLimitScope, RateLimits};
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::project::ProjectConfig;
 use crate::envelope::{Envelope, Item, ItemType};
-use crate::utils::ErrorBoundary;
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -586,7 +585,7 @@ mod tests {
     use relay_quotas::RetryAfter;
 
     use crate::envelope::{AttachmentType, ContentType};
-    use crate::metrics_extraction::transactions::TransactionMetricsConfig;
+    use relay_project_config::TransactionMetricsConfig;
 
     #[test]
     fn test_format_rate_limits() {

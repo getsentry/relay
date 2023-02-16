@@ -1,6 +1,10 @@
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
-use crate::metrics_extraction::TaggingRule;
+use relay_project_config::{
+    AcceptTransactionNames, SatisfactionConfig, SatisfactionMetric, TaggingRule,
+    TransactionMetricsConfig,
+};
+
 use crate::statsd::RelayCounters;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::{
@@ -11,8 +15,7 @@ use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::AggregatorConfig;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// Error returned from [`extract_transaction_metrics`].
@@ -539,7 +542,7 @@ mod tests {
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
-    use crate::metrics_extraction::TaggingRule;
+    use relay_project_config::TaggingRule;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {

@@ -33,8 +33,8 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_project_config::quota::{DataCategory, ReasonCode};
 use relay_project_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
-use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
@@ -64,7 +64,7 @@ use {
     anyhow::Context,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::ItemScoping,
+    relay_project_config::quota::ItemScoping, // FIXME: move ItemScoping back to quota
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };

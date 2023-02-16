@@ -9,7 +9,7 @@ use relay_redis::{redis::Script, RedisError, RedisPool};
 
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::REJECT_ALL_SECS;
-use relay_project_config::{ItemScoping, Quota, QuotaScope};
+use relay_project_config::quota::{ItemScoping, Quota, QuotaScope};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
