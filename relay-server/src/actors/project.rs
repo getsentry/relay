@@ -942,7 +942,10 @@ impl Project {
         let state = self.valid_state();
         let mut scoping = envelope_context.scoping();
 
-        if let Some(ref state) = state {
+        // Check request only for the valid project configs, otherwise we reject incoming event
+        // immediately with "invalid data (project_state)". Since there is nothing to check
+        // against.
+        if let Some((state, false)) = state.as_ref().map(|state| (state, state.invalid())) {
             scoping = state.scope_request(envelope.meta());
             envelope_context.scope(scoping);
 

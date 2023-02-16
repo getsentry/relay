@@ -294,12 +294,9 @@ def test_unparsable_project_config(mini_sentry, relay):
     } == data
 
     try:
-        # This event will be dropped since the project state is invalid.
-        pytest.raises(HTTPError, lambda: relay.send_event(project_key))
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-            "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
     finally:
         mini_sentry.test_failures.clear()
@@ -433,7 +430,6 @@ def test_cached_project_config(mini_sentry, relay):
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-            "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
     finally:
         mini_sentry.test_failures.clear()
