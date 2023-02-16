@@ -79,6 +79,7 @@ pub struct ProjectConfig {
     /// Maximum event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_retention: Option<u16>,
+    /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
     /// Configuration for sampling traces, if not present there will be no sampling.
@@ -99,6 +100,7 @@ pub struct ProjectConfig {
     /// The span attributes configuration.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
+    /// Rules for applying metrics tags depending on the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project.
@@ -134,13 +136,15 @@ impl Default for ProjectConfig {
 }
 
 /// These are config values that are passed to external Relays.
+///
+/// For documentation of the fields, see [`ProjectConfig`].
+#[allow(missing_docs)]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectConfig")]
 pub struct LimitedProjectConfig {
     pub allowed_domains: Vec<String>,
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
-    /// Configuration for filter rules.
     #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
@@ -155,7 +159,6 @@ pub struct LimitedProjectConfig {
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
-    /// Configuration for measurements.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

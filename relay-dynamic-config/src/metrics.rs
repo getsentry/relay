@@ -5,14 +5,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
+/// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaggingRule {
     // note: could add relay_sampling::RuleType here, but right now we only support transaction
     // events
+    /// Condition that defines when to set the tag.
     pub condition: RuleCondition,
+    /// Metrics on which the tag is set.
     pub target_metrics: BTreeSet<String>,
+    /// Name of the tag that is set.
     pub target_tag: String,
+    /// Value of the tag that is set.
     pub tag_value: String,
 }
 
@@ -48,6 +53,7 @@ impl SessionMetricsConfig {
         !self.is_enabled()
     }
 
+    /// Whether or not the abnormal mechanism should be extracted as a tag.
     pub fn should_extract_abnormal_mechanism(&self) -> bool {
         self.version >= EXTRACT_ABNORMAL_MECHANISM_VERSION
     }
@@ -58,12 +64,15 @@ impl SessionMetricsConfig {
     }
 }
 
-/// The metric on which the user satisfaction threshold is applied.
+/// The metric to which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SatisfactionMetric {
+    /// Apply to transaction duration.
     Duration,
+    /// Apply to LCP.
     Lcp,
+    /// Catch-all variant for forward compatibility.
     #[serde(other)]
     Unknown,
 }
@@ -71,7 +80,9 @@ pub enum SatisfactionMetric {
 /// Configuration for a single threshold.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SatisfactionThreshold {
+    /// What metric to apply the threshold to.
     pub metric: SatisfactionMetric,
+    /// Value of the threshold.
     pub threshold: f64,
 }
 

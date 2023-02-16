@@ -108,7 +108,7 @@ impl ItemScoping<'_> {
 
     /// Checks whether the quota's constraints match the current item.
     pub fn matches(&self, quota: &Quota) -> bool {
-        self.matches_quota_scope(&quota) && self.matches_categories(&quota.categories)
+        self.matches_quota_scope(quota) && self.matches_categories(&quota.categories)
     }
 }
 

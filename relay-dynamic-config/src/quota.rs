@@ -1,3 +1,4 @@
+//! Types defining usage quotas and their scopes.
 use std::fmt;
 use std::str::FromStr;
 
