@@ -940,12 +940,18 @@ impl Project {
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state();
+        // Treat invalid state as no state at all.
+        // We cannot check anything against invalid state, since it does not contain the required
+        // information, like project id, or quotas, etc.
+        let state =
+            if let Some((state, false)) = state.as_ref().map(|state| (state, state.invalid())) {
+                Some(state)
+            } else {
+                None
+            };
         let mut scoping = envelope_context.scoping();
 
-        // Check request only for the valid project configs, otherwise we reject incoming event
-        // immediately with "invalid data (project_state)". Since there is nothing to check
-        // against.
-        if let Some((state, false)) = state.as_ref().map(|state| (state, state.invalid())) {
+        if let Some(state) = state {
             scoping = state.scope_request(envelope.meta());
             envelope_context.scope(scoping);
 
@@ -957,8 +963,8 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        let config = state.as_deref().map(|s| &s.config);
-        let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let config = state.map(|s| &s.config);
+        let quotas = state.map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
