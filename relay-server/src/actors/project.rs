@@ -943,12 +943,10 @@ impl Project {
         // Treat invalid state as no state at all.
         // We cannot check anything against invalid state, since it does not contain the required
         // information, like project id, or quotas, etc.
-        let state =
-            if let Some((state, false)) = state.as_ref().map(|state| (state, state.invalid())) {
-                Some(state)
-            } else {
-                None
-            };
+        let state = match state {
+            Some(ref state) if !state.invalid() => Some(state),
+            _ => None,
+        };
         let mut scoping = envelope_context.scoping();
 
         if let Some(state) = state {
