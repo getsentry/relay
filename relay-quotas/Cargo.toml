@@ -21,7 +21,7 @@ redis = [
 [dependencies]
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }
-relay-project-config = { path = "../relay-project-config" }  # FIXME: move quota.rs to relay-common instead
+relay-dynamic-config = { path = "../relay-dynamic-config" }
 relay-redis = { path = "../relay-redis", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 smallvec = { version = "1.4.0", features = ["serde"] }

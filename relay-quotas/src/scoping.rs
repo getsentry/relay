@@ -1,5 +1,5 @@
 use relay_common::{DataCategory, ProjectId, ProjectKey};
-use relay_project_config::quota::{DataCategories, Quota, QuotaScope};
+use relay_dynamic_config::quota::{DataCategories, Quota, QuotaScope};
 
 /// Data scoping information.
 ///

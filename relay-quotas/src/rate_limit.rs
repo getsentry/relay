@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use relay_common::{ProjectId, ProjectKey};
 
-use relay_project_config::quota::{DataCategories, Quota, QuotaScope, ReasonCode};
+use relay_dynamic_config::quota::{DataCategories, Quota, QuotaScope, ReasonCode};
 
 use crate::{ItemScoping, Scoping};
 
@@ -346,7 +346,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_project_config::quota::DataCategory;
+    use relay_dynamic_config::quota::DataCategory;
     use smallvec::smallvec;
 
     #[test]

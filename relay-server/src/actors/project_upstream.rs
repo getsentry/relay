@@ -11,8 +11,8 @@ use tokio::time::Instant;
 
 use relay_common::ProjectKey;
 use relay_config::Config;
+use relay_dynamic_config::ErrorBoundary;
 use relay_log::LogError;
-use relay_project_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
     BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,

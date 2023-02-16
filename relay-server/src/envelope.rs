@@ -47,7 +47,7 @@ use relay_sampling::DynamicSamplingContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use relay_project_config::ErrorBoundary;
+use relay_dynamic_config::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 

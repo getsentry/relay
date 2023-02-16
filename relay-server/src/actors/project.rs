@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_project_config::quota::Quota;
+use relay_dynamic_config::quota::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -31,7 +31,7 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use relay_project_config::{
+use relay_dynamic_config::{
     ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig, SessionMetricsConfig,
     TransactionMetricsConfig,
 };
@@ -39,7 +39,7 @@ use relay_project_config::{
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
-use relay_project_config::TaggingRule;
+use relay_dynamic_config::TaggingRule;
 
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;

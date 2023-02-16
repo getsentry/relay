@@ -22,13 +22,13 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
+use relay_dynamic_config::quota::ReasonCode;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 #[cfg(feature = "processing")]
 use relay_log::LogError;
-use relay_project_config::quota::ReasonCode;
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Service};

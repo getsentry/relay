@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 
-use relay_project_config::quota::{DataCategories, DataCategory, QuotaScope, ReasonCode};
-use relay_project_config::{ErrorBoundary, ProjectConfig};
+use relay_dynamic_config::quota::{DataCategories, DataCategory, QuotaScope, ReasonCode};
+use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{ItemScoping, RateLimit, RateLimitScope, RateLimits, Scoping};
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
@@ -583,7 +583,7 @@ mod tests {
     use relay_quotas::{ItemScoping, RetryAfter};
 
     use crate::envelope::{AttachmentType, ContentType};
-    use relay_project_config::TransactionMetricsConfig;
+    use relay_dynamic_config::TransactionMetricsConfig;
 
     #[test]
     fn test_format_rate_limits() {

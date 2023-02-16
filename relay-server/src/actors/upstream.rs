@@ -19,8 +19,8 @@ use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
+use relay_dynamic_config::quota::{DataCategories, QuotaScope};
 use relay_log::LogError;
-use relay_project_config::quota::{DataCategories, QuotaScope};
 use relay_quotas::{RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping};
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,

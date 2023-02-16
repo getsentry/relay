@@ -13,7 +13,7 @@ use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
-use relay_project_config::ErrorBoundary;
+use relay_dynamic_config::ErrorBoundary;
 
 /// V2 version of this endpoint.
 ///

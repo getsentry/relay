@@ -1,6 +1,6 @@
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
-use relay_project_config::{
+use relay_dynamic_config::{
     AcceptTransactionNames, SatisfactionConfig, SatisfactionMetric, TaggingRule,
     TransactionMetricsConfig,
 };
@@ -542,7 +542,7 @@ mod tests {
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
-    use relay_project_config::TaggingRule;
+    use relay_dynamic_config::TaggingRule;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {
