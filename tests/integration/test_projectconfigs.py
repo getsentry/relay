@@ -294,6 +294,7 @@ def test_unparsable_project_config(mini_sentry, relay):
     } == data
 
     try:
+        relay.send_event(project_key)
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
@@ -347,6 +348,10 @@ def test_unparsable_project_config(mini_sentry, relay):
     } == data
     # give it a time to refresh the state
     time.sleep(1)
+
+    # We should have the previous event through now.
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
     # This must succeed, since we will re-request the project state update at this point.
     relay.send_event(project_key)
@@ -422,10 +427,9 @@ def test_cached_project_config(mini_sentry, relay):
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
 
-    # Wait till grace period expires as well and we should be dropping events now.
+    # Wait till grace period expires as well and we should start buffering the events now.
     time.sleep(5)
     try:
-        # This event will be dropped since the project state is invalid.
         relay.send_event(project_key)
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
