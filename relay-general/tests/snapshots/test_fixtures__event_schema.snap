@@ -800,6 +800,73 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "CloudResourceContext": {
+      "description": " Cloud Resource Context\n\n This context describes the cloud resource the event originated from.\n\n Example:\n\n ```json\n \"cloud_resource\": {\n     \"cloud.account.id\": \"499517922981\",\n     \"cloud.provider\": \"aws\",\n     \"cloud.platform\": \"aws_ec2\",\n     \"cloud.region\": \"us-east-1\",\n     \"cloud.vavailability_zone\": \"us-east-1e\",\n     \"host.id\": \"i-07d3301208fe0a55a\",\n     \"host.type\": \"t2.large\"\n }\n ```",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "cloud.account.id": {
+              "description": " The cloud account ID the resource is assigned to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.availability_zone": {
+              "description": " The zone where the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.platform": {
+              "description": " The cloud platform in use.\n The prefix of the service SHOULD match the one specified in cloud_provider.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.provider": {
+              "description": " Name of the cloud provider.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.region": {
+              "description": " The geographical region the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host.id": {
+              "description": " Unique host ID.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host.type": {
+              "description": " Machine type of host.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "CodeId": {
       "type": "string"
     },
@@ -838,6 +905,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/OtelContext"
+        },
+        {
+          "$ref": "#/definitions/CloudResourceContext"
         },
         {
           "type": "object",
@@ -2415,73 +2485,6 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ],
               "additionalProperties": true
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "CloudResourceContext": {
-      "description": " Cloud Resource Context\n\n If an event originated in a cloud environment (like AWS, GCP).",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "cloud_provider": {
-              "description": " Name of the cloud provider",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "cloud_account_id": {
-              "description": " The cloud account ID the resource is assigned to.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "cloud_region": {
-              "description": " The geographical region the resource is running.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "cloud_availability_zone": {
-              "description": " The zone where the resource is running.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "cloud_platform": {
-              "description": " The cloud platform in use.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "host_id": {
-              "description": " Unique host ID.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "host_type": {
-              "description": "  Machine type of host.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
             }
           },
           "additionalProperties": false
