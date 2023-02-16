@@ -11,7 +11,7 @@ mod error_boundary;
 pub use error_boundary::*;
 mod metrics;
 pub use metrics::*;
-pub mod quota;
+use relay_quotas::Quota;
 
 use std::collections::BTreeSet;
 
@@ -24,8 +24,6 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::PublicKey;
 use serde_json::Value;
-
-use crate::quota::Quota;
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

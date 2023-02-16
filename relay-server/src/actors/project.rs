@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_dynamic_config::quota::Quota;
 use serde::{Deserialize, Serialize};
 
 use smallvec::SmallVec;
@@ -15,7 +14,7 @@ use relay_config::Config;
 use relay_filter::matches_any_origin;
 
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
-use relay_quotas::{RateLimits, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;
