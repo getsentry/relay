@@ -438,6 +438,12 @@
 <a href="#437" id="437">437</a>
 <a href="#438" id="438">438</a>
 <a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements event filtering for events originating from CSP endpoints
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
@@ -725,6 +731,12 @@
             ),
             <span class="comment">// this used to crash
             </span>(<span class="string">&quot;http://y:80&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://x&quot;</span>], <span class="bool-val">false</span>),
+            <span class="comment">// starts on both ends
+            </span>(
+                <span class="string">&quot;https://abc.software.example.com&quot;</span>,
+                <span class="macro">vec!</span>[<span class="string">&quot;*abc.software.example.com*&quot;</span>],
+                <span class="bool-val">false</span>,
+            ),
         ];
 
         <span class="kw">for </span>(url, origins, expected) <span class="kw">in </span>examples {
