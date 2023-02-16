@@ -8,8 +8,8 @@ use relay_log::protocol::value;
 use relay_redis::{redis::Script, RedisError, RedisPool};
 
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
-use relay_project_config::quota::{ItemScoping, Quota, QuotaScope};
+use crate::{ItemScoping, REJECT_ALL_SECS};
+use relay_project_config::quota::{Quota, QuotaScope};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -188,7 +188,7 @@ impl RedisRateLimiter {
         let mut rate_limits = RateLimits::new();
 
         for quota in quotas {
-            if !quota.matches(item_scoping) {
+            if !item_scoping.matches(quota) {
                 // Silently skip all quotas that do not apply to this item.
             } else if quota.limit == Some(0) {
                 // A zero-sized quota is strongest. Do not call into Redis at all, and do not
@@ -261,7 +261,8 @@ mod tests {
     use relay_redis::{redis::Commands, RedisConfigOptions};
 
     use crate::rate_limit::RateLimitScope;
-    use relay_project_config::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::Scoping;
+    use relay_project_config::quota::{DataCategories, DataCategory, ReasonCode};
 
     use super::*;
 

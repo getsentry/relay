@@ -64,7 +64,6 @@ use {
     anyhow::Context,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_project_config::quota::ItemScoping, // FIXME: move ItemScoping back to quota
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2375,6 +2374,8 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+        use relay_quotas::ItemScoping;
+
         let RateLimitFlushBuckets {
             mut bucket_limiter,
             partition_key,

@@ -12,8 +12,10 @@
 const REJECT_ALL_SECS: u64 = 60;
 
 mod rate_limit;
+mod scoping;
 
 pub use self::rate_limit::*;
+pub use self::scoping::*;
 
 #[cfg(feature = "redis")]
 mod redis;

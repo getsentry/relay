@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_project_config::quota::{Quota, Scoping};
+use relay_project_config::quota::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -18,7 +18,7 @@ use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
 use relay_general::types::SpanAttribute;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
-use relay_quotas::RateLimits;
+use relay_quotas::{RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;

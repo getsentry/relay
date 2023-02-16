@@ -4,9 +4,9 @@ use std::time::{Duration, Instant};
 
 use relay_common::{ProjectId, ProjectKey};
 
-use relay_project_config::quota::{
-    DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping,
-};
+use relay_project_config::quota::{DataCategories, Quota, QuotaScope, ReasonCode};
+
+use crate::{ItemScoping, Scoping};
 
 use crate::REJECT_ALL_SECS;
 
@@ -262,7 +262,7 @@ impl RateLimits {
         let mut applied_limits = Self::new();
 
         for quota in quotas {
-            if quota.limit == Some(0) && quota.matches(scoping) {
+            if quota.limit == Some(0) && scoping.matches(quota) {
                 let retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
                 applied_limits.add(RateLimit::from_quota(quota, &scoping, retry_after));
             }

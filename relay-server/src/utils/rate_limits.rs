@@ -1,10 +1,8 @@
 use std::fmt::{self, Write};
 
-use relay_project_config::quota::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, ReasonCode, Scoping,
-};
+use relay_project_config::quota::{DataCategories, DataCategory, QuotaScope, ReasonCode};
 use relay_project_config::{ErrorBoundary, ProjectConfig};
-use relay_quotas::{RateLimit, RateLimitScope, RateLimits};
+use relay_quotas::{ItemScoping, RateLimit, RateLimitScope, RateLimits, Scoping};
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
@@ -582,7 +580,7 @@ mod tests {
     use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
-    use relay_quotas::RetryAfter;
+    use relay_quotas::{ItemScoping, RetryAfter};
 
     use crate::envelope::{AttachmentType, ContentType};
     use relay_project_config::TransactionMetricsConfig;
