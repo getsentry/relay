@@ -30,14 +30,15 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics_extraction::sessions::SessionMetricsConfig;
-use crate::metrics_extraction::transactions::TransactionMetricsConfig;
+use relay_project_config::{
+    ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig, SessionMetricsConfig,
+    TransactionMetricsConfig,
+};
+
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, RetryBackoff,
-};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
 
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;

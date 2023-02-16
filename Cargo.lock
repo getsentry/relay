@@ -3452,6 +3452,7 @@ dependencies = [
 name = "relay-project-config"
 version = "23.1.1"
 dependencies = [
+ "insta",
  "relay-auth",
  "relay-common",
  "relay-filter",
@@ -3459,6 +3460,7 @@ dependencies = [
  "relay-sampling",
  "serde",
  "serde_json",
+ "smallvec 1.10.0",
 ]
 
 [[package]]
@@ -3468,6 +3470,7 @@ dependencies = [
  "insta",
  "relay-common",
  "relay-log",
+ "relay-project-config",
  "relay-redis",
  "serde",
  "serde_json",

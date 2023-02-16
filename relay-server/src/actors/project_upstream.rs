@@ -12,6 +12,7 @@ use tokio::time::Instant;
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
+use relay_project_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
     BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -23,7 +24,7 @@ use crate::actors::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{ErrorBoundary, RetryBackoff, SleepHandle};
+use crate::utils::{RetryBackoff, SleepHandle};
 
 /// A query to retrieve a batch of project states from upstream.
 ///

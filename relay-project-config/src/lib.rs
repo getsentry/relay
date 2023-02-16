@@ -6,6 +6,13 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+// TODO(jjbayer): pub mod instead
+mod error_boundary;
+pub use error_boundary::*;
+mod metrics;
+pub use metrics::*;
+pub mod quota;
+
 use std::collections::BTreeSet;
 
 use relay_filter::FiltersConfig;
@@ -17,6 +24,8 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::PublicKey;
 use serde_json::Value;
+
+use crate::quota::Quota;
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

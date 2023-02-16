@@ -4,7 +4,10 @@ use std::time::{Duration, Instant};
 
 use relay_common::{ProjectId, ProjectKey};
 
-use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
+use relay_project_config::quota::{
+    DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping,
+};
+
 use crate::REJECT_ALL_SECS;
 
 /// A monotonic expiration marker for `RateLimit`s.
@@ -343,7 +346,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quota::DataCategory;
+    use relay_project_config::quota::DataCategory;
     use smallvec::smallvec;
 
     #[test]

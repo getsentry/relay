@@ -4,17 +4,6 @@ use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 use {relay_general::protocol::Event, relay_metrics::Metric};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TaggingRule {
-    // note: could add relay_sampling::RuleType here, but right now we only support transaction
-    // events
-    pub condition: RuleCondition,
-    pub target_metrics: BTreeSet<String>,
-    pub target_tag: String,
-    pub tag_value: String,
-}
-
 pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &mut [Metric]) {
     for rule in config {
         if !rule.condition.supported()

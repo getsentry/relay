@@ -77,7 +77,7 @@ impl ItemScoping<'_> {
     }
 
     /// Checks whether the category matches any of the quota's categories.
-    pub(crate) fn matches_categories(&self, categories: &DataCategories) -> bool {
+    pub fn matches_categories(&self, categories: &DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does

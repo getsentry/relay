@@ -33,6 +33,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_project_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
@@ -41,17 +42,17 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectConfig, ProjectState};
+use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
-    FormDataIter, SamplingResult,
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -2509,10 +2510,10 @@ mod tests {
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
+    use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
-    use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
 
