@@ -3559,6 +3559,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-profiling",
+ "relay-project-config",
  "relay-quotas",
  "relay-redis",
  "relay-replays",

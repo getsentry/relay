@@ -1,4 +1,4 @@
-//! Configuration for the Relay CLI and server.
+//! Dynamic configuration passed down from Sentry to Relay.
 #![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
