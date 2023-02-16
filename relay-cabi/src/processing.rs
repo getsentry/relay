@@ -11,6 +11,7 @@ use std::slice;
 use once_cell::sync::OnceCell;
 
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
+use relay_dynamic_config::ProjectConfig;
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
 };
@@ -298,6 +299,32 @@ pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const Rel
             for rule in config.rules {
                 if !rule.condition.supported() {
                     return Ok(RelayStr::new("unsupported sampling rule"));
+                }
+            }
+            RelayStr::default()
+        }
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
+}
+
+/// Validate entire project config.
+///
+/// If `strict` is true, checks for unknown fields in the input.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_project_config(
+    value: *const RelayStr,
+    strict: bool,
+) -> RelayStr {
+    let value = (*value).as_str();
+    match serde_json::from_str::<ProjectConfig>(value) {
+        Ok(config) => {
+            if strict {
+                let reserialized =
+                    serde_json::to_string(&config).expect("failed to serialize project config");
+                if reserialized.as_str() != value {
+                    // TODO: use json diff or similar
+                    return Ok(RelayStr::new("project config contains unknown fields"));
                 }
             }
             RelayStr::default()
