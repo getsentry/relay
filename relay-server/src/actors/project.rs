@@ -1,25 +1,22 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::quota::Quota;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
 use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use relay_auth::PublicKey;
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_filter::{matches_any_origin, FiltersConfig};
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
-use relay_general::types::SpanAttribute;
+use relay_filter::matches_any_origin;
+
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{RateLimits, Scoping};
-use relay_sampling::SamplingConfig;
+
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;
 
@@ -31,15 +28,11 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig, SessionMetricsConfig,
-    TransactionMetricsConfig,
-};
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
-use relay_dynamic_config::TaggingRule;
 
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;

@@ -1,9 +1,6 @@
-use std::collections::BTreeSet;
-
 use relay_dynamic_config::TaggingRule;
-use relay_sampling::RuleCondition;
-use serde::{Deserialize, Serialize};
-use {relay_general::protocol::Event, relay_metrics::Metric};
+use relay_general::protocol::Event;
+use relay_metrics::Metric;
 
 pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &mut [Metric]) {
     for rule in config {
