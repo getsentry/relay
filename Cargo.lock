@@ -3449,8 +3449,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-projectconfig"
+name = "relay-project-config"
 version = "23.1.1"
+dependencies = [
+ "relay-auth",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-sampling",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "relay-quotas"
