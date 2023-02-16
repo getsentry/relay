@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::num::NonZeroUsize;
 
 use globset::GlobBuilder;
 use lru::LruCache;
@@ -7,10 +8,10 @@ use parking_lot::Mutex;
 use regex::bytes::{Regex, RegexBuilder};
 
 static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(500)));
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
 static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(500)));
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

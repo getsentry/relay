@@ -249,7 +249,9 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     # Config is broken and will produce the invalid project state.
     config = mini_sentry.project_configs[project_key]["config"]
-    config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+    ds = config.setdefault("dynamicSampling", {})
+    ds.setdefault("rules", [])
+    ds.setdefault("rulesV2", []).append(
         {
             "condition": {
                 "op": "and",
@@ -257,7 +259,7 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingValue": {"strategy": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
@@ -304,7 +306,8 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     # Fix the config.
     config = mini_sentry.project_configs[project_key]["config"]
-    config["dynamicSampling"]["rules"] = [
+    config["dynamicSampling"]["rules"] = []
+    config["dynamicSampling"]["rulesV2"] = [
         {
             "condition": {
                 "op": "and",
@@ -312,14 +315,14 @@ def test_unparsable_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {
                 "start": "2022-10-10T00:00:00.000000Z",
                 "end": "2022-10-20T00:00:00.000000Z",
             },
-            "decayingFn": {"type": "linear", "decayedSampleRate": 0.9},
+            "decayingFn": {"type": "linear", "decayedValue": 0.9},
         }
     ]
 
@@ -380,7 +383,9 @@ def test_cached_project_config(mini_sentry, relay):
 
     # Introduce unparsable config.
     config = mini_sentry.project_configs[project_key]["config"]
-    config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+    ds = config.setdefault("dynamicSampling", {})
+    ds.setdefault("rules", [])
+    ds.setdefault("rulesV2", []).append(
         {
             "condition": {
                 "op": "and",
@@ -388,7 +393,7 @@ def test_cached_project_config(mini_sentry, relay):
                     {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
                 ],
             },
-            "sampleRate": 0.7,
+            "samplingValue": {"type": "sampleRate", "value": 0.7},
             "type": "trace",
             "id": 1,
             "timeRange": {

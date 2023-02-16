@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Native crash reporting for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.1.1"
+version = "23.2.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -13,5 +13,5 @@ publish = false
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.59.1"
+bindgen = "0.64.0"
 cmake = { version = "0.1.46" }

@@ -88,7 +88,12 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    rules = config["config"].setdefault("dynamicSampling", {}).setdefault("rules", [])
+    ds = config["config"].setdefault("dynamicSampling", {})
+    # We set the old rules v1 as empty array.
+    ds.setdefault("rules", [])
+    # We set the new rules v2 as empty array, and we add rules to it.
+    rules = ds.setdefault("rulesV2", [])
+
     if rule_type is None:
         rule_type = "trace"
     conditions = []
@@ -125,7 +130,7 @@ def _add_sampling_config(
         )
 
     rule = {
-        "sampleRate": sample_rate,
+        "samplingValue": {"type": "sampleRate", "value": sample_rate},
         "type": rule_type,
         "condition": {"op": "and", "inner": conditions},
         "id": len(rules) + 1,
@@ -366,7 +371,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
     _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
@@ -376,6 +380,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         envelope = Envelope()
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope, trace_id, event_id = event_factory(public_key)
+        print(envelope)
         envelope.add_item(
             Item(payload=PayloadRef(json={"x": "some attachment"}), type="attachment")
         )

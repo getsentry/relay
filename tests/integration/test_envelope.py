@@ -515,7 +515,7 @@ def test_sample_rates(mini_sentry, relay_chain):
 
     sample_rates = [
         {"id": "client_sampler", "rate": 0.01},
-        {"id": "dyanmic_user", "rate": 0.5},
+        {"id": "dynamic_user", "rate": 0.5},
     ]
 
     envelope = Envelope()
@@ -535,7 +535,7 @@ def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consume
 
     sample_rates = [
         {"id": "client_sampler", "rate": 0.01},
-        {"id": "dyanmic_user", "rate": 0.5},
+        {"id": "dynamic_user", "rate": 0.5},
     ]
 
     envelope = Envelope()

@@ -5,7 +5,7 @@ use crate::protocol::Geo;
 use crate::types::Annotated;
 
 #[cfg(feature = "mmap")]
-type ReaderType = memmap::Mmap;
+type ReaderType = maxminddb::Mmap;
 
 #[cfg(not(feature = "mmap"))]
 type ReaderType = Vec<u8>;
@@ -52,12 +52,12 @@ impl GeoIpLookup {
             city: Annotated::from(
                 city.city
                     .as_ref()
-                    .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_owned())),
+                    .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_string())),
             ),
             region: Annotated::from(
                 city.country
                     .as_ref()
-                    .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_owned())),
+                    .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_string())),
             ),
             ..Default::default()
         }))

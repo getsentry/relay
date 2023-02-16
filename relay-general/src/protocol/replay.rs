@@ -306,6 +306,10 @@ impl Replay {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use chrono::{TimeZone, Utc};
+
     use crate::pii::{DataScrubbingConfig, PiiProcessor};
     use crate::processor::process_value;
     use crate::processor::ProcessingState;
@@ -316,8 +320,6 @@ mod tests {
     use crate::testutils::get_value;
     use crate::types::Annotated;
     use crate::user_agent::RawUserAgentInfo;
-    use chrono::{TimeZone, Utc};
-    use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
     fn test_event_roundtrip() {
@@ -347,12 +349,8 @@ mod tests {
 }"#;
 
         let replay = Annotated::new(Replay {
-            event_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
-            )),
-            replay_id: Annotated::new(EventId(
-                uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
-            )),
+            event_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
+            replay_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
             replay_type: Annotated::new("session".to_string()),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),

@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
-use hash32::{FnvHasher, Hasher};
+use hash32::{FnvHasher, Hasher as _};
 use serde::{Deserialize, Serialize};
 
 #[doc(inline)]
@@ -306,7 +307,7 @@ fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
 fn hash_set_value(string: &str) -> u32 {
     let mut hasher = FnvHasher::default();
     hasher.write(string.as_bytes());
-    hasher.finish()
+    hasher.finish32()
 }
 
 /// Parses a metric value given its type.

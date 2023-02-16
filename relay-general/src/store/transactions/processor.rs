@@ -266,26 +266,37 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
         .collect::<Vec<_>>();
 
     transaction.apply(|trans, meta| {
+        let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
-        for matches in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+        for captures in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
             for name in &capture_names {
-                if let Some(m) = matches.name(name) {
-                    let remark =
-                        Remark::with_range(RemarkType::Substituted, *name, (m.start(), m.end()));
-                    meta.add_remark(remark);
+                if let Some(capture) = captures.name(name) {
+                    let remark = Remark::with_range(
+                        RemarkType::Substituted,
+                        *name,
+                        (capture.start(), capture.end()),
+                    );
+                    caps.push((capture, remark));
                     break;
                 }
             }
         }
 
-        let changed = TRANSACTION_NAME_NORMALIZER_REGEX
-            .replace_all(trans, "*")
-            .to_string();
-        if *trans != changed && changed != "*" {
+        // Sort by the capture end position.
+        caps.sort_by_key(|(capture, _)| capture.end());
+        let mut changed = String::with_capacity(trans.len());
+        let mut last_end = 0usize;
+        for (capture, remark) in caps {
+            changed.push_str(&trans[last_end..capture.start()]);
+            changed.push('*');
+            last_end = capture.end();
+            meta.add_remark(remark);
+        }
+        changed.push_str(&trans[last_end..]);
+
+        if !changed.is_empty() && changed != "*" {
             meta.set_original_value(Some(trans.to_string()));
             *trans = changed
-        } else {
-            meta.clear_remarks();
         }
         Ok(())
     })
@@ -1493,7 +1504,7 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "sha1",
+                    "int",
                     "s",
                     5,
                     45
@@ -1881,6 +1892,56 @@ mod tests {
         test_transaction_name_normalize_in_segments_2,
         "/testing/open-19-close/1",
         "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_3,
+        "/testing/open19close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_4,
+        "/testing/asdf012/asdf034/asdf056",
+        "/testing/*/*/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_5,
+        "/foo/test%A33/1234",
+        "/foo/test%A33/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_1,
+        "/%2Ftest%2Fopen%20and%20help%2F1%0A",
+        "/%2Ftest%2Fopen%20and%20help%2F1%0A"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_2,
+        "/this/1234/%E2%9C%85/foo/bar/098123908213",
+        "/this/*/%E2%9C%85/foo/bar/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_3,
+        "/foo/hello%20world-4711/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_4,
+        "/foo/hello%20world-0xdeadbeef/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_5,
+        "/foo/hello%20world-4711/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_6,
+        "/foo/hello%2Fworld/",
+        "/foo/hello%2Fworld/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_7,
+        "/foo/hello%201/",
+        "/foo/hello%201/"
     );
     transaction_name_test!(
         test_transaction_name_normalize_sha,

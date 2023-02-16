@@ -46,7 +46,7 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
 }
 
 pub fn hash_value(data: &[u8]) -> String {
-    let mut mac = Hmac::<Sha1>::new_varkey(&[]).unwrap();
-    mac.input(data);
-    format!("{:X}", mac.result().code())
+    let mut mac = Hmac::<Sha1>::new_from_slice(&[]).unwrap();
+    mac.update(data);
+    format!("{:X}", mac.finalize().into_bytes())
 }

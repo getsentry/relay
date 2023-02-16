@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Authentication and crypto for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.1.1"
+version = "23.2.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 chrono = "0.4.11"
 ed25519-dalek = "0.9.1"
-thiserror = "1.0.24"
+thiserror = "1.0.38"
 hmac = "0.7.1"
 rand = "0.6.5"
 relay-common = { path = "../relay-common" }

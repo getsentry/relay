@@ -32,7 +32,7 @@ unsafe extern "C" fn transport_proxy(
 
     if !buf.is_null() && len > 0 {
         let transport: Transport = std::mem::transmute(tx_pointer);
-        transport(std::slice::from_raw_parts(buf as *const u8, len as usize));
+        transport(std::slice::from_raw_parts(buf as *const u8, len));
     }
 
     native::sentry_free(buf as _);
