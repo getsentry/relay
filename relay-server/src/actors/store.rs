@@ -111,7 +111,6 @@ impl StoreService {
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
-        dbg!("BEGIN@@@@@");
         let StoreEnvelope {
             envelope,
             start_time,
@@ -200,75 +199,133 @@ impl StoreService {
             }
         }
 
+        let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+
+        let kafkamessages = self.extract_kafka_messages(
+            event_item,
+            event_id,
+            scoping,
+            start_time,
+            remote_addr,
+            &mut attachments,
+        );
+
+        for message in kafkamessages {
+            if let Ok(()) = self.produce(topic, scoping.organization_id, &message) {
+                // if message was succesfully sent, make the right log message
+                match message {
+                    KafkaMessage::Attachment(_) => {
+                        metric!(
+                            counter(RelayCounters::ProcessingMessageProduced) += 1,
+                            event_type = "attachment"
+                        );
+                    }
+                    KafkaMessage::Event(_) => metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        // the unwrap is safe because in self.extract_kafka_messages() it only
+                        // pushes an event message if the event_item is_some()..
+                        event_type = &(event_item.expect("").ty().to_string())
+                    ),
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn extract_kafka_messages(
+        &self,
+        event_item: Option<&Item>,
+        event_id: Option<EventId>,
+        scoping: Scoping,
+        start_time: Instant,
+        remote_addr: Option<String>,
+        attachments: &mut Vec<ChunkedAttachment>,
+    ) -> Vec<KafkaMessage> {
+        let mut kafkamsgs = vec![];
         if let Some(event_item) = event_item {
             if matches!(event_item.ty(), ItemType::Transaction) {
-                dbg!("THIS IS NOT A TRANSACTION");
-                attachments = vec![];
-                self.send_attachments_to_kafka(attachments.clone(), &event_id, &scoping, topic)?;
-            } else {
-                dbg!("THIS IS A TRANSACTION########");
+                // or shouldnt the attachments be cleared after theyre extracted?
+                attachments.clear();
+                self.extract_kafka_attachments(
+                    &mut kafkamsgs,
+                    attachments.clone(),
+                    &event_id,
+                    &scoping,
+                );
             }
-            relay_log::trace!("Sending event item of envelope to kafka");
 
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-                event_id: event_id.ok_or(StoreError::NoEventId)?,
+                event_id: match event_id {
+                    Some(event_id) => event_id,
+                    None => return kafkamsgs,
+                },
                 project_id: scoping.project_id,
-                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
-                attachments,
+                remote_addr,
+                attachments: attachments.clone(),
             });
 
-            self.produce(topic, scoping.organization_id, event_message)?;
+            //self.produce(topic, scoping.organization_id, event_message)?;
+            kafkamsgs.push(event_message);
 
             metric!(
                 counter(RelayCounters::ProcessingMessageProduced) += 1,
                 event_type = &event_item.ty().to_string()
             );
         } else {
-            dbg!("$$$$$$$$ THIS IS NOT AN EVENT");
-            self.send_attachments_to_kafka(attachments, &event_id, &scoping, topic)?;
+            self.extract_kafka_attachments(
+                &mut kafkamsgs,
+                attachments.clone(),
+                &event_id,
+                &scoping,
+            );
         }
-        Ok(())
+
+        kafkamsgs
     }
 
-    fn send_attachments_to_kafka(
+    fn extract_kafka_attachments(
         &self,
+        kafkamsgs: &mut Vec<KafkaMessage>,
         attachments: Vec<ChunkedAttachment>,
         event_id: &Option<EventId>,
         scoping: &Scoping,
-        topic: KafkaTopic,
-    ) -> Result<(), StoreError> {
+    ) {
         if !attachments.is_empty() {
             relay_log::trace!("Sending individual attachments of envelope to kafka");
 
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                    event_id: event_id.ok_or(StoreError::NoEventId)?,
+                    event_id: match event_id {
+                        Some(event_id) => *event_id,
+                        None => continue,
+                    },
                     project_id: scoping.project_id,
                     attachment,
                 });
 
-                self.produce(topic, scoping.organization_id, attachment_message)?;
+                //self.produce(topic, scoping.organization_id, attachment_message)?;
+                kafkamsgs.push(attachment_message);
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
                 );
             }
         }
-
-        Ok(())
     }
 
     fn produce(
         &self,
         topic: KafkaTopic,
         organization_id: u64,
-        message: KafkaMessage,
+        message: &KafkaMessage,
     ) -> Result<(), StoreError> {
         self.producer
             .client
-            .send_message(topic, organization_id, &message)?;
+            .send_message(topic, organization_id, message)?;
 
         Ok(())
     }
@@ -299,7 +356,11 @@ impl StoreService {
                 id: id.clone(),
                 chunk_index,
             });
-            self.produce(KafkaTopic::Attachments, organization_id, attachment_message)?;
+            self.produce(
+                KafkaTopic::Attachments,
+                organization_id,
+                &attachment_message,
+            )?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -338,7 +399,7 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        self.produce(KafkaTopic::Attachments, organization_id, message)
+        self.produce(KafkaTopic::Attachments, organization_id, &message)
     }
 
     fn produce_sessions(
@@ -513,7 +574,7 @@ impl StoreService {
         };
 
         relay_log::trace!("Sending metric message to kafka");
-        self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
+        self.produce(topic, organization_id, &KafkaMessage::Metric(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "metric"
@@ -557,7 +618,7 @@ impl StoreService {
         self.produce(
             KafkaTopic::Sessions,
             organization_id,
-            KafkaMessage::Session(message),
+            &KafkaMessage::Session(message),
         )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -585,7 +646,7 @@ impl StoreService {
         self.produce(
             KafkaTopic::Profiles,
             organization_id,
-            KafkaMessage::Profile(message),
+            &KafkaMessage::Profile(message),
         )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -614,7 +675,7 @@ impl StoreService {
         self.produce(
             KafkaTopic::ReplayEvents,
             organization_id,
-            KafkaMessage::ReplayEvent(message),
+            &KafkaMessage::ReplayEvent(message),
         )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -659,7 +720,7 @@ impl StoreService {
             self.produce(
                 KafkaTopic::ReplayRecordings,
                 scoping.organization_id,
-                message,
+                &message,
             )?;
 
             metric!(
@@ -688,7 +749,7 @@ impl StoreService {
             self.produce(
                 KafkaTopic::ReplayRecordings,
                 scoping.organization_id,
-                message,
+                &message,
             )?;
 
             metric!(
@@ -734,7 +795,7 @@ impl StoreService {
             self.produce(
                 KafkaTopic::ReplayRecordings,
                 organization_id,
-                replay_recording_chunk_message,
+                &replay_recording_chunk_message,
             )?;
 
             offset += chunk_size;
@@ -1073,4 +1134,44 @@ impl Message for KafkaMessage {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_common::ProjectKey;
+
+    use crate::extractors::RequestMeta;
+
+    use super::*;
+
+    fn request_meta() -> RequestMeta {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        RequestMeta::new(dsn)
+    }
+
+    #[test]
+    fn test_foobar() {
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+        let json_config = serde_json::json!({});
+
+        let config = Config::from_json_value(json_config.clone()).unwrap();
+
+        let x = StoreEnvelope {
+            envelope,
+            start_time: Instant::now(),
+            scoping: Scoping {
+                organization_id: 0,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            },
+        };
+
+        let y = StoreService::create(Arc::new(config)).unwrap();
+
+        y.handle_store_envelope(x);
+    }
 }
