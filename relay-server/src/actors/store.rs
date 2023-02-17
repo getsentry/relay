@@ -207,7 +207,7 @@ impl StoreService {
             scoping,
             start_time,
             remote_addr,
-            &mut attachments,
+            attachments,
         );
 
         for message in kafkamessages {
@@ -220,13 +220,14 @@ impl StoreService {
                             event_type = "attachment"
                         );
                     }
-                    KafkaMessage::Event(_) => metric!(
-                        counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        // The unwrap is safe because in self.extract_kafka_messages() it only
-                        // pushes an event message if the event_item is_some()..
-                        // still I would prefer to not have any unwraps.
-                        event_type = &(event_item.unwrap().ty().to_string())
-                    ),
+                    KafkaMessage::Event(_) => {
+                        if let Some(event_item) = event_item {
+                            metric!(
+                                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                                event_type = &event_item.ty().to_string()
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -242,18 +243,17 @@ impl StoreService {
         scoping: Scoping,
         start_time: Instant,
         remote_addr: Option<String>,
-        attachments: &mut Vec<ChunkedAttachment>,
+        mut attachments: Vec<ChunkedAttachment>,
     ) -> Vec<KafkaMessage> {
         let mut kafkamsgs = vec![];
         if let Some(event_item) = event_item {
             if matches!(event_item.ty(), ItemType::Transaction) {
                 self.extract_kafka_attachments(
                     &mut kafkamsgs,
-                    attachments.clone(),
+                    std::mem::take(&mut attachments),
                     &event_id,
                     &scoping,
                 );
-                attachments.clear();
             }
 
             let event_message = KafkaMessage::Event(EventKafkaMessage {
@@ -265,17 +265,12 @@ impl StoreService {
                 },
                 project_id: scoping.project_id,
                 remote_addr,
-                attachments: attachments.clone(),
+                attachments,
             });
 
             kafkamsgs.push(event_message);
         } else {
-            self.extract_kafka_attachments(
-                &mut kafkamsgs,
-                attachments.clone(),
-                &event_id,
-                &scoping,
-            );
+            self.extract_kafka_attachments(&mut kafkamsgs, attachments, &event_id, &scoping);
         }
 
         kafkamsgs
@@ -298,7 +293,7 @@ impl StoreService {
                         None => continue,
                     },
                     project_id: scoping.project_id,
-                    attachment,
+                    attachment: attachment.clone(),
                 });
 
                 kafkamsgs.push(attachment_message);
@@ -1152,7 +1147,7 @@ mod tests {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
         };
-        let mut attachments = vec![store_service
+        let attachments = vec![store_service
             .produce_attachment_chunks(
                 event_id.ok_or(StoreError::NoEventId).unwrap(),
                 scoping.organization_id,
@@ -1169,7 +1164,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            &mut attachments.clone(),
+            attachments.clone(),
         );
 
         assert!(kafka_messages.iter().any(|msg| {
@@ -1191,7 +1186,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            &mut attachments.clone(),
+            attachments.clone(),
         );
 
         // checks that the attachments of the event is stripped
@@ -1230,7 +1225,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            &mut attachments,
+            attachments,
         );
 
         // So even though we passed in attachments, there's no attachments in the returned vector
