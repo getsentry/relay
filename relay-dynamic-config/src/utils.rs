@@ -2,7 +2,9 @@ use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Validate that the given JSON resolves to a valid object of type `S`.
+/// Validate that the given JSON resolves to a valid instance of type `S`.
+///
+/// If `strict` is true, verify that reserializing the instance results in the same fields.
 pub fn validate_json<'de, S>(value: &'de str, strict: bool) -> anyhow::Result<()>
 where
     S: Serialize + Deserialize<'de>,
@@ -14,7 +16,7 @@ where
         return assert_json_matches_no_panic(
             &deserialized_value,
             &reserialized,
-            Config::new(CompareMode::Inclusive),
+            Config::new(CompareMode::Strict),
         )
         .map_err(|e| anyhow::anyhow!(e));
     }
@@ -23,31 +25,44 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[derive(Default, Serialize, Deserialize)]
+    struct TestMe {
+        a: i32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        b: Option<Box<TestMe>>,
+    }
+
     use super::*;
-    use crate::ProjectConfig;
 
     #[test]
     fn test_validate_json() {
-        // Empty config:
-        assert!(validate_json::<ProjectConfig>("{}", false).is_ok());
-        // Invalid config:
-        assert!(validate_json::<ProjectConfig>(
-            "{\"dynamicSampling\": \"this should be an object\"}",
-            false
-        )
-        .is_err());
-        // Config with additional fields:
-        assert!(validate_json::<ProjectConfig>("{\"more\": 1}", false).is_ok());
-        assert!(validate_json::<ProjectConfig>("{\"more\": 1}", true).is_err());
-
-        // Config with nested additional fields:
-        let config = r#"{"dynamicSampling": {"rulesV2": [], "notRules": []}}"#;
-        assert!(validate_json::<ProjectConfig>(config, false).is_ok());
-        assert!(validate_json::<ProjectConfig>(config, true).is_err());
-
-        // Correct config, with strict check:
-        let config = r#"{"dynamicSampling": {"rulesV2": []}}"#;
-        let res = validate_json::<ProjectConfig>(config, true);
-        assert!(res.is_ok(), "{:?}", res);
+        for (input, strict, expected_error) in [
+            (r#"{}"#, false, "missing field `a` at line 1 column 2"),
+            (r#"{}"#, true, "missing field `a` at line 1 column 2"),
+            (r#"{"a": 1}"#, false, ""),
+            (r#"{"a": 1}"#, true, ""),
+            (r#"{"a": 1, "other": 666}"#, false, ""),
+            (
+                r#"{"a": 1, "other": 666}"#,
+                true,
+                "json atom at path \".other\" is missing from rhs",
+            ),
+            (r#"{"a": 1, "b": {"a": 2}}"#, true, ""),
+            (r#"{"b": {"a": 2}, "a": 1}"#, true, ""),
+            (r#"{"a": 1, "b": {"a": 2, "other": 666}}"#, false, ""),
+            (
+                r#"{"a": 1, "b": {"a": 2, "other": 666}}"#,
+                true,
+                "json atom at path \".b.other\" is missing from rhs",
+            ),
+        ] {
+            let res = validate_json::<TestMe>(input, strict);
+            if expected_error.is_empty() {
+                assert!(res.is_ok(), "{:?}", (input, res.unwrap_err()));
+            } else {
+                assert!(res.is_err(), "{}", input);
+                assert_eq!(res.unwrap_err().to_string(), expected_error, "{}", input);
+            }
+        }
     }
 }
