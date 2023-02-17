@@ -47,7 +47,7 @@ pub struct CloudResourceContext {
     #[metastructure(field = "host.id")]
     pub host_id: Annotated<String>,
 
-    /// Machine type of host.
+    /// Machine type of the host.
     #[metastructure(field = "host.type")]
     pub host_type: Annotated<String>,
 
