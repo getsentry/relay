@@ -285,6 +285,12 @@ mod tests {
             ),
             // this used to crash
             ("http://y:80", vec!["http://x"], false),
+            // starts on both ends
+            (
+                "https://abc.software.example.com",
+                vec!["*abc.software.example.com*"],
+                false,
+            ),
         ];
 
         for (url, origins, expected) in examples {
