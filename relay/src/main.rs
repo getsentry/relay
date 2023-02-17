@@ -70,6 +70,7 @@
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-crash`]: ../relay_crash/index.html
+//! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html

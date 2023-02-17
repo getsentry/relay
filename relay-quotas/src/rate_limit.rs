@@ -4,10 +4,7 @@ use std::time::{Duration, Instant};
 
 use relay_common::{ProjectId, ProjectKey};
 
-use relay_dynamic_config::quota::{DataCategories, Quota, QuotaScope, ReasonCode};
-
-use crate::{ItemScoping, Scoping};
-
+use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
 
 /// A monotonic expiration marker for `RateLimit`s.
@@ -262,7 +259,7 @@ impl RateLimits {
         let mut applied_limits = Self::new();
 
         for quota in quotas {
-            if quota.limit == Some(0) && scoping.matches(quota) {
+            if quota.limit == Some(0) && quota.matches(scoping) {
                 let retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
                 applied_limits.add(RateLimit::from_quota(quota, &scoping, retry_after));
             }
@@ -346,7 +343,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_dynamic_config::quota::DataCategory;
+    use crate::quota::DataCategory;
     use smallvec::smallvec;
 
     #[test]

@@ -1,8 +1,11 @@
 use std::fmt::{self, Write};
 
-use relay_dynamic_config::quota::{DataCategories, DataCategory, QuotaScope, ReasonCode};
+use relay_common::DataCategory;
 use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
-use relay_quotas::{ItemScoping, RateLimit, RateLimitScope, RateLimits, Scoping};
+use relay_quotas::{
+    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    Scoping,
+};
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};

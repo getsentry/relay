@@ -3313,6 +3313,7 @@ dependencies = [
  "relay-common",
  "relay-filter",
  "relay-general",
+ "relay-quotas",
  "relay-sampling",
  "serde",
  "serde_json",
@@ -3470,7 +3471,6 @@ version = "23.2.0"
 dependencies = [
  "insta",
  "relay-common",
- "relay-dynamic-config",
  "relay-log",
  "relay-redis",
  "serde",
