@@ -201,16 +201,16 @@ impl StoreService {
 
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
-        let kafkamessages = self.extract_kafka_messages(
+        let kafka_messages = self.extract_kafka_messages(
             event_item,
-            event_id,
+            event_id.ok_or(StoreError::NoEventId)?,
             scoping,
             start_time,
             remote_addr,
             attachments,
         );
 
-        for message in kafkamessages {
+        for message in kafka_messages {
             if let Ok(()) = self.produce(topic, scoping.organization_id, &message) {
                 // If message was succesfully sent, make the right log message.
                 match message {
@@ -239,7 +239,7 @@ impl StoreService {
     fn extract_kafka_messages(
         &self,
         event_item: Option<&Item>,
-        event_id: Option<EventId>,
+        event_id: EventId,
         scoping: Scoping,
         start_time: Instant,
         remote_addr: Option<String>,
@@ -248,10 +248,12 @@ impl StoreService {
         let mut kafkamsgs = vec![];
         if let Some(event_item) = event_item {
             if matches!(event_item.ty(), ItemType::Transaction) {
+                // Transaction attachments are dropped in sentry.
+                // In order to keep them, emit them as single attachments instead.
                 self.extract_kafka_attachments(
                     &mut kafkamsgs,
                     std::mem::take(&mut attachments),
-                    &event_id,
+                    event_id,
                     &scoping,
                 );
             }
@@ -259,10 +261,7 @@ impl StoreService {
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-                event_id: match event_id {
-                    Some(event_id) => event_id,
-                    None => return kafkamsgs,
-                },
+                event_id,
                 project_id: scoping.project_id,
                 remote_addr,
                 attachments,
@@ -270,7 +269,7 @@ impl StoreService {
 
             kafkamsgs.push(event_message);
         } else {
-            self.extract_kafka_attachments(&mut kafkamsgs, attachments, &event_id, &scoping);
+            self.extract_kafka_attachments(&mut kafkamsgs, attachments, event_id, &scoping);
         }
 
         kafkamsgs
@@ -280,7 +279,7 @@ impl StoreService {
         &self,
         kafkamsgs: &mut Vec<KafkaMessage>,
         attachments: Vec<ChunkedAttachment>,
-        event_id: &Option<EventId>,
+        event_id: EventId,
         scoping: &Scoping,
     ) {
         if !attachments.is_empty() {
@@ -288,10 +287,7 @@ impl StoreService {
 
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                    event_id: match event_id {
-                        Some(event_id) => *event_id,
-                        None => continue,
-                    },
+                    event_id,
                     project_id: scoping.project_id,
                     attachment,
                 });
@@ -1140,7 +1136,7 @@ mod tests {
         let store_service = StoreService::create(Arc::new(config)).unwrap();
 
         let start_time = Instant::now();
-        let event_id = Some(EventId::new());
+        let event_id = EventId::new();
         let scoping = Scoping {
             organization_id: 42,
             project_id: ProjectId::new(21),
@@ -1151,7 +1147,7 @@ mod tests {
         let get_attachment_vec = || -> Vec<ChunkedAttachment> {
             vec![store_service
                 .produce_attachment_chunks(
-                    event_id.ok_or(StoreError::NoEventId).unwrap(),
+                    event_id,
                     scoping.organization_id,
                     scoping.project_id,
                     &Item::new(ItemType::Attachment),
