@@ -3308,6 +3308,7 @@ dependencies = [
 name = "relay-dynamic-config"
 version = "23.1.1"
 dependencies = [
+ "anyhow",
  "insta",
  "relay-auth",
  "relay-common",

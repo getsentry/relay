@@ -14,6 +14,7 @@ default = []
 processing = []
 
 [dependencies]
+anyhow = "1.0.66"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-filter = { path = "../relay-filter" }
