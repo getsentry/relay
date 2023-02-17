@@ -967,6 +967,7 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::iter::FusedIterator;
 
@@ -1140,6 +1141,7 @@
             Redaction::Replace(<span class="kw-2">ref </span>replace) =&gt; {
                 <span class="self">self</span>.swap_content(replace.text.as_str(), PADDING);
             }
+            Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">&quot;Incoming redaction is not supported&quot;</span>),
         }
     }
 }

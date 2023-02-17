@@ -968,6 +968,7 @@
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::mem;
 
@@ -1327,6 +1328,7 @@
                 text: Cow::Owned(replace.text.clone()),
             });
         }
+        Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">&quot;Incoming redaction is not supported&quot;</span>),
     }
 }
 
