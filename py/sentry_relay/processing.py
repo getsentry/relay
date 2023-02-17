@@ -27,6 +27,7 @@ __all__ = [
     "VALID_PLATFORMS",
     "validate_sampling_condition",
     "validate_sampling_configuration",
+    "validate_project_config",
 ]
 
 
@@ -252,8 +253,7 @@ def validate_sampling_configuration(condition):
 
 
 def validate_project_config(config, strict: bool):
-    """
-    Validate the whole project config.
+    """Validate the whole project config.
 
     :param strict: Whether or not to check for unknown fields.
     """
