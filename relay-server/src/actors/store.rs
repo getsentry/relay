@@ -212,7 +212,7 @@ impl StoreService {
 
         for message in kafkamessages {
             if let Ok(()) = self.produce(topic, scoping.organization_id, &message) {
-                // if message was succesfully sent, make the right log message
+                // If message was succesfully sent, make the right log message.
                 match message {
                     KafkaMessage::Attachment(_) => {
                         metric!(
@@ -222,9 +222,10 @@ impl StoreService {
                     }
                     KafkaMessage::Event(_) => metric!(
                         counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        // the unwrap is safe because in self.extract_kafka_messages() it only
+                        // The unwrap is safe because in self.extract_kafka_messages() it only
                         // pushes an event message if the event_item is_some()..
-                        event_type = &(event_item.expect("oh fuck").ty().to_string())
+                        // still I would prefer to not have any unwraps.
+                        event_type = &(event_item.unwrap().ty().to_string())
                     ),
                     _ => {}
                 }
@@ -234,7 +235,6 @@ impl StoreService {
         Ok(())
     }
 
-    // it'll
     fn extract_kafka_messages(
         &self,
         event_item: Option<&Item>,
@@ -245,11 +245,8 @@ impl StoreService {
         attachments: &mut Vec<ChunkedAttachment>,
     ) -> Vec<KafkaMessage> {
         let mut kafkamsgs = vec![];
-        dbg!("begin!");
         if let Some(event_item) = event_item {
-            dbg!("event item is found");
             if matches!(event_item.ty(), ItemType::Transaction) {
-                dbg!("seems item is transaction");
                 self.extract_kafka_attachments(
                     &mut kafkamsgs,
                     attachments.clone(),
@@ -271,15 +268,8 @@ impl StoreService {
                 attachments: attachments.clone(),
             });
 
-            //self.produce(topic, scoping.organization_id, event_message)?;
             kafkamsgs.push(event_message);
-
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = &event_item.ty().to_string()
-            );
         } else {
-            dbg!("event item not found");
             self.extract_kafka_attachments(
                 &mut kafkamsgs,
                 attachments.clone(),
@@ -311,12 +301,7 @@ impl StoreService {
                     attachment,
                 });
 
-                //self.produce(topic, scoping.organization_id, attachment_message)?;
                 kafkamsgs.push(attachment_message);
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "attachment"
-                );
             }
         }
     }
@@ -1176,7 +1161,7 @@ mod tests {
             )
             .unwrap()];
 
-        // first case, no event_id. Attachments should be kept
+        // First case: no event_id. Attachments should be kept.
 
         let kafka_messages = store_service.extract_kafka_messages(
             None,
@@ -1194,7 +1179,7 @@ mod tests {
             false
         }));
 
-        // second case: if it's a transaction, it should extract the attachments and strip them from the
+        // Second case: if it's a transaction, it should extract the attachments and strip them from the
         //transaction message.
 
         let item = Item::new(ItemType::Transaction);
@@ -1225,7 +1210,7 @@ mod tests {
             panic!("No event found")
         }
 
-        // checks that the attachment is a message on its own in the vector
+        // Checks that the attachment is a message on its own in the vector.
         assert!(kafka_messages.iter().any(|msg| {
             if let KafkaMessage::Attachment(_) = msg {
                 return true;
@@ -1233,8 +1218,8 @@ mod tests {
             false
         }));
 
-        // third case: if it's not a transaction, the attachments arent extracted, theyre simply a part
-        //of the event message;
+        // Third case: if it's not a transaction, the attachments arent extracted, theyre simply a part
+        //of the event message.
 
         let item = Item::new(ItemType::Event);
         let event_item = Some(&item);
@@ -1248,8 +1233,8 @@ mod tests {
             &mut attachments,
         );
 
-        // so even though we passed in attachments, there's no attachments in the returned vector
-        // as they don't get extracted from the event message
+        // So even though we passed in attachments, there's no attachments in the returned vector
+        // as they don't get extracted from the event message.
         assert!(!kafka_messages.iter().any(|msg| {
             if let KafkaMessage::Attachment(_) = msg {
                 return true;
@@ -1257,7 +1242,7 @@ mod tests {
             false
         }));
 
-        // checks that the attachments of the event is not stripped
+        // Checks that the attachments of the event is not stripped.
         let event = kafka_messages
             .iter()
             .find(|msg| {
