@@ -48,7 +48,7 @@ pub enum Redaction {
     /// Replaces the value with a hash
     Hash,
     /// Added for forward compatibility as catch-all variant.
-    #[serde(other)]
+    #[serde(other, skip_serializing)]
     Other,
 }
 
