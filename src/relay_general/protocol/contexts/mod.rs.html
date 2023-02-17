@@ -318,6 +318,11 @@
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
 <span class="kw">mod </span>browser;
@@ -342,6 +347,8 @@
 <span class="kw">pub use </span>trace::<span class="kw-2">*</span>;
 <span class="kw">mod </span>otel;
 <span class="kw">pub use </span>otel::<span class="kw-2">*</span>;
+<span class="kw">mod </span>cloud_resource;
+<span class="kw">pub use </span>cloud_resource::<span class="kw-2">*</span>;
 
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, FromValue, Object, Value};
 <span class="kw">use </span><span class="kw">crate</span>::user_agent::{ClientHints, RawUserAgentInfo};
@@ -378,8 +385,10 @@
     </span>Reprocessing(Box&lt;ReprocessingContext&gt;),
     <span class="doccomment">/// Response information.
     </span>Response(Box&lt;ResponseContext&gt;),
-    <span class="doccomment">/// OpenTelemetry information
+    <span class="doccomment">/// OpenTelemetry information.
     </span>Otel(Box&lt;OtelContext&gt;),
+    <span class="doccomment">/// Cloud resource information.
+    </span>CloudResource(Box&lt;CloudResourceContext&gt;),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(fallback_variant)]
     </span>Other(<span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)] </span>Object&lt;Value&gt;),
@@ -403,6 +412,7 @@
             Context::Monitor(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(MonitorContext::default_key()),
             Context::Response(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ResponseContext::default_key()),
             Context::Otel(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(OtelContext::default_key()),
+            Context::CloudResource(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(CloudResourceContext::default_key()),
             Context::Other(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
