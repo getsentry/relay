@@ -1,6 +1,6 @@
 use crate::types::{Annotated, Object, Value};
 
-/// Cloud Resource Context
+/// Cloud Resource Context.
 ///
 /// This context describes the cloud resource the event originated from.
 ///
