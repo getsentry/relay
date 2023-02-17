@@ -275,12 +275,11 @@ def test_validate_sampling_configuration():
     sentry_relay.validate_sampling_configuration(config)
 
 
-@pytest.mark.parametrize("config,strict,should_pass", [({}, False, False)])
-def test_validate_project_config(config, strict, should_pass):
-    config = json.dumps(config)
-    f = sentry_relay.validate_project_config
-    if should_pass:
-        f(config, strict)  # does not raise
-    else:
-        with pytest.raises(ValueError):
-            f(config, strict)
+def test_validate_project_config():
+    config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
+    # Does not raise:
+    sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    config["foobar"] = True
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
