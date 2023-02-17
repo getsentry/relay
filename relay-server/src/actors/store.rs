@@ -293,7 +293,7 @@ impl StoreService {
                         None => continue,
                     },
                     project_id: scoping.project_id,
-                    attachment: attachment.clone(),
+                    attachment,
                 });
 
                 kafkamsgs.push(attachment_message);
@@ -814,7 +814,7 @@ impl Service for StoreService {
 }
 
 /// Common attributes for both standalone attachments and processing-relevant attachments.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize)]
 struct ChunkedAttachment {
     /// The attachment ID within the event.
     ///
@@ -880,7 +880,7 @@ struct EventKafkaMessage {
     attachments: Vec<ChunkedAttachment>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct ReplayEventKafkaMessage {
     /// Raw event payload.
     payload: Bytes,
@@ -1147,14 +1147,17 @@ mod tests {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
         };
-        let attachments = vec![store_service
-            .produce_attachment_chunks(
-                event_id.ok_or(StoreError::NoEventId).unwrap(),
-                scoping.organization_id,
-                scoping.project_id,
-                &Item::new(ItemType::Attachment),
-            )
-            .unwrap()];
+
+        let get_attachment_vec = || -> Vec<ChunkedAttachment> {
+            vec![store_service
+                .produce_attachment_chunks(
+                    event_id.ok_or(StoreError::NoEventId).unwrap(),
+                    scoping.organization_id,
+                    scoping.project_id,
+                    &Item::new(ItemType::Attachment),
+                )
+                .unwrap()]
+        };
 
         // First case: no event_id. Attachments should be kept.
 
@@ -1164,7 +1167,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            attachments.clone(),
+            get_attachment_vec(),
         );
 
         assert!(kafka_messages.iter().any(|msg| {
@@ -1186,7 +1189,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            attachments.clone(),
+            get_attachment_vec(),
         );
 
         // checks that the attachments of the event is stripped
@@ -1225,7 +1228,7 @@ mod tests {
             scoping,
             start_time,
             None,
-            attachments,
+            get_attachment_vec(),
         );
 
         // So even though we passed in attachments, there's no attachments in the returned vector
