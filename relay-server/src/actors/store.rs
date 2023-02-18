@@ -201,7 +201,7 @@ impl StoreService {
 
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
-        let kafka_messages = self.extract_kafka_messages(
+        let kafka_messages = Self::extract_kafka_messages(
             event_item,
             event_id.ok_or(StoreError::NoEventId)?,
             scoping,
@@ -237,7 +237,6 @@ impl StoreService {
     }
 
     fn extract_kafka_messages(
-        &self,
         event_item: Option<&Item>,
         event_id: EventId,
         scoping: Scoping,
@@ -250,7 +249,7 @@ impl StoreService {
             if matches!(event_item.ty(), ItemType::Transaction) {
                 // Transaction attachments are dropped in sentry.
                 // In order to keep them, emit them as single attachments instead.
-                self.extract_kafka_attachments(
+                Self::extract_kafka_attachments(
                     &mut kafkamsgs,
                     std::mem::take(&mut attachments),
                     event_id,
@@ -269,14 +268,13 @@ impl StoreService {
 
             kafkamsgs.push(event_message);
         } else {
-            self.extract_kafka_attachments(&mut kafkamsgs, attachments, event_id, &scoping);
+            Self::extract_kafka_attachments(&mut kafkamsgs, attachments, event_id, &scoping);
         }
 
         kafkamsgs
     }
 
     fn extract_kafka_attachments(
-        &self,
         kafkamsgs: &mut Vec<KafkaMessage>,
         attachments: Vec<ChunkedAttachment>,
         event_id: EventId,
@@ -1121,14 +1119,8 @@ mod tests {
     use super::*;
     use relay_common::ProjectKey;
 
-    /// Should check these three cases:
-    /// 1. if theres no event_id, it should return the attachments.
-    /// 2. if there is an event_id and its a transaction, then it should strip the attachments from the
-    ///     event and put them in the returned vector.
-    /// 3. If there is an event_id and it's not a transaction, then the attachments should be part
-    ///     of the Event message, not as standalone attachment-messages.
-    #[test]
-    fn test_extract_kafka_messages() {
+    /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` function.
+    fn test_arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {
         let config = {
             let json_config = serde_json::json!({});
             Config::from_json_value(json_config).unwrap()
@@ -1144,26 +1136,29 @@ mod tests {
             key_id: Some(17),
         };
 
-        let get_attachment_vec = || -> Vec<ChunkedAttachment> {
-            vec![store_service
-                .produce_attachment_chunks(
-                    event_id,
-                    scoping.organization_id,
-                    scoping.project_id,
-                    &Item::new(ItemType::Attachment),
-                )
-                .unwrap()]
-        };
+        let attachment_vec = vec![store_service
+            .produce_attachment_chunks(
+                event_id,
+                scoping.organization_id,
+                scoping.project_id,
+                &Item::new(ItemType::Attachment),
+            )
+            .unwrap()];
 
-        // First case: no event_id. Attachments should be kept.
+        (start_time, event_id, scoping, attachment_vec)
+    }
 
-        let kafka_messages = store_service.extract_kafka_messages(
+    #[test]
+    fn test_return_attachments_when_missing_event_item() {
+        let (start_time, event_id, scoping, attachment_vec) = test_arguments_extract_kafka_msgs();
+
+        let kafka_messages = StoreService::extract_kafka_messages(
             None,
             event_id,
             scoping,
             start_time,
             None,
-            get_attachment_vec(),
+            attachment_vec,
         );
 
         assert!(kafka_messages.iter().any(|msg| {
@@ -1172,20 +1167,24 @@ mod tests {
             }
             false
         }));
+    }
 
-        // Second case: if it's a transaction, it should extract the attachments and strip them from the
-        //transaction message.
+    /// If there is an event_item, and it is of type transaction, then it should strip the attachments
+    /// from the event and return them as standalone attachments (so it will be sent to kafka later).
+    #[test]
+    fn test_strip_attachment_from_transaction() {
+        let (start_time, event_id, scoping, attachment_vec) = test_arguments_extract_kafka_msgs();
 
         let item = Item::new(ItemType::Transaction);
         let event_item = Some(&item);
 
-        let kafka_messages = store_service.extract_kafka_messages(
+        let kafka_messages = StoreService::extract_kafka_messages(
             event_item,
             event_id,
             scoping,
             start_time,
             None,
-            get_attachment_vec(),
+            attachment_vec,
         );
 
         // checks that the attachments of the event is stripped
@@ -1211,23 +1210,27 @@ mod tests {
             }
             false
         }));
+    }
 
-        // Third case: if it's not a transaction, the attachments arent extracted, theyre simply a part
-        //of the event message.
+    /// If there is an event_item, and it is not a transaction. The attachments should be kept in
+    /// the event and not be returned as stand-alone attachments.
+    #[test]
+    fn test_dont_strip_non_transaction_events() {
+        let (start_time, event_id, scoping, attachment_vec) = test_arguments_extract_kafka_msgs();
 
         let item = Item::new(ItemType::Event);
         let event_item = Some(&item);
 
-        let kafka_messages = store_service.extract_kafka_messages(
+        let kafka_messages = StoreService::extract_kafka_messages(
             event_item,
             event_id,
             scoping,
             start_time,
             None,
-            get_attachment_vec(),
+            attachment_vec,
         );
 
-        // So even though we passed in attachments, there's no attachments in the returned vector
+        // Even though we passed in attachments, there's no attachments in the returned vector
         // as they don't get extracted from the event message.
         assert!(!kafka_messages.iter().any(|msg| {
             if let KafkaMessage::Attachment(_) = msg {
