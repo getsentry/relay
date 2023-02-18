@@ -1187,7 +1187,7 @@ mod tests {
             attachment_vec,
         );
 
-        // checks that the attachments of the event is stripped
+        // Checks that the attachments of the event is stripped
         let event = kafka_messages
             .iter()
             .find(|msg| {
