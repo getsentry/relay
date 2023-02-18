@@ -1121,12 +1121,6 @@ mod tests {
 
     /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` function.
     fn test_arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {
-        let config = {
-            let json_config = serde_json::json!({});
-            Config::from_json_value(json_config).unwrap()
-        };
-        let store_service = StoreService::create(Arc::new(config)).unwrap();
-
         let start_time = Instant::now();
         let event_id = EventId::new();
         let scoping = Scoping {
@@ -1136,14 +1130,21 @@ mod tests {
             key_id: Some(17),
         };
 
-        let attachment_vec = vec![store_service
-            .produce_attachment_chunks(
-                event_id,
-                scoping.organization_id,
-                scoping.project_id,
-                &Item::new(ItemType::Attachment),
-            )
-            .unwrap()];
+        let attachment_vec = {
+            let item = Item::new(ItemType::Attachment);
+
+            vec![ChunkedAttachment {
+                id: Uuid::new_v4().to_string(),
+                name: UNNAMED_ATTACHMENT.to_owned(),
+                content_type: item
+                    .content_type()
+                    .map(|content_type| content_type.as_str().to_owned()),
+                attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+                chunks: 0,
+                size: None,
+                rate_limited: Some(item.rate_limited()),
+            }]
+        };
 
         (start_time, event_id, scoping, attachment_vec)
     }
