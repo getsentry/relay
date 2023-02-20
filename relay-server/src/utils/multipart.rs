@@ -4,7 +4,8 @@ use std::io;
 use actix::prelude::*;
 use actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
-use futures01::{future, Async, Future, Poll, Stream};
+use futures::compat::Future01CompatExt;
+use futures01::{Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -301,16 +302,16 @@ impl MultipartItems {
         self
     }
 
-    pub fn handle_request(
+    pub async fn handle_request(
         self,
         request: &HttpRequest<ServiceState>,
-    ) -> ResponseFuture<Items, MultipartError> {
+    ) -> Result<Items, MultipartError> {
         // Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
         // causes keep-alive streams to break. Instead, rely on the middleware to consume the
         // stream. This can happen, for instance, when the boundary is malformed.
         let boundary = match multipart::Multipart::boundary(request.headers()) {
             Ok(boundary) => boundary,
-            Err(error) => return Box::new(future::err(MultipartError::InvalidMultipart(error))),
+            Err(error) => return Err(MultipartError::InvalidMultipart(error)),
         };
 
         let payload = TerminatedPayload::new(DecodingPayload::new(request, self.remaining_size));
@@ -327,7 +328,7 @@ impl MultipartItems {
             Ok(items)
         });
 
-        Box::new(future)
+        future.compat().await
     }
 }
 

@@ -684,8 +684,8 @@ impl Project {
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
-            Some(state) => self.flush_validation(envelope, context, state),
-            None => self.pending_validations.push_back((envelope, context)),
+            Some(state) if !state.invalid() => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
         }
     }
 

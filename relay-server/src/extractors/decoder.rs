@@ -8,6 +8,7 @@ use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures01::{Async, Poll, Stream};
+
 use relay_config::HttpEncoding;
 
 use crate::extractors::SharedPayload;
@@ -140,12 +141,12 @@ impl Decoder {
     /// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this
     /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
     /// error decoding.
-    pub fn decode(&mut self, bytes: Bytes) -> io::Result<bool> {
+    pub fn decode(&mut self, bytes: &[u8]) -> io::Result<bool> {
         match &mut self.inner {
-            DecoderInner::Identity(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Br(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Gzip(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Deflate(inner) => write_overflowing(inner, &bytes),
+            DecoderInner::Identity(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Br(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Gzip(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Deflate(inner) => write_overflowing(inner, bytes),
         }
     }
 
@@ -210,6 +211,31 @@ impl DecodingPayload {
             decoder: Decoder::new(request, limit),
         }
     }
+
+    // /// Stream a chunk of the raw request body.
+    // ///
+    // /// When the request body has been exhausted, this will return None.
+    // ///
+    // /// TODO(ja): Describe decoding.
+    // pub async fn chunk(&mut self) -> Result<Option<Bytes>, PayloadError> {
+    //     loop {
+    //         let Some(encoded) = self.payload.chunk().await? else {
+    //             let chunk = self.decoder.finish()?;
+    //             return Ok(Some(chunk).filter(|c| !c.is_empty()));
+    //         };
+
+    //         if self.decoder.decode(&encoded)? {
+    //             return Err(PayloadError::Overflow);
+    //         }
+
+    //         let chunk = self.decoder.take();
+    //         if !chunk.is_empty() {
+    //             return Ok(Some(chunk));
+    //         }
+
+    //         // loop until the input stream is exhausted
+    //     }
+    // }
 }
 
 impl Stream for DecodingPayload {
@@ -227,7 +253,7 @@ impl Stream for DecodingPayload {
                 Async::NotReady => return Ok(Async::NotReady),
             };
 
-            if self.decoder.decode(encoded)? {
+            if self.decoder.decode(&encoded)? {
                 return Err(PayloadError::Overflow);
             }
 

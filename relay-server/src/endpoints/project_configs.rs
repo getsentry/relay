@@ -1,10 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{Error, FromRequest, Json};
-use futures::{FutureExt, TryFutureExt};
-use futures01::{future, Future};
+use futures::{future, TryFutureExt};
 use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;
@@ -115,85 +113,74 @@ struct GetProjectStatesRequest {
     no_cache: bool,
 }
 
-fn get_project_configs(
+async fn get_project_configs(
     body: SignedJson<GetProjectStatesRequest>,
     version: VersionQuery,
-) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
+) -> Result<Json<GetProjectStatesResponseWrapper>, Error> {
     let relay = body.relay;
-    let full = relay.internal && body.inner.full_config;
-    let no_cache = body.inner.no_cache;
-    let keys_len = body.inner.public_keys.len();
+    let request = body.inner;
+
+    let no_cache = request.no_cache;
+    let keys_len = request.public_keys.len();
 
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    let valid_keys = body.inner.public_keys.into_iter().filter_map(|e| e.ok());
-
-    let futures = valid_keys.map(move |project_key| {
-        let project_cache = ProjectCache::from_registry();
-
-        let project_future = if version.version >= ENDPOINT_V3 && !no_cache {
-            let future = project_cache
+    let valid_keys = request.public_keys.into_iter().filter_map(|e| e.ok());
+    let futures = valid_keys.map(|project_key| async move {
+        let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
+            ProjectCache::from_registry()
                 .send(GetCachedProjectState::new(project_key))
-                .boxed()
-                .compat();
-            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
+                .await
         } else {
-            let future = project_cache
+            ProjectCache::from_registry()
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
-                .boxed()
-                .compat()
-                .map(Some);
-            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
+                .await
+                .map(Some)
         };
 
-        project_future
-            .map_err(|_| Error::from(MailboxError::Closed))
-            .map(move |state_result| (project_key, state_result))
+        (project_key, state_result)
     });
 
-    let future = future::join_all(futures).map(move |project_states| {
-        let mut configs = HashMap::with_capacity(keys_len);
-        let mut pending = Vec::with_capacity(keys_len);
+    let mut configs = HashMap::with_capacity(keys_len);
+    let mut pending = Vec::with_capacity(keys_len);
 
-        for (project_key, result) in project_states {
-            match result {
-                Some(project_state) => {
-                    // If public key is known (even if rate-limited, which is Some(false)), it has
-                    // access to the project config
-                    let has_access = relay.internal
-                        || project_state
-                            .config
-                            .trusted_relays
-                            .contains(&relay.public_key);
+    for (project_key, state_result) in future::join_all(futures).await {
+        let Some(project_state) = state_result.map_err(|_| MailboxError::Closed)? else {
+            pending.push(project_key);
+            continue;
+        };
 
-                    if has_access {
-                        let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
-                        configs.insert(project_key, Some(wrapper));
-                    } else {
-                        relay_log::debug!(
-                            "Relay {} does not have access to project key {}",
-                            relay.public_key,
-                            project_key
-                        );
-                    };
-                }
-                None => {
-                    pending.push(project_key);
-                }
-            }
-        }
+        // If public key is known (even if rate-limited, which is Some(false)), it has
+        // access to the project config
+        let has_access = relay.internal
+            || project_state
+                .config
+                .trusted_relays
+                .contains(&relay.public_key);
 
-        Json(GetProjectStatesResponseWrapper { configs, pending })
-    });
+        if has_access {
+            let full = relay.internal && request.full_config;
+            let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
+            configs.insert(project_key, Some(wrapper));
+        } else {
+            relay_log::debug!(
+                "Relay {} does not have access to project key {}",
+                relay.public_key,
+                project_key
+            );
+        };
+    }
 
-    Box::new(future)
+    Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/projectconfigs/", |r| {
         r.name("relay-projectconfigs");
-        r.post().filter(VersionPredicate).with(get_project_configs);
+        r.post()
+            .filter(VersionPredicate)
+            .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
 
         // Forward all unsupported versions to the upstream.
-        r.post().f(crate::endpoints::forward::forward_upstream);
+        r.post().f(crate::endpoints::forward::forward_compat);
     })
 }

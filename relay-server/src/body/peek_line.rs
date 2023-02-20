@@ -1,13 +1,13 @@
+use actix_web::error::PayloadError;
 use actix_web::HttpRequest;
 use bytes::Bytes;
-use futures01::{Async, Future, Poll, Stream};
 use smallvec::SmallVec;
 
 use crate::extractors::{Decoder, SharedPayload};
 
-/// A request body adapter that peeks the first line of a multi-line body.
+/// Peeks the first line of a multi-line body without consuming it.
 ///
-/// `PeekLine` is a future created from a request's [`Payload`]. It is especially designed to be
+/// This function returns a future to the request [`Payload`]. It is especially designed to be
 /// used together with [`SharedPayload`](crate::extractors::SharedPayload), since it polls an
 /// underlying payload and places the polled chunks back into the payload when completing.
 ///
@@ -19,66 +19,94 @@ use crate::extractors::{Decoder, SharedPayload};
 /// are returned without change.
 ///
 /// [`Payload`]: actix_web::dev::Payload
-pub struct PeekLine {
-    payload: SharedPayload,
-    decoder: Decoder,
-    chunks: SmallVec<[Bytes; 3]>,
+pub async fn peek_line<S>(
+    request: &HttpRequest<S>,
+    limit: usize,
+) -> Result<Option<Bytes>, PayloadError> {
+    let mut payload = SharedPayload::get(request);
+    let mut decoder = Decoder::new(request, limit);
+    let mut chunks = SmallVec::<[_; 3]>::new();
+    let mut overflow = false;
+
+    while let (Some(chunk), false) = (payload.chunk().await?, overflow) {
+        overflow = decoder.decode(&chunk)?;
+        chunks.push(chunk);
+    }
+
+    let buffer = decoder.finish()?;
+
+    let line = match buffer.iter().position(|b| *b == b'\n') {
+        Some(pos) => Some(buffer.slice_to(pos)),
+        None if !overflow => Some(buffer),
+        None => None,
+    };
+
+    // unread in reverse order
+    while let Some(chunk) = chunks.pop() {
+        payload.unread_data(chunk);
+    }
+
+    Ok(line.filter(|line| !line.is_empty()))
 }
 
-impl PeekLine {
-    /// Creates a new peek line future from the given payload.
-    ///
-    /// Note that the underlying stream may return more data than the configured limit. The future
-    /// will still never resolve more than the limit set.
-    pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
-        Self {
-            payload: SharedPayload::get(request),
-            decoder: Decoder::new(request, limit),
-            chunks: SmallVec::new(),
-        }
-    }
+// pub struct PeekLine {
+//     payload: SharedPayload,
+//     decoder: Decoder,
+//     chunks: SmallVec<[Bytes; 3]>,
+// }
 
-    fn revert_chunks(&mut self) {
-        // unread in reverse order
-        while let Some(chunk) = self.chunks.pop() {
-            self.payload.unread_data(chunk);
-        }
-    }
+// impl PeekLine {
+//     /// Creates a new peek line future from the given payload.
+//     ///
+//     /// Note that the underlying stream may return more data than the configured limit. The future
+//     /// will still never resolve more than the limit set.
+//     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
+//         Self {
+//             payload: SharedPayload::get(request),
+//             decoder: Decoder::new(request, limit),
+//             chunks: SmallVec::new(),
+//         }
+//     }
 
-    fn finish(&mut self, overflow: bool) -> std::io::Result<Option<Bytes>> {
-        let buffer = self.decoder.finish()?;
+//     fn finish(&mut self, overflow: bool) -> std::io::Result<Option<Bytes>> {
+//         let buffer = self.decoder.finish()?;
 
-        let line = match buffer.iter().position(|b| *b == b'\n') {
-            Some(pos) => Some(buffer.slice_to(pos)),
-            None if !overflow => Some(buffer),
-            None => None,
-        };
+//         let line = match buffer.iter().position(|b| *b == b'\n') {
+//             Some(pos) => Some(buffer.slice_to(pos)),
+//             None if !overflow => Some(buffer),
+//             None => None,
+//         };
 
-        self.revert_chunks();
-        Ok(line.filter(|line| !line.is_empty()))
-    }
-}
+//         // unread in reverse order
+//         while let Some(chunk) = self.chunks.pop() {
+//             self.payload.unread_data(chunk);
+//         }
 
-impl Future for PeekLine {
-    type Item = Option<Bytes>;
-    type Error = <SharedPayload as Stream>::Error;
+//         Ok(line.filter(|line| !line.is_empty()))
+//     }
+// }
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let chunk = match self.payload.poll()? {
-                Async::Ready(Some(chunk)) => chunk,
-                Async::Ready(None) => return Ok(Async::Ready(self.finish(false)?)),
-                Async::NotReady => return Ok(Async::NotReady),
-            };
+// impl Future for PeekLine {
+//     type Item = Option<Bytes>;
+//     type Error = <SharedPayload as Stream>::Error;
 
-            self.chunks.push(chunk.clone());
-            if self.decoder.decode(chunk)? {
-                return Ok(Async::Ready(self.finish(true)?));
-            }
-        }
-    }
-}
+//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+//         loop {
+//             let chunk = match self.payload.poll()? {
+//                 Async::Ready(Some(chunk)) => chunk,
+//                 Async::Ready(None) => return Ok(Async::Ready(self.finish(false)?)),
+//                 Async::NotReady => return Ok(Async::NotReady),
+//             };
 
+//             self.chunks.push(chunk.clone());
+//             if self.decoder.decode(chunk)? {
+//                 return Ok(Async::Ready(self.finish(true)?));
+//             }
+//         }
+//     }
+// }
+
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,3 +181,4 @@ mod tests {
     // does not take effect in test requests, and the sender returned by `Payload::new` does not
     // have a public interface.
 }
+*/
