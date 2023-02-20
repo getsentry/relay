@@ -2016,96 +2016,14 @@
 <a href="#2015" id="2015">2015</a>
 <a href="#2016" id="2016">2016</a>
 <a href="#2017" id="2017">2017</a>
-<a href="#2018" id="2018">2018</a>
-<a href="#2019" id="2019">2019</a>
-<a href="#2020" id="2020">2020</a>
-<a href="#2021" id="2021">2021</a>
-<a href="#2022" id="2022">2022</a>
-<a href="#2023" id="2023">2023</a>
-<a href="#2024" id="2024">2024</a>
-<a href="#2025" id="2025">2025</a>
-<a href="#2026" id="2026">2026</a>
-<a href="#2027" id="2027">2027</a>
-<a href="#2028" id="2028">2028</a>
-<a href="#2029" id="2029">2029</a>
-<a href="#2030" id="2030">2030</a>
-<a href="#2031" id="2031">2031</a>
-<a href="#2032" id="2032">2032</a>
-<a href="#2033" id="2033">2033</a>
-<a href="#2034" id="2034">2034</a>
-<a href="#2035" id="2035">2035</a>
-<a href="#2036" id="2036">2036</a>
-<a href="#2037" id="2037">2037</a>
-<a href="#2038" id="2038">2038</a>
-<a href="#2039" id="2039">2039</a>
-<a href="#2040" id="2040">2040</a>
-<a href="#2041" id="2041">2041</a>
-<a href="#2042" id="2042">2042</a>
-<a href="#2043" id="2043">2043</a>
-<a href="#2044" id="2044">2044</a>
-<a href="#2045" id="2045">2045</a>
-<a href="#2046" id="2046">2046</a>
-<a href="#2047" id="2047">2047</a>
-<a href="#2048" id="2048">2048</a>
-<a href="#2049" id="2049">2049</a>
-<a href="#2050" id="2050">2050</a>
-<a href="#2051" id="2051">2051</a>
-<a href="#2052" id="2052">2052</a>
-<a href="#2053" id="2053">2053</a>
-<a href="#2054" id="2054">2054</a>
-<a href="#2055" id="2055">2055</a>
-<a href="#2056" id="2056">2056</a>
-<a href="#2057" id="2057">2057</a>
-<a href="#2058" id="2058">2058</a>
-<a href="#2059" id="2059">2059</a>
-<a href="#2060" id="2060">2060</a>
-<a href="#2061" id="2061">2061</a>
-<a href="#2062" id="2062">2062</a>
-<a href="#2063" id="2063">2063</a>
-<a href="#2064" id="2064">2064</a>
-<a href="#2065" id="2065">2065</a>
-<a href="#2066" id="2066">2066</a>
-<a href="#2067" id="2067">2067</a>
-<a href="#2068" id="2068">2068</a>
-<a href="#2069" id="2069">2069</a>
-<a href="#2070" id="2070">2070</a>
-<a href="#2071" id="2071">2071</a>
-<a href="#2072" id="2072">2072</a>
-<a href="#2073" id="2073">2073</a>
-<a href="#2074" id="2074">2074</a>
-<a href="#2075" id="2075">2075</a>
-<a href="#2076" id="2076">2076</a>
-<a href="#2077" id="2077">2077</a>
-<a href="#2078" id="2078">2078</a>
-<a href="#2079" id="2079">2079</a>
-<a href="#2080" id="2080">2080</a>
-<a href="#2081" id="2081">2081</a>
-<a href="#2082" id="2082">2082</a>
-<a href="#2083" id="2083">2083</a>
-<a href="#2084" id="2084">2084</a>
-<a href="#2085" id="2085">2085</a>
-<a href="#2086" id="2086">2086</a>
-<a href="#2087" id="2087">2087</a>
-<a href="#2088" id="2088">2088</a>
-<a href="#2089" id="2089">2089</a>
-<a href="#2090" id="2090">2090</a>
-<a href="#2091" id="2091">2091</a>
-<a href="#2092" id="2092">2092</a>
-<a href="#2093" id="2093">2093</a>
-<a href="#2094" id="2094">2094</a>
-<a href="#2095" id="2095">2095</a>
-<a href="#2096" id="2096">2096</a>
-<a href="#2097" id="2097">2097</a>
-<a href="#2098" id="2098">2098</a>
-<a href="#2099" id="2099">2099</a>
-<a href="#2100" id="2100">2100</a>
-<a href="#2101" id="2101">2101</a>
-<a href="#2102" id="2102">2102</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::fmt;
+
 <span class="kw">use </span>relay_common::{SpanStatus, UnixTimestamp};
+<span class="kw">use </span>relay_dynamic_config::{
+    AcceptTransactionNames, SatisfactionConfig, SatisfactionMetric, TaggingRule,
+    TransactionMetricsConfig,
+};
 <span class="kw">use </span>relay_general::protocol::{
     AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
     User,
@@ -2114,9 +2032,10 @@
 <span class="kw">use </span>relay_general::types::Annotated;
 <span class="kw">use </span>relay_metrics::AggregatorConfig;
 <span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
-<span class="kw">use </span>std::fmt;
+
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="doccomment">/// Error returned from [`extract_transaction_metrics`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -2131,94 +2050,6 @@
     /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
     </span><span class="attr">#[error(<span class="string">&quot;timestamp too old or too far in the future&quot;</span>)]
     </span>InvalidTimestamp,
-}
-
-<span class="doccomment">/// The metric on which the user satisfaction threshold is applied.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
-</span><span class="kw">enum </span>SatisfactionMetric {
-    Duration,
-    Lcp,
-    <span class="attr">#[serde(other)]
-    </span>Unknown,
-}
-
-<span class="doccomment">/// Configuration for a single threshold.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-</span><span class="kw">struct </span>SatisfactionThreshold {
-    metric: SatisfactionMetric,
-    threshold: f64,
-}
-
-<span class="doccomment">/// Configuration for applying the user satisfaction threshold.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-</span><span class="kw">struct </span>SatisfactionConfig {
-    <span class="doccomment">/// The project-wide threshold to apply.
-    </span>project_threshold: SatisfactionThreshold,
-    <span class="doccomment">/// Transaction-specific overrides of the project-wide threshold.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
-    </span>transaction_thresholds: BTreeMap&lt;String, SatisfactionThreshold&gt;,
-}
-
-<span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.
-</span><span class="attr">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-</span><span class="kw">pub struct </span>CustomMeasurementConfig {
-    <span class="doccomment">/// The maximum number of custom measurements to extract. Defaults to zero.
-    </span>limit: usize,
-}
-
-<span class="doccomment">/// Maximum supported version of metrics extraction from transactions.
-///
-/// The version is an integer scalar, incremented by one on each new version.
-</span><span class="kw">const </span>EXTRACT_MAX_VERSION: u16 = <span class="number">1</span>;
-
-<span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-</span><span class="kw">pub enum </span>AcceptTransactionNames {
-    <span class="doccomment">/// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    </span>ClientBased,
-
-    <span class="doccomment">/// Only accept transaction names with a low-cardinality source.
-    /// Any value other than &quot;clientBased&quot; will be interpreted as &quot;strict&quot;.
-    </span><span class="attr">#[serde(other)]
-    </span>Strict,
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>AcceptTransactionNames {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Strict
-    }
-}
-
-<span class="doccomment">/// Configuration for extracting metrics from transaction payloads.
-</span><span class="attr">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-</span><span class="kw">pub struct </span>TransactionMetricsConfig {
-    <span class="doccomment">/// The required version to extract transaction metrics.
-    </span>version: u16,
-    extract_metrics: BTreeSet&lt;String&gt;,
-    extract_custom_tags: BTreeSet&lt;String&gt;,
-    satisfaction_thresholds: <span class="prelude-ty">Option</span>&lt;SatisfactionConfig&gt;,
-    custom_measurements: CustomMeasurementConfig,
-    accept_transaction_names: AcceptTransactionNames,
-}
-
-<span class="kw">impl </span>TransactionMetricsConfig {
-    <span class="doccomment">/// Creates an enabled configuration with empty defaults.
-    </span><span class="attr">#[cfg(test)]
-    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            version: <span class="number">1</span>,
-            ..<span class="self">Self</span>::default()
-        }
-    }
-
-    <span class="doccomment">/// Returns `true` if metrics extraction is enabled and compatible with this Relay.
-    </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.version &gt; <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.version &lt;= EXTRACT_MAX_VERSION
-    }
 }
 
 <span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
@@ -2723,14 +2554,13 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">use </span>relay_dynamic_config::TaggingRule;
     <span class="kw">use </span>relay_general::protocol::{Contexts, User};
     <span class="kw">use </span>relay_general::store::{
         <span class="self">self</span>, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     <span class="kw">use </span>relay_general::types::Annotated;
     <span class="kw">use </span>relay_metrics::DurationUnit;
-
-    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
 
     <span class="doccomment">/// Returns an aggregator config that permits every timestamp.
     </span><span class="kw">fn </span>aggregator_config() -&gt; AggregatorConfig {

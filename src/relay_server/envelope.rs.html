@@ -1686,13 +1686,13 @@
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
 
+<span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_general::types::Value;
 <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
-<span class="kw">use </span><span class="kw">crate</span>::utils::ErrorBoundary;
 
 <span class="kw">pub const </span>CONTENT_TYPE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;application/x-sentry-envelope&quot;</span>;
 

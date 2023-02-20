@@ -476,6 +476,7 @@
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{hash_map::Entry, HashMap};
 <span class="kw">use </span>std::sync::Arc;
@@ -489,6 +490,7 @@
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{
@@ -501,7 +503,7 @@
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{ErrorBoundary, RetryBackoff, SleepHandle};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, SleepHandle};
 
 <span class="doccomment">/// A query to retrieve a batch of project states from upstream.
 ///

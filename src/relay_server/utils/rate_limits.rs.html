@@ -1128,15 +1128,15 @@
 <a href="#1127" id="1127">1127</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
+<span class="kw">use </span>relay_common::DataCategory;
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 <span class="kw">use </span>relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    ReasonCode, Scoping,
+    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    Scoping,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectConfig;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::utils::ErrorBoundary;
 
 <span class="doccomment">/// Name of the rate limits header.
 </span><span class="kw">pub const </span>RATE_LIMITS_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;X-Sentry-Rate-Limits&quot;</span>;
@@ -1711,10 +1711,10 @@
     <span class="kw">use </span>smallvec::smallvec;
 
     <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_quotas::RetryAfter;
+    <span class="kw">use </span>relay_dynamic_config::TransactionMetricsConfig;
+    <span class="kw">use </span>relay_quotas::{ItemScoping, RetryAfter};
 
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType};
-    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_format_rate_limits() {

@@ -3288,6 +3288,8 @@
 <a href="#3287" id="3287">3287</a>
 <a href="#3288" id="3288">3288</a>
 <a href="#3289" id="3289">3289</a>
+<a href="#3290" id="3290">3290</a>
+<a href="#3291" id="3291">3291</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
@@ -3310,6 +3312,7 @@
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_general::pii::PiiConfigError;
 <span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
@@ -3331,17 +3334,17 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::{Feature, ProjectConfig, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
-    FormDataIter, SamplingResult,
+    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    SamplingResult,
 };
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -3353,7 +3356,6 @@
     anyhow::Context,
     relay_general::protocol::{Context <span class="kw">as </span>SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -5664,6 +5666,8 @@
     <span class="doccomment">/// Check and apply rate limits to metrics buckets.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>handle_rate_limit_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, message: RateLimitFlushBuckets) {
+        <span class="kw">use </span>relay_quotas::ItemScoping;
+
         <span class="kw">let </span>RateLimitFlushBuckets {
             <span class="kw-2">mut </span>bucket_limiter,
             partition_key,
@@ -5799,10 +5803,10 @@
     <span class="kw">use </span>relay_general::protocol::EventId;
     <span class="kw">use </span>relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
+    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
     <span class="kw">use </span><span class="kw">crate</span>::utils::Semaphore <span class="kw">as </span>TestSemaphore;
-    <span class="kw">use crate</span>::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 

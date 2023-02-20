@@ -208,12 +208,12 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span>relay_common::ProjectKey;
+<span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ErrorBoundary;
 
 <span class="doccomment">/// V2 version of this endpoint.
 ///
