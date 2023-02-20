@@ -903,7 +903,7 @@ impl Project {
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
-        if state.invalid() {
+        if state.invalid() && self.can_fetch() {
             self.state_channel = Some(channel);
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
             return;
