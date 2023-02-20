@@ -1161,19 +1161,24 @@ mod tests {
     /// from the event and return them as standalone attachments (so it will be sent to kafka later).
     #[test]
     fn test_strip_attachment_from_transaction() {
-        let (start_time, event_id, scoping, attachment_vec) = test_arguments_extract_kafka_msgs();
+        let get_kafka_messages = || {
+            let (start_time, event_id, scoping, attachment_vec) =
+                test_arguments_extract_kafka_msgs();
 
-        let item = Item::new(ItemType::Transaction);
-        let event_item = Some(&item);
+            let item = Item::new(ItemType::Transaction);
+            let event_item = Some(&item);
 
-        let mut kafka_messages = StoreService::extract_kafka_messages(
-            event_item,
-            event_id,
-            scoping,
-            start_time,
-            None,
-            attachment_vec,
-        );
+            StoreService::extract_kafka_messages(
+                event_item,
+                event_id,
+                scoping,
+                start_time,
+                None,
+                attachment_vec,
+            )
+        };
+
+        let mut kafka_messages = get_kafka_messages();
 
         // Checks that the attachments of the event is stripped
         let event = kafka_messages
@@ -1190,6 +1195,8 @@ mod tests {
             panic!("No event found")
         }
 
+        let mut kafka_messages = get_kafka_messages();
+
         // Checks that the attachment is a message on its own in the vector.
         assert!(kafka_messages.any(|msg| {
             if let KafkaMessage::Attachment(_) = msg {
@@ -1203,28 +1210,38 @@ mod tests {
     /// the event and not be returned as stand-alone attachments.
     #[test]
     fn test_dont_strip_non_transaction_events() {
-        let (start_time, event_id, scoping, attachment_vec) = test_arguments_extract_kafka_msgs();
+        // We need to get the iterator twice as we are iterating it twice in this function,
+        // hence this closure.
+        let get_kafka_messages = || {
+            let (start_time, event_id, scoping, attachment_vec) =
+                test_arguments_extract_kafka_msgs();
 
-        let item = Item::new(ItemType::Event);
-        let event_item = Some(&item);
+            let item = Item::new(ItemType::Event);
+            let event_item = Some(&item);
 
-        let mut kafka_messages = StoreService::extract_kafka_messages(
-            event_item,
-            event_id,
-            scoping,
-            start_time,
-            None,
-            attachment_vec,
-        );
+            StoreService::extract_kafka_messages(
+                event_item,
+                event_id,
+                scoping,
+                start_time,
+                None,
+                attachment_vec,
+            )
+        };
+
+        let mut kafka_messages = get_kafka_messages();
 
         // Even though we passed in attachments, there's no attachments in the returned vector
         // as they don't get extracted from the event message.
+
         assert!(!kafka_messages.any(|msg| {
             if let KafkaMessage::Attachment(_) = msg {
                 return true;
             }
             false
         }));
+
+        let mut kafka_messages = get_kafka_messages();
 
         // Checks that the attachments of the event is not stripped.
         let event = kafka_messages
