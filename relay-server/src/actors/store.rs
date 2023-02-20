@@ -1119,7 +1119,7 @@ mod tests {
     use super::*;
     use relay_common::ProjectKey;
 
-    /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` function.
+    /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` method.
     fn test_arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {
         let start_time = Instant::now();
         let event_id = EventId::new();
