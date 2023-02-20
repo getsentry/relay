@@ -27,6 +27,7 @@ __all__ = [
     "VALID_PLATFORMS",
     "validate_sampling_condition",
     "validate_sampling_configuration",
+    "validate_project_config",
 ]
 
 
@@ -246,6 +247,18 @@ def validate_sampling_configuration(condition):
     raw_error = rustcall(
         lib.relay_validate_sampling_configuration, encode_str(condition)
     )
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
+
+
+def validate_project_config(config, strict: bool):
+    """Validate the whole project config.
+
+    :param strict: Whether or not to check for unknown fields.
+    """
+    assert isinstance(config, string_types)
+    raw_error = rustcall(lib.relay_validate_project_config, encode_str(config), strict)
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
