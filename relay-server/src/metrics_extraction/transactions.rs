@@ -1,12 +1,11 @@
-use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::utils;
+use std::collections::BTreeMap;
+use std::fmt;
+
+use relay_common::{SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{
     AcceptTransactionNames, SatisfactionConfig, SatisfactionMetric, TaggingRule,
     TransactionMetricsConfig,
 };
-
-use crate::statsd::RelayCounters;
-use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
     User,
@@ -15,8 +14,10 @@ use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::AggregatorConfig;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
-use std::collections::BTreeMap;
-use std::fmt;
+
+use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::utils;
+use crate::statsd::RelayCounters;
 
 /// Error returned from [`extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -535,14 +536,13 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
 
+    use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
-
-    use relay_dynamic_config::TaggingRule;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {

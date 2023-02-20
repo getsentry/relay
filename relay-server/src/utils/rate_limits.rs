@@ -583,10 +583,10 @@ mod tests {
     use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
+    use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
 
     use crate::envelope::{AttachmentType, ContentType};
-    use relay_dynamic_config::TransactionMetricsConfig;
 
     #[test]
     fn test_format_rate_limits() {

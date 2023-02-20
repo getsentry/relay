@@ -16,8 +16,6 @@ use std::time::Duration;
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
-use relay_quotas::ReasonCode;
-use relay_quotas::Scoping;
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +27,7 @@ use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 #[cfg(feature = "processing")]
 use relay_log::LogError;
+use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Service};
