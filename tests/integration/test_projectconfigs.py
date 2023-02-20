@@ -295,7 +295,6 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     try:
         relay.send_event(project_key)
-        time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
         }

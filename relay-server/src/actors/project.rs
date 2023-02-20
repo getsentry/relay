@@ -667,6 +667,13 @@ impl Project {
         }
     }
 
+    /// Retunrs `true` if backoff expired and new attempt can be triggered.
+    fn can_fetch(&self) -> bool {
+        self.next_fetch_attempt
+            .map(|next_attempt_at| next_attempt_at <= Instant::now())
+            .unwrap_or(true)
+    }
+
     /// Triggers a debounced refresh of the project state.
     ///
     /// If the state is already being updated in the background, this method checks if the request
@@ -676,10 +683,7 @@ impl Project {
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
         let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
-            && self
-                .next_fetch_attempt
-                .map(|next_attempt_at| next_attempt_at <= Instant::now())
-                .unwrap_or(true);
+            && self.can_fetch();
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
@@ -859,8 +863,8 @@ impl Project {
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
         match self.get_cached_state(message.envelope.meta().no_cache()) {
-            Some(_) => self.flush_sampling(message),
-            None => self.pending_sampling.push_back(message),
+            Some(state) if !state.invalid() => self.flush_sampling(message),
+            _ => self.pending_sampling.push_back(message),
         }
     }
 
@@ -902,9 +906,7 @@ impl Project {
         }
 
         if state.invalid() {
-            // Return the taken channel back and try to fetch the state again.
-            self.state_channel = Some(channel);
-            self.fetch_state(no_cache);
+            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
         } else {
             // Flush all queued `ValidateEnvelope` messages
             while let Some((envelope, context)) = self.pending_validations.pop_front() {
