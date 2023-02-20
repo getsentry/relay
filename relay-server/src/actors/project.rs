@@ -831,8 +831,8 @@ impl Project {
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
-            Some(state) => self.flush_validation(envelope, context, state),
-            None => self.pending_validations.push_back((envelope, context)),
+            Some(state) if !state.invalid() => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
         }
     }
 
@@ -901,19 +901,25 @@ impl Project {
             _ => self.state = Some(state.clone()),
         }
 
-        // Flush all queued `ValidateEnvelope` messages
-        while let Some((envelope, context)) = self.pending_validations.pop_front() {
-            self.flush_validation(envelope, context, state.clone());
-        }
+        if state.invalid() {
+            // Return the taken channel back and try to fetch the state again.
+            self.state_channel = Some(channel);
+            self.fetch_state(no_cache);
+        } else {
+            // Flush all queued `ValidateEnvelope` messages
+            while let Some((envelope, context)) = self.pending_validations.pop_front() {
+                self.flush_validation(envelope, context, state.clone());
+            }
 
-        // Flush all queued `AddSamplingState` messages
-        while let Some(message) = self.pending_sampling.pop_front() {
-            self.flush_sampling(message);
-        }
+            // Flush all queued `AddSamplingState` messages
+            while let Some(message) = self.pending_sampling.pop_front() {
+                self.flush_sampling(message);
+            }
 
-        // Flush all waiting recipients.
-        relay_log::debug!("project state {} updated", self.project_key);
-        channel.inner.send(state);
+            // Flush all waiting recipients.
+            relay_log::debug!("project state {} updated", self.project_key);
+            channel.inner.send(state);
+        }
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -939,17 +945,13 @@ impl Project {
         mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.valid_state();
         // Treat invalid state as no state at all.
         // We cannot check anything against invalid state, since it does not contain the required
         // information, like project id, or quotas, etc.
-        let state = match state {
-            Some(ref state) if !state.invalid() => Some(state),
-            _ => None,
-        };
+        let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
 
-        if let Some(state) = state {
+        if let Some(ref state) = state {
             scoping = state.scope_request(envelope.meta());
             envelope_context.scope(scoping);
 
@@ -961,8 +963,8 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        let config = state.map(|s| &s.config);
-        let quotas = state.map(|s| s.get_quotas()).unwrap_or(&[]);
+        let config = state.as_deref().map(|s| &s.config);
+        let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
