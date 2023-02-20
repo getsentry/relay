@@ -841,12 +841,12 @@ impl Project {
     }
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
-    fn flush_sampling(&self, mut message: ProcessEnvelope) {
+    fn flush_sampling(&self, mut message: ProcessEnvelope, project_state: Arc<ProjectState>) {
         // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if let Some(state) = self.valid_state() {
+        if !project_state.invalid() {
             // Never use rules from another organization.
-            if state.organization_id == message.project_state.organization_id {
-                message.sampling_project_state = Some(state);
+            if project_state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = Some(project_state);
             }
         }
 
@@ -863,7 +863,7 @@ impl Project {
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
         match self.get_cached_state(message.envelope.meta().no_cache()) {
-            Some(state) if !state.invalid() => self.flush_sampling(message),
+            Some(state) => self.flush_sampling(message, state),
             _ => self.pending_sampling.push_back(message),
         }
     }
@@ -905,23 +905,26 @@ impl Project {
             _ => self.state = Some(state.clone()),
         }
 
+        // If the state is still invalid, return back the taken channel and schedule state update.
         if state.invalid() {
+            self.state_channel = Some(channel);
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
-        } else {
-            // Flush all queued `ValidateEnvelope` messages
-            while let Some((envelope, context)) = self.pending_validations.pop_front() {
-                self.flush_validation(envelope, context, state.clone());
-            }
-
-            // Flush all queued `AddSamplingState` messages
-            while let Some(message) = self.pending_sampling.pop_front() {
-                self.flush_sampling(message);
-            }
-
-            // Flush all waiting recipients.
-            relay_log::debug!("project state {} updated", self.project_key);
-            channel.inner.send(state);
+            return;
         }
+
+        // Flush all queued `ValidateEnvelope` messages
+        while let Some((envelope, context)) = self.pending_validations.pop_front() {
+            self.flush_validation(envelope, context, state.clone());
+        }
+
+        // Flush all queued `AddSamplingState` messages
+        while let Some(message) = self.pending_sampling.pop_front() {
+            self.flush_sampling(message, state.clone());
+        }
+
+        // Flush all waiting recipients.
+        relay_log::debug!("project state {} updated", self.project_key);
+        channel.inner.send(state);
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -942,14 +945,19 @@ impl Project {
         })
     }
 
+    /// Run the checks on incoming envelope:
+    /// * checks the rate limits;
+    /// * validates the envelope meta in `check_request` - determines whether the given request
+    ///   should be accepted or discarded;
+    ///
+    /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
+    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// pipeline.
     pub fn check_envelope(
         &mut self,
         mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        // Treat invalid state as no state at all.
-        // We cannot check anything against invalid state, since it does not contain the required
-        // information, like project id, or quotas, etc.
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
 
