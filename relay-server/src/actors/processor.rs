@@ -20,6 +20,7 @@ use tokio::sync::Semaphore;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
+use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
 use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
@@ -41,17 +42,17 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectConfig, ProjectState};
+use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
-    FormDataIter, SamplingResult,
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -63,7 +64,6 @@ use {
     anyhow::Context,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2374,6 +2374,8 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+        use relay_quotas::ItemScoping;
+
         let RateLimitFlushBuckets {
             mut bucket_limiter,
             partition_key,
@@ -2509,10 +2511,10 @@ mod tests {
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
+    use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
-    use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
 

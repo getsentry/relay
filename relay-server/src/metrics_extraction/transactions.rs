@@ -1,8 +1,11 @@
-use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::utils;
-use crate::metrics_extraction::TaggingRule;
-use crate::statsd::RelayCounters;
+use std::collections::BTreeMap;
+use std::fmt;
+
 use relay_common::{SpanStatus, UnixTimestamp};
+use relay_dynamic_config::{
+    AcceptTransactionNames, SatisfactionConfig, SatisfactionMetric, TaggingRule,
+    TransactionMetricsConfig,
+};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
     User,
@@ -11,9 +14,10 @@ use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::AggregatorConfig;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
+
+use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::utils;
+use crate::statsd::RelayCounters;
 
 /// Error returned from [`extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -28,94 +32,6 @@ pub enum ExtractMetricsError {
     /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
-}
-
-/// The metric on which the user satisfaction threshold is applied.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum SatisfactionMetric {
-    Duration,
-    Lcp,
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration for a single threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SatisfactionThreshold {
-    metric: SatisfactionMetric,
-    threshold: f64,
-}
-
-/// Configuration for applying the user satisfaction threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SatisfactionConfig {
-    /// The project-wide threshold to apply.
-    project_threshold: SatisfactionThreshold,
-    /// Transaction-specific overrides of the project-wide threshold.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
-}
-
-/// Configuration for extracting custom measurements from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct CustomMeasurementConfig {
-    /// The maximum number of custom measurements to extract. Defaults to zero.
-    limit: usize,
-}
-
-/// Maximum supported version of metrics extraction from transactions.
-///
-/// The version is an integer scalar, incremented by one on each new version.
-const EXTRACT_MAX_VERSION: u16 = 1;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum AcceptTransactionNames {
-    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    ClientBased,
-
-    /// Only accept transaction names with a low-cardinality source.
-    /// Any value other than "clientBased" will be interpreted as "strict".
-    #[serde(other)]
-    Strict,
-}
-
-impl Default for AcceptTransactionNames {
-    fn default() -> Self {
-        Self::Strict
-    }
-}
-
-/// Configuration for extracting metrics from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct TransactionMetricsConfig {
-    /// The required version to extract transaction metrics.
-    version: u16,
-    extract_metrics: BTreeSet<String>,
-    extract_custom_tags: BTreeSet<String>,
-    satisfaction_thresholds: Option<SatisfactionConfig>,
-    custom_measurements: CustomMeasurementConfig,
-    accept_transaction_names: AcceptTransactionNames,
-}
-
-impl TransactionMetricsConfig {
-    /// Creates an enabled configuration with empty defaults.
-    #[cfg(test)]
-    pub fn new() -> Self {
-        Self {
-            version: 1,
-            ..Self::default()
-        }
-    }
-
-    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
-    pub fn is_enabled(&self) -> bool {
-        self.version > 0 && self.version <= EXTRACT_MAX_VERSION
-    }
 }
 
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
@@ -620,14 +536,13 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
 
+    use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
-
-    use crate::metrics_extraction::TaggingRule;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {
