@@ -1033,7 +1033,7 @@
 <span class="doccomment">/// Meta information for a data field in the event payload.
 </span><span class="attr">#[derive(Clone, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>MetaInner {
-    <span class="doccomment">/// Remarks detailling modifications of this field.
+    <span class="doccomment">/// Remarks detailing modifications of this field.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;SmallVec::is_empty&quot;</span>, rename = <span class="string">&quot;rem&quot;</span>)]
     </span>remarks: SmallVec&lt;[Remark; <span class="number">3</span>]&gt;,
 
