@@ -9,7 +9,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","time.rs"]],\
 "relay_config":["",[],["byte_size.rs","config.rs","lib.rs","upstream.rs"]],\
 "relay_crash":["",[],["lib.rs"]],\
-"relay_dynamic_config":["",[],["error_boundary.rs","feature.rs","lib.rs","metrics.rs","project.rs"]],\
+"relay_dynamic_config":["",[],["error_boundary.rs","feature.rs","lib.rs","metrics.rs","project.rs","utils.rs"]],\
 "relay_ffi":["",[],["lib.rs"]],\
 "relay_ffi_macros":["",[],["lib.rs"]],\
 "relay_filter":["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","web_crawlers.rs"]],\
