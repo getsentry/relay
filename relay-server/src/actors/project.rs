@@ -695,9 +695,12 @@ impl Project {
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope, project_state: Arc<ProjectState>) {
-        // Never use rules from another organization.
-        if project_state.organization_id == message.project_state.organization_id {
-            message.sampling_project_state = Some(project_state);
+        // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
+        if self.valid_state().is_some() {
+            // Never use rules from another organization.
+            if project_state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = Some(project_state);
+            }
         }
 
         EnvelopeProcessor::from_registry().send(message);
