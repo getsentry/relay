@@ -842,12 +842,9 @@ impl Project {
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope, project_state: Arc<ProjectState>) {
-        // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if !project_state.invalid() {
-            // Never use rules from another organization.
-            if project_state.organization_id == message.project_state.organization_id {
-                message.sampling_project_state = Some(project_state);
-            }
+        // Never use rules from another organization.
+        if project_state.organization_id == message.project_state.organization_id {
+            message.sampling_project_state = Some(project_state);
         }
 
         EnvelopeProcessor::from_registry().send(message);
@@ -863,7 +860,7 @@ impl Project {
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
         match self.get_cached_state(message.envelope.meta().no_cache()) {
-            Some(state) => self.flush_sampling(message, state),
+            Some(state) if !state.invalid() => self.flush_sampling(message, state),
             _ => self.pending_sampling.push_back(message),
         }
     }
@@ -945,10 +942,13 @@ impl Project {
         })
     }
 
-    /// Run the checks on incoming envelope:
-    /// * checks the rate limits;
+    /// Run the checks on incoming envelopes.
+    ///
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    ///
+    /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
-    ///   should be accepted or discarded;
+    ///   should be accepted or discarded
     ///
     /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
     /// rate limites will be validated. This function **must not** be called in the main processing
