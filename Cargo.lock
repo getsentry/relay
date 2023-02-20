@@ -3304,6 +3304,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-dynamic-config"
+version = "23.1.1"
+dependencies = [
+ "insta",
+ "relay-auth",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-quotas",
+ "relay-sampling",
+ "serde",
+ "serde_json",
+ "smallvec 1.10.0",
+]
+
+[[package]]
 name = "relay-ffi"
 version = "23.2.0"
 dependencies = [
@@ -3540,6 +3556,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-common",
  "relay-config",
+ "relay-dynamic-config",
  "relay-filter",
  "relay-general",
  "relay-kafka",

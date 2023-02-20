@@ -4,13 +4,19 @@ use std::sync::Arc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
+/// Wraps a serialization / deserialization result to prevent error from bubbling up.
+///
+/// This is useful for keeping errors in an experimental part of a schema contained.
 #[derive(Clone, Debug)]
 pub enum ErrorBoundary<T> {
+    /// Contains the error value.
     Err(Arc<dyn Error + Send + Sync + 'static>),
+    /// Contains the success value.
     Ok(T),
 }
 
 impl<T> ErrorBoundary<T> {
+    /// Returns `true` if the result is [`Ok`].
     #[inline]
     #[allow(unused)]
     pub fn is_ok(&self) -> bool {
@@ -20,12 +26,14 @@ impl<T> ErrorBoundary<T> {
         }
     }
 
+    /// Returns `true` if the result is [`Err`].
     #[inline]
     #[allow(unused)]
     pub fn is_err(&self) -> bool {
         !self.is_ok()
     }
 
+    /// Converts from `Result<T, E>` to [`Option<T>`].
     #[inline]
     pub fn ok(self) -> Option<T> {
         match self {
@@ -34,6 +42,7 @@ impl<T> ErrorBoundary<T> {
         }
     }
 
+    /// Returns the contained [`Ok`] value or computes it from a closure.
     #[inline]
     pub fn unwrap_or_else<F>(self, op: F) -> T
     where
