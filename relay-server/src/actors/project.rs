@@ -11,11 +11,10 @@ use url::Url;
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
-
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;
 
@@ -27,7 +26,6 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 
 use crate::service::Registry;
 use crate::statsd::RelayCounters;

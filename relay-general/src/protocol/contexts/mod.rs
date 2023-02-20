@@ -22,6 +22,8 @@ mod trace;
 pub use trace::*;
 mod otel;
 pub use otel::*;
+mod cloud_resource;
+pub use cloud_resource::*;
 
 use crate::types::{Annotated, FromValue, Object, Value};
 use crate::user_agent::{ClientHints, RawUserAgentInfo};
@@ -58,8 +60,10 @@ pub enum Context {
     Reprocessing(Box<ReprocessingContext>),
     /// Response information.
     Response(Box<ResponseContext>),
-    /// OpenTelemetry information
+    /// OpenTelemetry information.
     Otel(Box<OtelContext>),
+    /// Cloud resource information.
+    CloudResource(Box<CloudResourceContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -83,6 +87,7 @@ impl Context {
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Otel(_) => Some(OtelContext::default_key()),
+            Context::CloudResource(_) => Some(CloudResourceContext::default_key()),
             Context::Other(_) => None,
         }
     }

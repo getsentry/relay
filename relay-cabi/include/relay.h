@@ -15,7 +15,8 @@
 /**
  * Classifies the type of data that is being ingested.
  */
-enum RelayDataCategory {
+enum RelayDataCategory
+{
   /**
    * Reserved and unused.
    */
@@ -72,7 +73,8 @@ typedef int8_t RelayDataCategory;
 /**
  * Controls the globbing behaviors.
  */
-enum GlobFlags {
+enum GlobFlags
+{
   /**
    * When enabled `**` matches over path separators and `*` does not.
    */
@@ -95,7 +97,8 @@ typedef uint32_t GlobFlags;
 /**
  * Represents all possible error codes.
  */
-enum RelayErrorCode {
+enum RelayErrorCode
+{
   RELAY_ERROR_CODE_NO_ERROR = 0,
   RELAY_ERROR_CODE_PANIC = 1,
   RELAY_ERROR_CODE_UNKNOWN = 2,
@@ -120,7 +123,8 @@ typedef uint32_t RelayErrorCode;
  * Values from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status>
  * Mapping to HTTP from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status>
  */
-enum RelaySpanStatus {
+enum RelaySpanStatus
+{
   /**
    * The operation completed successfully.
    *
@@ -245,7 +249,8 @@ typedef struct RelayStoreNormalizer RelayStoreNormalizer;
  *  - When obtained as instance through return values, always free the string.
  *  - When obtained as pointer through field access, never free the string.
  */
-typedef struct RelayStr {
+typedef struct RelayStr
+{
   /**
    * Pointer to the UTF-8 encoded string data.
    */
@@ -269,7 +274,8 @@ typedef struct RelayStr {
  *  - When obtained as instance through return values, always free the buffer.
  *  - When obtained as pointer through field access, never free the buffer.
  */
-typedef struct RelayBuf {
+typedef struct RelayBuf
+{
   /**
    * Pointer to the raw data.
    */
@@ -287,7 +293,8 @@ typedef struct RelayBuf {
 /**
  * Represents a key pair from key generation.
  */
-typedef struct RelayKeyPair {
+typedef struct RelayKeyPair
+{
   /**
    * The public key used for verifying Relay signatures.
    */
@@ -301,7 +308,8 @@ typedef struct RelayKeyPair {
 /**
  * A 16-byte UUID.
  */
-typedef struct RelayUuid {
+typedef struct RelayUuid
+{
   /**
    * UUID bytes in network byte order (big endian).
    */
@@ -554,7 +562,7 @@ bool relay_is_glob_match(const struct RelayBuf *value,
  * Returns `true` if the regex matches, `false` otherwise.
  */
 bool relay_is_codeowners_path_match(const struct RelayBuf *value,
-                         const struct RelayStr *pat);
+                                    const struct RelayStr *pat);
 
 /**
  * Parse a sentry release structure from a string.
@@ -580,7 +588,8 @@ struct RelayStr relay_validate_sampling_condition(const struct RelayStr *value);
 struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 /**
- * Validate entire project config. If `strict` is true, checks for unknown fields in the input.
+ * Validate entire project config. If `strict` is true, verify that reserializing the parsed
+ * config results in the same fields as the original.
  */
 struct RelayStr relay_validate_project_config(const struct RelayStr *value, bool strict);
 
