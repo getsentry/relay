@@ -29,7 +29,11 @@ impl<K: Sized + std::cmp::Ord + Copy, T> MultiQueue<K, T> for MemQueue<K, T> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::sync::Arc;
+
+    use crate::queues::Queue;
 
     use super::*;
 
@@ -45,16 +49,18 @@ mod tests {
         assert_eq!(q.pop_front(&2), None);
     }
 
-    // fn test_single_queues() {
-    //     let mut q = Arc::new(MemQueue::new());
+    #[test]
+    fn test_single_queues() {
+        let mut backend = Rc::new(RefCell::new(MemQueue::new()));
 
-    //     q1 = Queue
-    //     assert_eq!(q.pop_front(&123), None);
-    //     q.push_back(&1, "a");
-    //     q.push_back(&2, "b");
-    //     assert_eq!(q.pop_front(&1), Some("a"));
-    //     assert_eq!(q.pop_front(&2), Some("b"));
-    //     assert_eq!(q.pop_front(&1), None);
-    //     assert_eq!(q.pop_front(&2), None);
-    // }
+        let mut q1 = Queue::new(backend.clone(), 1);
+        let mut q2 = Queue::new(backend, 2);
+        assert_eq!(q1.pop_front(), None);
+        q1.push_back("a");
+        q2.push_back("b");
+        assert_eq!(q1.pop_front(), Some("a"));
+        assert_eq!(q2.pop_front(), Some("b"));
+        assert_eq!(q1.pop_front(), None);
+        assert_eq!(q2.pop_front(), None);
+    }
 }
