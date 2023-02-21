@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::queues::MultiQueue;
 
@@ -12,8 +11,8 @@ impl<K: Sized + std::cmp::Ord + Copy, T> MemQueue<K, T> {
         MemQueue(BTreeMap::new())
     }
 
-    pub fn shared() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new()))
+    pub fn shared() -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new()))
     }
 }
 
@@ -36,9 +35,6 @@ impl<K: Sized + std::cmp::Ord + Copy, T> MultiQueue<K, T> for MemQueue<K, T> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
     use crate::queues::QueueView;
 
     use super::*;
@@ -57,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_single_queues() {
-        let mut backend = Rc::new(RefCell::new(MemQueue::new()));
+        let mut backend = Arc::new(Mutex::new(MemQueue::new()));
 
         let mut q1 = QueueView::new(backend.clone(), 1);
         let mut q2 = QueueView::new(backend, 2);

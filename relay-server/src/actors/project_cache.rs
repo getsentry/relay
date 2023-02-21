@@ -1,6 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -15,12 +13,12 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
-use crate::actors::project::{Project, ProjectSender, ProjectState};
+use crate::actors::project::{
+    MultiProjectQueue, PendingEnvelope, Project, ProjectSender, ProjectState,
+};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
-use crate::queues::mem::MemQueue;
-use crate::queues::QueueView;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
@@ -103,7 +101,7 @@ impl GetCachedProjectState {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
+    pub envelope: Option<PendingEnvelope>,
     pub rate_limits: RateLimits,
 }
 
@@ -404,8 +402,6 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
-type MultiProjectQueue<T> = MemQueue<ProjectKey, T>;
-
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -413,8 +409,8 @@ type MultiProjectQueue<T> = MemQueue<ProjectKey, T>;
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    queue_backend: Rc<RefCell<MultiProjectQueue<(Box<Envelope>, EnvelopeContext)>>>,
-    queue_backend_sampling: Rc<RefCell<MemQueue<ProjectKey, ProcessEnvelope>>>,
+    queue_backend: Arc<Mutex<MultiProjectQueue<PendingEnvelope>>>,
+    queue_backend_sampling: Arc<Mutex<MultiProjectQueue<ProcessEnvelope>>>,
     // need hashbrown because drain_filter is not stable in std yet
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -456,6 +452,8 @@ impl ProjectCacheBroker {
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
 
         let config = self.config.clone();
+        let q1 = Arc::clone(&self.queue_backend);
+        let q2 = Arc::clone(&self.queue_backend_sampling);
 
         self.projects
             .entry(project_key)
@@ -464,7 +462,7 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config)
+                Project::new(project_key, config, q1, q2)
             })
     }
 
@@ -621,6 +619,8 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                queue_backend: MultiProjectQueue::<PendingEnvelope>::shared(),
+                queue_backend_sampling: MultiProjectQueue::<ProcessEnvelope>::shared(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, redis),
