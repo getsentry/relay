@@ -323,8 +323,8 @@ fn queue_envelope(
 
 /// Handles an envelope store request.
 ///
-/// Sentry envelopes may come either directly from an HTTP request (the enveloipe endpoint calls
-/// this method directly) or are generated inside Relay from requests to other endpoints (e.g. the
+/// Sentry envelopes may come either directly from an HTTP request (the envelope endpoint calls this
+/// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
 /// security endpoint).
 ///
 /// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or

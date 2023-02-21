@@ -53,16 +53,14 @@ fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
 
 /// Extract a minidump from a nested multipart form.
 ///
-/// This field is not a minidump (i.e. it doesn't start with the minidump magic header).
-/// It could be a multipart field containing a minidump; this happens in old versions of
-/// the Linux Electron SDK.
+/// This field is not a minidump (i.e. it doesn't start with the minidump magic header). It could be
+/// a multipart field containing a minidump; this happens in old versions of the Linux Electron SDK.
 ///
-/// Unfortunately, the embedded multipart field is not recognized by the multipart parser
-/// as a multipart field containing a multipart body. For this case we will look if field
-/// the field starts with a '--' and manually extract the boundary (which is what follows
-/// '--' up to the end of line) and manually construct a multipart with the detected
-/// boundary. If we can extract a multipart with an embedded minidump, then use that
-/// field.
+/// Unfortunately, the embedded multipart field is not recognized by the multipart parser as a
+/// multipart field containing a multipart body. For this case we will look if the field starts with
+/// a '--' and manually extract the boundary (which is what follows '--' up to the end of line) and
+/// manually construct a multipart with the detected boundary. If we can extract a multipart with an
+/// embedded minidump, then use that field.
 async fn extract_embedded_minidump(
     payload: Bytes,
     max_size: usize,
