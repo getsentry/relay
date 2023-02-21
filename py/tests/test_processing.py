@@ -1,4 +1,5 @@
 # coding: utf-8
+import json
 import sentry_relay
 
 import pytest
@@ -272,3 +273,13 @@ def test_validate_sampling_configuration():
     }"""
     # Should NOT throw
     sentry_relay.validate_sampling_configuration(config)
+
+
+def test_validate_project_config():
+    config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
+    # Does not raise:
+    sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    config["foobar"] = True
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'

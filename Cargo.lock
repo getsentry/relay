@@ -3249,6 +3249,7 @@ dependencies = [
  "once_cell",
  "relay-auth",
  "relay-common",
+ "relay-dynamic-config",
  "relay-ffi",
  "relay-general",
  "relay-sampling",
@@ -3301,6 +3302,24 @@ version = "23.2.0"
 dependencies = [
  "bindgen",
  "cmake",
+]
+
+[[package]]
+name = "relay-dynamic-config"
+version = "23.1.1"
+dependencies = [
+ "anyhow",
+ "assert-json-diff",
+ "insta",
+ "relay-auth",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-quotas",
+ "relay-sampling",
+ "serde",
+ "serde_json",
+ "smallvec 1.10.0",
 ]
 
 [[package]]
@@ -3540,6 +3559,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-common",
  "relay-config",
+ "relay-dynamic-config",
  "relay-filter",
  "relay-general",
  "relay-kafka",

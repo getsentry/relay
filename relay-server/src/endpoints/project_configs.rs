@@ -8,12 +8,12 @@ use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;
+use relay_dynamic_config::ErrorBoundary;
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
-use crate::utils::ErrorBoundary;
 
 /// V2 version of this endpoint.
 ///
