@@ -1,10 +1,11 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::fmt::Write;
+use std::future::Future;
 
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{error::PayloadError, HttpResponse, ResponseError};
+use actix_web::{error::PayloadError, HttpResponse};
 use serde::Deserialize;
 
 use relay_general::protocol::{EventId, EventType};
@@ -22,6 +23,9 @@ use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
 };
 
+/// Error type for all store-like requests.
+///
+/// Functions returning this error must use [`handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
     #[error("could not schedule event processing")]
@@ -66,17 +70,11 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 }
 
-impl From<PayloadError> for BadStoreRequest {
-    fn from(error: PayloadError) -> Self {
-        Self::PayloadError(failure::Fail::compat(error))
-    }
-}
+impl BadStoreRequest {
+    fn into_response(self) -> HttpResponse {
+        let body = ApiErrorResponse::from_error(&self);
 
-impl ResponseError for BadStoreRequest {
-    fn error_response(&self) -> HttpResponse {
-        let body = ApiErrorResponse::from_error(self);
-
-        let response = match self {
+        let response = match &self {
             BadStoreRequest::RateLimited(rate_limits) => {
                 let retry_after_header = rate_limits
                     .longest()
@@ -117,10 +115,16 @@ impl ResponseError for BadStoreRequest {
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
         if response.status().is_server_error() {
-            relay_log::error!("error handling request: {}", LogError(self));
+            relay_log::error!("error handling request: {}", LogError(&self));
         }
 
         response
+    }
+}
+
+impl From<PayloadError> for BadStoreRequest {
+    fn from(error: PayloadError) -> Self {
+        Self::PayloadError(failure::Fail::compat(error))
     }
 }
 
@@ -399,6 +403,20 @@ pub fn normpath(route: &str) -> String {
         pattern.push_str("{trailing_slash:/*}");
     }
     pattern
+}
+
+/// Creates an actix-web async handler for a store endpoint.
+///
+/// This function is intended to be used in `with_async` on store-like endpoints. It takes an
+/// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
+/// resolve with an HTTP response.
+pub fn handler<F>(f: F) -> impl futures01::Future<Item = HttpResponse, Error = actix_web::Error>
+where
+    F: Future<Output = Result<HttpResponse, BadStoreRequest>>,
+{
+    futures::compat::Compat::new(Box::pin(async move {
+        Ok(f.await.unwrap_or_else(|e| e.into_response()))
+    }))
 }
 
 #[cfg(test)]

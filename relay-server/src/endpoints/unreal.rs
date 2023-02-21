@@ -1,5 +1,4 @@
 use actix_web::{HttpRequest, HttpResponse};
-use futures::TryFutureExt;
 
 use relay_general::protocol::EventId;
 
@@ -60,7 +59,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             |r| {
                 r.name("store-unreal");
                 r.post()
-                    .with_async(|m, r| Box::pin(store_unreal(m, r)).compat());
+                    .with_async(|m, r| common::handler(store_unreal(m, r)));
             },
         )
         .register()

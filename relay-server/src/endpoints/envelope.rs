@@ -1,7 +1,6 @@
 //! Handles envelope store requests.
 
 use actix_web::{HttpRequest, HttpResponse};
-use futures::TryFutureExt;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
@@ -47,7 +46,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .resource(&common::normpath(r"/api/{project:\d+}/envelope/"), |r| {
             r.name("store-envelope");
             r.post()
-                .with_async(|e, r| Box::pin(store_envelope(e, r)).compat());
+                .with_async(|e, r| common::handler(store_envelope(e, r)));
         })
         .register()
 }

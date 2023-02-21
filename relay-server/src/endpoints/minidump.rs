@@ -2,7 +2,6 @@ use actix_web::multipart::{Multipart, MultipartItem};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::compat::Future01CompatExt;
-use futures::TryFutureExt;
 use futures01::{stream, Stream};
 
 use relay_general::protocol::EventId;
@@ -198,7 +197,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .resource(&common::normpath(r"/api/{project:\d+}/minidump"), |r| {
             r.name("store-minidump");
             r.post()
-                .with_async(|m, r| Box::pin(store_minidump(m, r)).compat());
+                .with_async(|m, r| common::handler(store_minidump(m, r)));
         })
         .register()
 }

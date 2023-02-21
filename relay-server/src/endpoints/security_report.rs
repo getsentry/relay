@@ -1,7 +1,6 @@
 //! Endpoints for security reports.
 
 use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-use futures::TryFutureExt;
 use serde::Deserialize;
 
 use relay_general::protocol::EventId;
@@ -92,14 +91,14 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             r.name("store-security-report");
             r.post()
                 .filter(SecurityReportFilter)
-                .with_async(|m, r, p| Box::pin(store_security_report(m, r, p)).compat());
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         // Legacy security endpoint
         .resource(&common::normpath(r"/api/{project:\d+}/csp-report/"), |r| {
             r.name("store-csp-report");
             r.post()
                 .filter(SecurityReportFilter)
-                .with_async(|m, r, p| Box::pin(store_security_report(m, r, p)).compat());
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         .register()
 }

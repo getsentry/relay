@@ -2,7 +2,6 @@
 
 use actix_web::{http::Method, HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use futures::TryFutureExt;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
@@ -122,9 +121,9 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .resource(&common::normpath(r"/api/{project:\d+}/store/"), |r| {
             r.name("store-default");
             r.post()
-                .with_async(|m, r| Box::pin(store_event(m, r)).compat());
+                .with_async(|m, r| common::handler(store_event(m, r)));
             r.get()
-                .with_async(|m, r| Box::pin(store_event(m, r)).compat());
+                .with_async(|m, r| common::handler(store_event(m, r)));
         })
         // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
@@ -132,9 +131,9 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .resource(&common::normpath(r"/api/store/"), |r| {
             r.name("store-legacy");
             r.post()
-                .with_async(|m, r| Box::pin(store_event(m, r)).compat());
+                .with_async(|m, r| common::handler(store_event(m, r)));
             r.get()
-                .with_async(|m, r| Box::pin(store_event(m, r)).compat());
+                .with_async(|m, r| common::handler(store_event(m, r)));
         })
         .register()
 }

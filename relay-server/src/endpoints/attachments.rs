@@ -1,5 +1,4 @@
 use actix_web::{http::Method, HttpRequest, HttpResponse};
-use futures::TryFutureExt;
 
 use relay_general::protocol::EventId;
 
@@ -49,7 +48,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .resource(&url_pattern, |r| {
             r.name("store-attachment");
             r.method(Method::POST)
-                .with_async(|r, m| Box::pin(store_attachment(r, m)).compat());
+                .with_async(|r, m| common::handler(store_attachment(r, m)));
         })
         .register()
 }
