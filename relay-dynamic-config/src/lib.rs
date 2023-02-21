@@ -47,8 +47,10 @@ mod error_boundary;
 mod feature;
 mod metrics;
 mod project;
+mod utils;
 
 pub use error_boundary::*;
 pub use feature::*;
 pub use metrics::*;
 pub use project::*;
+pub use utils::*;
