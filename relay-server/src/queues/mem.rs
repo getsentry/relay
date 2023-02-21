@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_single_queues() {
-        let mut backend = Arc::new(Mutex::new(MemQueue::new()));
+        let backend = MemQueue::shared();
 
         let mut q1 = QueueView::new(backend.clone(), 1);
         let mut q2 = QueueView::new(backend, 2);

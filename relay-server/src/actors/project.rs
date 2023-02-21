@@ -25,9 +25,6 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics_extraction::SessionMetricsConfig;
-use crate::metrics_extraction::TaggingRule;
-use crate::metrics_extraction::TransactionMetricsConfig;
 use crate::queues::mem::MemQueue;
 use crate::queues::QueueView;
 use crate::service::Registry;
