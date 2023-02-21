@@ -7,9 +7,9 @@ use crate::extractors::{Decoder, SharedPayload};
 
 /// Peeks the first line of a multi-line body without consuming it.
 ///
-/// This function returns a future to the request [`Payload`]. It is especially designed to be
-/// used together with [`SharedPayload`](crate::extractors::SharedPayload), since it polls an
-/// underlying payload and places the polled chunks back into the payload when completing.
+/// This function returns a future to the request [`Payload`]. It is especially designed to be used
+/// together with [`SharedPayload`], since it polls an underlying payload and places the polled
+/// chunks back into the payload when completing.
 ///
 /// If the payload does not contain a newline, the entire payload is returned by the future. To
 /// contrain this, use `limit` to set a maximum size returned by the future.
@@ -18,7 +18,14 @@ use crate::extractors::{Decoder, SharedPayload};
 /// smaller than the size limit. Otherwise, resolves to `None`. Any errors on the underlying stream
 /// are returned without change.
 ///
+/// # Cancel Safety
+///
+/// This function is _not_ cancellation safe. If canceled, partially read data may not be put back
+/// into the request. Additionally, it is not safe to read the body after an error has been returned
+/// since data may have been partially consumed.
+///
 /// [`Payload`]: actix_web::dev::Payload
+/// [`SharedPayload`]: crate::extractors::SharedPayload
 pub async fn peek_line<S>(
     request: &HttpRequest<S>,
     limit: usize,
@@ -49,50 +56,49 @@ pub async fn peek_line<S>(
     Ok(line.filter(|line| !line.is_empty()))
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use relay_test::TestRequest;
 
-    #[test]
-    fn test_empty() {
+    #[tokio::test]
+    async fn test_empty() {
         relay_test::setup();
 
         let request = TestRequest::with_state(())
             .set_payload("".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
+        let opt = peek_line(&request, 10).await.unwrap();
         assert_eq!(opt, None);
     }
 
-    #[test]
-    fn test_one_line() {
+    #[tokio::test]
+    async fn test_one_line() {
         relay_test::setup();
 
         let request = TestRequest::with_state(())
             .set_payload("test".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
+        let opt = peek_line(&request, 10).await.unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
-    #[test]
-    fn test_linebreak() {
+    #[tokio::test]
+    async fn test_linebreak() {
         relay_test::setup();
 
         let request = TestRequest::with_state(())
             .set_payload("test\ndone".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
+        let opt = peek_line(&request, 10).await.unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
-    #[test]
-    fn test_limit_satisfied() {
+    #[tokio::test]
+    async fn test_limit_satisfied() {
         relay_test::setup();
 
         let payload = "test\ndone";
@@ -101,12 +107,12 @@ mod tests {
             .finish();
 
         // NOTE: Newline fits into the size limit.
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 5)).unwrap();
+        let opt = peek_line(&request, 5).await.unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
-    #[test]
-    fn test_limit_exceeded() {
+    #[tokio::test]
+    async fn test_limit_exceeded() {
         relay_test::setup();
 
         let payload = "test\ndone";
@@ -116,12 +122,22 @@ mod tests {
 
         // NOTE: newline is not found within the size limit. even though the payload would fit,
         // according to the doc comment we return `None`.
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 4)).unwrap();
+        let opt = peek_line(&request, 4).await.unwrap();
         assert_eq!(opt, None);
     }
 
-    // NB: Repeat polls cannot be tested unfortunately, since `Payload::set_read_buffer_capacity`
-    // does not take effect in test requests, and the sender returned by `Payload::new` does not
-    // have a public interface.
+    #[tokio::test]
+    async fn test_shared_payload() {
+        relay_test::setup();
+
+        let request = TestRequest::with_state(())
+            .set_payload("test\ndone".to_string())
+            .finish();
+
+        peek_line(&request, 10).await.unwrap();
+
+        let mut payload = SharedPayload::get(&request);
+        let chunk = payload.chunk().await.unwrap();
+        assert_eq!(chunk.as_deref(), Some(b"test\ndone".as_slice()));
+    }
 }
-*/
