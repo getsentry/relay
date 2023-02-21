@@ -525,7 +525,7 @@ impl Project {
         }
     }
 
-    /// Retunrs `true` if backoff expired and new attempt can be triggered.
+    /// Returns `true` if backoff expired and new attempt can be triggered.
     fn can_fetch(&self) -> bool {
         self.next_fetch_attempt
             .map(|next_attempt_at| next_attempt_at <= Instant::now())
@@ -808,7 +808,7 @@ impl Project {
         })
     }
 
-    /// Run the checks on incoming envelopes.
+    /// Runs the checks on incoming envelopes.
     ///
     /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
     ///
