@@ -699,12 +699,12 @@ impl Project {
     }
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
-    fn flush_sampling(&self, mut message: ProcessEnvelope, project_state: Arc<ProjectState>) {
+    fn flush_sampling(&self, mut message: ProcessEnvelope) {
         // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if self.valid_state().is_some() {
+        if let Some(state) = self.valid_state().filter(|state| !state.invalid()) {
             // Never use rules from another organization.
-            if project_state.organization_id == message.project_state.organization_id {
-                message.sampling_project_state = Some(project_state);
+            if state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = Some(state);
             }
         }
 
@@ -721,8 +721,8 @@ impl Project {
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
         match self.get_cached_state(message.envelope.meta().no_cache()) {
-            Some(state) if !state.invalid() => self.flush_sampling(message, state),
-            _ => self.pending_sampling.push_back(message),
+            Some(_) => self.flush_sampling(message),
+            None => self.pending_sampling.push_back(message),
         }
     }
 
@@ -782,7 +782,7 @@ impl Project {
 
         // Flush all queued `AddSamplingState` messages
         while let Some(message) = self.pending_sampling.pop_front() {
-            self.flush_sampling(message, state.clone());
+            self.flush_sampling(message);
         }
 
         // Flush all waiting recipients.
