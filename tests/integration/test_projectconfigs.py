@@ -241,7 +241,8 @@ def get_response(relay, packed, signature):
 def test_unparsable_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2}
+        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2},
+        "http": {"max_retry_interval": 1},
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
@@ -324,31 +325,14 @@ def test_unparsable_project_config(mini_sentry, relay):
     ]
 
     # Wait for caches to expire. And we will get into the grace period.
-    time.sleep(2)
-    # The state should be stale at this point, once we request it, the update will be scheduled.
-    # But we still get back the cached invalid project state.
+    time.sleep(3)
+    # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
     data = get_response(relay, packed, signature)
-    assert {
-        "configs": {
-            public_key: {
-                "projectId": None,
-                "lastChange": None,
-                "disabled": True,
-                "publicKeys": [],
-                "slug": None,
-                "config": {
-                    "allowedDomains": ["*"],
-                    "trustedRelays": [],
-                    "piiConfig": None,
-                },
-                "organizationId": None,
-            }
-        }
-    } == data
-    # give it a time to refresh the state
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
     time.sleep(1)
 
-    # We should have the previous event through now.
+    # We should have the previous events through now.
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 

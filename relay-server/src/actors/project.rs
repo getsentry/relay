@@ -461,6 +461,11 @@ impl Project {
         }
     }
 
+    /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
+    pub fn next_fetch_attempt(&self) -> Option<Instant> {
+        self.next_fetch_attempt
+    }
+
     /// The rate limits that are active for this project.
     pub fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
@@ -759,8 +764,13 @@ impl Project {
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
-        if state.invalid() && self.can_fetch() {
+        if state.invalid() {
             self.state_channel = Some(channel);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
             return;
         }
