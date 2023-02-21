@@ -52,7 +52,7 @@ fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
     }
 }
 
-/// TODO(ja): Doc
+/// Extract a minidump from a nested multipart form.
 ///
 /// This field is not a minidump (i.e. it doesn't start with the minidump magic header).
 /// It could be a multipart field containing a minidump; this happens in old versions of

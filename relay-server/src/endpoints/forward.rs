@@ -236,7 +236,7 @@ async fn forward_upstream(request: HttpRequest<ServiceState>) -> Result<HttpResp
     };
 
     let config = request.state().config();
-    let limit = get_limit_for_path(request.path(), &config);
+    let limit = get_limit_for_path(request.path(), config);
     let data = body::request_body(&request, limit).await?;
 
     let (tx, rx) = oneshot::channel();

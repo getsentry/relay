@@ -332,10 +332,9 @@ pub async fn handle_envelope(
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
-    let config = state.config(); // TODO(ja): Make this a reference?
-    utils::remove_unknown_items(&config, &mut envelope);
+    utils::remove_unknown_items(state.config(), &mut envelope);
 
-    let buffer_guard = state.buffer_guard(); // TODO(ja): Make this a reference?
+    let buffer_guard = state.buffer_guard();
     let mut envelope_context = buffer_guard
         .enter(&envelope)
         .map_err(BadStoreRequest::QueueFailed)?;
@@ -356,12 +355,12 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
-    if !utils::check_envelope_size_limits(&config, &envelope) {
+    if !utils::check_envelope_size_limits(state.config(), &envelope) {
         envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
         return Err(PayloadError::Overflow.into());
     }
 
-    queue_envelope(envelope, envelope_context, &buffer_guard)?;
+    queue_envelope(envelope, envelope_context, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
         Err(BadStoreRequest::RateLimited(checked.rate_limits))

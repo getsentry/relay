@@ -57,7 +57,7 @@ impl SharedPayload {
             return Ok(None);
         }
 
-        // TODO(ja): Comment
+        // Resolve the next chunk from the actix payload stream (futures 0.1 compatibility).
         let result = (&mut self.inner).compat().try_next().await;
 
         if let Ok(None) = result {
@@ -67,7 +67,7 @@ impl SharedPayload {
         result
     }
 
-    /// TODO(ja): Doc
+    /// Consume the remaining response body.
     pub async fn consume(mut self) {
         while let Ok(Some(_)) = self.chunk().await {}
     }

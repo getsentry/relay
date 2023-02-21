@@ -210,17 +210,17 @@ impl ServiceState {
         })
     }
 
-    /// Returns an atomically counted reference to the config.
-    pub fn config(&self) -> Arc<Config> {
-        self.config.clone()
+    /// Returns an reference to the Relay configuration.
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     /// Returns a reference to the guard of the envelope buffer.
     ///
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
-    pub fn buffer_guard(&self) -> Arc<BufferGuard> {
-        self.buffer_guard.clone()
+    pub fn buffer_guard(&self) -> &BufferGuard {
+        &self.buffer_guard
     }
 }
 
