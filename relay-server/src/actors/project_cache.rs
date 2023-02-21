@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -17,6 +19,8 @@ use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
+use crate::queues::mem::MemQueue;
+use crate::queues::QueueView;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
@@ -400,6 +404,8 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
+type MultiProjectQueue<T> = MemQueue<ProjectKey, T>;
+
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -407,6 +413,8 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    queue_backend: Rc<RefCell<MultiProjectQueue<(Box<Envelope>, EnvelopeContext)>>>,
+    queue_backend_sampling: Rc<RefCell<MemQueue<ProjectKey, ProcessEnvelope>>>,
     // need hashbrown because drain_filter is not stable in std yet
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,

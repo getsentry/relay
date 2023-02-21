@@ -1,4 +1,6 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,6 +35,8 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
+use crate::queues::mem::MemQueue;
+use crate::queues::{MultiQueue, Queue, QueueView};
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{
@@ -533,6 +537,9 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
+pub type MultiProjectQueue<T> = MemQueue<ProjectKey, T>;
+pub type SingleProjectQueue<T> = QueueView<ProjectKey, T, MultiProjectQueue<T>>;
+
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -546,15 +553,20 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
-    pending_validations: VecDeque<(Box<Envelope>, EnvelopeContext)>,
-    pending_sampling: VecDeque<ProcessEnvelope>,
+    pending_validations: SingleProjectQueue<(Box<Envelope>, EnvelopeContext)>,
+    pending_sampling: SingleProjectQueue<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
 }
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
+    pub fn new(
+        key: ProjectKey,
+        config: Arc<Config>,
+        queue_backend: Rc<RefCell<MultiProjectQueue<(Box<Envelope>, EnvelopeContext)>>>,
+        queue_backend_sampling: Rc<RefCell<MultiProjectQueue<ProcessEnvelope>>>,
+    ) -> Self {
         Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
@@ -563,8 +575,8 @@ impl Project {
             config,
             state: None,
             state_channel: None,
-            pending_validations: VecDeque::new(),
-            pending_sampling: VecDeque::new(),
+            pending_validations: QueueView::new(queue_backend, key),
+            pending_sampling: QueueView::new(queue_backend_sampling, key),
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
         }
@@ -1056,6 +1068,12 @@ mod tests {
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
     use serde_json::json;
 
+    use crate::actors::processor::ProcessEnvelope;
+    use crate::actors::project::MultiProjectQueue;
+    use crate::envelope::Envelope;
+    use crate::queues::QueueView;
+    use crate::utils::EnvelopeContext;
+
     use super::{Config, Project, ProjectState, StateChannel};
 
     #[test]
@@ -1145,7 +1163,14 @@ mod tests {
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let queue_backend = MultiProjectQueue::<(Box<Envelope>, EnvelopeContext)>::shared();
+        let queue_backend_sampling = MultiProjectQueue::<ProcessEnvelope>::shared();
+        let mut project = Project::new(
+            project_key,
+            Arc::new(Config::default()),
+            queue_backend,
+            queue_backend_sampling,
+        );
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {

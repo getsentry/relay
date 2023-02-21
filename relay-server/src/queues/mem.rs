@@ -1,12 +1,19 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
+use std::rc::Rc;
 
 use crate::queues::MultiQueue;
 
+#[derive(Debug)]
 pub struct MemQueue<K: Sized + std::cmp::Ord + Copy, T>(BTreeMap<K, VecDeque<T>>);
 
 impl<K: Sized + std::cmp::Ord + Copy, T> MemQueue<K, T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         MemQueue(BTreeMap::new())
+    }
+
+    pub fn shared() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::new()))
     }
 }
 
@@ -31,9 +38,8 @@ impl<K: Sized + std::cmp::Ord + Copy, T> MultiQueue<K, T> for MemQueue<K, T> {
 mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
-    use std::sync::Arc;
 
-    use crate::queues::Queue;
+    use crate::queues::QueueView;
 
     use super::*;
 
@@ -53,8 +59,8 @@ mod tests {
     fn test_single_queues() {
         let mut backend = Rc::new(RefCell::new(MemQueue::new()));
 
-        let mut q1 = Queue::new(backend.clone(), 1);
-        let mut q2 = Queue::new(backend, 2);
+        let mut q1 = QueueView::new(backend.clone(), 1);
+        let mut q2 = QueueView::new(backend, 2);
         assert_eq!(q1.pop_front(), None);
         q1.push_back("a");
         q2.push_back("b");
