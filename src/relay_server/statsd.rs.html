@@ -538,6 +538,14 @@
 <a href="#537" id="537">537</a>
 <a href="#538" id="538">538</a>
 <a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -582,6 +590,13 @@
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     </span>EnvelopeQueueSize,
+    <span class="doccomment">/// The number of spans per processed transaction event.
+    ///
+    /// This metric is tagged with:
+    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
+    </span>EventSpans,
     <span class="doccomment">/// The size of the HTTP request body as seen by Relay after it is extracted from a request in
     /// bytes.
     ///
@@ -681,6 +696,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
             RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
+            RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
             RelayHistograms::RequestSizeBytesRaw =&gt; <span class="string">&quot;event.size_bytes.raw&quot;</span>,
             RelayHistograms::RequestSizeBytesUncompressed =&gt; <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
             RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,

@@ -3290,6 +3290,13 @@
 <a href="#3289" id="3289">3289</a>
 <a href="#3290" id="3290">3290</a>
 <a href="#3291" id="3291">3291</a>
+<a href="#3292" id="3292">3292</a>
+<a href="#3293" id="3293">3293</a>
+<a href="#3294" id="3294">3294</a>
+<a href="#3295" id="3295">3295</a>
+<a href="#3296" id="3296">3296</a>
+<a href="#3297" id="3297">3297</a>
+<a href="#3298" id="3298">3298</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
@@ -3341,7 +3348,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
     SamplingResult,
@@ -5041,6 +5048,13 @@
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::EventTransactionSource) += <span class="number">1</span>,
                     source = <span class="kw-2">&amp;</span>source.to_string(),
+                    sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
+                    platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
+                );
+
+                <span class="kw">let </span>span_count = event.spans.value().map(Vec::len).unwrap_or(<span class="number">0</span>) <span class="kw">as </span>u64;
+                <span class="macro">metric!</span>(
+                    histogram(RelayHistograms::EventSpans) = span_count,
                     sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
                     platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
                 );
