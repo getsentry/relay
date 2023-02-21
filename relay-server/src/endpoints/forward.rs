@@ -16,11 +16,11 @@ use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::TryFutureExt;
 use once_cell::sync::Lazy;
+use tokio::sync::oneshot;
 
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;
 use relay_log::LogError;
-use tokio::sync::oneshot;
 
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,

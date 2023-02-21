@@ -49,63 +49,6 @@ pub async fn peek_line<S>(
     Ok(line.filter(|line| !line.is_empty()))
 }
 
-// pub struct PeekLine {
-//     payload: SharedPayload,
-//     decoder: Decoder,
-//     chunks: SmallVec<[Bytes; 3]>,
-// }
-
-// impl PeekLine {
-//     /// Creates a new peek line future from the given payload.
-//     ///
-//     /// Note that the underlying stream may return more data than the configured limit. The future
-//     /// will still never resolve more than the limit set.
-//     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
-//         Self {
-//             payload: SharedPayload::get(request),
-//             decoder: Decoder::new(request, limit),
-//             chunks: SmallVec::new(),
-//         }
-//     }
-
-//     fn finish(&mut self, overflow: bool) -> std::io::Result<Option<Bytes>> {
-//         let buffer = self.decoder.finish()?;
-
-//         let line = match buffer.iter().position(|b| *b == b'\n') {
-//             Some(pos) => Some(buffer.slice_to(pos)),
-//             None if !overflow => Some(buffer),
-//             None => None,
-//         };
-
-//         // unread in reverse order
-//         while let Some(chunk) = self.chunks.pop() {
-//             self.payload.unread_data(chunk);
-//         }
-
-//         Ok(line.filter(|line| !line.is_empty()))
-//     }
-// }
-
-// impl Future for PeekLine {
-//     type Item = Option<Bytes>;
-//     type Error = <SharedPayload as Stream>::Error;
-
-//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//         loop {
-//             let chunk = match self.payload.poll()? {
-//                 Async::Ready(Some(chunk)) => chunk,
-//                 Async::Ready(None) => return Ok(Async::Ready(self.finish(false)?)),
-//                 Async::NotReady => return Ok(Async::NotReady),
-//             };
-
-//             self.chunks.push(chunk.clone());
-//             if self.decoder.decode(chunk)? {
-//                 return Ok(Async::Ready(self.finish(true)?));
-//             }
-//         }
-//     }
-// }
-
 /*
 #[cfg(test)]
 mod tests {

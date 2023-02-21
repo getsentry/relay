@@ -211,31 +211,6 @@ impl DecodingPayload {
             decoder: Decoder::new(request, limit),
         }
     }
-
-    // /// Stream a chunk of the raw request body.
-    // ///
-    // /// When the request body has been exhausted, this will return None.
-    // ///
-    // /// TODO(ja): Describe decoding.
-    // pub async fn chunk(&mut self) -> Result<Option<Bytes>, PayloadError> {
-    //     loop {
-    //         let Some(encoded) = self.payload.chunk().await? else {
-    //             let chunk = self.decoder.finish()?;
-    //             return Ok(Some(chunk).filter(|c| !c.is_empty()));
-    //         };
-
-    //         if self.decoder.decode(&encoded)? {
-    //             return Err(PayloadError::Overflow);
-    //         }
-
-    //         let chunk = self.decoder.take();
-    //         if !chunk.is_empty() {
-    //             return Ok(Some(chunk));
-    //         }
-
-    //         // loop until the input stream is exhausted
-    //     }
-    // }
 }
 
 impl Stream for DecodingPayload {

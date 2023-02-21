@@ -14,8 +14,8 @@ use crate::statsd::RelayHistograms;
 
 /// Reads the body of a store request.
 ///
-/// In addition to [`request_body`](body::request_body), this also supports two additional modes of
-/// sending encoded payloads:
+/// In addition to [`request_body`](crate::body::request_body), this also supports two additional
+/// modes of sending encoded payloads:
 ///
 ///  - In query parameters of the HTTP request.
 ///  - As base64-encoded zlib compression without additional HTTP headers.
@@ -34,47 +34,6 @@ pub async fn store_body<S>(req: &HttpRequest<S>, limit: usize) -> Result<Bytes, 
 
     Ok(decoded)
 }
-
-// /// Future that resolves to a complete store endpoint body.
-// pub struct StoreBody {
-//     inner: RequestBody,
-//     result: Option<Result<Bytes, PayloadError>>,
-// }
-
-// impl StoreBody {
-//     /// Create `StoreBody` for request.
-//     pub fn new<S>(req: &HttpRequest<S>, limit: usize) -> Self {
-//         Self {
-//             inner: RequestBody::new(req, limit),
-//             result: data_from_querystring(req).map(|body| decode_bytes(body.as_bytes())),
-//         }
-//     }
-// }
-
-// impl Future for StoreBody {
-//     type Item = Bytes;
-//     type Error = PayloadError;
-
-//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//         if let Some(result) = self.result.take() {
-//             return result.map(Async::Ready);
-//         }
-
-//         let poll = match self.inner.poll()? {
-//             Async::Ready(body) => {
-//                 metric!(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() as u64);
-//                 let decoded = decode_bytes(body)?;
-//                 metric!(
-//                     histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() as u64
-//                 );
-//                 Async::Ready(decoded)
-//             }
-//             Async::NotReady => Async::NotReady,
-//         };
-
-//         Ok(poll)
-//     }
-// }
 
 fn data_from_querystring<S>(req: &HttpRequest<S>) -> Option<Cow<'_, str>> {
     if req.method() != "GET" {

@@ -229,6 +229,7 @@ impl<D> RequestMeta<D> {
     }
 
     /// Returns the protocol version of the event payload.
+    #[allow(dead_code)] // used in tests and processing mode
     pub fn version(&self) -> u16 {
         self.version
     }
