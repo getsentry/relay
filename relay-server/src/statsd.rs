@@ -42,6 +42,13 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of spans per processed transaction event.
+    ///
+    /// This metric is tagged with:
+    ///  - `platform`: The event's platform, such as `"javascript"`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry's SDKs and defaults to "proprietary".
+    EventSpans,
     /// The size of the HTTP request body as seen by Relay after it is extracted from a request in
     /// bytes.
     ///
@@ -141,6 +148,7 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::RequestSizeBytesRaw => "event.size_bytes.raw",
             RelayHistograms::RequestSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
