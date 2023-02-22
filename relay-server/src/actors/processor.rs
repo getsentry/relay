@@ -2733,6 +2733,9 @@ mod tests {
                 ),
             };
 
+            // TODO: This does not test if the sampling decision is actually applied. This should be
+            // refactored to send a proper Envelope in and call process_state to cover the full
+            // pipeline.
             service.compute_sampling_decision(&mut state);
             assert_eq!(state.sampling_result, expected_result);
         }

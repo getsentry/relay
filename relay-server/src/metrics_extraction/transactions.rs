@@ -288,6 +288,7 @@ fn extract_universal_tags(
     tags
 }
 
+#[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
 pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
