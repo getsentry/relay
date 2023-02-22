@@ -655,6 +655,11 @@
 <a href="#654" id="654">654</a>
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>tokio::sync::mpsc;
@@ -1125,7 +1130,7 @@
         } = message;
 
         <span class="self">self</span>.get_or_create_project(project_key)
-            .update_state(state, no_cache);
+            .update_state(state, no_cache)
     }
 
     <span class="kw">fn </span>handle_request_update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: RequestUpdate) {
@@ -1135,13 +1140,18 @@
         } = message;
 
         <span class="comment">// Bump the update time of the project in our hashmap to evade eviction.
-        </span><span class="self">self</span>.get_or_create_project(project_key)
-            .refresh_updated_timestamp();
+        </span><span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
+        project.refresh_updated_timestamp();
+        <span class="kw">let </span>next_attempt = project.next_fetch_attempt();
 
         <span class="kw">let </span>source = <span class="self">self</span>.source.clone();
         <span class="kw">let </span>sender = <span class="self">self</span>.state_tx.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
+            <span class="comment">// Wait on the new attempt time when set.
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(next_attempt) = next_attempt {
+                tokio::time::sleep_until(next_attempt).<span class="kw">await</span>;
+            }
             <span class="kw">let </span>state = source
                 .fetch(project_key, no_cache)
                 .<span class="kw">await

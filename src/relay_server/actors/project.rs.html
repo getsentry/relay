@@ -1078,6 +1078,38 @@
 <a href="#1077" id="1077">1077</a>
 <a href="#1078" id="1078">1078</a>
 <a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::VecDeque;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1541,6 +1573,11 @@
         }
     }
 
+    <span class="doccomment">/// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
+    </span><span class="kw">pub fn </span>next_fetch_attempt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Instant&gt; {
+        <span class="self">self</span>.next_fetch_attempt
+    }
+
     <span class="doccomment">/// The rate limits that are active for this project.
     </span><span class="kw">pub fn </span>rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RateLimits {
         <span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits
@@ -1600,6 +1637,13 @@
         }
     }
 
+    <span class="doccomment">/// Returns `true` if backoff expired and new attempt can be triggered.
+    </span><span class="kw">fn </span>can_fetch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.next_fetch_attempt
+            .map(|next_attempt_at| next_attempt_at &lt;= Instant::now())
+            .unwrap_or(<span class="bool-val">true</span>)
+    }
+
     <span class="doccomment">/// Triggers a debounced refresh of the project state.
     ///
     /// If the state is already being updated in the background, this method checks if the request
@@ -1609,10 +1653,7 @@
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
         </span><span class="kw">let </span>should_fetch = !<span class="macro">matches!</span>(<span class="self">self</span>.state_channel, <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>channel) <span class="kw">if </span>channel.no_cache || !no_cache)
-            &amp;&amp; <span class="self">self
-                </span>.next_fetch_attempt
-                .map(|next_attempt_at| next_attempt_at &lt;= Instant::now())
-                .unwrap_or(<span class="bool-val">true</span>);
+            &amp;&amp; <span class="self">self</span>.can_fetch();
 
         <span class="kw">let </span>channel = <span class="self">self</span>.state_channel.get_or_insert_with(StateChannel::new);
 
@@ -1764,15 +1805,15 @@
     /// outdated.
     </span><span class="kw">pub fn </span>enqueue_validation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;, context: EnvelopeContext) {
         <span class="kw">match </span><span class="self">self</span>.get_cached_state(envelope.meta().no_cache()) {
-            <span class="prelude-val">Some</span>(state) =&gt; <span class="self">self</span>.flush_validation(envelope, context, state),
-            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.pending_validations.push_back((envelope, context)),
+            <span class="prelude-val">Some</span>(state) <span class="kw">if </span>!state.invalid() =&gt; <span class="self">self</span>.flush_validation(envelope, context, state),
+            <span class="kw">_ </span>=&gt; <span class="self">self</span>.pending_validations.push_back((envelope, context)),
         }
     }
 
     <span class="doccomment">/// Adds the project state for dynamic sampling and submits the Envelope for processing.
     </span><span class="kw">fn </span>flush_sampling(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>message: ProcessEnvelope) {
         <span class="comment">// Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(state) = <span class="self">self</span>.valid_state() {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(state) = <span class="self">self</span>.valid_state().filter(|state| !state.invalid()) {
             <span class="comment">// Never use rules from another organization.
             </span><span class="kw">if </span>state.organization_id == message.project_state.organization_id {
                 message.sampling_project_state = <span class="prelude-val">Some</span>(state);
@@ -1834,6 +1875,18 @@
             </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.state = <span class="prelude-val">Some</span>(state.clone()),
         }
 
+        <span class="comment">// If the state is still invalid, return back the taken channel and schedule state update.
+        </span><span class="kw">if </span>state.invalid() {
+            <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
+            <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
+            <span class="macro">relay_log::debug!</span>(
+                <span class="string">&quot;project {} state requested {attempts} times&quot;</span>,
+                <span class="self">self</span>.project_key
+            );
+            ProjectCache::from_registry().send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
+            <span class="kw">return</span>;
+        }
+
         <span class="comment">// Flush all queued `ValidateEnvelope` messages
         </span><span class="kw">while let </span><span class="prelude-val">Some</span>((envelope, context)) = <span class="self">self</span>.pending_validations.pop_front() {
             <span class="self">self</span>.flush_validation(envelope, context, state.clone());
@@ -1867,12 +1920,23 @@
         })
     }
 
-    <span class="kw">pub fn </span>check_envelope(
+    <span class="doccomment">/// Runs the checks on incoming envelopes.
+    ///
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    ///
+    /// * checks the rate limits
+    /// * validates the envelope meta in `check_request` - determines whether the given request
+    ///   should be accepted or discarded
+    ///
+    /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
+    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// pipeline.
+    </span><span class="kw">pub fn </span>check_envelope(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
         <span class="kw-2">mut </span>envelope_context: EnvelopeContext,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
-        <span class="kw">let </span>state = <span class="self">self</span>.valid_state();
+        <span class="kw">let </span>state = <span class="self">self</span>.valid_state().filter(|state| !state.invalid());
         <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope_context.scoping();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) = state {
