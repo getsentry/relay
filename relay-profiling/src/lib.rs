@@ -120,6 +120,7 @@ enum Platform {
     Android,
     Cocoa,
     Node,
+    PHP,
     Python,
     Rust,
 }
