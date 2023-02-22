@@ -348,6 +348,7 @@
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
 <a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
 </pre><pre class="rust"><code><span class="attr">#![allow(deprecated)]
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -359,7 +360,7 @@
 <span class="kw">use </span>actix_web::middleware::{Finished, Middleware, Response, Started};
 <span class="kw">use </span>actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>failure::Fail;
-<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>futures::TryFutureExt;
 
 <span class="kw">use </span>relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
 <span class="kw">use </span>relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
@@ -461,12 +462,13 @@
 
 <span class="kw">impl</span>&lt;S&gt; Middleware&lt;S&gt; <span class="kw">for </span>ReadRequestMiddleware {
     <span class="kw">fn </span>response(<span class="kw-2">&amp;</span><span class="self">self</span>, req: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, resp: HttpResponse) -&gt; <span class="prelude-ty">Result</span>&lt;Response, Error&gt; {
-        <span class="kw">let </span>future = SharedPayload::get(req)
-            .for_each(|<span class="kw">_</span>| <span class="prelude-val">Ok</span>(()))
-            .map(|<span class="kw">_</span>| resp)
-            .map_err(Error::from);
+        <span class="kw">let </span>payload = SharedPayload::get(req);
+        <span class="kw">let </span>future = <span class="kw">async move </span>{
+            payload.consume().<span class="kw">await</span>;
+            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, actix_web::Error&gt;(resp)
+        };
 
-        <span class="prelude-val">Ok</span>(Response::Future(Box::new(future)))
+        <span class="prelude-val">Ok</span>(Response::Future(Box::new(Box::pin(future).compat())))
     }
 }
 

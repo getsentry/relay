@@ -185,26 +185,11 @@
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::{Error, FromRequest, Json};
-<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
-<span class="kw">use </span>futures01::{future, Future};
+<span class="kw">use </span>futures::{future, TryFutureExt};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span>relay_common::ProjectKey;
@@ -315,86 +300,75 @@
     </span>no_cache: bool,
 }
 
-<span class="kw">fn </span>get_project_configs(
+<span class="kw">async fn </span>get_project_configs(
     body: SignedJson&lt;GetProjectStatesRequest&gt;,
     version: VersionQuery,
-) -&gt; ResponseFuture&lt;Json&lt;GetProjectStatesResponseWrapper&gt;, Error&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Json&lt;GetProjectStatesResponseWrapper&gt;, Error&gt; {
     <span class="kw">let </span>relay = body.relay;
-    <span class="kw">let </span>full = relay.internal &amp;&amp; body.inner.full_config;
-    <span class="kw">let </span>no_cache = body.inner.no_cache;
-    <span class="kw">let </span>keys_len = body.inner.public_keys.len();
+    <span class="kw">let </span>request = body.inner;
+
+    <span class="kw">let </span>no_cache = request.no_cache;
+    <span class="kw">let </span>keys_len = request.public_keys.len();
 
     <span class="comment">// Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    </span><span class="kw">let </span>valid_keys = body.inner.public_keys.into_iter().filter_map(|e| e.ok());
-
-    <span class="kw">let </span>futures = valid_keys.map(<span class="kw">move </span>|project_key| {
-        <span class="kw">let </span>project_cache = ProjectCache::from_registry();
-
-        <span class="kw">let </span>project_future = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
-            <span class="kw">let </span>future = project_cache
+    </span><span class="kw">let </span>valid_keys = request.public_keys.into_iter().filter_map(|e| e.ok());
+    <span class="kw">let </span>futures = valid_keys.map(|project_key| <span class="kw">async move </span>{
+        <span class="kw">let </span>state_result = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
+            ProjectCache::from_registry()
                 .send(GetCachedProjectState::new(project_key))
-                .boxed()
-                .compat();
-            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>future = project_cache
+                .<span class="kw">await
+        </span>} <span class="kw">else </span>{
+            ProjectCache::from_registry()
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
-                .boxed()
-                .compat()
-                .map(<span class="prelude-val">Some</span>);
-            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;
+                .<span class="kw">await
+                </span>.map(<span class="prelude-val">Some</span>)
         };
 
-        project_future
-            .map_err(|<span class="kw">_</span>| Error::from(MailboxError::Closed))
-            .map(<span class="kw">move </span>|state_result| (project_key, state_result))
+        (project_key, state_result)
     });
 
-    <span class="kw">let </span>future = future::join_all(futures).map(<span class="kw">move </span>|project_states| {
-        <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
-        <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
+    <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
+    <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
 
-        <span class="kw">for </span>(project_key, result) <span class="kw">in </span>project_states {
-            <span class="kw">match </span>result {
-                <span class="prelude-val">Some</span>(project_state) =&gt; {
-                    <span class="comment">// If public key is known (even if rate-limited, which is Some(false)), it has
-                    // access to the project config
-                    </span><span class="kw">let </span>has_access = relay.internal
-                        || project_state
-                            .config
-                            .trusted_relays
-                            .contains(<span class="kw-2">&amp;</span>relay.public_key);
+    <span class="kw">for </span>(project_key, state_result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">? </span><span class="kw">else </span>{
+            pending.push(project_key);
+            <span class="kw">continue</span>;
+        };
 
-                    <span class="kw">if </span>has_access {
-                        <span class="kw">let </span>wrapper = ProjectStateWrapper::new((<span class="kw-2">*</span>project_state).clone(), full);
-                        configs.insert(project_key, <span class="prelude-val">Some</span>(wrapper));
-                    } <span class="kw">else </span>{
-                        <span class="macro">relay_log::debug!</span>(
-                            <span class="string">&quot;Relay {} does not have access to project key {}&quot;</span>,
-                            relay.public_key,
-                            project_key
-                        );
-                    };
-                }
-                <span class="prelude-val">None </span>=&gt; {
-                    pending.push(project_key);
-                }
-            }
-        }
+        <span class="comment">// If public key is known (even if rate-limited, which is Some(false)), it has
+        // access to the project config
+        </span><span class="kw">let </span>has_access = relay.internal
+            || project_state
+                .config
+                .trusted_relays
+                .contains(<span class="kw-2">&amp;</span>relay.public_key);
 
-        Json(GetProjectStatesResponseWrapper { configs, pending })
-    });
+        <span class="kw">if </span>has_access {
+            <span class="kw">let </span>full = relay.internal &amp;&amp; request.full_config;
+            <span class="kw">let </span>wrapper = ProjectStateWrapper::new((<span class="kw-2">*</span>project_state).clone(), full);
+            configs.insert(project_key, <span class="prelude-val">Some</span>(wrapper));
+        } <span class="kw">else </span>{
+            <span class="macro">relay_log::debug!</span>(
+                <span class="string">&quot;Relay {} does not have access to project key {}&quot;</span>,
+                relay.public_key,
+                project_key
+            );
+        };
+    }
 
-    Box::new(future)
+    <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
 <span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
     app.resource(<span class="string">&quot;/api/0/relays/projectconfigs/&quot;</span>, |r| {
         r.name(<span class="string">&quot;relay-projectconfigs&quot;</span>);
-        r.post().filter(VersionPredicate).with(get_project_configs);
+        r.post()
+            .filter(VersionPredicate)
+            .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
 
         <span class="comment">// Forward all unsupported versions to the upstream.
-        </span>r.post().f(<span class="kw">crate</span>::endpoints::forward::forward_upstream);
+        </span>r.post().f(<span class="kw">crate</span>::endpoints::forward::forward_compat);
     })
 }
 </code></pre></div>

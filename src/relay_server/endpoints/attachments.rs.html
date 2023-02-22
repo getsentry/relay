@@ -53,17 +53,8 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{actix::ResponseFuture, http::Method, HttpRequest, HttpResponse};
-<span class="kw">use </span>futures01::Future;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{http::Method, HttpRequest, HttpResponse};
 
-<span class="kw">use </span>relay_common::tryf;
 <span class="kw">use </span>relay_general::protocol::EventId;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
@@ -72,43 +63,37 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
 <span class="kw">use </span><span class="kw">crate</span>::utils::MultipartItems;
 
-<span class="kw">fn </span>extract_envelope(
+<span class="kw">async fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>event_id = <span class="macro">tryf!</span>(request
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+    <span class="kw">let </span>event_id = request
         .match_info()
         .get(<span class="string">&quot;event_id&quot;</span>)
         .unwrap_or_default()
         .parse::&lt;EventId&gt;()
-        .map_err(|<span class="kw">_</span>| BadStoreRequest::InvalidEventId));
+        .map_err(|<span class="kw">_</span>| BadStoreRequest::InvalidEventId)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
-    <span class="kw">let </span>future = MultipartItems::new(max_payload_size)
+    <span class="kw">let </span>items = MultipartItems::new(max_payload_size)
         .handle_request(request)
-        .map_err(BadStoreRequest::InvalidMultipart)
-        .map(<span class="kw">move </span>|items| {
-            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
+        .<span class="kw">await
+        </span>.map_err(BadStoreRequest::InvalidMultipart)<span class="question-mark">?</span>;
 
-            <span class="kw">for </span>item <span class="kw">in </span>items {
-                envelope.add_item(item);
-            }
-
-            envelope
-        });
-
-    Box::new(future)
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
+    <span class="kw">for </span>item <span class="kw">in </span>items {
+        envelope.add_item(item);
+    }
+    <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">fn </span>create_response(<span class="kw">_</span>: <span class="prelude-ty">Option</span>&lt;EventId&gt;) -&gt; HttpResponse {
-    HttpResponse::Created().finish()
-}
-
-<span class="kw">fn </span>store_attachment(
+<span class="kw">async fn </span>store_attachment(
     meta: RequestMeta,
     request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
-    common::handle_store_like_request(meta, request, extract_envelope, create_response, <span class="bool-val">true</span>)
+) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
+    common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(HttpResponse::Created().finish())
 }
 
 <span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
@@ -117,7 +102,8 @@
     common::cors(app)
         .resource(<span class="kw-2">&amp;</span>url_pattern, |r| {
             r.name(<span class="string">&quot;store-attachment&quot;</span>);
-            r.method(Method::POST).with(store_attachment);
+            r.method(Method::POST)
+                .with_async(|r, m| common::handler(store_attachment(r, m)));
         })
         .register()
 }

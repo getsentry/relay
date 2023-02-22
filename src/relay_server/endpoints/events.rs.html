@@ -39,12 +39,13 @@
 <a href="#38" id="38">38</a>
 <a href="#39" id="39">39</a>
 <a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Returns captured events.
 
-</span><span class="kw">use </span>actix_web::actix::{MailboxError, ResponseFuture};
+</span><span class="kw">use </span>actix_web::actix::MailboxError;
 <span class="kw">use </span>actix_web::{http::Method, HttpResponse, Path};
-<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
-<span class="kw">use </span>futures01::future::Future;
+<span class="kw">use </span>futures::TryFutureExt;
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
@@ -52,31 +53,34 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
 
-<span class="kw">fn </span>get_captured_event(event_id: Path&lt;EventId&gt;) -&gt; ResponseFuture&lt;HttpResponse, MailboxError&gt; {
-    <span class="kw">let </span>future = TestStore::from_registry()
-        .send(GetCapturedEnvelope {
-            event_id: <span class="kw-2">*</span>event_id,
-        })
-        .boxed()
-        .compat()
-        .map(|captured_event| <span class="kw">match </span>captured_event {
-            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(envelope)) =&gt; HttpResponse::Ok()
-                .content_type(envelope::CONTENT_TYPE)
-                .body(envelope.to_vec().unwrap()),
-            <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(error)) =&gt; HttpResponse::BadRequest()
-                .content_type(<span class="string">&quot;text/plain&quot;</span>)
-                .body(error),
-            <span class="prelude-val">None </span>=&gt; HttpResponse::NotFound().finish(),
-        })
-        .map_err(|<span class="kw">_</span>| MailboxError::Closed);
+<span class="kw">async fn </span>get_captured_event(event_id: Path&lt;EventId&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, MailboxError&gt; {
+    <span class="kw">let </span>request = GetCapturedEnvelope {
+        event_id: <span class="kw-2">*</span>event_id,
+    };
 
-    Box::new(future)
+    <span class="kw">let </span>envelope_opt = TestStore::from_registry()
+        .send(request)
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>response = <span class="kw">match </span>envelope_opt {
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(envelope)) =&gt; HttpResponse::Ok()
+            .content_type(envelope::CONTENT_TYPE)
+            .body(envelope.to_vec().unwrap()),
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(error)) =&gt; HttpResponse::BadRequest()
+            .content_type(<span class="string">&quot;text/plain&quot;</span>)
+            .body(error),
+        <span class="prelude-val">None </span>=&gt; HttpResponse::NotFound().finish(),
+    };
+
+    <span class="prelude-val">Ok</span>(response)
 }
 
 <span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
     app.resource(<span class="string">&quot;/api/relay/events/{event_id}/&quot;</span>, |r| {
         r.name(<span class="string">&quot;internal-events&quot;</span>);
-        r.method(Method::GET).with(get_captured_event);
+        r.method(Method::GET)
+            .with_async(|e| Box::pin(get_captured_event(e)).compat());
     })
 }
 </code></pre></div>

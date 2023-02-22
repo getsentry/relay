@@ -218,13 +218,14 @@
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
 </pre><pre class="rust"><code><span class="kw">use </span>actix_web::multipart::{Multipart, MultipartItem};
-<span class="kw">use </span>actix_web::{actix::ResponseFuture, HttpMessage, HttpRequest, HttpResponse};
+<span class="kw">use </span>actix_web::{HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures01::{future, stream, Future, Stream};
+<span class="kw">use </span>futures::compat::Future01CompatExt;
+<span class="kw">use </span>futures01::{stream, Stream};
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use </span><span class="kw">crate</span>::body::RequestBody;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -269,16 +270,26 @@
     }
 }
 
-<span class="kw">fn </span>get_embedded_minidump(
+<span class="doccomment">/// Extract a minidump from a nested multipart form.
+///
+/// This field is not a minidump (i.e. it doesn&#39;t start with the minidump magic header). It could be
+/// a multipart field containing a minidump; this happens in old versions of the Linux Electron SDK.
+///
+/// Unfortunately, the embedded multipart field is not recognized by the multipart parser as a
+/// multipart field containing a multipart body. For this case we will look if the field starts with
+/// a &#39;--&#39; and manually extract the boundary (which is what follows &#39;--&#39; up to the end of line) and
+/// manually construct a multipart with the detected boundary. If we can extract a multipart with an
+/// embedded minidump, then use that field.
+</span><span class="kw">async fn </span>extract_embedded_minidump(
     payload: Bytes,
     max_size: usize,
-) -&gt; ResponseFuture&lt;<span class="prelude-ty">Option</span>&lt;Bytes&gt;, BadStoreRequest&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Bytes&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>boundary = <span class="kw">match </span>get_multipart_boundary(<span class="kw-2">&amp;</span>payload) {
         <span class="prelude-val">Some</span>(boundary) =&gt; boundary,
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>Box::new(future::ok(<span class="prelude-val">None</span>)),
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
     };
 
-    <span class="kw">let </span>f = Multipart::new(<span class="prelude-val">Ok</span>(boundary.to_string()), stream::once(<span class="prelude-val">Ok</span>(payload)))
+    <span class="kw">let </span>future = Multipart::new(<span class="prelude-val">Ok</span>(boundary.to_string()), stream::once(<span class="prelude-val">Ok</span>(payload)))
         .map_err(MultipartError::InvalidMultipart)
         .filter_map(|item| {
             <span class="kw">if let </span>MultipartItem::Field(field) = item {
@@ -292,10 +303,67 @@
         </span>})
         .and_then(<span class="kw">move </span>|field| consume_field(field, max_size))
         .into_future()
-        .map_err(|(err, <span class="kw">_</span>)| BadStoreRequest::InvalidMultipart(err))
-        .map(|(data, <span class="kw">_</span>)| data.map(Bytes::from));
+        .compat();
 
-    Box::new(f)
+    <span class="kw">let </span>(data, <span class="kw">_</span>) = future
+        .<span class="kw">await
+        </span>.map_err(|(err, <span class="kw">_</span>)| BadStoreRequest::InvalidMultipart(err))<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(data.map(Bytes::from))
+}
+
+<span class="kw">async fn </span>extract_multipart(
+    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+    meta: RequestMeta,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+    <span class="kw">let </span>max_multipart_size = request.state().config().max_attachments_size();
+    <span class="kw">let </span><span class="kw-2">mut </span>items = MultipartItems::new(max_multipart_size)
+        .infer_attachment_type(infer_attachment_type)
+        .handle_request(request)
+        .<span class="kw">await
+        </span>.map_err(BadStoreRequest::InvalidMultipart)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>minidump_item = items
+        .iter_mut()
+        .find(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump))
+        .ok_or(BadStoreRequest::MissingMinidump)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>max_single_size = request.state().config().max_attachment_size();
+    <span class="kw">let </span>embedded_opt = extract_embedded_minidump(minidump_item.payload(), max_single_size).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(embedded) = embedded_opt {
+        minidump_item.set_payload(ContentType::Minidump, embedded);
+    }
+
+    validate_minidump(<span class="kw-2">&amp;</span>minidump_item.payload())<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>event_id = common::event_id_from_items(<span class="kw-2">&amp;</span>items)<span class="question-mark">?</span>.unwrap_or_else(EventId::new);
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
+
+    <span class="kw">for </span>item <span class="kw">in </span>items {
+        envelope.add_item(item);
+    }
+
+    <span class="prelude-val">Ok</span>(envelope)
+}
+
+<span class="kw">async fn </span>extract_raw_minidump(
+    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+    meta: RequestMeta,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+    <span class="kw">let </span>max_single_size = request.state().config().max_attachment_size();
+    <span class="kw">let </span>data = body::request_body(request, max_single_size).<span class="kw">await</span><span class="question-mark">?</span>;
+
+    validate_minidump(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
+    item.set_payload(ContentType::Minidump, data);
+    item.set_filename(MINIDUMP_FILE_NAME);
+    item.set_attachment_type(AttachmentType::Minidump);
+
+    <span class="comment">// Create an envelope with a random event id.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+    envelope.add_item(item);
+    <span class="prelude-val">Ok</span>(envelope)
 }
 
 <span class="doccomment">/// Creates an evelope from a minidump request.
@@ -308,105 +376,36 @@
 ///
 /// Optionally, an event payload can be sent in the `sentry` form
 /// field, either as JSON or as nested form data.
-</span><span class="kw">fn </span>extract_envelope(
+</span><span class="kw">async fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>max_single_size = request.state().config().max_attachment_size();
-    <span class="kw">let </span>max_multipart_size = request.state().config().max_attachments_size();
-
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="comment">// Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     </span><span class="kw">if </span>MINIDUMP_RAW_CONTENT_TYPES.contains(<span class="kw-2">&amp;</span>request.content_type()) {
-        <span class="kw">let </span>future = RequestBody::new(request, max_single_size)
-            .map_err(|<span class="kw">_</span>| BadStoreRequest::InvalidMinidump)
-            .and_then(<span class="kw">move </span>|data| {
-                validate_minidump(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;
-
-                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-                item.set_payload(ContentType::Minidump, data);
-                item.set_filename(MINIDUMP_FILE_NAME);
-                item.set_attachment_type(AttachmentType::Minidump);
-
-                <span class="comment">// Create an envelope with a random event id.
-                </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-                envelope.add_item(item);
-                <span class="prelude-val">Ok</span>(envelope)
-            });
-
-        <span class="kw">return </span>Box::new(future);
-    }
-
-    <span class="kw">let </span>future = MultipartItems::new(max_multipart_size)
-        .infer_attachment_type(infer_attachment_type)
-        .handle_request(request)
-        .map_err(BadStoreRequest::InvalidMultipart)
-        .and_then(<span class="kw">move </span>|<span class="kw-2">mut </span>items| {
-            <span class="kw">let </span>minidump_index = items
-                .iter()
-                .position(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
-
-            <span class="kw">let </span><span class="kw-2">mut </span>minidump_item = <span class="kw">match </span>minidump_index {
-                <span class="prelude-val">Some</span>(index) =&gt; items.swap_remove(index),
-                <span class="prelude-val">None </span>=&gt; {
-                    <span class="kw">return </span>Box::new(future::err(BadStoreRequest::MissingMinidump))
-                        <span class="kw">as </span>ResponseFuture&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;
-                }
-            };
-
-            <span class="comment">// HACK !!
-            //
-            // This field is not a minidump (.i.e. it doesn&#39;t start with the minidump magic header).
-            // It could be a multipart field containing a minidump; this happens in old versions of
-            // the Linux Electron SDK.
-            //
-            // Unfortunately, the embedded multipart field is not recognized by the multipart parser
-            // as a multipart field containing a multipart body. For this case we will look if field
-            // the field starts with a &#39;--&#39; and manually extract the boundary (which is what follows
-            // &#39;--&#39; up to the end of line) and manually construct a multipart with the detected
-            // boundary. If we can extract a multipart with an embedded minidump, then use that
-            // field.
-            </span><span class="kw">let </span>future = get_embedded_minidump(minidump_item.payload(), max_single_size).and_then(
-                <span class="kw">move </span>|embedded_opt| {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(embedded) = embedded_opt {
-                        minidump_item.set_payload(ContentType::Minidump, embedded);
-                    }
-
-                    validate_minidump(<span class="kw-2">&amp;</span>minidump_item.payload())<span class="question-mark">?</span>;
-                    items.push(minidump_item);
-
-                    <span class="prelude-val">Ok</span>(items)
-                },
-            );
-
-            Box::new(future)
-        })
-        .and_then(<span class="kw">move </span>|items| {
-            <span class="kw">let </span>event_id = common::event_id_from_items(<span class="kw-2">&amp;</span>items)<span class="question-mark">?</span>.unwrap_or_else(EventId::new);
-            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
-
-            <span class="kw">for </span>item <span class="kw">in </span>items {
-                envelope.add_item(item);
-            }
-
-            <span class="prelude-val">Ok</span>(envelope)
-        });
-
-    Box::new(future)
+        extract_raw_minidump(request, meta).<span class="kw">await
+    </span>} <span class="kw">else </span>{
+        extract_multipart(request, meta).<span class="kw">await
+    </span>}
 }
 
-<span class="kw">fn </span>store_minidump(
+<span class="kw">async fn </span>store_minidump(
     meta: RequestMeta,
     request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
-    common::handle_store_like_request(
-        meta,
-        request,
-        extract_envelope,
-        common::create_text_event_id_response,
-        <span class="bool-val">false</span>, <span class="comment">// Never respond with a 429 since clients often retry these
-    </span>)
+) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>id = envelope.event_id();
+
+    <span class="comment">// Never respond with a 429 since clients often retry these
+    </span><span class="kw">match </span>common::handle_envelope(request.state(), envelope).<span class="kw">await </span>{
+        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
+        <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
+    };
+
+    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t
+    // care about it.
+    </span><span class="prelude-val">Ok</span>(common::create_text_event_id_response(id))
 }
 
 <span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
@@ -414,7 +413,8 @@
         <span class="comment">// No mandatory trailing slash here because people already use it like this.
         </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/minidump&quot;</span>), |r| {
             r.name(<span class="string">&quot;store-minidump&quot;</span>);
-            r.post().with(store_minidump);
+            r.post()
+                .with_async(|m, r| common::handler(store_minidump(m, r)));
         })
         .register()
 }

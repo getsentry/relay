@@ -392,13 +392,15 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::io;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures01::{future, Async, Future, Poll, Stream};
+<span class="kw">use </span>futures::compat::Future01CompatExt;
+<span class="kw">use </span>futures01::{Async, Future, Poll, Stream};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -695,16 +697,16 @@
         <span class="self">self
     </span>}
 
-    <span class="kw">pub fn </span>handle_request(
+    <span class="kw">pub async fn </span>handle_request(
         <span class="self">self</span>,
         request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-    ) -&gt; ResponseFuture&lt;Items, MultipartError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Items, MultipartError&gt; {
         <span class="comment">// Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
         // causes keep-alive streams to break. Instead, rely on the middleware to consume the
         // stream. This can happen, for instance, when the boundary is malformed.
         </span><span class="kw">let </span>boundary = <span class="kw">match </span>multipart::Multipart::boundary(request.headers()) {
             <span class="prelude-val">Ok</span>(boundary) =&gt; boundary,
-            <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span>Box::new(future::err(MultipartError::InvalidMultipart(error))),
+            <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(MultipartError::InvalidMultipart(error)),
         };
 
         <span class="kw">let </span>payload = TerminatedPayload::new(DecodingPayload::new(request, <span class="self">self</span>.remaining_size));
@@ -721,8 +723,8 @@
             <span class="prelude-val">Ok</span>(items)
         });
 
-        Box::new(future)
-    }
+        future.compat().<span class="kw">await
+    </span>}
 }
 
 <span class="attr">#[cfg(test)]

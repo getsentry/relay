@@ -70,22 +70,6 @@
 <a href="#69" id="69">69</a>
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, ErrorKind, Read};
 
@@ -93,53 +77,34 @@
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>data_encoding::BASE64;
 <span class="kw">use </span>flate2::read::ZlibDecoder;
-<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>url::form_urlencoded;
 
 <span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::body::RequestBody;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 
-<span class="doccomment">/// Future that resolves to a complete store endpoint body.
-</span><span class="kw">pub struct </span>StoreBody {
-    inner: RequestBody,
-    result: <span class="prelude-ty">Option</span>&lt;<span class="prelude-ty">Result</span>&lt;Bytes, PayloadError&gt;&gt;,
-}
-
-<span class="kw">impl </span>StoreBody {
-    <span class="doccomment">/// Create `StoreBody` for request.
-    </span><span class="kw">pub fn </span>new&lt;S&gt;(req: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, limit: usize) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            inner: RequestBody::new(req, limit),
-            result: data_from_querystring(req).map(|body| decode_bytes(body.as_bytes())),
-        }
+<span class="doccomment">/// Reads the body of a store request.
+///
+/// In addition to [`request_body`](crate::body::request_body), this also supports two additional
+/// modes of sending encoded payloads:
+///
+///  - In query parameters of the HTTP request.
+///  - As base64-encoded zlib compression without additional HTTP headers.
+///
+/// If the body exceeds the given `limit` during streaming or decompression, an error is returned.
+</span><span class="kw">pub async fn </span>store_body&lt;S&gt;(req: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, PayloadError&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = data_from_querystring(req) {
+        <span class="kw">return </span>decode_bytes(body.as_bytes(), limit);
     }
-}
 
-<span class="kw">impl </span>Future <span class="kw">for </span>StoreBody {
-    <span class="kw">type </span>Item = Bytes;
-    <span class="kw">type </span>Error = PayloadError;
+    <span class="kw">let </span>body = body::request_body(req, limit).<span class="kw">await</span><span class="question-mark">?</span>;
 
-    <span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(result) = <span class="self">self</span>.result.take() {
-            <span class="kw">return </span>result.map(Async::Ready);
-        }
+    <span class="macro">metric!</span>(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() <span class="kw">as </span>u64);
+    <span class="kw">let </span>decoded = decode_bytes(body, limit)<span class="question-mark">?</span>;
+    <span class="macro">metric!</span>(histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() <span class="kw">as </span>u64);
 
-        <span class="kw">let </span>poll = <span class="kw">match </span><span class="self">self</span>.inner.poll()<span class="question-mark">? </span>{
-            Async::Ready(body) =&gt; {
-                <span class="macro">metric!</span>(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() <span class="kw">as </span>u64);
-                <span class="kw">let </span>decoded = decode_bytes(body)<span class="question-mark">?</span>;
-                <span class="macro">metric!</span>(
-                    histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() <span class="kw">as </span>u64
-                );
-                Async::Ready(decoded)
-            }
-            Async::NotReady =&gt; Async::NotReady,
-        };
-
-        <span class="prelude-val">Ok</span>(poll)
-    }
+    <span class="prelude-val">Ok</span>(decoded)
 }
 
 <span class="kw">fn </span>data_from_querystring&lt;S&gt;(req: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;&gt; {
@@ -153,7 +118,10 @@
     <span class="prelude-val">Some</span>(value)
 }
 
-<span class="kw">fn </span>decode_bytes&lt;B: Into&lt;Bytes&gt; + AsRef&lt;[u8]&gt;&gt;(body: B) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, PayloadError&gt; {
+<span class="kw">fn </span>decode_bytes&lt;B&gt;(body: B, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, PayloadError&gt;
+<span class="kw">where
+    </span>B: Into&lt;Bytes&gt; + AsRef&lt;[u8]&gt;,
+{
     <span class="kw">if </span>body.as_ref().starts_with(<span class="string">b&quot;{&quot;</span>) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(body.into());
     }
@@ -167,7 +135,7 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(binary_body.into());
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>decode_stream = ZlibDecoder::new(binary_body.as_slice());
+    <span class="kw">let </span><span class="kw-2">mut </span>decode_stream = ZlibDecoder::new(binary_body.as_slice()).take(limit <span class="kw">as </span>u64);
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[];
     decode_stream.read_to_end(<span class="kw-2">&amp;mut </span>bytes)<span class="question-mark">?</span>;
 

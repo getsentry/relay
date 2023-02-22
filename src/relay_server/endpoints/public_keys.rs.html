@@ -38,38 +38,31 @@
 <a href="#37" id="37">37</a>
 <a href="#38" id="38">38</a>
 <a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>actix_web::{actix::<span class="kw-2">*</span>, Error, Json};
-<span class="kw">use </span>futures::{future, FutureExt, TryFutureExt};
+<span class="kw">use </span>futures::{future, TryFutureExt};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
 
-<span class="kw">fn </span>get_public_keys(body: SignedJson&lt;GetRelays&gt;) -&gt; ResponseFuture&lt;Json&lt;GetRelaysResponse&gt;, Error&gt; {
-    <span class="kw">let </span>future = <span class="kw">async move </span>{
-        <span class="kw">let </span>relay_cache = RelayCache::from_registry();
+<span class="kw">async fn </span>get_public_keys(body: SignedJson&lt;GetRelays&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Json&lt;GetRelaysResponse&gt;, Error&gt; {
+    <span class="kw">let </span>relay_cache = RelayCache::from_registry();
 
-        <span class="kw">let </span>relay_ids = body.inner.relay_ids.into_iter();
-        <span class="kw">let </span>futures = relay_ids.map(|relay_id| {
-            <span class="kw">let </span>inner = relay_cache.send(GetRelay { relay_id });
-            <span class="kw">async move </span>{ (relay_id, inner.<span class="kw">await</span>) }
-        });
+    <span class="kw">let </span>relay_ids = body.inner.relay_ids.into_iter();
+    <span class="kw">let </span>futures = relay_ids.map(|relay_id| {
+        <span class="kw">let </span>inner = relay_cache.send(GetRelay { relay_id });
+        <span class="kw">async move </span>{ (relay_id, inner.<span class="kw">await</span>) }
+    });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>relays = HashMap::new();
-        <span class="kw">for </span>(relay_id, result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
-            <span class="kw">let </span>relay_info = result.map_err(|<span class="kw">_</span>| Error::from(MailboxError::Closed))<span class="question-mark">?</span>;
-            relays.insert(relay_id, relay_info);
-        }
+    <span class="kw">let </span><span class="kw-2">mut </span>relays = HashMap::new();
+    <span class="kw">for </span>(relay_id, result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
+        <span class="kw">let </span>relay_info = result.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">?</span>;
+        relays.insert(relay_id, relay_info);
+    }
 
-        <span class="prelude-val">Ok</span>(Json(GetRelaysResponse { relays }))
-    };
-
-    Box::new(future.boxed().compat())
+    <span class="prelude-val">Ok</span>(Json(GetRelaysResponse { relays }))
 }
 
 <span class="doccomment">/// Registers the Relay public keys endpoint.
@@ -80,7 +73,8 @@
 </span><span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
     app.resource(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>, |r| {
         r.name(<span class="string">&quot;relay-publickeys&quot;</span>);
-        r.post().with(get_public_keys);
+        r.post()
+            .with_async(|b| Box::pin(get_public_keys(b)).compat());
     })
 }
 </code></pre></div>

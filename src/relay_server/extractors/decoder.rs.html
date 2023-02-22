@@ -261,6 +261,7 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 
@@ -271,6 +272,7 @@
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>flate2::write::{GzDecoder, ZlibDecoder};
 <span class="kw">use </span>futures01::{Async, Poll, Stream};
+
 <span class="kw">use </span>relay_config::HttpEncoding;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SharedPayload;
@@ -403,12 +405,12 @@
     /// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this
     /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
     /// error decoding.
-    </span><span class="kw">pub fn </span>decode(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: Bytes) -&gt; io::Result&lt;bool&gt; {
+    </span><span class="kw">pub fn </span>decode(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; io::Result&lt;bool&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.inner {
-            DecoderInner::Identity(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
-            DecoderInner::Br(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
-            DecoderInner::Gzip(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
-            DecoderInner::Deflate(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
+            DecoderInner::Identity(inner) =&gt; write_overflowing(inner, bytes),
+            DecoderInner::Br(inner) =&gt; write_overflowing(inner, bytes),
+            DecoderInner::Gzip(inner) =&gt; write_overflowing(inner, bytes),
+            DecoderInner::Deflate(inner) =&gt; write_overflowing(inner, bytes),
         }
     }
 
@@ -490,7 +492,7 @@
                 Async::NotReady =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::NotReady),
             };
 
-            <span class="kw">if </span><span class="self">self</span>.decoder.decode(encoded)<span class="question-mark">? </span>{
+            <span class="kw">if </span><span class="self">self</span>.decoder.decode(<span class="kw-2">&amp;</span>encoded)<span class="question-mark">? </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(PayloadError::Overflow);
             }
 

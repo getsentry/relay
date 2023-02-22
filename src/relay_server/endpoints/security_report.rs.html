@@ -103,29 +103,14 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Endpoints for security reports.
 
-</span><span class="kw">use </span>actix_web::actix::ResponseFuture;
-<span class="kw">use </span>actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-<span class="kw">use </span>futures01::Future;
+</span><span class="kw">use </span>actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
 <span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use </span><span class="kw">crate</span>::body::StoreBody;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
@@ -137,57 +122,46 @@
     sentry_environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">fn </span>extract_envelope(
+<span class="kw">async fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
     params: SecurityReportParams,
-) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
-    <span class="kw">let </span>future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::from)
-        .and_then(<span class="kw">move </span>|data| {
-            <span class="kw">if </span>data.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
-            }
+    <span class="kw">let </span>data = body::store_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
-            report_item.set_payload(ContentType::Json, data);
+    <span class="kw">if </span>data.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+    }
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = params.sentry_release {
-                report_item.set_header(<span class="string">&quot;sentry_release&quot;</span>, sentry_release);
-            }
+    <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
+    report_item.set_payload(ContentType::Json, data);
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = params.sentry_environment {
-                report_item.set_header(<span class="string">&quot;sentry_environment&quot;</span>, sentry_environment);
-            }
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = params.sentry_release {
+        report_item.set_header(<span class="string">&quot;sentry_release&quot;</span>, sentry_release);
+    }
 
-            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-            envelope.add_item(report_item);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = params.sentry_environment {
+        report_item.set_header(<span class="string">&quot;sentry_environment&quot;</span>, sentry_environment);
+    }
 
-            <span class="prelude-val">Ok</span>(envelope)
-        });
-    Box::new(future)
-}
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+    envelope.add_item(report_item);
 
-<span class="kw">fn </span>create_response() -&gt; HttpResponse {
-    HttpResponse::Ok().finish()
+    <span class="prelude-val">Ok</span>(envelope)
 }
 
 <span class="doccomment">/// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-</span><span class="kw">fn </span>store_security_report(
+</span><span class="kw">async fn </span>store_security_report(
     meta: RequestMeta,
     request: HttpRequest&lt;ServiceState&gt;,
     params: Query&lt;SecurityReportParams&gt;,
-) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
-    common::handle_store_like_request(
-        meta,
-        request,
-        <span class="kw">move </span>|data, meta| extract_envelope(data, meta, params.into_inner()),
-        |<span class="kw">_</span>| create_response(),
-        <span class="bool-val">true</span>,
-    )
+) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta, params.into_inner()).<span class="kw">await</span><span class="question-mark">?</span>;
+    common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(HttpResponse::Ok().finish())
 }
 
 <span class="attr">#[derive(Debug)]
@@ -222,14 +196,14 @@
             r.name(<span class="string">&quot;store-security-report&quot;</span>);
             r.post()
                 .filter(SecurityReportFilter)
-                .with(store_security_report);
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         <span class="comment">// Legacy security endpoint
         </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/csp-report/&quot;</span>), |r| {
             r.name(<span class="string">&quot;store-csp-report&quot;</span>);
             r.post()
                 .filter(SecurityReportFilter)
-                .with(store_security_report);
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         .register()
 }

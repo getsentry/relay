@@ -303,14 +303,6 @@
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Server endpoint that proxies any request to the upstream.
 //!
 //! This endpoint will issue a client request to the upstream and append relay&#39;s own headers
@@ -321,14 +313,15 @@
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
 
-<span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix::ResponseFuture;
 <span class="kw">use </span>actix_web::error::{ParseError, ResponseError};
 <span class="kw">use </span>actix_web::http::header::{<span class="self">self</span>, HeaderName, HeaderValue};
 <span class="kw">use </span>actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
-<span class="kw">use </span>actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
+<span class="kw">use </span>actix_web::{Error, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures01::{future, sync::oneshot, Future <span class="kw">as _</span>};
+<span class="kw">use </span>futures::TryFutureExt;
 <span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>tokio::sync::oneshot;
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::utils::GlobMatcher;
@@ -337,7 +330,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-<span class="kw">use </span><span class="kw">crate</span>::body::RequestBody;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::statics;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder, Response};
@@ -535,13 +528,7 @@
 /// This endpoint will create a proxy request to the upstream for every incoming request and stream
 /// the request body back to the origin. Regardless of the incoming connection, the connection to
 /// the upstream uses its own HTTP version and transfer encoding.
-</span><span class="kw">pub fn </span>forward_upstream(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-) -&gt; ResponseFuture&lt;HttpResponse, Error&gt; {
-    <span class="kw">let </span>config = request.state().config();
-    <span class="kw">let </span>max_response_size = config.max_api_payload_size();
-    <span class="kw">let </span>limit = get_limit_for_path(request.path(), <span class="kw-2">&amp;</span>config);
-
+</span><span class="kw">async fn </span>forward_upstream(request: HttpRequest&lt;ServiceState&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, Error&gt; {
     <span class="kw">let </span>path_and_query = request
         .uri()
         .path_and_query()
@@ -550,64 +537,61 @@
         .to_owned();
 
     <span class="kw">let </span><span class="prelude-val">Ok</span>(method) = Method::from_bytes(request.method().as_ref().as_bytes()) <span class="kw">else </span>{
-        <span class="kw">return </span>Box::new(future::err(Error::from(ParseError::Method)))
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ParseError::Method.into());
     };
 
-    <span class="kw">let </span>headers = request.headers().clone();
-    <span class="kw">let </span>forwarded_for = ForwardedFor::from(request);
+    <span class="kw">let </span>config = request.state().config();
+    <span class="kw">let </span>limit = get_limit_for_path(request.path(), config);
+    <span class="kw">let </span>data = body::request_body(<span class="kw-2">&amp;</span>request, limit).<span class="kw">await</span><span class="question-mark">?</span>;
 
-    RequestBody::new(request, limit)
-        .map_err(Error::from)
-        .and_then(<span class="kw">move </span>|data| {
-            <span class="kw">let </span>(tx, rx) = oneshot::channel();
+    <span class="kw">let </span>(tx, rx) = oneshot::channel();
+    UpstreamRelay::from_registry().send(SendRequest(ForwardRequest {
+        method,
+        path: path_and_query,
+        headers: request.headers().clone(),
+        forwarded_for: ForwardedFor::from(<span class="kw-2">&amp;</span>request),
+        data,
+        max_response_size: config.max_api_payload_size(),
+        sender: tx,
+    }));
 
-            <span class="kw">let </span>forward_request = ForwardRequest {
-                method,
-                path: path_and_query,
-                headers,
-                forwarded_for,
-                data,
-                max_response_size,
-                sender: tx,
-            };
+    <span class="kw">let </span>(status, headers, body) = rx
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| ForwardedUpstreamRequestError(UpstreamRequestError::ChannelClosed))<span class="question-mark">?
+        </span>.map_err(ForwardedUpstreamRequestError)<span class="question-mark">?</span>;
 
-            UpstreamRelay::from_registry().send(SendRequest(forward_request));
+    <span class="kw">let </span><span class="kw-2">mut </span>forwarded_response = HttpResponse::build(status);
+    <span class="kw">let </span><span class="kw-2">mut </span>has_content_type = <span class="bool-val">false</span>;
 
-            rx.map_err(|<span class="kw">_</span>| UpstreamRequestError::ChannelClosed)
-                .flatten()
-                .map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
-        })
-        .and_then(<span class="kw">move </span>|(status, headers, body)| {
-            <span class="kw">let </span><span class="kw-2">mut </span>forwarded_response = HttpResponse::build(status);
-            <span class="kw">let </span><span class="kw-2">mut </span>has_content_type = <span class="bool-val">false</span>;
+    <span class="kw">for </span>(key, value) <span class="kw">in </span>headers {
+        <span class="kw">if </span>key == <span class="string">&quot;content-type&quot; </span>{
+            has_content_type = <span class="bool-val">true</span>;
+        }
 
-            <span class="kw">for </span>(key, value) <span class="kw">in </span>headers {
-                <span class="kw">if </span>key == <span class="string">&quot;content-type&quot; </span>{
-                    has_content_type = <span class="bool-val">true</span>;
-                }
+        <span class="comment">// 2. Just pass content-length, content-encoding etc through
+        </span><span class="kw">if </span>HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
+            <span class="kw">continue</span>;
+        }
 
-                <span class="comment">// 2. Just pass content-length, content-encoding etc through
-                </span><span class="kw">if </span>HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
-                    <span class="kw">continue</span>;
-                }
+        forwarded_response.header(<span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;*</span>value);
+    }
 
-                forwarded_response.header(<span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;*</span>value);
-            }
+    <span class="comment">// For reqwest the option to disable automatic response decompression can only be
+    // set per-client. For non-forwarded upstream requests that is desirable, so we
+    // keep it enabled.
+    //
+    // Essentially this means that content negotiation is done twice, and the response
+    // body is first decompressed by reqwest, then re-compressed by actix-web.
 
-            <span class="comment">// For reqwest the option to disable automatic response decompression can only be
-            // set per-client. For non-forwarded upstream requests that is desirable, so we
-            // keep it enabled.
-            //
-            // Essentially this means that content negotiation is done twice, and the response
-            // body is first decompressed by reqwest, then re-compressed by actix-web.
+    </span><span class="prelude-val">Ok</span>(<span class="kw">if </span>has_content_type {
+        forwarded_response.body(body)
+    } <span class="kw">else </span>{
+        forwarded_response.finish()
+    })
+}
 
-            </span><span class="prelude-val">Ok</span>(<span class="kw">if </span>has_content_type {
-                forwarded_response.body(body)
-            } <span class="kw">else </span>{
-                forwarded_response.finish()
-            })
-        })
-        .responder()
+<span class="kw">pub fn </span>forward_compat(request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;) -&gt; ResponseFuture&lt;HttpResponse, Error&gt; {
+    Box::new(Box::pin(forward_upstream(request.clone())).compat())
 }
 
 <span class="doccomment">/// Registers this endpoint in the actix-web app.
@@ -621,7 +605,7 @@
         r.name(<span class="string">&quot;api-root&quot;</span>);
         r.f(statics::not_found)
     })
-    .handler(<span class="string">&quot;/api&quot;</span>, forward_upstream)
+    .handler(<span class="string">&quot;/api&quot;</span>, forward_compat)
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

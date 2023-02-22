@@ -640,15 +640,35 @@
 <a href="#639" id="639">639</a>
 <a href="#640" id="640">640</a>
 <a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::Instant;
 
-<span class="kw">use </span>actix::ResponseFuture;
+<span class="kw">use </span>actix_web::dev::AsyncResult;
 <span class="kw">use </span>actix_web::http::header;
 <span class="kw">use </span>actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>futures01::{future, Future};
+<span class="kw">use </span>futures::TryFutureExt;
 <span class="kw">use </span>relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>url::Url;
@@ -659,10 +679,11 @@
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 
-<span class="kw">use </span><span class="kw">crate</span>::body::PeekLine;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
 <span class="kw">use </span><span class="kw">crate</span>::middlewares::StartTime;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
@@ -672,6 +693,9 @@
 
     <span class="attr">#[error(<span class="string">&quot;multiple authorization payloads detected&quot;</span>)]
     </span>MultipleAuth,
+
+    <span class="attr">#[error(<span class="string">&quot;unsupported protocol version ({0})&quot;</span>)]
+    </span>UnsupportedProtocolVersion(u16),
 
     <span class="attr">#[error(<span class="string">&quot;bad envelope authentication header&quot;</span>)]
     </span>BadEnvelopeAuth(<span class="attr">#[source] </span>serde_json::Error),
@@ -693,7 +717,9 @@
             | <span class="self">Self</span>::MultipleAuth
             | <span class="self">Self</span>::BadAuth(<span class="kw">_</span>)
             | <span class="self">Self</span>::BadEnvelopeAuth(<span class="kw">_</span>) =&gt; HttpResponse::Unauthorized(),
-            <span class="self">Self</span>::BadProject(<span class="kw">_</span>) | <span class="self">Self</span>::BadPublicKey(<span class="kw">_</span>) =&gt; HttpResponse::BadRequest(),
+            <span class="self">Self</span>::UnsupportedProtocolVersion(<span class="kw">_</span>) | <span class="self">Self</span>::BadProject(<span class="kw">_</span>) | <span class="self">Self</span>::BadPublicKey(<span class="kw">_</span>) =&gt; {
+                HttpResponse::BadRequest()
+            }
         };
 
         builder.json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_error(<span class="self">self</span>))
@@ -865,6 +891,7 @@
     }
 
     <span class="doccomment">/// Returns the protocol version of the event payload.
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// used in tests and processing mode
     </span><span class="kw">pub fn </span>version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u16 {
         <span class="self">self</span>.version
     }
@@ -1154,9 +1181,20 @@
             project_id,
         };
 
+        <span class="comment">// For now, we only handle &lt;= v8 and drop everything else
+        </span><span class="kw">let </span>version = auth.version();
+        <span class="kw">if </span>version &gt; relay_common::PROTOCOL_VERSION {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::UnsupportedProtocolVersion(version));
+        }
+
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::EventProtocol) += <span class="number">1</span>,
+            version = <span class="kw-2">&amp;</span>version.to_string()
+        );
+
         <span class="prelude-val">Ok</span>(RequestMeta {
             dsn,
-            version: auth.version(),
+            version,
             client: auth.client_agent().map(str::to_owned),
             origin: partial_meta.origin,
             remote_addr: partial_meta.remote_addr,
@@ -1189,28 +1227,30 @@
     }
 }
 
+<span class="kw">async fn </span>extract_envelope_meta(
+    request: HttpRequest&lt;ServiceState&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;EnvelopeMeta, actix_web::Error&gt; {
+    <span class="kw">let </span>result = RequestMeta::extract(<span class="kw-2">&amp;</span>request).map(EnvelopeMeta::new);
+    <span class="kw">if </span>!<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadEventMeta::MissingAuth)) {
+        <span class="kw">return </span>result.map_err(|e| e.into());
+    }
+
+    <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(json)) = body::peek_line(<span class="kw-2">&amp;</span>request, EnvelopeMeta::MAX_HEADER_SIZE).<span class="kw">await else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(actix_web::Error::from(BadEventMeta::MissingAuth));
+    };
+
+    <span class="kw">let </span>request_meta = serde_json::from_slice(<span class="kw-2">&amp;</span>json).map_err(BadEventMeta::BadEnvelopeAuth)<span class="question-mark">?</span>;
+    <span class="kw">let </span>partial_meta = PartialMeta::from_headers(<span class="kw-2">&amp;</span>request);
+    <span class="prelude-val">Ok</span>(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
+}
+
 <span class="kw">impl </span>FromRequest&lt;ServiceState&gt; <span class="kw">for </span>EnvelopeMeta {
     <span class="kw">type </span>Config = ();
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;ResponseFuture&lt;<span class="self">Self</span>, BadEventMeta&gt;, BadEventMeta&gt;;
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= AsyncResult&lt;<span class="self">Self</span>, actix_web::Error&gt;;
 
     <span class="kw">fn </span>from_request(request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;, _config: <span class="kw-2">&amp;</span><span class="self">Self</span>::Config) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>result = RequestMeta::extract(request).map(EnvelopeMeta::new);
-        <span class="kw">if </span>!<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadEventMeta::MissingAuth)) {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(Box::new(future::result(result)));
-        }
-
-        <span class="kw">let </span>partial_meta = PartialMeta::from_headers(request);
-        <span class="kw">let </span>future = PeekLine::new(request, <span class="self">Self</span>::MAX_HEADER_SIZE).then(<span class="kw">move </span>|result| {
-            <span class="kw">let </span>request_meta = <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(json)) = result {
-                serde_json::from_slice(<span class="kw-2">&amp;</span>json).map_err(BadEventMeta::BadEnvelopeAuth)<span class="question-mark">?
-            </span>} <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MissingAuth);
-            };
-
-            <span class="prelude-val">Ok</span>(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-        });
-
-        <span class="prelude-val">Ok</span>(Box::new(future))
+        <span class="kw">let </span>future = extract_envelope_meta(request.clone());
+        AsyncResult::future(Box::new(Box::pin(future).compat()))
     }
 }
 

@@ -585,17 +585,17 @@
         })
     }
 
-    <span class="doccomment">/// Returns an atomically counted reference to the config.
-    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;Config&gt; {
-        <span class="self">self</span>.config.clone()
+    <span class="doccomment">/// Returns a reference to the Relay configuration.
+    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Config {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.config
     }
 
     <span class="doccomment">/// Returns a reference to the guard of the envelope buffer.
     ///
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
-    </span><span class="kw">pub fn </span>buffer_guard(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;BufferGuard&gt; {
-        <span class="self">self</span>.buffer_guard.clone()
+    </span><span class="kw">pub fn </span>buffer_guard(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BufferGuard {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.buffer_guard
     }
 }
 

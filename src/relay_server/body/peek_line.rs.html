@@ -142,30 +142,18 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::HttpRequest;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::error::PayloadError;
+<span class="kw">use </span>actix_web::HttpRequest;
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures01::{Async, Future, Poll, Stream};
 <span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{Decoder, SharedPayload};
 
-<span class="doccomment">/// A request body adapter that peeks the first line of a multi-line body.
+<span class="doccomment">/// Peeks the first line of a multi-line body without consuming it.
 ///
-/// `PeekLine` is a future created from a request&#39;s [`Payload`]. It is especially designed to be
-/// used together with [`SharedPayload`](crate::extractors::SharedPayload), since it polls an
-/// underlying payload and places the polled chunks back into the payload when completing.
+/// This function returns a future to the request [`Payload`]. It is especially designed to be used
+/// together with [`SharedPayload`], since it polls an underlying payload and places the polled
+/// chunks back into the payload when completing.
 ///
 /// If the payload does not contain a newline, the entire payload is returned by the future. To
 /// contrain this, use `limit` to set a maximum size returned by the future.
@@ -174,65 +162,42 @@
 /// smaller than the size limit. Otherwise, resolves to `None`. Any errors on the underlying stream
 /// are returned without change.
 ///
+/// # Cancel Safety
+///
+/// This function is _not_ cancellation safe. If canceled, partially read data may not be put back
+/// into the request. Additionally, it is not safe to read the body after an error has been returned
+/// since data may have been partially consumed.
+///
 /// [`Payload`]: actix_web::dev::Payload
-</span><span class="kw">pub struct </span>PeekLine {
-    payload: SharedPayload,
-    decoder: Decoder,
-    chunks: SmallVec&lt;[Bytes; <span class="number">3</span>]&gt;,
-}
+/// [`SharedPayload`]: crate::extractors::SharedPayload
+</span><span class="kw">pub async fn </span>peek_line&lt;S&gt;(
+    request: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;,
+    limit: usize,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Bytes&gt;, PayloadError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>payload = SharedPayload::get(request);
+    <span class="kw">let </span><span class="kw-2">mut </span>decoder = Decoder::new(request, limit);
+    <span class="kw">let </span><span class="kw-2">mut </span>chunks = SmallVec::&lt;[<span class="kw">_</span>; <span class="number">3</span>]&gt;::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>overflow = <span class="bool-val">false</span>;
 
-<span class="kw">impl </span>PeekLine {
-    <span class="doccomment">/// Creates a new peek line future from the given payload.
-    ///
-    /// Note that the underlying stream may return more data than the configured limit. The future
-    /// will still never resolve more than the limit set.
-    </span><span class="kw">pub fn </span>new&lt;S&gt;(request: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, limit: usize) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            payload: SharedPayload::get(request),
-            decoder: Decoder::new(request, limit),
-            chunks: SmallVec::new(),
-        }
+    <span class="kw">while let </span>(<span class="prelude-val">Some</span>(chunk), <span class="bool-val">false</span>) = (payload.chunk().<span class="kw">await</span><span class="question-mark">?</span>, overflow) {
+        overflow = decoder.decode(<span class="kw-2">&amp;</span>chunk)<span class="question-mark">?</span>;
+        chunks.push(chunk);
     }
 
-    <span class="kw">fn </span>revert_chunks(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="comment">// unread in reverse order
-        </span><span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = <span class="self">self</span>.chunks.pop() {
-            <span class="self">self</span>.payload.unread_data(chunk);
-        }
+    <span class="kw">let </span>buffer = decoder.finish()<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>line = <span class="kw">match </span>buffer.iter().position(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;\n&#39;</span>) {
+        <span class="prelude-val">Some</span>(pos) =&gt; <span class="prelude-val">Some</span>(buffer.slice_to(pos)),
+        <span class="prelude-val">None </span><span class="kw">if </span>!overflow =&gt; <span class="prelude-val">Some</span>(buffer),
+        <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
+    <span class="comment">// unread in reverse order
+    </span><span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = chunks.pop() {
+        payload.unread_data(chunk);
     }
 
-    <span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, overflow: bool) -&gt; std::io::Result&lt;<span class="prelude-ty">Option</span>&lt;Bytes&gt;&gt; {
-        <span class="kw">let </span>buffer = <span class="self">self</span>.decoder.finish()<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>line = <span class="kw">match </span>buffer.iter().position(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;\n&#39;</span>) {
-            <span class="prelude-val">Some</span>(pos) =&gt; <span class="prelude-val">Some</span>(buffer.slice_to(pos)),
-            <span class="prelude-val">None </span><span class="kw">if </span>!overflow =&gt; <span class="prelude-val">Some</span>(buffer),
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
-        };
-
-        <span class="self">self</span>.revert_chunks();
-        <span class="prelude-val">Ok</span>(line.filter(|line| !line.is_empty()))
-    }
-}
-
-<span class="kw">impl </span>Future <span class="kw">for </span>PeekLine {
-    <span class="kw">type </span>Item = <span class="prelude-ty">Option</span>&lt;Bytes&gt;;
-    <span class="kw">type </span>Error = &lt;SharedPayload <span class="kw">as </span>Stream&gt;::Error;
-
-    <span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt; {
-        <span class="kw">loop </span>{
-            <span class="kw">let </span>chunk = <span class="kw">match </span><span class="self">self</span>.payload.poll()<span class="question-mark">? </span>{
-                Async::Ready(<span class="prelude-val">Some</span>(chunk)) =&gt; chunk,
-                Async::Ready(<span class="prelude-val">None</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::Ready(<span class="self">self</span>.finish(<span class="bool-val">false</span>)<span class="question-mark">?</span>)),
-                Async::NotReady =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::NotReady),
-            };
-
-            <span class="self">self</span>.chunks.push(chunk.clone());
-            <span class="kw">if </span><span class="self">self</span>.decoder.decode(chunk)<span class="question-mark">? </span>{
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::Ready(<span class="self">self</span>.finish(<span class="bool-val">true</span>)<span class="question-mark">?</span>));
-            }
-        }
-    }
+    <span class="prelude-val">Ok</span>(line.filter(|line| !line.is_empty()))
 }
 
 <span class="attr">#[cfg(test)]
@@ -240,44 +205,44 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>relay_test::TestRequest;
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_empty() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_empty() {
         relay_test::setup();
 
         <span class="kw">let </span>request = TestRequest::with_state(())
             .set_payload(<span class="string">&quot;&quot;</span>.to_string())
             .finish();
 
-        <span class="kw">let </span>opt = relay_test::block_fn(<span class="kw">move </span>|| PeekLine::new(<span class="kw-2">&amp;</span>request, <span class="number">10</span>)).unwrap();
+        <span class="kw">let </span>opt = peek_line(<span class="kw-2">&amp;</span>request, <span class="number">10</span>).<span class="kw">await</span>.unwrap();
         <span class="macro">assert_eq!</span>(opt, <span class="prelude-val">None</span>);
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_one_line() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_one_line() {
         relay_test::setup();
 
         <span class="kw">let </span>request = TestRequest::with_state(())
             .set_payload(<span class="string">&quot;test&quot;</span>.to_string())
             .finish();
 
-        <span class="kw">let </span>opt = relay_test::block_fn(<span class="kw">move </span>|| PeekLine::new(<span class="kw-2">&amp;</span>request, <span class="number">10</span>)).unwrap();
+        <span class="kw">let </span>opt = peek_line(<span class="kw-2">&amp;</span>request, <span class="number">10</span>).<span class="kw">await</span>.unwrap();
         <span class="macro">assert_eq!</span>(opt, <span class="prelude-val">Some</span>(<span class="string">&quot;test&quot;</span>.into()));
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_linebreak() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_linebreak() {
         relay_test::setup();
 
         <span class="kw">let </span>request = TestRequest::with_state(())
             .set_payload(<span class="string">&quot;test\ndone&quot;</span>.to_string())
             .finish();
 
-        <span class="kw">let </span>opt = relay_test::block_fn(<span class="kw">move </span>|| PeekLine::new(<span class="kw-2">&amp;</span>request, <span class="number">10</span>)).unwrap();
+        <span class="kw">let </span>opt = peek_line(<span class="kw-2">&amp;</span>request, <span class="number">10</span>).<span class="kw">await</span>.unwrap();
         <span class="macro">assert_eq!</span>(opt, <span class="prelude-val">Some</span>(<span class="string">&quot;test&quot;</span>.into()));
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_limit_satisfied() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_limit_satisfied() {
         relay_test::setup();
 
         <span class="kw">let </span>payload = <span class="string">&quot;test\ndone&quot;</span>;
@@ -286,12 +251,12 @@
             .finish();
 
         <span class="comment">// NOTE: Newline fits into the size limit.
-        </span><span class="kw">let </span>opt = relay_test::block_fn(<span class="kw">move </span>|| PeekLine::new(<span class="kw-2">&amp;</span>request, <span class="number">5</span>)).unwrap();
+        </span><span class="kw">let </span>opt = peek_line(<span class="kw-2">&amp;</span>request, <span class="number">5</span>).<span class="kw">await</span>.unwrap();
         <span class="macro">assert_eq!</span>(opt, <span class="prelude-val">Some</span>(<span class="string">&quot;test&quot;</span>.into()));
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_limit_exceeded() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_limit_exceeded() {
         relay_test::setup();
 
         <span class="kw">let </span>payload = <span class="string">&quot;test\ndone&quot;</span>;
@@ -301,13 +266,24 @@
 
         <span class="comment">// NOTE: newline is not found within the size limit. even though the payload would fit,
         // according to the doc comment we return `None`.
-        </span><span class="kw">let </span>opt = relay_test::block_fn(<span class="kw">move </span>|| PeekLine::new(<span class="kw-2">&amp;</span>request, <span class="number">4</span>)).unwrap();
+        </span><span class="kw">let </span>opt = peek_line(<span class="kw-2">&amp;</span>request, <span class="number">4</span>).<span class="kw">await</span>.unwrap();
         <span class="macro">assert_eq!</span>(opt, <span class="prelude-val">None</span>);
     }
 
-    <span class="comment">// NB: Repeat polls cannot be tested unfortunately, since `Payload::set_read_buffer_capacity`
-    // does not take effect in test requests, and the sender returned by `Payload::new` does not
-    // have a public interface.
-</span>}
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_shared_payload() {
+        relay_test::setup();
+
+        <span class="kw">let </span>request = TestRequest::with_state(())
+            .set_payload(<span class="string">&quot;test\ndone&quot;</span>.to_string())
+            .finish();
+
+        peek_line(<span class="kw-2">&amp;</span>request, <span class="number">10</span>).<span class="kw">await</span>.unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>payload = SharedPayload::get(<span class="kw-2">&amp;</span>request);
+        <span class="kw">let </span>chunk = payload.chunk().<span class="kw">await</span>.unwrap();
+        <span class="macro">assert_eq!</span>(chunk.as_deref(), <span class="prelude-val">Some</span>(<span class="string">b&quot;test\ndone&quot;</span>.as_slice()));
+    }
+}
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

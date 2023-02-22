@@ -65,63 +65,58 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
-<span class="kw">use </span>futures01::Future;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{HttpRequest, HttpResponse};
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use </span><span class="kw">crate</span>::body::RequestBody;
+<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::constants::UNREAL_USER_HEADER;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
 
-<span class="kw">fn </span>extract_envelope(
+<span class="kw">async fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>user_id = request.query().get(<span class="string">&quot;UserID&quot;</span>).cloned();
     <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
 
-    <span class="kw">let </span>future = RequestBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::from)
-        .and_then(<span class="kw">move </span>|data| {
-            <span class="kw">if </span>data.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
-            }
+    <span class="kw">let </span>data = body::request_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">if </span>data.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+    }
 
-            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
 
-            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UnrealReport);
-            item.set_payload(ContentType::OctetStream, data);
-            envelope.add_item(item);
+    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UnrealReport);
+    item.set_payload(ContentType::OctetStream, data);
+    envelope.add_item(item);
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user_id {
-                envelope.set_header(UNREAL_USER_HEADER, user_id);
-            }
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user_id {
+        envelope.set_header(UNREAL_USER_HEADER, user_id);
+    }
 
-            <span class="prelude-val">Ok</span>(envelope)
-        });
-
-    Box::new(future)
+    <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">fn </span>store_unreal(
+<span class="kw">async fn </span>store_unreal(
     meta: RequestMeta,
     request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
-    common::handle_store_like_request(
-        meta,
-        request,
-        extract_envelope,
-        <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t
-        // care about it.
-        </span>common::create_text_event_id_response,
-        <span class="bool-val">false</span>,
-    )
+) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>id = envelope.event_id();
+
+    <span class="comment">// Never respond with a 429 since clients often retry these
+    </span><span class="kw">match </span>common::handle_envelope(request.state(), envelope).<span class="kw">await </span>{
+        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
+        <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
+    };
+
+    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t
+    // care about it.
+    </span><span class="prelude-val">Ok</span>(common::create_text_event_id_response(id))
 }
 
 <span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
@@ -130,7 +125,8 @@
             <span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),
             |r| {
                 r.name(<span class="string">&quot;store-unreal&quot;</span>);
-                r.post().with(store_unreal);
+                r.post()
+                    .with_async(|m, r| common::handler(store_unreal(m, r)));
             },
         )
         .register()
