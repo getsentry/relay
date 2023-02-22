@@ -1,34 +1,28 @@
 //! Handles envelope store requests.
 
-use actix::prelude::*;
 use actix_web::{HttpRequest, HttpResponse};
-use futures01::Future;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
 
-use crate::body::StoreBody;
+use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
 use crate::extractors::{EnvelopeMeta, RequestMeta};
 use crate::service::{ServiceApp, ServiceState};
 
-fn extract_envelope(
+async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
+) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_payload_size = request.state().config().max_envelope_size();
-    let future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::from)
-        .and_then(move |data| {
-            if data.is_empty() {
-                return Err(BadStoreRequest::EmptyBody);
-            }
+    let data = body::store_body(request, max_payload_size).await?;
 
-            Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
-        });
+    if data.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
+    }
 
-    Box::new(future)
+    Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
 }
 
 #[derive(Serialize)]
@@ -37,24 +31,22 @@ struct StoreResponse {
     id: Option<EventId>,
 }
 
-fn create_response(id: Option<EventId>) -> HttpResponse {
-    HttpResponse::Ok().json(StoreResponse { id })
-}
-
 /// Handler for the envelope store endpoint.
-fn store_envelope(
+async fn store_envelope(
     envelope_meta: EnvelopeMeta,
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let meta = envelope_meta.into_inner();
-    common::handle_store_like_request(meta, request, extract_envelope, create_response, true)
+) -> Result<HttpResponse, BadStoreRequest> {
+    let envelope = extract_envelope(&request, envelope_meta.into_inner()).await?;
+    let id = common::handle_envelope(request.state(), envelope).await?;
+    Ok(HttpResponse::Ok().json(StoreResponse { id }))
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
         .resource(&common::normpath(r"/api/{project:\d+}/envelope/"), |r| {
             r.name("store-envelope");
-            r.post().with(store_envelope);
+            r.post()
+                .with_async(|e, r| common::handler(store_envelope(e, r)));
         })
         .register()
 }
