@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add PHP support. ([#1871](https://github.com/getsentry/relay/pull/1871))
+
 ## 23.2.0
 
 **Features**:
