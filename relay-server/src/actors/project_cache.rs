@@ -468,7 +468,7 @@ impl ProjectCacheBroker {
         } = message;
 
         self.get_or_create_project(project_key)
-            .update_state(state, no_cache);
+            .update_state(state, no_cache)
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -478,13 +478,18 @@ impl ProjectCacheBroker {
         } = message;
 
         // Bump the update time of the project in our hashmap to evade eviction.
-        self.get_or_create_project(project_key)
-            .refresh_updated_timestamp();
+        let project = self.get_or_create_project(project_key);
+        project.refresh_updated_timestamp();
+        let next_attempt = project.next_fetch_attempt();
 
         let source = self.source.clone();
         let sender = self.state_tx.clone();
 
         tokio::spawn(async move {
+            // Wait on the new attempt time when set.
+            if let Some(next_attempt) = next_attempt {
+                tokio::time::sleep_until(next_attempt).await;
+            }
             let state = source
                 .fetch(project_key, no_cache)
                 .await
