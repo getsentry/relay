@@ -49,7 +49,7 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
     SamplingResult,
@@ -1749,6 +1749,13 @@ impl EnvelopeProcessorService {
                 metric!(
                     counter(RelayCounters::EventTransactionSource) += 1,
                     source = &source.to_string(),
+                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                    platform = event.platform.as_str().unwrap_or("other"),
+                );
+
+                let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
+                metric!(
+                    histogram(RelayHistograms::EventSpans) = span_count,
                     sdk = envelope.meta().client_name().unwrap_or("proprietary"),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );

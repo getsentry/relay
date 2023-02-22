@@ -405,7 +405,7 @@ impl Serialize for Error {
 /// Meta information for a data field in the event payload.
 #[derive(Clone, Deserialize, Serialize)]
 pub struct MetaInner {
-    /// Remarks detailling modifications of this field.
+    /// Remarks detailing modifications of this field.
     #[serde(default, skip_serializing_if = "SmallVec::is_empty", rename = "rem")]
     remarks: SmallVec<[Remark; 3]>,
 

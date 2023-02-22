@@ -1,7 +1,5 @@
-use actix_web::{actix::ResponseFuture, http::Method, HttpRequest, HttpResponse};
-use futures01::Future;
+use actix_web::{http::Method, HttpRequest, HttpResponse};
 
-use relay_common::tryf;
 use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
@@ -10,43 +8,37 @@ use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::MultipartItems;
 
-fn extract_envelope(
+async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
-    let event_id = tryf!(request
+) -> Result<Box<Envelope>, BadStoreRequest> {
+    let event_id = request
         .match_info()
         .get("event_id")
         .unwrap_or_default()
         .parse::<EventId>()
-        .map_err(|_| BadStoreRequest::InvalidEventId));
+        .map_err(|_| BadStoreRequest::InvalidEventId)?;
 
     let max_payload_size = request.state().config().max_attachments_size();
-    let future = MultipartItems::new(max_payload_size)
+    let items = MultipartItems::new(max_payload_size)
         .handle_request(request)
-        .map_err(BadStoreRequest::InvalidMultipart)
-        .map(move |items| {
-            let mut envelope = Envelope::from_request(Some(event_id), meta);
+        .await
+        .map_err(BadStoreRequest::InvalidMultipart)?;
 
-            for item in items {
-                envelope.add_item(item);
-            }
-
-            envelope
-        });
-
-    Box::new(future)
+    let mut envelope = Envelope::from_request(Some(event_id), meta);
+    for item in items {
+        envelope.add_item(item);
+    }
+    Ok(envelope)
 }
 
-fn create_response(_: Option<EventId>) -> HttpResponse {
-    HttpResponse::Created().finish()
-}
-
-fn store_attachment(
+async fn store_attachment(
     meta: RequestMeta,
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    common::handle_store_like_request(meta, request, extract_envelope, create_response, true)
+) -> Result<HttpResponse, BadStoreRequest> {
+    let envelope = extract_envelope(&request, meta).await?;
+    common::handle_envelope(request.state(), envelope).await?;
+    Ok(HttpResponse::Created().finish())
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
@@ -55,7 +47,8 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
         .resource(&url_pattern, |r| {
             r.name("store-attachment");
-            r.method(Method::POST).with(store_attachment);
+            r.method(Method::POST)
+                .with_async(|r, m| common::handler(store_attachment(r, m)));
         })
         .register()
 }

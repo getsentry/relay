@@ -8,6 +8,7 @@ use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures01::{Async, Poll, Stream};
+
 use relay_config::HttpEncoding;
 
 use crate::extractors::SharedPayload;
@@ -140,12 +141,12 @@ impl Decoder {
     /// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this
     /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
     /// error decoding.
-    pub fn decode(&mut self, bytes: Bytes) -> io::Result<bool> {
+    pub fn decode(&mut self, bytes: &[u8]) -> io::Result<bool> {
         match &mut self.inner {
-            DecoderInner::Identity(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Br(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Gzip(inner) => write_overflowing(inner, &bytes),
-            DecoderInner::Deflate(inner) => write_overflowing(inner, &bytes),
+            DecoderInner::Identity(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Br(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Gzip(inner) => write_overflowing(inner, bytes),
+            DecoderInner::Deflate(inner) => write_overflowing(inner, bytes),
         }
     }
 
@@ -227,7 +228,7 @@ impl Stream for DecodingPayload {
                 Async::NotReady => return Ok(Async::NotReady),
             };
 
-            if self.decoder.decode(encoded)? {
+            if self.decoder.decode(&encoded)? {
                 return Err(PayloadError::Overflow);
             }
 

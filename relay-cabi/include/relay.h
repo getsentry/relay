@@ -579,4 +579,10 @@ struct RelayStr relay_validate_sampling_condition(const struct RelayStr *value);
  */
 struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
+/**
+ * Validate entire project config. If `strict` is true, verify that reserializing the parsed
+ * config results in the same fields as the original.
+ */
+struct RelayStr relay_validate_project_config(const struct RelayStr *value, bool strict);
+
 #endif /* RELAY_H_INCLUDED */

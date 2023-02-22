@@ -461,6 +461,11 @@ impl Project {
         }
     }
 
+    /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
+    pub fn next_fetch_attempt(&self) -> Option<Instant> {
+        self.next_fetch_attempt
+    }
+
     /// The rate limits that are active for this project.
     pub fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
@@ -520,6 +525,13 @@ impl Project {
         }
     }
 
+    /// Returns `true` if backoff expired and new attempt can be triggered.
+    fn can_fetch(&self) -> bool {
+        self.next_fetch_attempt
+            .map(|next_attempt_at| next_attempt_at <= Instant::now())
+            .unwrap_or(true)
+    }
+
     /// Triggers a debounced refresh of the project state.
     ///
     /// If the state is already being updated in the background, this method checks if the request
@@ -529,10 +541,7 @@ impl Project {
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
         let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
-            && self
-                .next_fetch_attempt
-                .map(|next_attempt_at| next_attempt_at <= Instant::now())
-                .unwrap_or(true);
+            && self.can_fetch();
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
@@ -684,15 +693,15 @@ impl Project {
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
-            Some(state) => self.flush_validation(envelope, context, state),
-            None => self.pending_validations.push_back((envelope, context)),
+            Some(state) if !state.invalid() => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
         }
     }
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
         // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if let Some(state) = self.valid_state() {
+        if let Some(state) = self.valid_state().filter(|state| !state.invalid()) {
             // Never use rules from another organization.
             if state.organization_id == message.project_state.organization_id {
                 message.sampling_project_state = Some(state);
@@ -754,6 +763,18 @@ impl Project {
             _ => self.state = Some(state.clone()),
         }
 
+        // If the state is still invalid, return back the taken channel and schedule state update.
+        if state.invalid() {
+            self.state_channel = Some(channel);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
+            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+            return;
+        }
+
         // Flush all queued `ValidateEnvelope` messages
         while let Some((envelope, context)) = self.pending_validations.pop_front() {
             self.flush_validation(envelope, context, state.clone());
@@ -787,12 +808,23 @@ impl Project {
         })
     }
 
+    /// Runs the checks on incoming envelopes.
+    ///
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    ///
+    /// * checks the rate limits
+    /// * validates the envelope meta in `check_request` - determines whether the given request
+    ///   should be accepted or discarded
+    ///
+    /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
+    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// pipeline.
     pub fn check_envelope(
         &mut self,
         mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.valid_state();
+        let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
 
         if let Some(ref state) = state {
