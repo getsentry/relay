@@ -199,6 +199,10 @@ impl StoreService {
             }
         }
 
+        if event_item.is_none() && attachments.is_empty() {
+            return Ok(());
+        }
+
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
         let kafka_messages = Self::extract_kafka_messages(
