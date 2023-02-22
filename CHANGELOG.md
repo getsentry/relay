@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Revert back the addition of metric names as tag on Sentry errors when relay drops metrics.
+- Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
 
 ## 23.2.0
 
