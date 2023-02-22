@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
+
 ## 23.2.0
 
 **Features**:
