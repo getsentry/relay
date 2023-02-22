@@ -5,6 +5,7 @@
 **Internal**:
 
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
+- Add PHP support. ([#1871](https://github.com/getsentry/relay/pull/1871))
 
 ## 23.2.0
 
