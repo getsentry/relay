@@ -220,7 +220,7 @@ impl StoreService {
                             event_type = "attachment"
                         );
                     }
-                    KafkaMessage::Event(_) => {
+                    _ => {
                         if let Some(event_item) = event_item {
                             metric!(
                                 counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -228,7 +228,6 @@ impl StoreService {
                             );
                         }
                     }
-                    _ => {}
                 }
             }
         }
