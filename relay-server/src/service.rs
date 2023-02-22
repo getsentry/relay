@@ -210,7 +210,7 @@ impl ServiceState {
         })
     }
 
-    /// Returns an reference to the Relay configuration.
+    /// Returns a reference to the Relay configuration.
     pub fn config(&self) -> &Config {
         &self.config
     }
