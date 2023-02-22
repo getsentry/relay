@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Revert back the addition of metric names as tag on Sentry errors when relay drops metrics.
+
 ## 23.2.0
 
 **Features**:
