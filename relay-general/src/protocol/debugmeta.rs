@@ -412,6 +412,43 @@ pub struct NativeDebugImage {
     pub other: Object<Value>,
 }
 
+/// A debug image pointing to a source map.
+///
+/// Examples:
+///
+/// ```json
+/// {
+///   "type": "sourcemap",
+///   "code_file": "https://example.com/static/js/main.min.js",
+///   "debug_id": "395835f4-03e0-4436-80d3-136f0749a893"
+/// }
+/// ```
+///
+/// **Note:** Stack frames and the correlating entries in the debug image here
+/// for `code_file`/`abs_path` are not PII stripped as they need to line up
+/// perfectly for source map processing.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct SourceMapDebugImage {
+    /// Path and name of the image file as URL. (required).
+    ///
+    /// The absolute path to the minified JavaScript file.  This helps to correlate the file to the stack trace.
+    #[metastructure(required = "true")]
+    pub code_file: Annotated<String>,
+
+    /// Unique debug identifier of the source map.
+    #[metastructure(required = "true")]
+    pub debug_id: Annotated<DebugId>,
+
+    /// Path and name of the associated source map.
+    #[metastructure(pii = "maybe")]
+    pub debug_file: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
 /// Proguard mapping file.
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
@@ -449,6 +486,8 @@ pub enum DebugImage {
     Proguard(Box<ProguardDebugImage>),
     /// WASM debug image.
     Wasm(Box<NativeDebugImage>),
+    /// Source map debug image.
+    SourceMap(Box<SourceMapDebugImage>),
     /// A debug image that is unknown to this protocol specification.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
@@ -810,6 +849,34 @@ mod tests {
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
+
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_source_map_image_roundtrip() {
+        let json = r#"{
+  "code_file": "https://mycdn.invalid/foo.js.min",
+  "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578",
+  "debug_file": "https://mycdn.invalid/foo.js.map",
+  "other": "value",
+  "type": "sourcemap"
+}"#;
+
+        let image = Annotated::new(DebugImage::SourceMap(Box::new(SourceMapDebugImage {
+            code_file: Annotated::new("https://mycdn.invalid/foo.js.min".into()),
+            debug_file: Annotated::new("https://mycdn.invalid/foo.js.map".into()),
+            debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578".parse().unwrap()),
             other: {
                 let mut map = Object::new();
                 map.insert(
