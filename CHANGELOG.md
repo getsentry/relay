@@ -6,6 +6,7 @@
 
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
 - Add PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871))
+- Add Javascript support for profiling. ([#1876](https://github.com/getsentry/relay/pull/1876))
 
 **Internal**:
 
