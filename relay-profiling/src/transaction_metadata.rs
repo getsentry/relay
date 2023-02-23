@@ -13,9 +13,17 @@ pub struct TransactionMetadata {
     #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub active_thread_id: u64,
 
-    #[serde(deserialize_with = "deserialize_number_from_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
     pub relative_start_ns: u64,
-    #[serde(deserialize_with = "deserialize_number_from_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
     pub relative_end_ns: u64,
 
     // Android might have a CPU clock for the trace
@@ -35,11 +43,7 @@ pub struct TransactionMetadata {
 
 impl TransactionMetadata {
     pub fn valid(&self) -> bool {
-        !self.id.is_nil()
-            && !self.name.is_empty()
-            && !self.trace_id.is_nil()
-            && self.relative_cpu_start_ms <= self.relative_cpu_end_ms
-            && self.relative_start_ns < self.relative_end_ns
+        !self.id.is_nil() && !self.name.is_empty() && !self.trace_id.is_nil()
     }
 
     pub fn duration_ns(&self) -> u64 {
