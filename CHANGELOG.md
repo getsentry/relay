@@ -9,7 +9,7 @@
 
 **Bug Fixes**:
 
-- Enforce rate limits for session replays. ([#1877]https://github.com/getsentry/relay/pull/1877)
+- Enforce rate limits for session replays. ([#1877](https://github.com/getsentry/relay/pull/1877))
 
 **Internal**:
 
