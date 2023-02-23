@@ -1,4 +1,6 @@
-use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+use crate::protocol::{
+    DataElement, JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId,
+};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -45,7 +47,7 @@ pub struct Span {
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
     #[metastructure(pii = "maybe")]
-    pub data: Annotated<Object<Value>>,
+    pub data: Annotated<DataElement>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -57,6 +59,8 @@ pub struct Span {
 mod tests {
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
+
+    use crate::protocol::HttpElement;
 
     use super::*;
 
@@ -70,7 +74,12 @@ mod tests {
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "status": "ok"
+  "status": "ok",
+  "data": {
+    "http": {
+      "query": "is_sample_query=true"
+    }
+  }
 }"#;
 
         let span = Annotated::new(Span {
@@ -84,6 +93,13 @@ mod tests {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
+            data: Annotated::new(DataElement {
+                http: Annotated::new(HttpElement {
+                    query: Annotated::new("is_sample_query=true".to_owned()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());
