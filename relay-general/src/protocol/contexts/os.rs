@@ -65,13 +65,9 @@ impl FromUserAgentInfo for OsContext {
             return None;
         }
 
-        let version = client_hints.sec_ch_ua_platform_version.map(|version| {
-            version
-                .trim()
-                .trim_start_matches('\"')
-                .trim_end_matches('\"')
-                .to_owned()
-        });
+        let version = client_hints
+            .sec_ch_ua_platform_version
+            .map(|version| version.trim().replace('\"', ""));
 
         Some(Self {
             name: Annotated::new(platform),
