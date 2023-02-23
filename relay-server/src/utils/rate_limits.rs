@@ -562,7 +562,7 @@ where
             return false;
         }
 
-        // Remove replays independently of events
+        // Remove replays independently of events.
         if enforcement.replays.is_active()
             && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
         {
