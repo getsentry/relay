@@ -492,102 +492,67 @@ pub trait GaugeMetric {
 macro_rules! metric {
     // counter increment
     (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::CounterMetric::name(&$id));
-            }, || {
-                $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), $value)
-                        $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            }
-        )
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric(
+                client.count_with_tags(&$crate::CounterMetric::name(&$id), $value)
+                $(.with_tag(stringify!($k), $v))*
+            )
+        })
     };
 
     // counter decrement
     (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::CounterMetric::name(&$id));
-            }, || {
-                $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), -$value)
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            }
-        )
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric(
+                client.count_with_tags(&$crate::CounterMetric::name(&$id), -$value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
+        })
     };
 
     // gauge set
     (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
-            relay_log::with_scope(
-                |scope| {
-                    scope.set_tag("key", &$crate::GaugeMetric::name(&$id));
-                }, || {
-                    client.send_metric(
-                        client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                }
+            client.send_metric(
+                client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
             )
         })
     };
 
     // histogram
     (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        use $crate::_pred::*;
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::HistogramMetric::name(&$id));
-            }, || {
-                $crate::with_client(|client| {
-                    client.send_metric(
-                        client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            }
-        )
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric(
+                client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
+        })
     };
 
     // sets (count unique occurrences of a value per time interval)
     (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        use $crate::_pred::*;
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::SetMetric::name(&$id));
-            }, || {
-                $crate::with_client(|client| {
-                    client.send_metric(
-                        client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            }
-        )
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric(
+                client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
+        })
     };
 
     // timer value (duration)
     (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::TimerMetric::name(&$id));
-            }, || {
-                use $crate::_pred::*;
-                client.send_metric(
-                    client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
-                        $(.with_tag(stringify!($k), $v))*
-                )
-            })
+            use $crate::_pred::*;
+            client.send_metric(
+                client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -595,19 +560,13 @@ macro_rules! metric {
     (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("key", &$crate::TimerMetric::name(&$id));
-            }, || {
-                $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                });
-            }
-        );
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric(
+                client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
+                    $(.with_tag(stringify!($k), $v))*
+            )
+        });
         rv
     }};
 }
