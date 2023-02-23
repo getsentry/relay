@@ -58,6 +58,9 @@ impl FromUserAgentInfo for OsContext {
             .trim_end_matches('\"')
             .to_owned();
 
+        // We only return early if the platform is empty, not the version number. This is because
+        // an empty version number might suggest that the user need to request additional
+        // client hints data.
         if platform.is_empty() {
             return None;
         }
