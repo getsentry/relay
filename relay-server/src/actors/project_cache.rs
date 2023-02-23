@@ -1,3 +1,5 @@
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -12,7 +14,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 
 use crate::actors::outcome::DiscardReason;
-use crate::actors::processor::ProcessEnvelope;
+use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
@@ -136,6 +138,7 @@ impl CheckEnvelope {
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+#[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: Box<Envelope>,
     context: EnvelopeContext,
@@ -144,27 +147,6 @@ pub struct ValidateEnvelope {
 impl ValidateEnvelope {
     pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
         Self { envelope, context }
-    }
-}
-
-/// Adds the project state for dynamic sampling and sends the envelope to processing.
-///
-/// If the project state is up to date, the envelope will be immediately submitted for processing.
-/// Otherwise, this queues the envelope and flushes it when the project has been updated.
-///
-/// This message will trigger an update of the project state internally if the state is stale or
-/// outdated.
-pub struct AddSamplingState {
-    project_key: ProjectKey,
-    message: ProcessEnvelope,
-}
-
-impl AddSamplingState {
-    pub fn new(project_key: ProjectKey, message: ProcessEnvelope) -> Self {
-        Self {
-            project_key,
-            message,
-        }
     }
 }
 
@@ -206,7 +188,6 @@ pub enum ProjectCache {
         Sender<Result<CheckedEnvelope, DiscardReason>>,
     ),
     ValidateEnvelope(ValidateEnvelope),
-    AddSamplingState(AddSamplingState),
     UpdateRateLimits(UpdateRateLimits),
     InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
@@ -264,14 +245,6 @@ impl FromMessage<ValidateEnvelope> for ProjectCache {
 
     fn from_message(message: ValidateEnvelope, _: ()) -> Self {
         Self::ValidateEnvelope(message)
-    }
-}
-
-impl FromMessage<AddSamplingState> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: AddSamplingState, _: ()) -> Self {
-        Self::AddSamplingState(message)
     }
 }
 
@@ -400,6 +373,71 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+struct QueueKey {
+    key: ProjectKey,
+    sampling_key: ProjectKey,
+}
+
+/// The queue (buffer) of the incoming envelopes.
+#[derive(Debug, Default)]
+struct Queue {
+    /// Contains the cache of the incoming envelopes.
+    pub spool: HashMap<QueueKey, VecDeque<(Box<Envelope>, EnvelopeContext)>>,
+    // /// Index of the spooled ProjectKey
+    // pub index: HashMap<ProjectKey, Vec<QueueKey>>,
+}
+
+impl Queue {
+    /// Create a new empty queue.
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds the value to the queue for the provided key.
+    fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
+        // for k in &[key.key, key.sampling_key] {
+        //     match self.index.entry(*k) {
+        //         std::collections::hash_map::Entry::Occupied(o) => o.into_mut().push(key),
+        //         std::collections::hash_map::Entry::Vacant(v) => {
+        //             v.insert(Vec::from([key]));
+        //         }
+        //     }
+        //     if key.key == key.sampling_key {
+        //         break;
+        //     }
+        // }
+
+        match self.spool.entry(key) {
+            Entry::Occupied(o) => o.into_mut().push_back(value),
+            Entry::Vacant(v) => {
+                v.insert(VecDeque::from([value]));
+            }
+        }
+    }
+
+    /// Get all the envelopes, which belong to this project.
+    fn dequeue(&mut self, key: ProjectKey) -> VecDeque<(Box<Envelope>, EnvelopeContext)> {
+        // Find all the keys combinations for his project.
+        let keys: Vec<_> = self
+            .spool
+            .iter()
+            .filter(|(k, _)| k.key == key || k.sampling_key == key)
+            .map(|(k, _)| k)
+            .copied()
+            .collect();
+
+        // Remove all the spooled data for this project key and return it to the caller.
+        let mut values = VecDeque::new();
+        for k in keys {
+            if let Some(value) = self.spool.remove(&k) {
+                values.extend(value)
+            }
+        }
+        values
+    }
+}
+
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -412,6 +450,7 @@ struct ProjectCacheBroker {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    spool: Queue,
 }
 
 impl ProjectCacheBroker {
@@ -467,8 +506,18 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
 
+        let invalid = state.invalid();
+
         self.get_or_create_project(project_key)
-            .update_state(state, no_cache)
+            .update_state(state, no_cache);
+
+        // There is no much sense to dequeue and check anything if the incoming state is invalid.
+        if !invalid {
+            let mut envelopes = self.spool.dequeue(project_key);
+            while let Some((envelope, envelope_context)) = envelopes.pop_front() {
+                self.handle_processing(envelope, envelope_context)
+            }
+        }
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -529,20 +578,121 @@ impl ProjectCacheBroker {
         project.check_envelope(message.envelope, message.context)
     }
 
-    fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        // Preload the project cache for dynamic sampling in parallel to the main one.
-        if let Some(sampling_key) = utils::get_sampling_key(&message.envelope) {
-            self.get_or_create_project(sampling_key)
-                .prefetch(message.envelope.meta().no_cache());
+    fn check_envelope(
+        &mut self,
+        project_key: ProjectKey,
+        envelope: Box<Envelope>,
+        envelope_context: EnvelopeContext,
+    ) -> Option<(Box<Envelope>, EnvelopeContext)> {
+        if let Ok(checked) = self
+            .get_or_create_project(project_key)
+            .check_envelope(envelope, envelope_context)
+        {
+            checked.envelope
+        } else {
+            None
         }
-
-        self.get_or_create_project(message.envelope.meta().public_key())
-            .enqueue_validation(message.envelope, message.context);
     }
 
-    fn handle_add_sampling_state(&mut self, message: AddSamplingState) {
-        self.get_or_create_project(message.project_key)
-            .enqueue_sampling(message.message);
+    /// Checks the incoming envelope and decide either process it immediately or spool it.
+    ///
+    /// TODO(spool): docs
+    fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
+        // Get our project key
+        let key = envelope.meta().public_key();
+        // Check is there is a sampling key on this envelope.
+        let sampling_key = utils::get_sampling_key(&envelope);
+
+        // Fetch the project state for our key and make sure it's not invalid.
+        let project_state = self
+            .get_or_create_project(key)
+            .get_cached_state(envelope.meta().no_cache())
+            .filter(|st| !st.invalid());
+
+        // Also, try to fetch the project state for sampling key and make sure it's not invalid.
+        let sampling_project_state = sampling_key.map(|key| {
+            (
+                key,
+                self.get_or_create_project(key)
+                    .get_cached_state(envelope.meta().no_cache())
+                    .filter(|st| !st.invalid()),
+            )
+        });
+
+        // Check all the variants.
+        match (project_state, sampling_project_state) {
+            // Process the envelope, we have all the data.
+            (Some(state), Some((_, Some(sampling_state)))) => {
+                if let Some((envelope, envelope_context)) =
+                    self.check_envelope(key, envelope, envelope_context)
+                {
+                    let mut process = ProcessEnvelope {
+                        envelope,
+                        envelope_context,
+                        project_state: state.clone(),
+                        sampling_project_state: None,
+                    };
+
+                    if state.organization_id == sampling_state.organization_id {
+                        process.sampling_project_state = Some(sampling_state)
+                    }
+
+                    EnvelopeProcessor::from_registry().send(process);
+                }
+            }
+
+            // We have a root project, but the samping project is not fetched yet, spool.
+            (Some(_), Some((sampling_key, None))) => {
+                let key = QueueKey { key, sampling_key };
+                self.spool.enqueue(key, (envelope, envelope_context))
+            }
+
+            // Process our envelope, since there is no sampling key on this envelope.
+            (Some(state), None) => {
+                if let Some((envelope, envelope_context)) =
+                    self.check_envelope(key, envelope, envelope_context)
+                {
+                    let process = ProcessEnvelope {
+                        envelope,
+                        envelope_context,
+                        project_state: state,
+                        sampling_project_state: None,
+                    };
+
+                    EnvelopeProcessor::from_registry().send(process);
+                }
+            }
+
+            // There are no state for sampling and root projects here yet, spool.
+            (None, Some((sampling_key, None))) => {
+                let key = QueueKey { key, sampling_key };
+                self.spool.enqueue(key, (envelope, envelope_context))
+            }
+
+            // There is no root project fetched yet, spool.
+            (None, Some((sampling_key, _))) => {
+                let key = QueueKey { key, sampling_key };
+                self.spool.enqueue(key, (envelope, envelope_context))
+            }
+
+            // There is no project state for our envelope, spool.
+            (None, None) => {
+                let key = QueueKey {
+                    key,
+                    sampling_key: key,
+                };
+                self.spool.enqueue(key, (envelope, envelope_context))
+            }
+        }
+    }
+
+    fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
+        let ValidateEnvelope {
+            envelope,
+            context: envelope_context,
+        } = message;
+
+        self.handle_processing(envelope, envelope_context)
     }
 
     fn handle_rate_limits(&mut self, message: UpdateRateLimits) {
@@ -578,11 +728,32 @@ impl ProjectCacheBroker {
                 sender.send(self.handle_check_envelope(message))
             }
             ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
-            ProjectCache::AddSamplingState(message) => self.handle_add_sampling_state(message),
             ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
             ProjectCache::InsertMetrics(message) => self.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
+        }
+    }
+}
+
+impl Drop for ProjectCacheBroker {
+    fn drop(&mut self) {
+        let keys = self.spool.spool.keys();
+
+        if keys.len() > 0 {
+            for key in keys {
+                if let Some(count) = self.spool.spool.get(key).map(|v| v.len()) {
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_tag("project_key", key.key);
+                            if key.key != key.sampling_key {
+                                scope.set_tag("sampling_key", key.sampling_key)
+                            }
+                        },
+                        || relay_log::error!("dropped project with {} envelopes", count),
+                    );
+                }
+            }
         }
     }
 }
@@ -622,6 +793,7 @@ impl Service for ProjectCacheService {
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, redis),
                 state_tx,
+                spool: Queue::new(),
             };
 
             loop {
