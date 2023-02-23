@@ -200,6 +200,7 @@ impl StoreService {
         }
 
         if event_item.is_none() && attachments.is_empty() {
+            // No event-related content. All done.
             return Ok(());
         }
 
