@@ -9,7 +9,7 @@ use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
-use futures01::prelude::*;
+use futures::TryFutureExt;
 
 use relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
 use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
@@ -111,12 +111,13 @@ pub struct ReadRequestMiddleware;
 
 impl<S> Middleware<S> for ReadRequestMiddleware {
     fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
-        let future = SharedPayload::get(req)
-            .for_each(|_| Ok(()))
-            .map(|_| resp)
-            .map_err(Error::from);
+        let payload = SharedPayload::get(req);
+        let future = async move {
+            payload.consume().await;
+            Ok::<_, actix_web::Error>(resp)
+        };
 
-        Ok(Response::Future(Box::new(future)))
+        Ok(Response::Future(Box::new(Box::pin(future).compat())))
     }
 }
 

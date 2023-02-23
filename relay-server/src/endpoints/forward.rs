@@ -8,14 +8,15 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use ::actix::prelude::*;
+use actix::ResponseFuture;
 use actix_web::error::{ParseError, ResponseError};
 use actix_web::http::header::{self, HeaderName, HeaderValue};
 use actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
-use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures01::{future, sync::oneshot, Future as _};
+use futures::TryFutureExt;
 use once_cell::sync::Lazy;
+use tokio::sync::oneshot;
 
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;
@@ -24,7 +25,7 @@ use relay_log::LogError;
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-use crate::body::RequestBody;
+use crate::body;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
@@ -222,13 +223,7 @@ impl UpstreamRequest for ForwardRequest {
 /// This endpoint will create a proxy request to the upstream for every incoming request and stream
 /// the request body back to the origin. Regardless of the incoming connection, the connection to
 /// the upstream uses its own HTTP version and transfer encoding.
-pub fn forward_upstream(
-    request: &HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, Error> {
-    let config = request.state().config();
-    let max_response_size = config.max_api_payload_size();
-    let limit = get_limit_for_path(request.path(), &config);
-
+async fn forward_upstream(request: HttpRequest<ServiceState>) -> Result<HttpResponse, Error> {
     let path_and_query = request
         .uri()
         .path_and_query()
@@ -237,64 +232,61 @@ pub fn forward_upstream(
         .to_owned();
 
     let Ok(method) = Method::from_bytes(request.method().as_ref().as_bytes()) else {
-        return Box::new(future::err(Error::from(ParseError::Method)))
+        return Err(ParseError::Method.into());
     };
 
-    let headers = request.headers().clone();
-    let forwarded_for = ForwardedFor::from(request);
+    let config = request.state().config();
+    let limit = get_limit_for_path(request.path(), config);
+    let data = body::request_body(&request, limit).await?;
 
-    RequestBody::new(request, limit)
-        .map_err(Error::from)
-        .and_then(move |data| {
-            let (tx, rx) = oneshot::channel();
+    let (tx, rx) = oneshot::channel();
+    UpstreamRelay::from_registry().send(SendRequest(ForwardRequest {
+        method,
+        path: path_and_query,
+        headers: request.headers().clone(),
+        forwarded_for: ForwardedFor::from(&request),
+        data,
+        max_response_size: config.max_api_payload_size(),
+        sender: tx,
+    }));
 
-            let forward_request = ForwardRequest {
-                method,
-                path: path_and_query,
-                headers,
-                forwarded_for,
-                data,
-                max_response_size,
-                sender: tx,
-            };
+    let (status, headers, body) = rx
+        .await
+        .map_err(|_| ForwardedUpstreamRequestError(UpstreamRequestError::ChannelClosed))?
+        .map_err(ForwardedUpstreamRequestError)?;
 
-            UpstreamRelay::from_registry().send(SendRequest(forward_request));
+    let mut forwarded_response = HttpResponse::build(status);
+    let mut has_content_type = false;
 
-            rx.map_err(|_| UpstreamRequestError::ChannelClosed)
-                .flatten()
-                .map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
-        })
-        .and_then(move |(status, headers, body)| {
-            let mut forwarded_response = HttpResponse::build(status);
-            let mut has_content_type = false;
+    for (key, value) in headers {
+        if key == "content-type" {
+            has_content_type = true;
+        }
 
-            for (key, value) in headers {
-                if key == "content-type" {
-                    has_content_type = true;
-                }
+        // 2. Just pass content-length, content-encoding etc through
+        if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
+            continue;
+        }
 
-                // 2. Just pass content-length, content-encoding etc through
-                if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
-                    continue;
-                }
+        forwarded_response.header(&key, &*value);
+    }
 
-                forwarded_response.header(&key, &*value);
-            }
+    // For reqwest the option to disable automatic response decompression can only be
+    // set per-client. For non-forwarded upstream requests that is desirable, so we
+    // keep it enabled.
+    //
+    // Essentially this means that content negotiation is done twice, and the response
+    // body is first decompressed by reqwest, then re-compressed by actix-web.
 
-            // For reqwest the option to disable automatic response decompression can only be
-            // set per-client. For non-forwarded upstream requests that is desirable, so we
-            // keep it enabled.
-            //
-            // Essentially this means that content negotiation is done twice, and the response
-            // body is first decompressed by reqwest, then re-compressed by actix-web.
+    Ok(if has_content_type {
+        forwarded_response.body(body)
+    } else {
+        forwarded_response.finish()
+    })
+}
 
-            Ok(if has_content_type {
-                forwarded_response.body(body)
-            } else {
-                forwarded_response.finish()
-            })
-        })
-        .responder()
+pub fn forward_compat(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
+    Box::new(Box::pin(forward_upstream(request.clone())).compat())
 }
 
 /// Registers this endpoint in the actix-web app.
@@ -308,5 +300,5 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         r.name("api-root");
         r.f(statics::not_found)
     })
-    .handler("/api", forward_upstream)
+    .handler("/api", forward_compat)
 }

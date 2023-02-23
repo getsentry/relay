@@ -18,6 +18,7 @@ use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricVal
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
 use crate::statsd::RelayCounters;
+use crate::utils::SamplingResult;
 
 /// Error returned from [`extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -287,14 +288,16 @@ fn extract_universal_tags(
     tags
 }
 
+#[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
 pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
-    project_metrics: &mut Vec<Metric>,
-    sampling_metrics: &mut Vec<Metric>,
     transaction_from_dsc: Option<&str>,
+    sampling_result: &SamplingResult,
+    project_metrics: &mut Vec<Metric>,  // output parameter
+    sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
@@ -303,6 +306,7 @@ pub fn extract_transaction_metrics(
         config,
         event,
         transaction_from_dsc,
+        sampling_result,
         project_metrics,
         sampling_metrics,
     )?;
@@ -317,6 +321,7 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     event: &Event,
     transaction_from_dsc: Option<&str>,
+    sampling_result: &SamplingResult,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
@@ -426,6 +431,16 @@ fn extract_transaction_metrics_inner(
         tags_with_satisfaction.clone(),
     ));
 
+    let mut root_counter_tags = BTreeMap::new();
+    if let Some(name) = transaction_from_dsc {
+        root_counter_tags.insert("transaction".to_owned(), name.to_owned());
+    }
+    let decision = match sampling_result {
+        SamplingResult::Keep => "keep".to_owned(),
+        SamplingResult::Drop(_) => "drop".to_owned(),
+    };
+    root_counter_tags.insert("decision".to_owned(), decision);
+
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
@@ -433,10 +448,7 @@ fn extract_transaction_metrics_inner(
         MetricUnit::None,
         MetricValue::Counter(1.0),
         timestamp,
-        match transaction_from_dsc {
-            Some(name) => BTreeMap::from([("transaction".to_owned(), name.to_owned())]),
-            None => BTreeMap::new(),
-        },
+        root_counter_tags,
     ));
 
     // User
@@ -645,9 +657,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -785,9 +798,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -876,9 +890,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -954,9 +969,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1022,9 +1038,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
         assert_eq!(metrics.len(), 2);
@@ -1084,9 +1101,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
@@ -1156,9 +1174,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1240,9 +1259,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1349,9 +1369,10 @@ mod tests {
             &config,
             &tagging_config,
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1435,9 +1456,10 @@ mod tests {
             &config,
             &tagging_config,
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
@@ -1482,9 +1504,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1520,9 +1543,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1567,9 +1591,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         );
 
         assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
@@ -1591,14 +1616,67 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
         metrics[0].tags.get("transaction").cloned()
+    }
+
+    #[test]
+    fn test_root_counter_keep() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "transaction": "ignored",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            Some("root_transaction"),
+            &SamplingResult::Keep,
+            &mut metrics,
+            &mut sampling_metrics,
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(sampling_metrics, @r###"
+        [
+            Metric {
+                name: "c:transactions/count_per_root_project@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "decision": "keep",
+                    "transaction": "root_transaction",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1950,9 +2028,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 

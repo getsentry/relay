@@ -1,18 +1,13 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
-use std::cell::RefCell;
 use std::fmt::Write;
-use std::rc::Rc;
+use std::future::Future;
 
-use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
-use futures::{FutureExt, TryFutureExt};
-use futures01::prelude::*;
+use actix_web::{error::PayloadError, HttpResponse};
 use serde::Deserialize;
 
-use relay_common::{clone, tryf};
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
@@ -22,26 +17,22 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
-use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
 };
 
+/// Error type for all store-like requests.
+///
+/// Functions returning this error must use [`handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
-    #[error("unsupported protocol version ({0})")]
-    UnsupportedProtocolVersion(u16),
-
     #[error("could not schedule event processing")]
     ScheduleFailed,
 
     #[error("empty request body")]
     EmptyBody,
-
-    #[error("empty envelope")]
-    EmptyEnvelope,
 
     #[error("invalid JSON data")]
     InvalidJson(#[source] serde_json::Error),
@@ -79,17 +70,11 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 }
 
-impl From<PayloadError> for BadStoreRequest {
-    fn from(error: PayloadError) -> Self {
-        Self::PayloadError(failure::Fail::compat(error))
-    }
-}
+impl BadStoreRequest {
+    fn into_response(self) -> HttpResponse {
+        let body = ApiErrorResponse::from_error(&self);
 
-impl ResponseError for BadStoreRequest {
-    fn error_response(&self) -> HttpResponse {
-        let body = ApiErrorResponse::from_error(self);
-
-        match self {
+        let response = match &self {
             BadStoreRequest::RateLimited(rate_limits) => {
                 let retry_after_header = rate_limits
                     .longest()
@@ -126,7 +111,20 @@ impl ResponseError for BadStoreRequest {
                 // the cause. This was likely the client's fault.
                 HttpResponse::BadRequest().json(&body)
             }
+        };
+
+        metric!(counter(RelayCounters::EnvelopeRejected) += 1);
+        if response.status().is_server_error() {
+            relay_log::error!("error handling request: {}", LogError(&self));
         }
+
+        response
+    }
+}
+
+impl From<PayloadError> for BadStoreRequest {
+    fn from(error: PayloadError) -> Self {
+        Self::PayloadError(failure::Fail::compat(error))
     }
 }
 
@@ -323,113 +321,56 @@ fn queue_envelope(
     Ok(())
 }
 
-/// Handles Sentry events.
+/// Handles an envelope store request.
 ///
-/// Sentry events may come either directly from an HTTP request (the store endpoint calls this
+/// Sentry envelopes may come either directly from an HTTP request (the envelope endpoint calls this
 /// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
 /// security endpoint).
 ///
-/// If store_event receives a non-empty store_body it will use it as the body of the event otherwise
-/// it will try to create a store_body from the request.
-pub fn handle_store_like_request<F, R, I>(
-    meta: RequestMeta,
-    request: HttpRequest<ServiceState>,
-    extract_envelope: F,
-    create_response: R,
-    emit_rate_limit: bool,
-) -> ResponseFuture<HttpResponse, BadStoreRequest>
-where
-    F: FnOnce(&HttpRequest<ServiceState>, RequestMeta) -> I + 'static,
-    I: IntoFuture<Item = Box<Envelope>, Error = BadStoreRequest> + 'static,
-    R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
-{
-    // For now, we only handle <= v8 and drop everything else
-    let version = meta.version();
-    if version > relay_common::PROTOCOL_VERSION {
-        // TODO: Delegate to forward_upstream here
-        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
+/// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
+/// implicitly through an item that will create an event during ingestion.
+pub async fn handle_envelope(
+    state: &ServiceState,
+    mut envelope: Box<Envelope>,
+) -> Result<Option<EventId>, BadStoreRequest> {
+    // If configured, remove unknown items at the very beginning. If the envelope is
+    // empty, we fail the request with a special control flow error to skip checks and
+    // queueing, that still results in a `200 OK` response.
+    utils::remove_unknown_items(state.config(), &mut envelope);
+
+    let buffer_guard = state.buffer_guard();
+    let mut envelope_context = buffer_guard
+        .enter(&envelope)
+        .map_err(BadStoreRequest::QueueFailed)?;
+
+    let event_id = envelope.event_id();
+    if envelope.is_empty() {
+        envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
+        return Ok(event_id);
     }
 
-    metric!(
-        counter(RelayCounters::EventProtocol) += 1,
-        version = &format!("{version}")
-    );
+    let checked = ProjectCache::from_registry()
+        .send(CheckEnvelope::new(envelope, envelope_context))
+        .await
+        .map_err(|_| BadStoreRequest::ScheduleFailed)?
+        .map_err(BadStoreRequest::EventRejected)?;
 
-    let buffer_guard = request.state().buffer_guard();
-    let config = request.state().config();
-    let event_id = Rc::new(RefCell::new(None));
+    let Some((envelope, mut envelope_context)) = checked.envelope else {
+        return Err(BadStoreRequest::RateLimited(checked.rate_limits));
+    };
 
-    let future = extract_envelope(&request, meta)
-        .into_future()
-        .and_then(clone!(config, event_id, |mut envelope| {
-            *event_id.borrow_mut() = envelope.event_id();
+    if !utils::check_envelope_size_limits(state.config(), &envelope) {
+        envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
+        return Err(PayloadError::Overflow.into());
+    }
 
-            // If configured, remove unknown items at the very beginning. If the envelope is
-            // empty, we fail the request with a special control flow error to skip checks and
-            // queueing, that still results in a `200 OK` response.
-            utils::remove_unknown_items(&config, &mut envelope);
+    queue_envelope(envelope, envelope_context, buffer_guard)?;
 
-            let mut envelope_context = request
-                .state()
-                .buffer_guard()
-                .enter(&envelope)
-                .map_err(BadStoreRequest::QueueFailed)?;
-
-            if envelope.is_empty() {
-                envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
-                Err(BadStoreRequest::EmptyEnvelope)
-            } else {
-                Ok((envelope, envelope_context))
-            }
-        }))
-        .and_then(move |(envelope, envelope_context)| {
-            ProjectCache::from_registry()
-                .send(CheckEnvelope::new(envelope, envelope_context))
-                .boxed_local()
-                .compat()
-                .map_err(|_| BadStoreRequest::ScheduleFailed)
-        })
-        .and_then(move |response| {
-            let checked = response.map_err(BadStoreRequest::EventRejected)?;
-
-            if let Some((envelope, mut envelope_context)) = checked.envelope {
-                if !utils::check_envelope_size_limits(&config, &envelope) {
-                    envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
-                    return Err(PayloadError::Overflow.into());
-                }
-
-                let event_id = envelope.event_id();
-                queue_envelope(envelope, envelope_context, &buffer_guard)?;
-
-                if !checked.rate_limits.is_limited() {
-                    return Ok(create_response(event_id));
-                }
-            }
-
-            Err(BadStoreRequest::RateLimited(checked.rate_limits))
-        })
-        .or_else(move |error: BadStoreRequest| {
-            metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-            let event_id = *event_id.borrow();
-
-            if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
-                return Ok(create_response(event_id));
-            }
-
-            // This is a control-flow error without a bad status code.
-            if matches!(error, BadStoreRequest::EmptyEnvelope) {
-                return Ok(create_response(event_id));
-            }
-
-            let response = error.error_response();
-            if response.status().is_server_error() {
-                relay_log::error!("error handling request: {}", LogError(&error));
-            }
-
-            Ok(response)
-        });
-
-    Box::new(future)
+    if checked.rate_limits.is_limited() {
+        Err(BadStoreRequest::RateLimited(checked.rate_limits))
+    } else {
+        Ok(event_id)
+    }
 }
 
 /// Creates a HttpResponse containing the textual representation of the given EventId
@@ -462,6 +403,20 @@ pub fn normpath(route: &str) -> String {
         pattern.push_str("{trailing_slash:/*}");
     }
     pattern
+}
+
+/// Creates an actix-web async handler for a store endpoint.
+///
+/// This function is intended to be used in `with_async` on store-like endpoints. It takes an
+/// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
+/// resolve with an HTTP response.
+pub fn handler<F>(f: F) -> impl futures01::Future<Item = HttpResponse, Error = actix_web::Error>
+where
+    F: Future<Output = Result<HttpResponse, BadStoreRequest>>,
+{
+    futures::compat::Compat::new(Box::pin(async move {
+        Ok(f.await.unwrap_or_else(|e| e.into_response()))
+    }))
 }
 
 #[cfg(test)]
