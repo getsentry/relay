@@ -912,6 +912,10 @@
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>std::net::IpAddr;
@@ -929,12 +933,16 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
 
 <span class="doccomment">/// The result of a sampling operation.
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq)]
+</span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>SamplingResult {
-    <span class="doccomment">/// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
-    /// it bailed out)
+    <span class="doccomment">/// Keep the event.
+    ///
+    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
+    /// the rules.
+    </span><span class="attr">#[default]
     </span>Keep,
-    <span class="doccomment">/// Drop the event, due to the rule with provided identifier.
+
+    <span class="doccomment">/// Drop the event, due to a list of rules with provided identifiers.
     </span>Drop(MatchedRuleIds),
 }
 

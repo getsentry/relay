@@ -3297,6 +3297,27 @@
 <a href="#3296" id="3296">3296</a>
 <a href="#3297" id="3297">3297</a>
 <a href="#3298" id="3298">3298</a>
+<a href="#3299" id="3299">3299</a>
+<a href="#3300" id="3300">3300</a>
+<a href="#3301" id="3301">3301</a>
+<a href="#3302" id="3302">3302</a>
+<a href="#3303" id="3303">3303</a>
+<a href="#3304" id="3304">3304</a>
+<a href="#3305" id="3305">3305</a>
+<a href="#3306" id="3306">3306</a>
+<a href="#3307" id="3307">3307</a>
+<a href="#3308" id="3308">3308</a>
+<a href="#3309" id="3309">3309</a>
+<a href="#3310" id="3310">3310</a>
+<a href="#3311" id="3311">3311</a>
+<a href="#3312" id="3312">3312</a>
+<a href="#3313" id="3313">3313</a>
+<a href="#3314" id="3314">3314</a>
+<a href="#3315" id="3315">3315</a>
+<a href="#3316" id="3316">3316</a>
+<a href="#3317" id="3317">3317</a>
+<a href="#3318" id="3318">3318</a>
+<a href="#3319" id="3319">3319</a>
 </pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
@@ -3581,6 +3602,13 @@
     /// This element is obtained from the event or transaction item and re-serialized into the
     /// resulting item.
     </span>sample_rates: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+
+    <span class="doccomment">/// The result of a dynamic sampling operation on this envelope.
+    ///
+    /// This defaults to [`SamplingResult::Keep`] and is determined based on dynamic sampling rules
+    /// in the project configuration. In the drop case, this contains a list of rules that applied
+    /// on the envelope.
+    </span>sampling_result: SamplingResult,
 
     <span class="doccomment">/// Metrics extracted from items in the envelope.
     ///
@@ -4597,6 +4625,7 @@
             transaction_metrics_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             sample_rates: <span class="prelude-val">None</span>,
+            sampling_result: SamplingResult::Keep,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -5299,9 +5328,10 @@
                         extraction_config,
                         <span class="kw-2">&amp;</span>project_config.metric_conditional_tagging,
                         event,
+                        transaction_from_dsc,
+                        <span class="kw-2">&amp;</span>state.sampling_result,
                         <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics,
                         <span class="kw-2">&amp;mut </span>state.extracted_metrics.sampling_metrics,
-                        transaction_from_dsc,
                     );
                 }
             );
@@ -5417,17 +5447,20 @@
     }
 
     <span class="doccomment">/// Run dynamic sampling rules to see if we keep the envelope or remove it.
-    </span><span class="kw">fn </span>sample_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>client_ip = state.envelope.meta().client_addr();
-
-        <span class="kw">match </span>utils::should_keep_event(
+    </span><span class="kw">fn </span>compute_sampling_decision(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        state.sampling_result = utils::should_keep_event(
             <span class="self">self</span>.config.processing_enabled(),
             <span class="kw-2">&amp;</span>state.project_state,
             state.sampling_project_state.as_deref(),
             state.envelope.dsc(),
             state.event.value(),
-            client_ip,
-        ) {
+            state.envelope.meta().client_addr(),
+        );
+    }
+
+    <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
+    </span><span class="kw">fn </span>sample_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">match </span>std::mem::take(<span class="kw-2">&amp;mut </span>state.sampling_result) {
             SamplingResult::Drop(rule_ids) =&gt; {
                 state
                     .envelope_context
@@ -5509,6 +5542,7 @@
             <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.normalize_dsc(state);
             <span class="self">self</span>.filter_event(state)<span class="question-mark">?</span>;
+            <span class="self">self</span>.compute_sampling_decision(state);
             <span class="self">self</span>.extract_transaction_metrics(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.sample_envelope(state)<span class="question-mark">?</span>;
 
@@ -5991,7 +6025,10 @@
             ..Event::default()
         };
 
-        <span class="kw">for </span>(sample_rate, shouldkeep) <span class="kw">in </span>[(<span class="number">0.0</span>, <span class="bool-val">false</span>), (<span class="number">1.0</span>, <span class="bool-val">true</span>)] {
+        <span class="kw">for </span>(sample_rate, expected_result) <span class="kw">in </span>[
+            (<span class="number">0.0</span>, SamplingResult::Drop(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">1</span>)]))),
+            (<span class="number">1.0</span>, SamplingResult::Keep),
+        ] {
             <span class="kw">let </span>project_state = state_with_rule_and_condition(
                 <span class="prelude-val">Some</span>(sample_rate),
                 RuleType::Transaction,
@@ -6005,6 +6042,7 @@
                 transaction_metrics_extracted: <span class="bool-val">false</span>,
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
+                sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: <span class="prelude-val">None</span>,
@@ -6014,8 +6052,12 @@
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                 ),
             };
-            <span class="kw">let </span>result = service.sample_envelope(<span class="kw-2">&amp;mut </span>state);
-            <span class="macro">assert_eq!</span>(result.is_ok(), shouldkeep);
+
+            <span class="comment">// TODO: This does not test if the sampling decision is actually applied. This should be
+            // refactored to send a proper Envelope in and call process_state to cover the full
+            // pipeline.
+            </span>service.compute_sampling_decision(<span class="kw-2">&amp;mut </span>state);
+            <span class="macro">assert_eq!</span>(state.sampling_result, expected_result);
         }
     }
 

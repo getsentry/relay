@@ -129,8 +129,8 @@
             <span class="kw">if </span>expected_error.is_empty() {
                 <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, (input, res.unwrap_err()));
             } <span class="kw">else </span>{
-                <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{}&quot;</span>, input);
-                <span class="macro">assert_eq!</span>(res.unwrap_err().to_string(), expected_error, <span class="string">&quot;{}&quot;</span>, input);
+                <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{input}&quot;</span>);
+                <span class="macro">assert_eq!</span>(res.unwrap_err().to_string(), expected_error, <span class="string">&quot;{input}&quot;</span>);
             }
         }
     }
