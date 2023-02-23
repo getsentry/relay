@@ -15,12 +15,16 @@ use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
 /// The result of a sampling operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum SamplingResult {
-    /// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
-    /// it bailed out)
+    /// Keep the event.
+    ///
+    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
+    /// the rules.
+    #[default]
     Keep,
-    /// Drop the event, due to the rule with provided identifier.
+
+    /// Drop the event, due to a list of rules with provided identifiers.
     Drop(MatchedRuleIds),
 }
 
