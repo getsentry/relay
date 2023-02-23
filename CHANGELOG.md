@@ -16,6 +16,7 @@
 - Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
 - Implement a new sampling algorithm with factors and multi-matching. ([#1790](https://github.com/getsentry/relay/pull/1790)
 - Add Cloud Resource context. ([#1854](https://github.com/getsentry/relay/pull/1854))
+- Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
 
 **Bug Fixes**:
 
