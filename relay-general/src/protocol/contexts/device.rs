@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn strip_whitespace_and_quotes() {
+    fn test_strip_whitespace_and_quotes() {
         let headers = Headers({
             let headers = vec![Annotated::new((
                 Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
