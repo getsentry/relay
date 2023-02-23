@@ -5,11 +5,12 @@
 **Features**:
 
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
+- Add PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871))
 
 **Internal**:
 
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
-- Add PHP support. ([#1871](https://github.com/getsentry/relay/pull/1871))
+- Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
 
 ## 23.2.0
 
