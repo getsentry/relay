@@ -60,8 +60,8 @@ mod tests {
             if expected_error.is_empty() {
                 assert!(res.is_ok(), "{:?}", (input, res.unwrap_err()));
             } else {
-                assert!(res.is_err(), "{}", input);
-                assert_eq!(res.unwrap_err().to_string(), expected_error, "{}", input);
+                assert!(res.is_err(), "{input}");
+                assert_eq!(res.unwrap_err().to_string(), expected_error, "{input}");
             }
         }
     }

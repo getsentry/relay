@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -1012,6 +1011,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/NativeDebugImage"
+        },
+        {
+          "$ref": "#/definitions/SourceMapDebugImage"
         },
         {
           "type": "object",
@@ -2898,6 +2900,47 @@ expression: "relay_general::protocol::event_json_schema()"
               "type": [
                 "string",
                 "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SourceMapDebugImage": {
+      "description": " A debug image pointing to a source map.\n\n Examples:\n\n ```json\n {\n   \"type\": \"sourcemap\",\n   \"code_file\": \"https://example.com/static/js/main.min.js\",\n   \"debug_id\": \"395835f4-03e0-4436-80d3-136f0749a893\"\n }\n ```\n\n **Note:** Stack frames and the correlating entries in the debug image here\n for `code_file`/`abs_path` are not PII stripped as they need to line up\n perfectly for source map processing.",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "code_file",
+            "debug_id"
+          ],
+          "properties": {
+            "code_file": {
+              "description": " Path and name of the image file as URL. (required).\n\n The absolute path to the minified JavaScript file.  This helps to correlate the file to the stack trace.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "debug_file": {
+              "description": " Path and name of the associated source map.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "debug_id": {
+              "description": " Unique debug identifier of the source map.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/DebugId"
+                },
+                {
+                  "type": "null"
+                }
               ]
             }
           },
