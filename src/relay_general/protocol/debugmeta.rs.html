@@ -913,6 +913,73 @@
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
 <a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
@@ -1327,6 +1394,43 @@
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
+<span class="doccomment">/// A debug image pointing to a source map.
+///
+/// Examples:
+///
+/// ```json
+/// {
+///   &quot;type&quot;: &quot;sourcemap&quot;,
+///   &quot;code_file&quot;: &quot;https://example.com/static/js/main.min.js&quot;,
+///   &quot;debug_id&quot;: &quot;395835f4-03e0-4436-80d3-136f0749a893&quot;
+/// }
+/// ```
+///
+/// **Note:** Stack frames and the correlating entries in the debug image here
+/// for `code_file`/`abs_path` are not PII stripped as they need to line up
+/// perfectly for source map processing.
+</span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>SourceMapDebugImage {
+    <span class="doccomment">/// Path and name of the image file as URL. (required).
+    ///
+    /// The absolute path to the minified JavaScript file.  This helps to correlate the file to the stack trace.
+    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>code_file: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Unique debug identifier of the source map.
+    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>debug_id: Annotated&lt;DebugId&gt;,
+
+    <span class="doccomment">/// Path and name of the associated source map.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>debug_file: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attr">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
+}
+
 <span class="doccomment">/// Proguard mapping file.
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
@@ -1364,6 +1468,8 @@
     </span>Proguard(Box&lt;ProguardDebugImage&gt;),
     <span class="doccomment">/// WASM debug image.
     </span>Wasm(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// Source map debug image.
+    </span>SourceMap(Box&lt;SourceMapDebugImage&gt;),
     <span class="doccomment">/// A debug image that is unknown to this protocol specification.
     </span><span class="attr">#[metastructure(fallback_variant)]
     </span>Other(Object&lt;Value&gt;),
@@ -1725,6 +1831,34 @@
             image_addr: Annotated::new(Addr(<span class="number">0</span>)),
             image_size: Annotated::new(<span class="number">4096</span>),
             image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                );
+                map
+            },
+        })));
+
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_source_map_image_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;code_file&quot;: &quot;https://mycdn.invalid/foo.js.min&quot;,
+  &quot;debug_id&quot;: &quot;971f98e5-ce60-41ff-b2d7-235bbeb34578&quot;,
+  &quot;debug_file&quot;: &quot;https://mycdn.invalid/foo.js.map&quot;,
+  &quot;other&quot;: &quot;value&quot;,
+  &quot;type&quot;: &quot;sourcemap&quot;
+}&quot;#</span>;
+
+        <span class="kw">let </span>image = Annotated::new(DebugImage::SourceMap(Box::new(SourceMapDebugImage {
+            code_file: Annotated::new(<span class="string">&quot;https://mycdn.invalid/foo.js.min&quot;</span>.into()),
+            debug_file: Annotated::new(<span class="string">&quot;https://mycdn.invalid/foo.js.map&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578&quot;</span>.parse().unwrap()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
