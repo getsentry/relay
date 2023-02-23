@@ -85,11 +85,7 @@ pub struct PartialDsn {
 impl PartialDsn {
     /// Ensures a valid public key and project ID in the DSN.
     fn from_dsn(dsn: Dsn) -> Result<Self, ParseDsnError> {
-        let project_id = dsn
-            .project_id()
-            .value()
-            .parse()
-            .map_err(|_| ParseDsnError::NoProjectId)?;
+        let project_id = dsn.project_id().value();
 
         let public_key = dsn
             .public_key()
@@ -102,7 +98,7 @@ impl PartialDsn {
             host: dsn.host().to_owned(),
             port: dsn.port(),
             path: dsn.path().to_owned(),
-            project_id: Some(project_id),
+            project_id: Some(ProjectId::new(project_id)),
         })
     }
 
