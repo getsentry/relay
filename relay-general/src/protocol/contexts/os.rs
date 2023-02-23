@@ -51,12 +51,7 @@ impl OsContext {
 
 impl FromUserAgentInfo for OsContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let platform = client_hints
-            .sec_ch_ua_platform?
-            .trim()
-            .trim_start_matches('\"')
-            .trim_end_matches('\"')
-            .to_owned();
+        let platform = client_hints.sec_ch_ua_platform?.trim().replace('\"', "");
 
         // We only return early if the platform is empty, not the version number. This is because
         // an empty version number might suggest that the user need to request additional
