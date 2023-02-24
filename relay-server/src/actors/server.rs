@@ -1,6 +1,5 @@
 use actix_web::{server, App};
 use anyhow::{Context, Result};
-use futures01::Future;
 use listenfd::ListenFd;
 
 use relay_config::Config;
@@ -174,15 +173,13 @@ impl Service for HttpServer {
                 let Shutdown { timeout } = shutdown.notified().await;
                 let graceful = timeout.is_some();
 
-                // We assume graceful shutdown if we're given a timeout. The actix-web http server is
-                // configured with the same timeout, so it will match. Unfortunately, we have to drop any
-                // errors  and replace them with the generic `TimeoutError`.
+                // We assume graceful shutdown if we're given a timeout. The actix-web http server
+                // is configured with the same timeout, so it will match. Unfortunately, we have to
+                // drop all errors.
                 relay_log::info!("Shutting down HTTP server");
                 self.http_server
-                    .send(server::StopServer { graceful })
-                    .wait()
+                    .do_send(server::StopServer { graceful })
                     .ok();
-                // TODO(ja): harmful. wait() blocks the main runtime.
             }
         });
     }
