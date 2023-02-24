@@ -17,6 +17,7 @@
 
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
 - Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
+- Move the pending envelopes buffering into the project cache. ([#1879](https://github.com/getsentry/relay/pull/1879))
 
 ## 23.2.0
 
