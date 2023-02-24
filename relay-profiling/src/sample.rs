@@ -232,21 +232,22 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MissingProfileMetadata);
     }
 
-    // Clean samples before running the checks.
-    profile.remove_single_samples_per_thread();
+    if profile.transaction.is_none() {
+        profile.transaction = profile.transactions.first().cloned();
+    }
 
-    let transaction = match &profile.transaction {
-        Some(transaction) => transaction,
-        None => profile
-            .transactions
-            .get(0)
-            .ok_or(ProfileError::NoTransactionAssociated)?,
-    };
+    profile.transactions.clear();
+
+    let transaction = profile
+        .transaction
+        .as_ref()
+        .ok_or(ProfileError::NoTransactionAssociated)?;
 
     if !transaction.valid() {
         return Err(ProfileError::InvalidTransactionMetadata);
     }
 
+    // This is to be compatible with older SDKs
     if transaction.relative_end_ns > 0 {
         profile.profile.samples.retain_mut(|sample| {
             (transaction.relative_start_ns..transaction.relative_end_ns)
@@ -266,8 +267,8 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
-    profile.transaction = Some(transaction.clone());
-    profile.transactions.clear();
+    // Clean samples before running the checks.
+    profile.remove_single_samples_per_thread();
     profile.strip_pointer_authentication_code();
 
     Ok(profile)
