@@ -19,6 +19,7 @@ use relay_system::BroadcastChannel;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
+#[cfg(feature = "processing")]
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 use crate::envelope::Envelope;
@@ -637,7 +638,7 @@ impl Project {
 
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
-    /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
+    /// This flushes pending envelopes from [`ValidateEnvelope`] and
     /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always

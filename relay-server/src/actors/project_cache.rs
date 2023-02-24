@@ -133,8 +133,8 @@ impl CheckEnvelope {
 /// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the
 /// next stage:
 ///
-///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
-///    [`ProjectCache`] to add the required project state.
+///  - If the envelope needs dynamic sampling, and the project state is not cached or out of the
+///  date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
