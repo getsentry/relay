@@ -216,12 +216,10 @@ impl StoreService {
         );
 
         for message in kafka_messages {
-            // This line is prior to self.produce as it takes `message` by value.
             let is_attachment = matches!(&message, KafkaMessage::Attachment(_));
 
             self.produce(topic, scoping.organization_id, message)?;
 
-            // If message was succesfully sent, make the right log message.
             if is_attachment {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
