@@ -36,7 +36,7 @@ pub enum Redaction {
     ///
     /// The main difference to `Remove` is that if the redaction is explicitly
     /// set to `Remove` it also applies in situations where a default
-    /// redaction is therwise not passed down (for instance with `Multiple`).
+    /// redaction is otherwise not passed down (for instance with `Multiple`).
     #[default]
     Default,
     /// Removes the value and puts nothing in its place.
