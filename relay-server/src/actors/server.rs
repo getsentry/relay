@@ -167,20 +167,16 @@ impl Service for HttpServer {
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            let mut shutdown = Controller::shutdown_handle();
+            let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
+            relay_log::info!("Shutting down HTTP server");
 
-            loop {
-                let Shutdown { timeout } = shutdown.notified().await;
-                let graceful = timeout.is_some();
-
-                // We assume graceful shutdown if we're given a timeout. The actix-web http server
-                // is configured with the same timeout, so it will match. Unfortunately, we have to
-                // drop all errors.
-                relay_log::info!("Shutting down HTTP server");
-                self.http_server
-                    .do_send(server::StopServer { graceful })
-                    .ok();
-            }
+            // We assume graceful shutdown if we're given a timeout. The actix-web http server
+            // is configured with the same timeout, so it will match. Unfortunately, we have to
+            // drop all errors.
+            let graceful = timeout.is_some();
+            self.http_server
+                .do_send(server::StopServer { graceful })
+                .ok();
         });
     }
 }
