@@ -5,7 +5,7 @@ use std::future::Future;
 
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{error::PayloadError, HttpResponse};
+use actix_web::{error::PayloadError, App, HttpResponse};
 use serde::Deserialize;
 
 use relay_general::protocol::{EventId, EventType};
@@ -17,7 +17,7 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
@@ -230,7 +230,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 /// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
 /// returns an App. This configures POST as allowed method, allows default sentry headers, and
 /// exposes the return headers.
-pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
+pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
     let mut builder = Cors::for_app(app);
 
     builder

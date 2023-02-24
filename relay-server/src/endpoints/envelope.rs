@@ -1,6 +1,6 @@
 //! Handles envelope store requests.
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{App, HttpRequest, HttpResponse};
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
@@ -9,7 +9,7 @@ use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
 use crate::extractors::{EnvelopeMeta, RequestMeta};
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
@@ -41,7 +41,7 @@ async fn store_envelope(
     Ok(HttpResponse::Ok().json(StoreResponse { id }))
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         .resource(&common::normpath(r"/api/{project:\d+}/envelope/"), |r| {
             r.name("store-envelope");

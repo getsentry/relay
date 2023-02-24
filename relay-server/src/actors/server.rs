@@ -1,6 +1,4 @@
-use actix::Recipient;
-use actix_web::server::{self, StopServer};
-use actix_web::App;
+use actix_web::{server, App};
 use anyhow::{Context, Result};
 use futures01::Future;
 use listenfd::ListenFd;
@@ -18,10 +16,7 @@ use crate::statsd::RelayCounters;
 // TODO(ja): Split this into Server and Service error.
 use crate::service::ServerError;
 
-/// The actix app type for the relay web service.
-pub type ServiceApp = App<ServiceState>;
-
-fn make_app(state: ServiceState) -> ServiceApp {
+fn make_app(state: ServiceState) -> App<ServiceState> {
     App::with_state(state)
         .middleware(SentryMiddleware::new())
         .middleware(Metrics)
@@ -118,9 +113,12 @@ where
     }
 }
 
-// TODO(ja): Document
+/// HTTP server service.
+///
+/// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
+/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct ServerService {
-    http_server: Recipient<StopServer>,
+    http_server: actix::Recipient<server::StopServer>,
 }
 
 impl ServerService {
@@ -161,7 +159,10 @@ impl Service for ServerService {
                 // configured with the same timeout, so it will match. Unfortunately, we have to drop any
                 // errors  and replace them with the generic `TimeoutError`.
                 relay_log::info!("Shutting down HTTP server"); // TODO(ja): Where was this coming from?
-                self.http_server.send(StopServer { graceful }).wait().ok();
+                self.http_server
+                    .send(server::StopServer { graceful })
+                    .wait()
+                    .ok();
                 // TODO(ja): harmful. wait() blocks the main runtime.
             }
         });

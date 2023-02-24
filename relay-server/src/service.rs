@@ -26,9 +26,6 @@ use crate::utils::BufferGuard;
 
 pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
-// TODO(ja): Remove this?
-pub use crate::actors::server::ServiceApp;
-
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServerError {
