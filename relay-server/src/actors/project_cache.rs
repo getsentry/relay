@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::mem;
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -383,9 +384,9 @@ struct QueueKey {
 #[derive(Debug, Default)]
 struct Queue {
     /// Contains the cache of the incoming envelopes.
-    pub spool: HashMap<QueueKey, VecDeque<(Box<Envelope>, EnvelopeContext)>>,
-    // /// Index of the spooled ProjectKey
-    // pub index: HashMap<ProjectKey, Vec<QueueKey>>,
+    pub spool: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    /// Index of the spooled project keys.
+    index: HashMap<ProjectKey, Vec<QueueKey>>,
 }
 
 impl Queue {
@@ -396,45 +397,56 @@ impl Queue {
 
     /// Adds the value to the queue for the provided key.
     fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
-        // for k in &[key.key, key.sampling_key] {
-        //     match self.index.entry(*k) {
-        //         std::collections::hash_map::Entry::Occupied(o) => o.into_mut().push(key),
-        //         std::collections::hash_map::Entry::Vacant(v) => {
-        //             v.insert(Vec::from([key]));
-        //         }
-        //     }
-        //     if key.key == key.sampling_key {
-        //         break;
-        //     }
-        // }
+        // Add key to our index.
+        for k in &[key.key, key.sampling_key] {
+            self.index.entry(*k).or_insert(vec![key]).push(key);
+        }
 
         match self.spool.entry(key) {
-            Entry::Occupied(o) => o.into_mut().push_back(value),
+            Entry::Occupied(o) => o.into_mut().push(value),
             Entry::Vacant(v) => {
-                v.insert(VecDeque::from([value]));
+                v.insert(vec![value]);
             }
         }
     }
 
-    /// Get all the envelopes, which belong to this project.
-    fn dequeue(&mut self, key: ProjectKey) -> VecDeque<(Box<Envelope>, EnvelopeContext)> {
-        // Find all the keys combinations for his project.
-        let keys: Vec<_> = self
-            .spool
-            .iter()
-            .filter(|(k, _)| k.key == key || k.sampling_key == key)
-            .map(|(k, _)| k)
-            .copied()
-            .collect();
+    /// Returns the list of spooled envelopes if they satisfy the predicate.
+    fn dequeue<P>(&mut self, key: &ProjectKey, f: P) -> Vec<(Box<Envelope>, EnvelopeContext)>
+    where
+        P: Fn(&QueueKey) -> bool,
+    {
+        // First take all the keys from the index.
+        let mut keys = if let Some(keys) = self.index.get_mut(key) {
+            mem::take(keys)
+        } else {
+            vec![]
+        };
 
-        // Remove all the spooled data for this project key and return it to the caller.
-        let mut values = VecDeque::new();
-        for k in keys {
-            if let Some(value) = self.spool.remove(&k) {
-                values.extend(value)
+        let mut result = vec![];
+        // Find those keys which match predicates.
+        while let Some(qkey) = keys.pop() {
+            if f(&qkey) {
+                if let Some(envelopes) = self.spool.remove(&qkey) {
+                    result.extend(envelopes);
+                }
+            }
+            // Return keys into the index, where predicate is failing.
+            else {
+                self.index.entry(*key).or_insert(vec![qkey]).push(qkey);
             }
         }
-        values
+
+        // Remove the index all together if it's empty.
+        let empty_index = self
+            .index
+            .get(key)
+            .map(|v| v.is_empty())
+            .unwrap_or_default();
+        if empty_index {
+            self.index.remove(key);
+        }
+
+        result
     }
 }
 
@@ -513,8 +525,29 @@ impl ProjectCacheBroker {
 
         // There is no much sense to dequeue and check anything if the incoming state is invalid.
         if !invalid {
-            let mut envelopes = self.spool.dequeue(project_key);
-            while let Some((envelope, envelope_context)) = envelopes.pop_front() {
+            let envelopes = self.spool.dequeue(&project_key, |queue_key| {
+                for key in &[queue_key.key, queue_key.sampling_key] {
+                    // Do not check just updated state again.
+                    if *key == project_key {
+                        continue;
+                    }
+                    // We return false if the project is in the cache and the state is missing,
+                    // otherwise, even if the project completely missing, we still want to try to
+                    // process envelopes, which will trigger fetch for the project.
+                    if self
+                        .projects
+                        .get(key)
+                        .map(|p| p.valid_state().is_none())
+                        .unwrap_or_default()
+                    {
+                        return false;
+                    }
+                }
+                true
+            });
+
+            // Try to flush all the envelopes again.
+            for (envelope, envelope_context) in envelopes {
                 self.handle_processing(envelope, envelope_context)
             }
         }

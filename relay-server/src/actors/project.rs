@@ -447,7 +447,7 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    fn valid_state(&self) -> Option<Arc<ProjectState>> {
+    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
         match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
