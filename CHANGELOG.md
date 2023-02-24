@@ -8,6 +8,10 @@
 - Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
 - Add PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871))
 
+**Bug Fixes**:
+
+- Enforce rate limits for session replays. ([#1877](https://github.com/getsentry/relay/pull/1877))
+
 **Internal**:
 
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
