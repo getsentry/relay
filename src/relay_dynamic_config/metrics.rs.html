@@ -127,44 +127,9 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
-</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+</span><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_sampling::RuleCondition;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -228,39 +193,6 @@
     }
 }
 
-<span class="doccomment">/// The metric to which the user satisfaction threshold is applied.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
-</span><span class="kw">pub enum </span>SatisfactionMetric {
-    <span class="doccomment">/// Apply to transaction duration.
-    </span>Duration,
-    <span class="doccomment">/// Apply to LCP.
-    </span>Lcp,
-    <span class="doccomment">/// Catch-all variant for forward compatibility.
-    </span><span class="attr">#[serde(other)]
-    </span>Unknown,
-}
-
-<span class="doccomment">/// Configuration for a single threshold.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>SatisfactionThreshold {
-    <span class="doccomment">/// What metric to apply the threshold to.
-    </span><span class="kw">pub </span>metric: SatisfactionMetric,
-    <span class="doccomment">/// Value of the threshold.
-    </span><span class="kw">pub </span>threshold: f64,
-}
-
-<span class="doccomment">/// Configuration for applying the user satisfaction threshold.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-</span><span class="kw">pub struct </span>SatisfactionConfig {
-    <span class="doccomment">/// The project-wide threshold to apply.
-    </span><span class="kw">pub </span>project_threshold: SatisfactionThreshold,
-    <span class="doccomment">/// Transaction-specific overrides of the project-wide threshold.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
-    </span><span class="kw">pub </span>transaction_thresholds: BTreeMap&lt;String, SatisfactionThreshold&gt;,
-}
-
 <span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.
 </span><span class="attr">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
@@ -303,8 +235,6 @@
     </span><span class="kw">pub </span>extract_metrics: BTreeSet&lt;String&gt;,
     <span class="doccomment">/// Custom event tags that are transferred from the transaction to metrics.
     </span><span class="kw">pub </span>extract_custom_tags: BTreeSet&lt;String&gt;,
-    <span class="doccomment">/// Config for determining user satisfaction (satisfied / tolerated / frustrated)
-    </span><span class="kw">pub </span>satisfaction_thresholds: <span class="prelude-ty">Option</span>&lt;SatisfactionConfig&gt;,
     <span class="doccomment">/// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     </span><span class="kw">pub </span>custom_measurements: CustomMeasurementConfig,
     <span class="doccomment">/// Defines whether URL transactions should be considered low cardinality.
