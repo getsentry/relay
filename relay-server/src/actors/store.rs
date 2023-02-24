@@ -251,12 +251,17 @@ impl StoreService {
             Some(event_item) => {
                 if matches!(event_item.ty(), ItemType::Transaction) {
                     // Sentry discards inline attachments for transactions, so send them as individual ones instead.
+                    relay_log::trace!("Sending transaction event item of envelope to kafka");
                     (attachments, vec![])
                 } else {
+                    relay_log::trace!("Sending non-transaction event item of envelope to kafka");
                     (vec![], attachments)
                 }
             }
-            None => (attachments, vec![]),
+            None => {
+                relay_log::trace!("Sending individual attachments of envelope to kafka");
+                (attachments, vec![])
+            }
         };
 
         let project_id = scoping.project_id;
