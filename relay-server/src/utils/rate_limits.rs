@@ -562,6 +562,13 @@ where
             return false;
         }
 
+        // Remove replays independently of events.
+        if enforcement.replays.is_active()
+            && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
+        {
+            return false;
+        }
+
         true
     }
 }
@@ -874,6 +881,28 @@ mod tests {
             .map(|outcome| (outcome.category, outcome.quantity))
             .collect::<Vec<_>>();
         assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
+    }
+
+    /// Limit replays.
+    #[test]
+    fn test_enforce_limit_replays() {
+        let mut envelope = envelope![ReplayEvent, ReplayRecording];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Replay);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
     }
 
     #[test]
