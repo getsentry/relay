@@ -175,7 +175,9 @@ impl SampleProfile {
                     && self.device.manufacturer.is_some()
                     && self.device.model.is_some()
             }
-            Platform::Python | Platform::Node | Platform::Php => self.runtime.is_some(),
+            Platform::Python | Platform::Javascript | Platform::Node | Platform::Php => {
+                self.runtime.is_some()
+            }
             _ => true,
         }
     }

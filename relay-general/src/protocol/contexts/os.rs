@@ -51,15 +51,21 @@ impl OsContext {
 
 impl FromUserAgentInfo for OsContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let platform = client_hints.sec_ch_ua_platform?;
-        let version = client_hints.sec_ch_ua_platform_version.map(str::to_owned);
+        let platform = client_hints.sec_ch_ua_platform?.trim().replace('\"', "");
 
-        if platform.trim().is_empty() {
+        // We only return early if the platform is empty, not the version number. This is because
+        // an empty version number might suggest that the user need to request additional
+        // client hints data.
+        if platform.is_empty() {
             return None;
         }
 
+        let version = client_hints
+            .sec_ch_ua_platform_version
+            .map(|version| version.trim().replace('\"', ""));
+
         Some(Self {
-            name: Annotated::new(platform.to_owned()),
+            name: Annotated::new(platform),
             version: Annotated::from(version),
             ..Default::default()
         })
@@ -85,6 +91,27 @@ mod tests {
     use super::*;
     use crate::protocol::{Headers, PairList};
     use crate::user_agent::RawUserAgentInfo;
+
+    #[test]
+    fn test_strip_quotes() {
+        let headers = Headers({
+            let headers = vec![
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM".to_string().into()),
+                    Annotated::new("\"macOS\"".to_string().into()), // no browser field here
+                )),
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_string().into()),
+                    Annotated::new("\"13.1.0\"".to_string().into()),
+                )),
+            ];
+            PairList(headers)
+        });
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
+
+        assert_eq!(os.clone().unwrap().name.value().unwrap(), "macOS");
+        assert_eq!(os.unwrap().version.value().unwrap(), "13.1.0");
+    }
 
     /// Verifies that client hints are chosen over ua string when available.
     #[test]
