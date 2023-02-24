@@ -28,37 +28,20 @@ pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
-pub enum ServerError {
-    /// Binding failed.
-    #[error("bind to interface failed")]
-    BindFailed,
-
-    /// Listening on the HTTP socket failed.
-    #[error("listening failed")]
-    ListenFailed,
-
-    /// A TLS error ocurred.
-    #[error("could not initialize the TLS server")]
-    TlsInitFailed,
-
-    /// TLS support was not compiled in.
-    #[cfg(not(feature = "ssl"))]
-    #[error("compile with the `ssl` feature to enable SSL support")]
-    TlsNotSupported,
-
+pub enum ServiceError {
     /// GeoIp construction failed.
     #[cfg(feature = "processing")]
     #[error("could not load the Geoip Db")]
-    GeoIpError,
+    GeoIp,
 
     /// Initializing the Kafka producer failed.
     #[cfg(feature = "processing")]
     #[error("could not initialize kafka producer")]
-    KafkaError,
+    Kafka,
 
     /// Initializing the Redis cluster client failed.
     #[error("could not initialize redis cluster client")]
-    RedisError,
+    Redis,
 }
 
 #[derive(Clone)]
@@ -137,7 +120,7 @@ impl ServiceState {
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServerError::RedisError)?)
+                Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
             }
             _ => None,
         };

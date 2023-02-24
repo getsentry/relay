@@ -13,8 +13,27 @@ use crate::middlewares::{
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
-// TODO(ja): Split this into Server and Service error.
-use crate::service::ServerError;
+/// Indicates the type of failure of the server.
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+pub enum ServerError {
+    /// Binding failed.
+    #[error("bind to interface failed")]
+    BindFailed,
+
+    /// Listening on the HTTP socket failed.
+    #[error("listening failed")]
+    ListenFailed,
+
+    /// A TLS error ocurred.
+    #[error("could not initialize the TLS server")]
+    TlsInitFailed,
+
+    /// TLS support was not compiled in.
+    #[cfg(not(feature = "ssl"))]
+    #[error("compile with the `ssl` feature to enable SSL support")]
+    TlsNotSupported,
+}
 
 fn make_app(state: ServiceState) -> App<ServiceState> {
     App::with_state(state)
@@ -117,11 +136,11 @@ where
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
-pub struct ServerService {
+pub struct HttpServer {
     http_server: actix::Recipient<server::StopServer>,
 }
 
-impl ServerService {
+impl HttpServer {
     pub fn start(config: &Config, service: ServiceState) -> anyhow::Result<Addr<()>> {
         metric!(counter(RelayCounters::ServerStarting) += 1);
 
@@ -144,7 +163,7 @@ impl ServerService {
     }
 }
 
-impl Service for ServerService {
+impl Service for HttpServer {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
@@ -158,7 +177,7 @@ impl Service for ServerService {
                 // We assume graceful shutdown if we're given a timeout. The actix-web http server is
                 // configured with the same timeout, so it will match. Unfortunately, we have to drop any
                 // errors  and replace them with the generic `TimeoutError`.
-                relay_log::info!("Shutting down HTTP server"); // TODO(ja): Where was this coming from?
+                relay_log::info!("Shutting down HTTP server");
                 self.http_server
                     .send(server::StopServer { graceful })
                     .wait()

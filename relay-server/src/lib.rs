@@ -274,7 +274,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_system::{Configure, Controller};
 
-use crate::actors::server::ServerService;
+use crate::actors::server::HttpServer;
 use crate::service::ServiceState;
 
 /// Runs a relay web server and spawns all internal worker threads.
@@ -284,12 +284,12 @@ use crate::service::ServiceState;
 /// the `config` passed into this funciton.
 pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
+    relay_log::info!("relay server starting");
 
     // Spawn the main tokio runtime here since the controller cannot access the config.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let _guard = main_runtime.enter();
 
-    // TODO(ja): Where to put this? This could be part of Controller::run now.
     Controller::from_registry().do_send(Configure {
         shutdown_timeout: config.shutdown_timeout(),
     });
@@ -299,12 +299,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // `actors` module documentation for more information on all actors.
     Controller::run(|| {
         let service = ServiceState::start(config.clone())?;
-        ServerService::start(&config, service)
+        HttpServer::start(&config, service)
     })?;
 
-    // Properly shutdown the new tokio runtime.
-    main_runtime.shutdown_timeout(config.shutdown_timeout());
-    relay_log::info!("relay shutdown complete");
+    // Shut down the tokio runtime immediately without waiting for tasks. Our services do not exit
+    // by themselves, and the shutdown timeout should have given them enough time to complete their
+    // tasks.
+    main_runtime.shutdown_background();
 
+    relay_log::info!("relay shutdown complete");
     Ok(())
 }

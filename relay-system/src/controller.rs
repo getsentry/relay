@@ -138,8 +138,6 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        // TODO(ja): The log should move where the shutdown log is too (server or main lib?)
-        relay_log::info!("relay server starting");
         sys.run();
 
         Ok(())
