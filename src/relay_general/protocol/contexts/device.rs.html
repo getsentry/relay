@@ -360,6 +360,20 @@
 <a href="#359" id="359">359</a>
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::FromUserAgentInfo;
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::is_known;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -536,9 +550,9 @@
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>DeviceContext {
     <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>device = client_hints.sec_ch_ua_model<span class="question-mark">?</span>.to_owned();
+        <span class="kw">let </span>device = client_hints.sec_ch_ua_model<span class="question-mark">?</span>.trim().replace(<span class="string">&#39;\&quot;&#39;</span>, <span class="string">&quot;&quot;</span>);
 
-        <span class="kw">if </span>device.trim().is_empty() {
+        <span class="kw">if </span>device.is_empty() {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
@@ -603,6 +617,20 @@
                 Annotated::new(<span class="string">&quot;moto g31(w)&quot;</span>.to_string().into()),
             )),
         ];
+            PairList(headers)
+        });
+
+        <span class="kw">let </span>device = DeviceContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers));
+        <span class="macro">assert_eq!</span>(device.unwrap().model.as_str().unwrap(), <span class="string">&quot;moto g31(w)&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_strip_whitespace_and_quotes() {
+        <span class="kw">let </span>headers = Headers({
+            <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;SEC-CH-UA-MODEL&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">&quot;   \&quot;moto g31(w)\&quot;&quot;</span>.to_string().into()),
+            ))];
             PairList(headers)
         });
 
