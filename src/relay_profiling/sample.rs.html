@@ -488,6 +488,8 @@
 <a href="#488" id="488">488</a>
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -665,7 +667,9 @@
                     &amp;&amp; <span class="self">self</span>.device.manufacturer.is_some()
                     &amp;&amp; <span class="self">self</span>.device.model.is_some()
             }
-            Platform::Python | Platform::Node | Platform::Php =&gt; <span class="self">self</span>.runtime.is_some(),
+            Platform::Python | Platform::Javascript | Platform::Node | Platform::Php =&gt; {
+                <span class="self">self</span>.runtime.is_some()
+            }
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         }
     }
