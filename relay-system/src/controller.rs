@@ -122,8 +122,7 @@ impl Controller {
     /// actors have completed a graceful shutdown.
     pub fn run<F, R, E>(factory: F) -> Result<(), E>
     where
-        F: FnOnce() -> Result<R, E> + 'static,
-        F: Sync + Send,
+        F: FnOnce() -> Result<R, E>,
     {
         // Spawn a legacy actix system for the controller's signals.
         let sys = actix::System::new("relay");
@@ -139,6 +138,7 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
+        // TODO(ja): The log should move where the shutdown log is too (server or main lib?)
         relay_log::info!("relay server starting");
         sys.run();
 
