@@ -568,30 +568,21 @@ impl ProjectCacheBroker {
         &mut self,
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let project = self.get_or_create_project(message.envelope.meta().public_key());
-
-        // Preload the project cache so that it arrives a little earlier in processing. However,
-        // do not pass `no_cache`. In case the project is rate limited, we do not want to force
-        // a full reload. Fetching must not block the store request.
-        project.prefetch(false);
-
-        project.check_envelope(message.envelope, message.context)
+        let CheckEnvelope { envelope, context } = message;
+        self.check_envelope(envelope, context)
     }
 
     fn check_envelope(
         &mut self,
-        project_key: ProjectKey,
         envelope: Box<Envelope>,
         envelope_context: EnvelopeContext,
-    ) -> Option<(Box<Envelope>, EnvelopeContext)> {
-        if let Ok(checked) = self
-            .get_or_create_project(project_key)
-            .check_envelope(envelope, envelope_context)
-        {
-            checked.envelope
-        } else {
-            None
-        }
+    ) -> Result<CheckedEnvelope, DiscardReason> {
+        let project = self.get_or_create_project(envelope.meta().public_key());
+        // Preload the project cache so that it arrives a little earlier in processing. However,
+        // do not pass `no_cache`. In case the project is rate limited, we do not want to force
+        // a full reload. Fetching must not block the store request.
+        project.prefetch(false);
+        project.check_envelope(envelope, envelope_context)
     }
 
     /// Checks the incoming envelope and decide either process it immediately or spool it.
@@ -623,8 +614,10 @@ impl ProjectCacheBroker {
         match (project_state, sampling_project_state) {
             // Process the envelope, we have all the data.
             (Some(state), Some((_, Some(sampling_state)))) => {
-                if let Some((envelope, envelope_context)) =
-                    self.check_envelope(key, envelope, envelope_context)
+                if let Ok(CheckedEnvelope {
+                    envelope: Some((envelope, envelope_context)),
+                    ..
+                }) = self.check_envelope(envelope, envelope_context)
                 {
                     let mut process = ProcessEnvelope {
                         envelope,
@@ -649,8 +642,10 @@ impl ProjectCacheBroker {
 
             // Process our envelope, since there is no sampling key on this envelope.
             (Some(state), None) => {
-                if let Some((envelope, envelope_context)) =
-                    self.check_envelope(key, envelope, envelope_context)
+                if let Ok(CheckedEnvelope {
+                    envelope: Some((envelope, envelope_context)),
+                    ..
+                }) = self.check_envelope(envelope, envelope_context)
                 {
                     let process = ProcessEnvelope {
                         envelope,
