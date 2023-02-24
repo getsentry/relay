@@ -6,6 +6,7 @@
 
 - Extract attachments from transaction events and send them to kafka individually. ([#1844](https://github.com/getsentry/relay/pull/1844))
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
+- Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
 - Add PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871))
 
 **Internal**:
