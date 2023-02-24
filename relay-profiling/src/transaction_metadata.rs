@@ -58,13 +58,13 @@ mod tests {
     #[test]
     fn test_valid_transaction_metadata() {
         let metadata = TransactionMetadata {
+            active_thread_id: 259,
             id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
             name: "SomeTransaction".to_string(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
             relative_start_ns: 1,
-            active_thread_id: 259,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
         };
         assert!(metadata.valid());
@@ -73,15 +73,30 @@ mod tests {
     #[test]
     fn test_invalid_transaction_metadata() {
         let metadata = TransactionMetadata {
+            active_thread_id: 259,
             id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
             name: "".to_string(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
             relative_start_ns: 1,
-            active_thread_id: 259,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
         };
         assert!(!metadata.valid());
+    }
+
+    #[test]
+    fn test_valid_transaction_metadata_without_relative_timestamp() {
+        let metadata = TransactionMetadata {
+            active_thread_id: 259,
+            id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
+            name: "valid-transaction-name".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 0,
+            relative_start_ns: 0,
+            trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
+        };
+        assert!(metadata.valid());
     }
 }
