@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::sync::Arc;
 
@@ -386,7 +386,7 @@ struct Queue {
     /// Contains the cache of the incoming envelopes.
     buffer: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
     /// Index of the buffered project keys.
-    index: HashMap<ProjectKey, Vec<QueueKey>>,
+    index: HashMap<ProjectKey, HashSet<QueueKey>>,
 }
 
 impl Queue {
@@ -398,8 +398,11 @@ impl Queue {
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
         // Add key to our index.
-        for k in &[key.key, key.sampling_key] {
-            self.index.entry(*k).or_insert(vec![key]).push(key);
+        for partial_key in &[key.key, key.sampling_key] {
+            self.index
+                .entry(*partial_key)
+                .or_insert(HashSet::from([key]))
+                .insert(key);
         }
 
         match self.buffer.entry(key) {
@@ -411,15 +414,23 @@ impl Queue {
     }
 
     /// Returns the list of buffered envelopes if they satisfy a predicate.
-    pub fn dequeue<P>(&mut self, key: &ProjectKey, f: P) -> Vec<(Box<Envelope>, EnvelopeContext)>
+    pub fn dequeue<P>(
+        &mut self,
+        partial_key: &ProjectKey,
+        f: P,
+    ) -> Vec<(Box<Envelope>, EnvelopeContext)>
     where
         P: Fn(&QueueKey) -> bool,
     {
-        let mut keys = self.index.get_mut(key).map(mem::take).unwrap_or_default();
+        let mut keys = self
+            .index
+            .get_mut(partial_key)
+            .map(mem::take)
+            .unwrap_or_default();
 
         let mut result = vec![];
         // Find those keys which match predicates.
-        while let Some(qkey) = keys.pop() {
+        for qkey in keys.drain() {
             if f(&qkey) {
                 if let Some(envelopes) = self.buffer.remove(&qkey) {
                     result.extend(envelopes);
@@ -427,18 +438,21 @@ impl Queue {
             }
             // Return keys into the index, where predicate is failing.
             else {
-                self.index.entry(*key).or_insert(vec![qkey]).push(qkey);
+                self.index
+                    .entry(*partial_key)
+                    .or_insert(HashSet::from([qkey]))
+                    .insert(qkey);
             }
         }
 
         // Remove the index all together if it's empty.
         let empty_index = self
             .index
-            .get(key)
+            .get(partial_key)
             .map(|v| v.is_empty())
             .unwrap_or_default();
         if empty_index {
-            self.index.remove(key);
+            self.index.remove(partial_key);
         }
 
         result
