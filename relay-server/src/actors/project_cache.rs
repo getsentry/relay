@@ -415,12 +415,7 @@ impl Queue {
     where
         P: Fn(&QueueKey) -> bool,
     {
-        // First take all the keys from the index.
-        let mut keys = if let Some(keys) = self.index.get_mut(key) {
-            mem::take(keys)
-        } else {
-            vec![]
-        };
+        let mut keys = self.index.get_mut(key).map(mem::take).unwrap_or_default();
 
         let mut result = vec![];
         // Find those keys which match predicates.
