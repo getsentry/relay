@@ -384,25 +384,25 @@ struct QueueKey {
 #[derive(Debug, Default)]
 struct Queue {
     /// Contains the cache of the incoming envelopes.
-    pub spool: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
-    /// Index of the spooled project keys.
+    buffer: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    /// Index of the buffered project keys.
     index: HashMap<ProjectKey, Vec<QueueKey>>,
 }
 
 impl Queue {
-    /// Create a new empty queue.
-    fn new() -> Self {
+    /// Creates an empty queue.
+    pub fn new() -> Self {
         Self::default()
     }
 
     /// Adds the value to the queue for the provided key.
-    fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
+    pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
         // Add key to our index.
         for k in &[key.key, key.sampling_key] {
             self.index.entry(*k).or_insert(vec![key]).push(key);
         }
 
-        match self.spool.entry(key) {
+        match self.buffer.entry(key) {
             Entry::Occupied(o) => o.into_mut().push(value),
             Entry::Vacant(v) => {
                 v.insert(vec![value]);
@@ -410,8 +410,8 @@ impl Queue {
         }
     }
 
-    /// Returns the list of spooled envelopes if they satisfy the predicate.
-    fn dequeue<P>(&mut self, key: &ProjectKey, f: P) -> Vec<(Box<Envelope>, EnvelopeContext)>
+    /// Returns the list of buffered envelopes if they satisfy a predicate.
+    pub fn dequeue<P>(&mut self, key: &ProjectKey, f: P) -> Vec<(Box<Envelope>, EnvelopeContext)>
     where
         P: Fn(&QueueKey) -> bool,
     {
@@ -426,7 +426,7 @@ impl Queue {
         // Find those keys which match predicates.
         while let Some(qkey) = keys.pop() {
             if f(&qkey) {
-                if let Some(envelopes) = self.spool.remove(&qkey) {
+                if let Some(envelopes) = self.buffer.remove(&qkey) {
                     result.extend(envelopes);
                 }
             }
@@ -450,6 +450,28 @@ impl Queue {
     }
 }
 
+impl Drop for Queue {
+    fn drop(&mut self) {
+        let keys = self.buffer.keys();
+
+        if keys.len() > 0 {
+            for key in keys {
+                if let Some(count) = self.buffer.get(key).map(|v| v.len()) {
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_tag("project_key", key.key);
+                            if key.key != key.sampling_key {
+                                scope.set_tag("sampling_key", key.sampling_key)
+                            }
+                        },
+                        || relay_log::error!("dropped project with {} envelopes", count),
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -462,7 +484,7 @@ struct ProjectCacheBroker {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    spool: Queue,
+    pending_envelopes: Queue,
 }
 
 impl ProjectCacheBroker {
@@ -511,6 +533,10 @@ impl ProjectCacheBroker {
             })
     }
 
+    /// Updates the [`Project`] with received [`ProjectState`].
+    ///
+    /// If the project state is valid, the internal `pending_envelopes` queue is also checked if
+    /// there are any envelopes buffered for this specific project, which could be processed now.
     fn merge_state(&mut self, message: UpdateProjectState) {
         let UpdateProjectState {
             project_key,
@@ -525,7 +551,7 @@ impl ProjectCacheBroker {
 
         // There is no much sense to dequeue and check anything if the incoming state is invalid.
         if !invalid {
-            let envelopes = self.spool.dequeue(&project_key, |queue_key| {
+            let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
                 for key in &[queue_key.key, queue_key.sampling_key] {
                     // Do not check just updated state again.
                     if *key == project_key {
@@ -602,25 +628,27 @@ impl ProjectCacheBroker {
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope, context } = message;
-        self.check_envelope(envelope, context)
-    }
-
-    fn check_envelope(
-        &mut self,
-        envelope: Box<Envelope>,
-        envelope_context: EnvelopeContext,
-    ) -> Result<CheckedEnvelope, DiscardReason> {
         let project = self.get_or_create_project(envelope.meta().public_key());
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(false);
-        project.check_envelope(envelope, envelope_context)
+        project.check_envelope(envelope, context)
     }
 
-    /// Checks the incoming envelope and decide either process it immediately or spool it.
+    /// Checks an incoming envelope and decides either process it immediately or buffer it.
     ///
-    /// TODO(spool): docs
+    /// Few conditions are checked here:
+    /// - If there is no dynamic sampling key and the project is already cached, we do strait to
+    /// processing otherwise buffer the envelopes.
+    /// - If there is a dynamic sampling key is provided, if the root and sampling project
+    /// are cached - process the envelope, buffer otherwise.
+    ///
+    /// This means if the caches are hot we always process all the incoming envelopes without any
+    /// delay. But in case if the project state cannot be fetched, we keep buffering till the state
+    /// is everyntually updated.
+    ///
+    /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
         // Get our project key
         let key = envelope.meta().public_key();
@@ -650,7 +678,9 @@ impl ProjectCacheBroker {
                 if let Ok(CheckedEnvelope {
                     envelope: Some((envelope, envelope_context)),
                     ..
-                }) = self.check_envelope(envelope, envelope_context)
+                }) = self
+                    .get_or_create_project(key)
+                    .check_envelope(envelope, envelope_context)
                 {
                     let mut process = ProcessEnvelope {
                         envelope,
@@ -667,18 +697,14 @@ impl ProjectCacheBroker {
                 }
             }
 
-            // We have a root project, but the samping project is not fetched yet, spool.
-            (Some(_), Some((sampling_key, None))) => {
-                let key = QueueKey { key, sampling_key };
-                self.spool.enqueue(key, (envelope, envelope_context))
-            }
-
             // Process our envelope, since there is no sampling key on this envelope.
             (Some(state), None) => {
                 if let Ok(CheckedEnvelope {
                     envelope: Some((envelope, envelope_context)),
                     ..
-                }) = self.check_envelope(envelope, envelope_context)
+                }) = self
+                    .get_or_create_project(key)
+                    .check_envelope(envelope, envelope_context)
                 {
                     let process = ProcessEnvelope {
                         envelope,
@@ -691,25 +717,26 @@ impl ProjectCacheBroker {
                 }
             }
 
-            // There are no state for sampling and root projects here yet, spool.
-            (None, Some((sampling_key, None))) => {
+            // We have to buffe because one of the followup conditiones met:
+            // 1. We have a root project, but the samping project is not fetched yet.
+            // 2. There is no state for sampling and root projects here yet.
+            // 3. There is no root project fetched yet.
+            (Some(_), Some((sampling_key, None)))
+            | (None, Some((sampling_key, None)))
+            | (None, Some((sampling_key, _))) => {
                 let key = QueueKey { key, sampling_key };
-                self.spool.enqueue(key, (envelope, envelope_context))
+                self.pending_envelopes
+                    .enqueue(key, (envelope, envelope_context))
             }
 
-            // There is no root project fetched yet, spool.
-            (None, Some((sampling_key, _))) => {
-                let key = QueueKey { key, sampling_key };
-                self.spool.enqueue(key, (envelope, envelope_context))
-            }
-
-            // There is no project state for our envelope, spool.
+            // There is no project state and no sampling key - buffer.
             (None, None) => {
                 let key = QueueKey {
                     key,
                     sampling_key: key,
                 };
-                self.spool.enqueue(key, (envelope, envelope_context))
+                self.pending_envelopes
+                    .enqueue(key, (envelope, envelope_context))
             }
         }
     }
@@ -764,28 +791,6 @@ impl ProjectCacheBroker {
     }
 }
 
-impl Drop for ProjectCacheBroker {
-    fn drop(&mut self) {
-        let keys = self.spool.spool.keys();
-
-        if keys.len() > 0 {
-            for key in keys {
-                if let Some(count) = self.spool.spool.get(key).map(|v| v.len()) {
-                    relay_log::with_scope(
-                        |scope| {
-                            scope.set_tag("project_key", key.key);
-                            if key.key != key.sampling_key {
-                                scope.set_tag("sampling_key", key.sampling_key)
-                            }
-                        },
-                        || relay_log::error!("dropped project with {} envelopes", count),
-                    );
-                }
-            }
-        }
-    }
-}
-
 /// Service implementing the [`ProjectCache`] interface.
 #[derive(Debug)]
 pub struct ProjectCacheService {
@@ -821,7 +826,7 @@ impl Service for ProjectCacheService {
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, redis),
                 state_tx,
-                spool: Queue::new(),
+                pending_envelopes: Queue::new(),
             };
 
             loop {
