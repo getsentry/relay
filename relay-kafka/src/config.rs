@@ -39,6 +39,8 @@ pub enum KafkaTopic {
     ReplayEvents,
     /// ReplayRecordings, large blobs sent by the replay sdk
     ReplayRecordings,
+    /// Cron monitor checkins.
+    Crons,
 }
 
 impl KafkaTopic {
@@ -46,7 +48,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 11] = [
+        static TOPICS: [KafkaTopic; 12] = [
             Events,
             Attachments,
             Transactions,
@@ -58,6 +60,7 @@ impl KafkaTopic {
             Profiles,
             ReplayEvents,
             ReplayRecordings,
+            Crons,
         ];
         TOPICS.iter()
     }
@@ -93,6 +96,8 @@ pub struct TopicAssignments {
     pub replay_events: TopicAssignment,
     /// Recordings topic name.
     pub replay_recordings: TopicAssignment,
+    /// Cron monitor checkins.
+    pub crons: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -113,6 +118,7 @@ impl TopicAssignments {
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
+            KafkaTopic::Crons => &self.crons,
         }
     }
 }
@@ -132,6 +138,7 @@ impl Default for TopicAssignments {
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
+            crons: "ingest-crons".to_owned().into(),
         }
     }
 }
