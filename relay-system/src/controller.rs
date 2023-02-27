@@ -107,7 +107,7 @@ impl Controller {
     ///
     /// This method panics when it is invoked outside of a controller context (`Controller::run`).
     pub fn from_registry() -> Addr<Self> {
-        CONTROLLER.get().expect("No Controller running").clone()
+        CONTROLLER.get_or_init(|| Controller::new().start()).clone()
     }
 
     /// Runs the `factory` to start actors.
@@ -130,7 +130,7 @@ impl Controller {
         // Ensure that the controller starts if no service has started it yet. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
         // controller will not be instantiated and our system will not listen for signals.
-        CONTROLLER.set(Controller::new().start()).ok();
+        Controller::from_registry();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
