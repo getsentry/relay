@@ -233,10 +233,8 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     }
 
     if profile.transaction.is_none() {
-        profile.transaction = profile.transactions.first().cloned();
+        profile.transaction = profile.transactions.drain(..).next();
     }
-
-    profile.transactions.clear();
 
     let transaction = profile
         .transaction
@@ -549,5 +547,12 @@ mod tests {
 
         assert_eq!(Some(transaction), profile.transaction);
         assert!(profile.transactions.is_empty());
+    }
+
+    #[test]
+    fn test_parse_with_no_transaction() {
+        let profile = generate_profile();
+        let payload = serde_json::to_vec(&profile).unwrap();
+        assert!(parse_profile(&payload[..]).is_err());
     }
 }
