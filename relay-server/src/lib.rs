@@ -272,7 +272,7 @@ mod testutils;
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Configure, Controller};
+use relay_system::Controller;
 
 use crate::actors::server::HttpServer;
 use crate::service::ServiceState;
@@ -290,14 +290,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let _guard = main_runtime.enter();
 
-    Controller::from_registry().do_send(Configure {
-        shutdown_timeout: config.shutdown_timeout(),
-    });
-
     // Run the controller and block until a shutdown signal is sent to this process. This will
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.
-    Controller::run(|| {
+    Controller::run(config.shutdown_timeout(), || {
         let service = ServiceState::start(config.clone())?;
         HttpServer::start(&config, service)
     })?;
