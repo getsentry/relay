@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{App, HttpRequest, HttpResponse};
 
 use relay_general::protocol::EventId;
 
@@ -7,7 +7,7 @@ use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
@@ -52,7 +52,7 @@ async fn store_unreal(
     Ok(common::create_text_event_id_response(id))
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         .resource(
             &common::normpath(r"/api/{project:\d+}/unreal/{sentry_key:\w+}/"),

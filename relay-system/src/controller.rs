@@ -46,9 +46,6 @@ impl ShutdownHandle {
 /// This service contains a static `run` method which will run a tokio system and block the current
 /// thread until the system shuts down again.
 ///
-/// It starts with default configuration. To change this configuration, send the [`Configure`]
-/// message.
-///
 /// To shut down more gracefully, other actors can register with [`Controller::shutdown_handle`].
 /// When a shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
 /// optional timeout. They can respond with a future, after which they will be stopped. Once all
@@ -95,10 +92,8 @@ impl Controller {
     /// Private function to create a new controller.
     ///
     /// Use `from_registry` for public access.
-    fn new() -> Self {
-        Self {
-            timeout: Duration::from_secs(0),
-        }
+    fn new(timeout: Duration) -> Self {
+        Self { timeout }
     }
 
     /// Get actor's address from system registry.
@@ -120,18 +115,19 @@ impl Controller {
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
     /// the system blocks the current thread until a shutdown signal is sent to the server and all
     /// actors have completed a graceful shutdown.
-    pub fn run<F, R, E>(factory: F) -> Result<(), E>
+    pub fn run<F, R, E>(shutdown_timeout: Duration, factory: F) -> Result<(), E>
     where
-        F: FnOnce() -> Result<R, E> + 'static,
-        F: Sync + Send,
+        F: FnOnce() -> Result<R, E>,
     {
         // Spawn a legacy actix system for the controller's signals.
         let sys = actix::System::new("relay");
 
-        // Ensure that the controller starts if no service has started it yet. It will register with
+        // Ensure that the controller starts if no service has starts it. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
         // controller will not be instantiated and our system will not listen for signals.
-        CONTROLLER.set(Controller::new().start()).ok();
+        CONTROLLER
+            .set(Controller::new(shutdown_timeout).start())
+            .ok();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
@@ -139,7 +135,6 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        relay_log::info!("relay server starting");
         sys.run();
 
         Ok(())
@@ -210,25 +205,6 @@ impl Handler<signal::Signal> for Controller {
             }
             _ => (),
         }
-    }
-}
-
-/// Configures the [`Controller`] with new parameters.
-#[derive(Debug)]
-pub struct Configure {
-    /// The maximum shutdown timeout before killing actors.
-    pub shutdown_timeout: Duration,
-}
-
-impl Message for Configure {
-    type Result = ();
-}
-
-impl Handler<Configure> for Controller {
-    type Result = ();
-
-    fn handle(&mut self, message: Configure, _context: &mut Self::Context) -> Self::Result {
-        self.timeout = message.shutdown_timeout;
     }
 }
 

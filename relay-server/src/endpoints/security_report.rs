@@ -1,6 +1,6 @@
 //! Endpoints for security reports.
 
-use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
+use actix_web::{pred, App, HttpMessage, HttpRequest, HttpResponse, Query, Request};
 use serde::Deserialize;
 
 use relay_general::protocol::EventId;
@@ -9,7 +9,7 @@ use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
 struct SecurityReportParams {
@@ -84,7 +84,7 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
     }
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         // Default security endpoint
         .resource(&common::normpath(r"/api/{project:\d+}/security/"), |r| {

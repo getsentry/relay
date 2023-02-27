@@ -1,5 +1,5 @@
 use actix_web::multipart::{Multipart, MultipartItem};
-use actix_web::{HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::compat::Future01CompatExt;
 use futures01::{stream, Stream};
@@ -11,7 +11,7 @@ use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -189,7 +189,7 @@ async fn store_minidump(
     Ok(common::create_text_event_id_response(id))
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         // No mandatory trailing slash here because people already use it like this.
         .resource(&common::normpath(r"/api/{project:\d+}/minidump"), |r| {

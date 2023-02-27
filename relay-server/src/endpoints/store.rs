@@ -1,6 +1,6 @@
 //! Handles event store requests.
 
-use actix_web::{http::Method, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{http::Method, App, HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use serde::Serialize;
 
@@ -10,7 +10,7 @@ use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 // Transparent 1x1 gif
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
@@ -113,7 +113,7 @@ async fn store_event(
     })
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of

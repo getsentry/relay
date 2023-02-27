@@ -1,11 +1,11 @@
-use actix_web::{http::Method, HttpRequest, HttpResponse};
+use actix_web::{http::Method, App, HttpRequest, HttpResponse};
 
 use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 use crate::utils::MultipartItems;
 
 async fn extract_envelope(
@@ -41,7 +41,7 @@ async fn store_attachment(
     Ok(HttpResponse::Created().finish())
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     let url_pattern = common::normpath(r"/api/{project:\d+}/events/{event_id:[\w-]+}/attachments/");
 
     common::cors(app)

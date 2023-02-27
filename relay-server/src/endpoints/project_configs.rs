@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use actix::prelude::*;
-use actix_web::{Error, FromRequest, Json};
+use actix::MailboxError;
+use actix_web::{App, Error, FromRequest, Json};
 use futures::{future, TryFutureExt};
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +11,7 @@ use relay_dynamic_config::ErrorBoundary;
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::extractors::SignedJson;
-use crate::service::ServiceApp;
+use crate::service::ServiceState;
 
 /// V2 version of this endpoint.
 ///
@@ -173,7 +173,7 @@ async fn get_project_configs(
     Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     app.resource("/api/0/relays/projectconfigs/", |r| {
         r.name("relay-projectconfigs");
         r.post()
