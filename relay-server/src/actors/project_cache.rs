@@ -509,7 +509,10 @@ impl ProjectCacheBroker {
 
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
-        for (_, project) in expired {
+        for (project_key, project) in expired {
+            // Dequeue all the envelopes linked to the disposable project, which will be dropped
+            // once this for loop exits.
+            self.pending_envelopes.dequeue(&project_key, |_| true);
             self.garbage_disposal.dispose(project);
             count += 1;
         }
