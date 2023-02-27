@@ -461,21 +461,17 @@ impl Queue {
 
 impl Drop for Queue {
     fn drop(&mut self) {
-        let keys = self.buffer.keys();
-
-        if keys.len() > 0 {
-            for key in keys {
-                if let Some(count) = self.buffer.get(key).map(|v| v.len()) {
-                    relay_log::with_scope(
-                        |scope| {
-                            scope.set_tag("project_key", key.key);
-                            if key.key != key.sampling_key {
-                                scope.set_tag("sampling_key", key.sampling_key)
-                            }
-                        },
-                        || relay_log::error!("dropped project with {} envelopes", count),
-                    );
-                }
+        for key in self.buffer.keys() {
+            if let Some(count) = self.buffer.get(key).map(|v| v.len()) {
+                relay_log::with_scope(
+                    |scope| {
+                        scope.set_tag("project_key", key.key);
+                        if key.key != key.sampling_key {
+                            scope.set_tag("sampling_key", key.sampling_key)
+                        }
+                    },
+                    || relay_log::error!("dropped project with {} envelopes", count),
+                );
             }
         }
     }
@@ -556,7 +552,7 @@ impl ProjectCacheBroker {
         let invalid = state.invalid();
 
         self.get_or_create_project(project_key)
-            .update_state(state, no_cache);
+            .update_state(state.clone(), no_cache);
 
         // There is no much sense to dequeue and check anything if the incoming state is invalid.
         if !invalid {
@@ -572,7 +568,8 @@ impl ProjectCacheBroker {
                     if self
                         .projects
                         .get(key)
-                        .map(|p| p.valid_state().is_none())
+                        // Make sure we have only cached and valid state.
+                        .map(|p| p.valid_state().filter(|state| !state.invalid()).is_none())
                         .unwrap_or_default()
                     {
                         return false;
@@ -583,7 +580,17 @@ impl ProjectCacheBroker {
 
             // Try to flush all the envelopes again.
             for (envelope, envelope_context) in envelopes {
-                self.handle_processing(envelope, envelope_context)
+                let sampling_state = utils::get_sampling_key(&envelope).and_then(|key| {
+                    self.get_or_create_project(key)
+                        .get_cached_state(envelope.meta().no_cache())
+                });
+                self.handle_processing(
+                    project_key,
+                    state.clone(),
+                    sampling_state,
+                    envelope,
+                    envelope_context,
+                )
             }
         }
     }
@@ -645,6 +652,39 @@ impl ProjectCacheBroker {
         project.check_envelope(envelope, context)
     }
 
+    /// Handles the processing of the provided envelope.
+    fn handle_processing(
+        &mut self,
+        project_key: ProjectKey,
+        state: Arc<ProjectState>,
+        sampling_state: Option<Arc<ProjectState>>,
+        envelope: Box<Envelope>,
+        envelope_context: EnvelopeContext,
+    ) {
+        if let Ok(CheckedEnvelope {
+            envelope: Some((envelope, envelope_context)),
+            ..
+        }) = self
+            .get_or_create_project(project_key)
+            .check_envelope(envelope, envelope_context)
+        {
+            let mut process = ProcessEnvelope {
+                envelope,
+                envelope_context,
+                project_state: state.clone(),
+                sampling_project_state: None,
+            };
+
+            if let Some(sampling_state) = sampling_state {
+                if state.organization_id == sampling_state.organization_id {
+                    process.sampling_project_state = Some(sampling_state)
+                }
+            }
+
+            EnvelopeProcessor::from_registry().send(process);
+        }
+    }
+
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
     ///
     /// Few conditions are checked here:
@@ -658,7 +698,7 @@ impl ProjectCacheBroker {
     /// is everyntually updated.
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
-    fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
+    fn handle_validation(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
         // Get our project key
         let key = envelope.meta().public_key();
         // Check is there is a sampling key on this envelope.
@@ -684,46 +724,12 @@ impl ProjectCacheBroker {
         match (project_state, sampling_project_state) {
             // Process the envelope, we have all the data.
             (Some(state), Some((_, Some(sampling_state)))) => {
-                if let Ok(CheckedEnvelope {
-                    envelope: Some((envelope, envelope_context)),
-                    ..
-                }) = self
-                    .get_or_create_project(key)
-                    .check_envelope(envelope, envelope_context)
-                {
-                    let mut process = ProcessEnvelope {
-                        envelope,
-                        envelope_context,
-                        project_state: state.clone(),
-                        sampling_project_state: None,
-                    };
-
-                    if state.organization_id == sampling_state.organization_id {
-                        process.sampling_project_state = Some(sampling_state)
-                    }
-
-                    EnvelopeProcessor::from_registry().send(process);
-                }
+                self.handle_processing(key, state, Some(sampling_state), envelope, envelope_context)
             }
 
             // Process our envelope, since there is no sampling key on this envelope.
             (Some(state), None) => {
-                if let Ok(CheckedEnvelope {
-                    envelope: Some((envelope, envelope_context)),
-                    ..
-                }) = self
-                    .get_or_create_project(key)
-                    .check_envelope(envelope, envelope_context)
-                {
-                    let process = ProcessEnvelope {
-                        envelope,
-                        envelope_context,
-                        project_state: state,
-                        sampling_project_state: None,
-                    };
-
-                    EnvelopeProcessor::from_registry().send(process);
-                }
+                self.handle_processing(key, state, None, envelope, envelope_context)
             }
 
             // We have to buffe because one of the followup conditiones met:
@@ -751,12 +757,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        let ValidateEnvelope {
-            envelope,
-            context: envelope_context,
-        } = message;
-
-        self.handle_processing(envelope, envelope_context)
+        self.handle_validation(message.envelope, message.context)
     }
 
     fn handle_rate_limits(&mut self, message: UpdateRateLimits) {
