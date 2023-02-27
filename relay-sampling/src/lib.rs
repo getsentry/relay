@@ -43,7 +43,7 @@ pub enum RuleType {
 /// A condition that checks the values using the equality operator.
 ///
 /// For string values it supports case-insensitive comparison.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondOptions {
     #[serde(default)]
@@ -56,7 +56,7 @@ pub struct EqCondOptions {
 pub struct EqCondition {
     pub name: String,
     pub value: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub options: EqCondOptions,
 }
 
@@ -175,7 +175,7 @@ pub struct CustomCondition {
     pub name: String,
     #[serde(default)]
     pub value: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub options: HashMap<String, Value>,
 }
 
@@ -452,6 +452,11 @@ impl ActiveRule {
     }
 }
 
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -467,7 +472,7 @@ pub struct SamplingRule {
     /// closed on at least one end, the rule is considered a decaying rule.
     #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
     pub time_range: TimeRange,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub decaying_fn: DecayingFunction,
 }
 
