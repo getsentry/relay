@@ -3308,8 +3308,10 @@ dependencies = [
 name = "relay-crons"
 version = "23.2.0"
 dependencies = [
+ "relay-common",
  "serde",
  "serde_json",
+ "similar-asserts",
  "thiserror",
 ]
 

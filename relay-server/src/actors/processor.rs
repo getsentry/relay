@@ -1038,11 +1038,10 @@ impl EnvelopeProcessorService {
             }
 
             match relay_crons::process_checkin(&item.payload()) {
-                Ok(Some(processed)) => {
+                Ok(processed) => {
                     item.set_payload(ContentType::Json, processed);
                     true
                 }
-                Ok(None) => true,
                 Err(error) => {
                     // TODO: Track an outcome.
                     relay_log::debug!("dropped invalid cron checkin: {}", LogError(&error));
