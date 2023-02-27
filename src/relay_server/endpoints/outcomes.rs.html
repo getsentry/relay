@@ -25,12 +25,12 @@
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::HttpResponse;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{App, HttpResponse};
 <span class="kw">use </span>relay_config::EmitOutcomes;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{CurrentServiceState, SignedJson};
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="kw">fn </span>send_outcomes(state: CurrentServiceState, body: SignedJson&lt;SendOutcomes&gt;) -&gt; HttpResponse {
     <span class="kw">if </span>!body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
@@ -45,7 +45,7 @@
     HttpResponse::Accepted().json(SendOutcomesResponse {})
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     app.resource(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, |r| {
         r.name(<span class="string">&quot;relay-outcomes&quot;</span>);
         r.post().with(send_outcomes);

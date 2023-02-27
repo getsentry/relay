@@ -495,7 +495,7 @@
 
 <span class="kw">use </span>actix_web::http::{header, StatusCode};
 <span class="kw">use </span>actix_web::middleware::cors::{Cors, CorsBuilder};
-<span class="kw">use </span>actix_web::{error::PayloadError, HttpResponse};
+<span class="kw">use </span>actix_web::{error::PayloadError, App, HttpResponse};
 <span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
@@ -507,7 +507,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
@@ -720,7 +720,7 @@
 /// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
 /// returns an App. This configures POST as allowed method, allows default sentry headers, and
 /// exposes the return headers.
-</span><span class="kw">pub fn </span>cors(app: ServiceApp) -&gt; CorsBuilder&lt;ServiceState&gt; {
+</span><span class="kw">pub fn </span>cors(app: App&lt;ServiceState&gt;) -&gt; CorsBuilder&lt;ServiceState&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>builder = Cors::for_app(app);
 
     builder

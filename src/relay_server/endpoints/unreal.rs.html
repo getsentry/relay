@@ -65,7 +65,7 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{HttpRequest, HttpResponse};
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
@@ -74,7 +74,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="kw">async fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
@@ -119,7 +119,7 @@
     </span><span class="prelude-val">Ok</span>(common::create_text_event_id_response(id))
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     common::cors(app)
         .resource(
             <span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),

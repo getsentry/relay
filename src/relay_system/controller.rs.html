@@ -229,30 +229,6 @@
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
@@ -301,9 +277,6 @@
 /// This service contains a static `run` method which will run a tokio system and block the current
 /// thread until the system shuts down again.
 ///
-/// It starts with default configuration. To change this configuration, send the [`Configure`]
-/// message.
-///
 /// To shut down more gracefully, other actors can register with [`Controller::shutdown_handle`].
 /// When a shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
 /// optional timeout. They can respond with a future, after which they will be stopped. Once all
@@ -350,10 +323,8 @@
     <span class="doccomment">/// Private function to create a new controller.
     ///
     /// Use `from_registry` for public access.
-    </span><span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            timeout: Duration::from_secs(<span class="number">0</span>),
-        }
+    </span><span class="kw">fn </span>new(timeout: Duration) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ timeout }
     }
 
     <span class="doccomment">/// Get actor&#39;s address from system registry.
@@ -375,18 +346,19 @@
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
     /// the system blocks the current thread until a shutdown signal is sent to the server and all
     /// actors have completed a graceful shutdown.
-    </span><span class="kw">pub fn </span>run&lt;F, R, E&gt;(factory: F) -&gt; <span class="prelude-ty">Result</span>&lt;(), E&gt;
+    </span><span class="kw">pub fn </span>run&lt;F, R, E&gt;(shutdown_timeout: Duration, factory: F) -&gt; <span class="prelude-ty">Result</span>&lt;(), E&gt;
     <span class="kw">where
-        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;R, E&gt; + <span class="lifetime">&#39;static</span>,
-        F: Sync + Send,
+        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;R, E&gt;,
     {
         <span class="comment">// Spawn a legacy actix system for the controller&#39;s signals.
         </span><span class="kw">let </span>sys = actix::System::new(<span class="string">&quot;relay&quot;</span>);
 
-        <span class="comment">// Ensure that the controller starts if no service has started it yet. It will register with
+        <span class="comment">// Ensure that the controller starts if no service has starts it. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
         // controller will not be instantiated and our system will not listen for signals.
-        </span>CONTROLLER.set(Controller::new().start()).ok();
+        </span>CONTROLLER
+            .set(Controller::new(shutdown_timeout).start())
+            .ok();
 
         <span class="comment">// Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
@@ -394,8 +366,7 @@
 
         <span class="comment">// All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
-        sys.run();
+        </span>sys.run();
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -465,25 +436,6 @@
             }
             <span class="kw">_ </span>=&gt; (),
         }
-    }
-}
-
-<span class="doccomment">/// Configures the [`Controller`] with new parameters.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>Configure {
-    <span class="doccomment">/// The maximum shutdown timeout before killing actors.
-    </span><span class="kw">pub </span>shutdown_timeout: Duration,
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>Configure {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;Configure&gt; <span class="kw">for </span>Controller {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Configure, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.timeout = message.shutdown_timeout;
     }
 }
 

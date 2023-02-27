@@ -41,12 +41,12 @@
 <a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A simple health check endpoint for the relay.
 
-</span><span class="kw">use </span>actix_web::{Error, HttpResponse};
+</span><span class="kw">use </span>actix_web::{App, Error, HttpResponse};
 <span class="kw">use </span>futures::TryFutureExt;
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, IsHealthy};
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="attr">#[derive(Serialize)]
 </span><span class="kw">struct </span>Status {
@@ -60,7 +60,7 @@
     })
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     app.resource(<span class="string">&quot;/api/relay/healthcheck/ready/&quot;</span>, |r| {
         r.name(<span class="string">&quot;internal-healthcheck-ready&quot;</span>);
         r.get()

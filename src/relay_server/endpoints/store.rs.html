@@ -140,7 +140,7 @@
 <a href="#139" id="139">139</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Handles event store requests.
 
-</span><span class="kw">use </span>actix_web::{http::Method, HttpMessage, HttpRequest, HttpResponse};
+</span><span class="kw">use </span>actix_web::{http::Method, App, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::{Bytes, BytesMut};
 <span class="kw">use </span>serde::Serialize;
 
@@ -150,7 +150,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="comment">// Transparent 1x1 gif
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
@@ -253,7 +253,7 @@
     })
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     common::cors(app)
         <span class="comment">// Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of

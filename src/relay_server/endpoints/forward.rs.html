@@ -317,7 +317,7 @@
 <span class="kw">use </span>actix_web::error::{ParseError, ResponseError};
 <span class="kw">use </span>actix_web::http::header::{<span class="self">self</span>, HeaderName, HeaderValue};
 <span class="kw">use </span>actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
-<span class="kw">use </span>actix_web::{Error, HttpMessage, HttpRequest, HttpResponse};
+<span class="kw">use </span>actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>futures::TryFutureExt;
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -334,7 +334,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::statics;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder, Response};
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="doccomment">/// Headers that this endpoint must handle and cannot forward.
 </span><span class="kw">static </span>HOP_BY_HOP_HEADERS: <span class="kw-2">&amp;</span>[HeaderName] = <span class="kw-2">&amp;</span>[
@@ -598,7 +598,7 @@
 ///
 /// NOTE: This endpoint registers a catch-all handler on `/api`. Register this endpoint last, since
 /// no routes can be registered afterwards!
-</span><span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+</span><span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     <span class="comment">// We only forward API requests so that relays cannot be used to surf sentry&#39;s frontend. The
     // &quot;/api/&quot; path is special as it is actually a web UI endpoint.
     </span>app.resource(<span class="string">&quot;/api/&quot;</span>, |r| {

@@ -52,7 +52,7 @@
 //! Services require a tokio to run, see [`relay_system`] and particularly
 //! [`Controller`](relay_system::Controller) for more information.
 //!
-//! The web server is wrapped by [`ServerService`](server::ServerService). It starts the actix HTTP
+//! The web server is wrapped by [`HttpServer`](server::HttpServer). It starts the actix HTTP
 //! web server and dispatches the graceful shutdown signal. Internally, it creates several other
 //! services comprising the service state:
 //!

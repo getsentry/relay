@@ -40,12 +40,12 @@
 <a href="#39" id="39">39</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
-<span class="kw">use </span>actix_web::{actix::<span class="kw-2">*</span>, Error, Json};
+<span class="kw">use </span>actix_web::{actix::MailboxError, App, Error, Json};
 <span class="kw">use </span>futures::{future, TryFutureExt};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="kw">async fn </span>get_public_keys(body: SignedJson&lt;GetRelays&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Json&lt;GetRelaysResponse&gt;, Error&gt; {
     <span class="kw">let </span>relay_cache = RelayCache::from_registry();
@@ -70,7 +70,7 @@
 /// Note that this has nothing to do with Sentry public keys, which refer to the public key portion
 /// of a DSN used for authenticating event submission. This endpoint is for Relay&#39;s public keys,
 /// which authenticate entire Relays.
-</span><span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+</span><span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     app.resource(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>, |r| {
         r.name(<span class="string">&quot;relay-publickeys&quot;</span>);
         r.post()

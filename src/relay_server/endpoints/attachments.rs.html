@@ -53,14 +53,14 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{http::Method, HttpRequest, HttpResponse};
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{http::Method, App, HttpRequest, HttpResponse};
 
 <span class="kw">use </span>relay_general::protocol::EventId;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::MultipartItems;
 
 <span class="kw">async fn </span>extract_envelope(
@@ -96,7 +96,7 @@
     <span class="prelude-val">Ok</span>(HttpResponse::Created().finish())
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     <span class="kw">let </span>url_pattern = common::normpath(<span class="string">r&quot;/api/{project:\d+}/events/{event_id:[\w-]+}/attachments/&quot;</span>);
 
     common::cors(app)

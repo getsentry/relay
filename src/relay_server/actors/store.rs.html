@@ -1255,7 +1255,7 @@
 <span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::service::ServerError;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
@@ -1294,10 +1294,10 @@
         {
             <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
                 .kafka_config(<span class="kw-2">*</span>topic)
-                .map_err(|<span class="kw">_</span>| ServerError::KafkaError)<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| ServiceError::Kafka)<span class="question-mark">?</span>;
             client_builder = client_builder
                 .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)
-                .map_err(|<span class="kw">_</span>| ServerError::KafkaError)<span class="question-mark">?
+                .map_err(|<span class="kw">_</span>| ServiceError::Kafka)<span class="question-mark">?
         </span>}
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{

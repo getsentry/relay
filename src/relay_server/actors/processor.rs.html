@@ -3379,7 +3379,7 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::actors::envelopes::SendMetrics,
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
-    <span class="kw">crate</span>::service::ServerError,
+    <span class="kw">crate</span>::service::ServiceError,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
     relay_general::protocol::{Context <span class="kw">as </span>SentryContext, Contexts, ProfileContext},
@@ -3861,7 +3861,7 @@
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span>{
             <span class="kw">let </span>geoip_lookup = <span class="kw">match </span>config.geoip_path() {
-                <span class="prelude-val">Some</span>(p) =&gt; <span class="prelude-val">Some</span>(GeoIpLookup::open(p).context(ServerError::GeoIpError)<span class="question-mark">?</span>),
+                <span class="prelude-val">Some</span>(p) =&gt; <span class="prelude-val">Some</span>(GeoIpLookup::open(p).context(ServiceError::GeoIp)<span class="question-mark">?</span>),
                 <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
             };
 

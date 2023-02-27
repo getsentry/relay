@@ -187,8 +187,8 @@
 <a href="#186" id="186">186</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::{Error, FromRequest, Json};
+<span class="kw">use </span>actix::MailboxError;
+<span class="kw">use </span>actix_web::{App, Error, FromRequest, Json};
 <span class="kw">use </span>futures::{future, TryFutureExt};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -198,7 +198,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="doccomment">/// V2 version of this endpoint.
 ///
@@ -360,7 +360,7 @@
     <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
     app.resource(<span class="string">&quot;/api/0/relays/projectconfigs/&quot;</span>, |r| {
         r.name(<span class="string">&quot;relay-projectconfigs&quot;</span>);
         r.post()
