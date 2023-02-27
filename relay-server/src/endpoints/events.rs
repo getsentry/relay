@@ -1,14 +1,13 @@
 //! Returns captured events.
 
-use actix_web::actix::MailboxError;
-use actix_web::{http::Method, HttpResponse, Path};
+use actix_web::{actix::MailboxError, http::Method, App, HttpResponse, Path};
 use futures::TryFutureExt;
 
 use relay_general::protocol::EventId;
 
 use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
 use crate::envelope;
-use crate::service::ServiceApp;
+use crate::service::ServiceState;
 
 async fn get_captured_event(event_id: Path<EventId>) -> Result<HttpResponse, MailboxError> {
     let request = GetCapturedEnvelope {
@@ -33,7 +32,7 @@ async fn get_captured_event(event_id: Path<EventId>) -> Result<HttpResponse, Mai
     Ok(response)
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     app.resource("/api/relay/events/{event_id}/", |r| {
         r.name("internal-events");
         r.method(Method::GET)

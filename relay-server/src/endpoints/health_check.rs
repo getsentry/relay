@@ -1,11 +1,11 @@
 //! A simple health check endpoint for the relay.
 
-use actix_web::{Error, HttpResponse};
+use actix_web::{App, Error, HttpResponse};
 use futures::TryFutureExt;
 use serde::Serialize;
 
 use crate::actors::health_check::{HealthCheck, IsHealthy};
-use crate::service::ServiceApp;
+use crate::service::ServiceState;
 
 #[derive(Serialize)]
 struct Status {
@@ -19,7 +19,7 @@ async fn health_check(message: IsHealthy) -> Result<HttpResponse, Error> {
     })
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     app.resource("/api/relay/healthcheck/ready/", |r| {
         r.name("internal-healthcheck-ready");
         r.get()

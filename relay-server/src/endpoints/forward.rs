@@ -12,7 +12,7 @@ use actix::ResponseFuture;
 use actix_web::error::{ParseError, ResponseError};
 use actix_web::http::header::{self, HeaderName, HeaderValue};
 use actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
-use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::TryFutureExt;
 use once_cell::sync::Lazy;
@@ -29,7 +29,7 @@ use crate::body;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -293,7 +293,7 @@ pub fn forward_compat(request: &HttpRequest<ServiceState>) -> ResponseFuture<Htt
 ///
 /// NOTE: This endpoint registers a catch-all handler on `/api`. Register this endpoint last, since
 /// no routes can be registered afterwards!
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     // We only forward API requests so that relays cannot be used to surf sentry's frontend. The
     // "/api/" path is special as it is actually a web UI endpoint.
     app.resource("/api/", |r| {

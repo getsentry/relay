@@ -269,10 +269,13 @@ mod utils;
 #[cfg(test)]
 mod testutils;
 
+use std::sync::Arc;
+
 use relay_config::Config;
 use relay_system::Controller;
 
-use crate::actors::server::ServerService;
+use crate::actors::server::HttpServer;
+use crate::service::ServiceState;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -280,20 +283,26 @@ use crate::actors::server::ServerService;
 /// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
 /// the `config` passed into this funciton.
 pub fn run(config: Config) -> anyhow::Result<()> {
-    // Run the controller and block until a shutdown signal is sent to this process. This will
-    // create an actix system, start a web server and run all relevant actors inside. See the
-    // `actors` module documentation for more information on all actors.
+    let config = Arc::new(config);
+    relay_log::info!("relay server starting");
 
     // Spawn the main tokio runtime here since the controller cannot access the config.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let _guard = main_runtime.enter();
 
-    let shutdown_timeout = config.shutdown_timeout();
-    Controller::run(|| ServerService::start(config))?;
+    // Run the controller and block until a shutdown signal is sent to this process. This will
+    // create an actix system, start a web server and run all relevant actors inside. See the
+    // `actors` module documentation for more information on all actors.
+    Controller::run(config.shutdown_timeout(), || {
+        let service = ServiceState::start(config.clone())?;
+        HttpServer::start(&config, service)
+    })?;
 
-    // Properly shutdown the new tokio runtime.
-    main_runtime.shutdown_timeout(shutdown_timeout);
+    // Shut down the tokio runtime immediately without waiting for tasks. Our services do not exit
+    // by themselves, and the shutdown timeout should have given them enough time to complete their
+    // tasks.
+    main_runtime.shutdown_background();
+
     relay_log::info!("relay shutdown complete");
-
     Ok(())
 }
