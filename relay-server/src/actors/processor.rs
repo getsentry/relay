@@ -1020,13 +1020,36 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles from the envelope if the feature flag is not enabled
+    /// Remove profiles from the envelope if the feature flag is not enabled.
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => profiling_enabled,
             _ => true,
         });
+    }
+
+    /// Normalize cron monitor checkins and remove invalid ones.
+    #[cfg(feature = "processing")]
+    fn process_checkins(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| {
+            if item.ty() != &ItemType::Checkin {
+                return true;
+            }
+
+            match relay_crons::process_checkin(&item.payload()) {
+                Ok(Some(processed)) => {
+                    item.set_payload(ContentType::Json, processed);
+                    true
+                }
+                Ok(None) => true,
+                Err(error) => {
+                    // TODO: Track an outcome.
+                    relay_log::debug!("dropped invalid cron checkin: {}", LogError(&error));
+                    false
+                }
+            }
+        })
     }
 
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
@@ -1567,6 +1590,8 @@ impl EnvelopeProcessorService {
             ItemType::Profile => false,
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
+            ItemType::Checkin => false,
+
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
         }
@@ -2235,6 +2260,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
+            self.process_checkins(state);
         });
 
         if state.has_event() {

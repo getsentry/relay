@@ -36,6 +36,7 @@
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
+//!  - [`relay-crons`]: Crons protocol and processing for Sentry.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
@@ -71,6 +72,7 @@
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-crash`]: ../relay_crash/index.html
+//! [`relay-crons`]: ../relay_crons/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html

@@ -524,6 +524,8 @@ struct Limits {
     max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     max_client_reports_size: ByteSize,
+    /// The maximum payload size for a cron monitor checkin.
+    max_checkin_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
@@ -571,6 +573,7 @@ impl Default for Limits {
             max_attachment_size: ByteSize::mebibytes(100),
             max_attachments_size: ByteSize::mebibytes(100),
             max_client_reports_size: ByteSize::kibibytes(4),
+            max_checkin_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
@@ -1688,6 +1691,11 @@ impl Config {
     /// Returns the maxmium combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
         self.values.limits.max_client_reports_size.as_bytes()
+    }
+
+    /// Returns the maxmium payload size of a cron monitor checkin in bytes.
+    pub fn max_checkin_size(&self) -> usize {
+        self.values.limits.max_checkin_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.

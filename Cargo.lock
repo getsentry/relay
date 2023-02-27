@@ -3305,6 +3305,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-crons"
+version = "23.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "relay-dynamic-config"
 version = "23.1.1"
 dependencies = [
@@ -3559,6 +3568,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-common",
  "relay-config",
+ "relay-crons",
  "relay-dynamic-config",
  "relay-filter",
  "relay-general",
