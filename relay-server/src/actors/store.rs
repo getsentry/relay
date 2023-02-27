@@ -199,35 +199,36 @@ impl StoreService {
             }
         }
 
-        if let Some(event_item) = event_item {
-            relay_log::trace!("Sending event item of envelope to kafka");
-            let event_message = KafkaMessage::Event(EventKafkaMessage {
-                payload: event_item.payload(),
-                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-                event_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
-                attachments,
-            });
+        if event_item.is_none() && attachments.is_empty() {
+            // No event-related content. All done.
+            return Ok(());
+        }
 
-            self.produce(topic, scoping.organization_id, event_message)?;
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = &event_item.ty().to_string()
-            );
-        } else if !attachments.is_empty() {
-            relay_log::trace!("Sending individual attachments of envelope to kafka");
-            for attachment in attachments {
-                let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                    event_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    attachment,
-                });
+        let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
-                self.produce(topic, scoping.organization_id, attachment_message)?;
+        let kafka_messages = Self::extract_kafka_messages_for_event(
+            event_item,
+            event_id.ok_or(StoreError::NoEventId)?,
+            scoping,
+            start_time,
+            remote_addr,
+            attachments,
+        );
+
+        for message in kafka_messages {
+            let is_attachment = matches!(&message, KafkaMessage::Attachment(_));
+
+            self.produce(topic, scoping.organization_id, message)?;
+
+            if is_attachment {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
+                );
+            } else if let Some(event_item) = event_item {
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = &event_item.ty().to_string()
                 );
             }
         }
@@ -235,12 +236,62 @@ impl StoreService {
         Ok(())
     }
 
+    fn extract_kafka_messages_for_event(
+        event_item: Option<&Item>,
+        event_id: EventId,
+        scoping: Scoping,
+        start_time: Instant,
+        remote_addr: Option<String>,
+        attachments: Vec<ChunkedAttachment>,
+    ) -> impl Iterator<Item = KafkaMessage> {
+        // There might be a better way to do this:
+        let (individual_attachments, inline_attachments) = match event_item {
+            Some(event_item) => {
+                if matches!(event_item.ty(), ItemType::Transaction) {
+                    // Sentry discards inline attachments for transactions, so send them as individual ones instead.
+                    (attachments, vec![])
+                } else {
+                    (vec![], attachments)
+                }
+            }
+            None => (attachments, vec![]),
+        };
+
+        let project_id = scoping.project_id;
+
+        let event_iterator = event_item
+            .map(|event_item| {
+                KafkaMessage::Event(EventKafkaMessage {
+                    payload: event_item.payload(),
+                    start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                    event_id,
+                    project_id,
+                    remote_addr,
+                    attachments: inline_attachments,
+                })
+            })
+            .into_iter();
+
+        let attachment_iterator = individual_attachments.into_iter().map(move |attachment| {
+            KafkaMessage::Attachment(AttachmentKafkaMessage {
+                event_id,
+                project_id,
+                attachment,
+            })
+        });
+
+        attachment_iterator.chain(event_iterator)
+    }
+
     fn produce(
         &self,
         topic: KafkaTopic,
         organization_id: u64,
+        // Takes message by value to ensure it is not being produced twice.
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
+        relay_log::trace!("Sending kafka message of type {}", message.variant());
+
         self.producer
             .client
             .send_message(topic, organization_id, &message)?;
@@ -487,7 +538,6 @@ impl StoreService {
             }
         };
 
-        relay_log::trace!("Sending metric message to kafka");
         self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -528,7 +578,6 @@ impl StoreService {
         organization_id: u64,
         message: SessionKafkaMessage,
     ) -> Result<(), StoreError> {
-        relay_log::trace!("Sending session item to kafka");
         self.produce(
             KafkaTopic::Sessions,
             organization_id,
@@ -556,7 +605,6 @@ impl StoreService {
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
-        relay_log::trace!("Sending profile to Kafka");
         self.produce(
             KafkaTopic::Profiles,
             organization_id,
@@ -585,7 +633,6 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
-        relay_log::trace!("Sending replay event to Kafka");
         self.produce(
             KafkaTopic::ReplayEvents,
             organization_id,
@@ -810,7 +857,7 @@ struct EventKafkaMessage {
     attachments: Vec<ChunkedAttachment>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct ReplayEventKafkaMessage {
     /// Raw event payload.
     payload: Bytes,
@@ -1048,4 +1095,140 @@ impl Message for KafkaMessage {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_common::ProjectKey;
+
+    /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` method.
+    fn arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {
+        let start_time = Instant::now();
+        let event_id = EventId::new();
+        let scoping = Scoping {
+            organization_id: 42,
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(17),
+        };
+
+        let attachment_vec = {
+            let item = Item::new(ItemType::Attachment);
+
+            vec![ChunkedAttachment {
+                id: Uuid::new_v4().to_string(),
+                name: UNNAMED_ATTACHMENT.to_owned(),
+                content_type: item
+                    .content_type()
+                    .map(|content_type| content_type.as_str().to_owned()),
+                attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+                chunks: 0,
+                size: None,
+                rate_limited: Some(item.rate_limited()),
+            }]
+        };
+
+        (start_time, event_id, scoping, attachment_vec)
+    }
+
+    #[test]
+    fn test_return_attachments_when_missing_event_item() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            None,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        assert!(
+            kafka_messages
+                .filter(|msg| matches!(msg, KafkaMessage::Attachment(_)))
+                .count()
+                == number_of_attachments
+        );
+    }
+
+    /// If there is an event_item, and it is of type transaction, then the attachments should not
+    /// be sent together with the event but rather as standalones.
+    #[test]
+    fn test_send_standalone_attachments_when_transaction() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let item = Item::new(ItemType::Transaction);
+        let event_item = Some(&item);
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            event_item,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        let (event, standalone_attachments): (Vec<_>, Vec<_>) =
+            kafka_messages.partition(|item| match item {
+                KafkaMessage::Event(_) => true,
+                KafkaMessage::Attachment(_) => false,
+                _ => panic!("only expected events or attachment type"),
+            });
+
+        // Tests that the event does not contain any attachments.
+        let event = &event[0];
+        if let KafkaMessage::Event(event) = event {
+            assert!(event.attachments.is_empty());
+        } else {
+            panic!("No event found")
+        }
+
+        // Tests that the attachment we sent to `extract_kafka_messages_for_event` is in the
+        // standalone attachments.
+        assert!(standalone_attachments.len() == number_of_attachments);
+    }
+
+    /// If there is an event_item, and it is not a transaction. The attachments should be kept in
+    /// the event and not be returned as stand-alone attachments.
+    #[test]
+    fn test_store_attachment_in_event_when_not_a_transaction() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let item = Item::new(ItemType::Event);
+        let event_item = Some(&item);
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            event_item,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        let (event, standalone_attachments): (Vec<_>, Vec<_>) =
+            kafka_messages.partition(|item| match item {
+                KafkaMessage::Event(_) => true,
+                KafkaMessage::Attachment(_) => false,
+                _ => panic!("only expected events or attachment type"),
+            });
+
+        // Because it's not a transaction event, the attachment should be part of the event,
+        // and therefore the standalone_attachments vec should be empty.
+        assert!(standalone_attachments.is_empty());
+
+        // Checks that the attachment is part of the event.
+        let event = &event[0];
+        if let KafkaMessage::Event(event) = event {
+            assert!(event.attachments.len() == number_of_attachments);
+        } else {
+            panic!("No event found")
+        }
+    }
 }
