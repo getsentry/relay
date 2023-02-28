@@ -95,7 +95,7 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             data: Annotated::new(DataElement {
                 http: Annotated::new(HttpElement {
-                    query: Annotated::new("is_sample_query=true".to_owned()),
+                    query: Annotated::new(Value::String("is_sample_query=true".to_owned())),
                     ..Default::default()
                 }),
                 ..Default::default()

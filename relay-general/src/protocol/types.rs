@@ -1131,7 +1131,7 @@ pub struct DataElement {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct HttpElement {
     #[metastructure(pii = "true")]
-    pub query: Annotated<String>,
+    pub query: Annotated<Value>,
 
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
