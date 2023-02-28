@@ -815,7 +815,7 @@ impl FieldValueProvider for DynamicSamplingContext {
 /// occurs. The sampling mode controlls whether the sample rate is relative to the original
 /// population of items before client-side sampling, or relative to the number received by Relay
 /// after client-side sampling.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum SamplingMode {
     /// The sample rate is based on the number of events received by Relay.
@@ -1031,7 +1031,7 @@ pub struct SamplingConfig {
     /// The ordered sampling rules v2 for the project.
     pub rules_v2: Vec<SamplingRule>,
     /// Defines which population of items a dynamic sample rate applies to.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub mode: SamplingMode,
 }
 
