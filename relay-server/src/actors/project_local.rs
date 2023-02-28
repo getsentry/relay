@@ -84,7 +84,8 @@ async fn load_local_states(
     while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
-        if !entry.metadata().await?.is_file() {
+        let metadata = entry.metadata().await?;
+        if !(metadata.is_file() || metadata.is_symlink()) {
             relay_log::warn!("skipping {:?}, not a file", path);
             continue;
         }
