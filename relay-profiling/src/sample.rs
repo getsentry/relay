@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -226,6 +226,30 @@ impl SampleProfile {
         self.profile
             .strip_pointer_authentication_code(&self.platform, &self.device.architecture);
     }
+
+    fn remove_idle_samples_at_the_edge(&mut self) {
+        self.remove_idle_samples_at_the_start();
+        self.profile.samples.reverse();
+        self.remove_idle_samples_at_the_start();
+        self.profile.samples.reverse();
+    }
+
+    fn remove_idle_samples_at_the_start(&mut self) {
+        let mut thread_ids: HashSet<u64> = HashSet::new();
+        self.profile
+            .samples
+            .retain(|sample| match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => {
+                    if stack.is_empty() && !thread_ids.contains(&sample.thread_id) {
+                        false
+                    } else {
+                        thread_ids.insert(sample.thread_id);
+                        true
+                    }
+                }
+                None => true,
+            });
+    }
 }
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
@@ -251,7 +275,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
     // This is to be compatible with older SDKs
     if transaction.relative_end_ns > 0 {
-        profile.profile.samples.retain_mut(|sample| {
+        profile.profile.samples.retain(|sample| {
             (transaction.relative_start_ns..=transaction.relative_end_ns)
                 .contains(&sample.elapsed_since_start_ns)
         });
@@ -270,6 +294,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     }
 
     // Clean samples before running the checks.
+    profile.remove_idle_samples_at_the_edge();
     profile.remove_single_samples_per_thread();
     profile.strip_pointer_authentication_code();
 
@@ -590,5 +615,93 @@ mod tests {
         let profile = generate_profile();
         let payload = serde_json::to_vec(&profile).unwrap();
         assert!(parse_profile(&payload[..]).is_err());
+    }
+
+    #[test]
+    fn test_profile_remove_idle_samples_at_start_and_end() {
+        let mut profile = generate_profile();
+        let transaction = TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 100,
+            relative_start_ns: 0,
+            trace_id: EventId::new(),
+        };
+
+        profile.transaction = Some(transaction);
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.profile.stacks = vec![vec![0], vec![]];
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 60,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 70,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 80,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 90,
+                thread_id: 1,
+            },
+        ]);
+
+        profile.remove_idle_samples_at_the_edge();
+
+        assert_eq!(profile.profile.samples.len(), 3);
     }
 }
