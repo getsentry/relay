@@ -74,16 +74,21 @@ struct CheckIn {
 ///
 /// Returns `None` if the payload was valid and does not have to be changed. Returns `Some` for
 /// valid payloads that were normalized.
-pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> {
+pub fn process_check_in(payload: &[u8]) -> Result<Option<Vec<u8>>, ProcessCheckInError> {
     let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
+    let mut changed = false;
 
     // Missed status cannot be ingested, this is computed on the server.
     if check_in.status == CheckInStatus::Missed {
         check_in.status = CheckInStatus::Unknown;
+        changed = true;
     }
 
-    let serialized = serde_json::to_vec(&check_in)?;
-    Ok(serialized)
+    if changed {
+        Ok(Some(serde_json::to_vec(&check_in)?))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

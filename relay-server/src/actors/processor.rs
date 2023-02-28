@@ -1038,7 +1038,8 @@ impl EnvelopeProcessorService {
             }
 
             match relay_monitors::process_check_in(&item.payload()) {
-                Ok(processed) => {
+                Ok(None) => true,
+                Ok(Some(processed)) => {
                     item.set_payload(ContentType::Json, processed);
                     true
                 }
