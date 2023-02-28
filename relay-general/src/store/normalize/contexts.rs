@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{Context, DeviceContext, OsContext, ResponseContext, RuntimeContext};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -199,11 +199,45 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
+fn normalize_device_context(device: &mut DeviceContext) {
+    const GIB: u64 = 1024 * 1024 * 1024;
+    if let Some(family) = device.family.value() {
+        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+            if let Some(processor_frequency) = device.processor_frequency.value() {
+                if processor_frequency < &2000 {
+                    device.class = Annotated::new(1);
+                } else if processor_frequency < &3000 {
+                    device.class = Annotated::new(2);
+                } else {
+                    device.class = Annotated::new(3);
+                }
+            }
+        } else if device.processor_frequency.value().is_some()
+            && device.processor_count.value().is_some()
+            && device.memory_size.value().is_some()
+        {
+            if device.processor_frequency.value().unwrap() < &2000
+                || device.memory_size.value().unwrap() < &(4 * GIB)
+                || device.processor_count.value().unwrap() < &8
+            {
+                device.class = Annotated::new(1);
+            } else if device.processor_frequency.value().unwrap() < &2500
+                || device.memory_size.value().unwrap() < &(6 * GIB)
+            {
+                device.class = Annotated::new(2);
+            } else {
+                device.class = Annotated::new(3);
+            }
+        }
+    }
+}
+
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
+        Context::Device(device) => normalize_device_context(device),
         _ => (),
     }
 }

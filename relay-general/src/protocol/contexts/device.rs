@@ -160,6 +160,8 @@ pub struct DeviceContext {
     /// Whether location support is available on the device.
     pub supports_location_service: Annotated<bool>,
 
+    pub class: Annotated<u64>,
+
     /// Additional arbitrary fields for forwards compatibility
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -302,6 +304,7 @@ mod tests {
   "supports_gyroscope": true,
   "supports_audio": true,
   "supports_location_service": true,
+  "class": 1,
   "other": "value",
   "type": "device"
 }"#;
@@ -345,6 +348,7 @@ mod tests {
             supports_gyroscope: Annotated::new(true),
             supports_audio: Annotated::new(true),
             supports_location_service: Annotated::new(true),
+            class: Annotated::new(1),
             other: {
                 let mut map = Object::new();
                 map.insert(
