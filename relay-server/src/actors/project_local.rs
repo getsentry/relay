@@ -196,6 +196,9 @@ mod tests {
     use super::load_local_states;
 
     /// Tests that we can follow the symlinks and read the project file properly.
+    ///
+    /// This works only on Unix systems.
+    #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     async fn test_symlinked_projects() {
         let temp1 = tempfile::tempdir().unwrap();
