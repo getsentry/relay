@@ -297,21 +297,6 @@ mod tests {
         assert!(profile.is_ok());
     }
 
-    #[test]
-    fn test_parse_multiple_transactions() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-        let data = parse_sample_profile(payload);
-        assert!(data.is_ok());
-    }
-
-    #[test]
-    fn test_no_transaction() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/no_transaction.json");
-        let data = parse_sample_profile(payload);
-        assert!(data.is_err());
-    }
-
     fn generate_profile() -> SampleProfile {
         SampleProfile {
             debug_meta: Option::None,
@@ -492,7 +477,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transactions.push(TransactionMetadata {
+        profile.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -534,17 +519,6 @@ mod tests {
         let data = parse_sample_profile(&payload[..]);
 
         assert!(data.is_err());
-    }
-
-    #[test]
-    fn test_filter_samples_for_transaction() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-        let expanded_profile = match parse_profile(payload) {
-            Err(err) => panic!("cannot parse profile: {err:?}"),
-            Ok(profile) => profile,
-        };
-        assert_eq!(expanded_profile.profile.samples.len(), 4);
     }
 
     #[test]
