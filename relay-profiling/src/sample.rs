@@ -248,7 +248,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     // This is to be compatible with older SDKs
     if transaction.relative_end_ns > 0 {
         profile.profile.samples.retain_mut(|sample| {
-            (transaction.relative_start_ns..transaction.relative_end_ns)
+            (transaction.relative_start_ns..=transaction.relative_end_ns)
                 .contains(&sample.elapsed_since_start_ns)
         });
     }
@@ -418,6 +418,64 @@ mod tests {
 
         let payload = serde_json::to_vec(&profile).unwrap();
         assert!(parse_profile(&payload[..]).is_err());
+    }
+
+    #[test]
+    fn test_expand_with_samples_inclusive() {
+        let mut profile = generate_profile();
+
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.transaction = Some(TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 30,
+            relative_start_ns: 10,
+            trace_id: EventId::new(),
+        });
+        profile.profile.stacks.push(vec![0]);
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+        ]);
+
+        let payload = serde_json::to_vec(&profile).unwrap();
+        let profile = parse_profile(&payload[..]).unwrap();
+
+        assert_eq!(profile.profile.samples.len(), 3);
     }
 
     #[test]
