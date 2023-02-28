@@ -1,0 +1,30 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: span
+---
+{
+  "data": {
+    "http": {
+      "query": "ccnumber=[Filtered]"
+    }
+  },
+  "_meta": {
+    "data": {
+      "http": {
+        "query": {
+          "": {
+            "rem": [
+              [
+                "@creditcard:filter",
+                "s",
+                9,
+                19
+              ]
+            ],
+            "len": 25
+          }
+        }
+      }
+    }
+  }
+}
