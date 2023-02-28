@@ -57,6 +57,8 @@ pub struct Span {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
@@ -77,7 +79,12 @@ mod tests {
   "status": "ok",
   "data": {
     "http": {
-      "query": "is_sample_query=true"
+      "query": "is_sample_query=true",
+      "not_query": "this is not the query"
+    },
+    "more_fields": {
+      "how_many": "yes",
+      "many": "a lot!"
     }
   }
 }"#;
@@ -96,9 +103,34 @@ mod tests {
             data: Annotated::new(DataElement {
                 http: Annotated::new(HttpElement {
                     query: Annotated::new(Value::String("is_sample_query=true".to_owned())),
-                    ..Default::default()
+                    other: {
+                        let mut map = BTreeMap::new();
+                        map.insert(
+                            "not_query".to_owned(),
+                            Annotated::new(Value::String("this is not the query".to_owned())),
+                        );
+                        map
+                    },
                 }),
-                ..Default::default()
+                other: {
+                    let mut inner_map = BTreeMap::new();
+                    inner_map.insert(
+                        "how_many".to_owned(),
+                        Annotated::new(Value::String("yes".to_owned())),
+                    );
+                    inner_map.insert(
+                        "many".to_owned(),
+                        Annotated::new(Value::String("a lot!".to_owned())),
+                    );
+
+                    let mut outter_map = BTreeMap::new();
+                    outter_map.insert(
+                        "more_fields".to_owned(),
+                        Annotated::new(Value::Object(inner_map)),
+                    );
+
+                    outter_map
+                },
             }),
             ..Default::default()
         });
