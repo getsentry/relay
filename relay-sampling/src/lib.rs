@@ -2181,9 +2181,6 @@ mod tests {
                   "UPPER",
                   "lower",
                 ],
-                options: EqCondOptions(
-                  ignoreCase: false,
-                ),
               ),
               GlobCondition(
                 op: "glob",
@@ -2258,7 +2255,6 @@ mod tests {
                 op: "custom",
                 name: "some_custom_op",
                 value: "some val",
-                options: {},
               ),
             ]"###);
     }
@@ -2451,13 +2447,9 @@ mod tests {
         "value": 2.0
       },
       "type": "transaction",
-      "id": 1,
-      "decayingFn": {
-        "type": "constant"
-      }
+      "id": 1
     }
-  ],
-  "mode": "received"
+  ]
 }"#;
 
         assert_eq!(serialized_config, expected_serialized_config)
