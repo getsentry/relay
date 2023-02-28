@@ -53,6 +53,7 @@ def processing_config(get_topic_name):
                 "metrics": get_topic_name("metrics"),
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
+                "crons": get_topic_name("crons"),
             }
 
         if not processing.get("redis"):
@@ -292,6 +293,11 @@ def replay_events_consumer(kafka_consumer):
     )
 
 
+@pytest.fixture
+def crons_consumer(kafka_consumer):
+    return lambda timeout=None: CronsConsumer(timeout=timeout, *kafka_consumer("crons"))
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -397,3 +403,14 @@ class ReplayEventsConsumer(ConsumerBase):
 
         assert payload["type"] == "replay_event"
         return payload, event
+
+
+class CronsConsumer(ConsumerBase):
+    def get_checkin(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        wrapper = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert wrapper["type"] == "checkin"
+        return json.loads(wrapper["payload"].decode("utf8")), wrapper

@@ -350,6 +350,11 @@ class SentryLike(object):
         response.raise_for_status()
         return response
 
+    def send_cron_checkin(self, project_id, checkin):
+        envelope = Envelope()
+        envelope.add_item(Item(payload=PayloadRef(json=checkin), type="checkin"))
+        self.send_envelope(project_id, envelope)
+
     def request(self, method, path, timeout=None, **kwargs):
         assert path.startswith("/")
 
