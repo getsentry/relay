@@ -606,14 +606,14 @@ impl FromValue for IpAddr {
                 Ok(addr) => Annotated(Some(addr), meta),
                 Err(value) => {
                     meta.add_error(Error::expected("an ip address"));
-                    meta.set_original_value(Some(value));
+                    //meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 }
             },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("an ip address"));
-                meta.set_original_value(Some(value));
+                //meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }

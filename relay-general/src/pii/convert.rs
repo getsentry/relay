@@ -479,6 +479,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
+        dbg!(&data);
+
         let scrubbing_config = DataScrubbingConfig {
             scrub_data: false,
             scrub_ip_addresses: true,
