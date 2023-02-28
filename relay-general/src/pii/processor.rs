@@ -999,7 +999,7 @@ mod tests {
         let mut span = Annotated::new(Span {
             data: Annotated::new(DataElement {
                 http: Annotated::new(HttpElement {
-                    query: Annotated::new("ccnumber=5105105105105100".to_owned()),
+                    query: Annotated::new("ccnumber=5105105105105100&process_id=123".to_owned()),
                     ..Default::default()
                 }),
                 ..Default::default()

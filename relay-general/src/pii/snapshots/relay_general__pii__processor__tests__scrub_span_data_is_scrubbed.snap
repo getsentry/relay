@@ -5,7 +5,7 @@ expression: span
 {
   "data": {
     "http": {
-      "query": "ccnumber=[Filtered]"
+      "query": "ccnumber=[Filtered]&process_id=123"
     }
   },
   "_meta": {
@@ -21,7 +21,7 @@ expression: span
                 19
               ]
             ],
-            "len": 25
+            "len": 40
           }
         }
       }
