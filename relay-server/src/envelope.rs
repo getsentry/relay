@@ -106,8 +106,8 @@ pub enum ItemType {
     ReplayEvent,
     /// Replay Recording data.
     ReplayRecording,
-    /// Cron monitor checkin encoded as JSON.
-    Checkin,
+    /// Monitor check-in encoded as JSON.
+    CheckIn,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -149,7 +149,7 @@ impl fmt::Display for ItemType {
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
-            Self::Checkin => write!(f, "checkin"),
+            Self::CheckIn => write!(f, "check_in"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -176,7 +176,7 @@ impl std::str::FromStr for ItemType {
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
-            "checkin" => Self::Checkin,
+            "check_in" => Self::CheckIn,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -681,7 +681,7 @@ impl Item {
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::Profile
-            | ItemType::Checkin => false,
+            | ItemType::CheckIn => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -710,7 +710,7 @@ impl Item {
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
-            ItemType::Checkin => false,
+            ItemType::CheckIn => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

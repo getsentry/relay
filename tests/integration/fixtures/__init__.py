@@ -350,9 +350,9 @@ class SentryLike(object):
         response.raise_for_status()
         return response
 
-    def send_cron_checkin(self, project_id, checkin):
+    def send_check_in(self, project_id, check_in):
         envelope = Envelope()
-        envelope.add_item(Item(payload=PayloadRef(json=checkin), type="checkin"))
+        envelope.add_item(Item(payload=PayloadRef(json=check_in), type="check_in"))
         self.send_envelope(project_id, envelope)
 
     def request(self, method, path, timeout=None, **kwargs):

@@ -120,8 +120,8 @@ pub enum DataCategory {
     /// This is the category for transaction payloads that were accepted and stored in full. In
     /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
     TransactionIndexed = 9,
-    /// Cron monitor checkins.
-    Cron = 10,
+    /// Monitor check-ins.
+    Monitor = 10,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -147,7 +147,7 @@ impl DataCategory {
             "replay" => Self::Replay,
             "transaction_processed" => Self::TransactionProcessed,
             "transaction_indexed" => Self::TransactionIndexed,
-            "cron" => Self::Cron,
+            "monitor" => Self::Monitor,
             _ => Self::Unknown,
         }
     }
@@ -166,7 +166,7 @@ impl DataCategory {
             Self::Replay => "replay",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
-            Self::Cron => "cron",
+            Self::Monitor => "monitor",
             Self::Unknown => "unknown",
         }
     }

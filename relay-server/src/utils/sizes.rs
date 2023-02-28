@@ -49,8 +49,8 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
                     return false;
                 }
             }
-            ItemType::Checkin => {
-                if item.len() > config.max_checkin_size() {
+            ItemType::CheckIn => {
+                if item.len() > config.max_check_in_size() {
                     return false;
                 }
             }

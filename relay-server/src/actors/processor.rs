@@ -1029,22 +1029,22 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Normalize cron monitor checkins and remove invalid ones.
+    /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
-    fn process_checkins(&self, state: &mut ProcessEnvelopeState) {
+    fn process_check_ins(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| {
-            if item.ty() != &ItemType::Checkin {
+            if item.ty() != &ItemType::CheckIn {
                 return true;
             }
 
-            match relay_crons::process_checkin(&item.payload()) {
+            match relay_monitors::process_check_in(&item.payload()) {
                 Ok(processed) => {
                     item.set_payload(ContentType::Json, processed);
                     true
                 }
                 Err(error) => {
                     // TODO: Track an outcome.
-                    relay_log::debug!("dropped invalid cron checkin: {}", LogError(&error));
+                    relay_log::debug!("dropped invalid monitor check-in: {}", LogError(&error));
                     false
                 }
             }
@@ -1589,7 +1589,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile => false,
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
-            ItemType::Checkin => false,
+            ItemType::CheckIn => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -2259,7 +2259,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
-            self.process_checkins(state);
+            self.process_check_ins(state);
         });
 
         if state.has_event() {

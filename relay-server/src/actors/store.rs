@@ -195,7 +195,7 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::Checkin => self.produce_checkin(
+                ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
@@ -780,7 +780,7 @@ impl StoreService {
         })
     }
 
-    fn produce_checkin(
+    fn produce_check_in(
         &self,
         organization_id: u64,
         project_id: ProjectId,
@@ -788,18 +788,18 @@ impl StoreService {
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let message = KafkaMessage::Checkin(CheckinKafkaMessage {
+        let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         });
 
-        self.produce(KafkaTopic::Crons, organization_id, message)?;
+        self.produce(KafkaTopic::Monitors, organization_id, message)?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "checkin"
+            event_type = "check_in"
         );
 
         Ok(())
@@ -1049,7 +1049,7 @@ struct ProfileKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct CheckinKafkaMessage {
+struct CheckInKafkaMessage {
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
@@ -1076,7 +1076,7 @@ enum KafkaMessage {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
-    Checkin(CheckinKafkaMessage),
+    CheckIn(CheckInKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -1093,7 +1093,7 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayRecording(_) => "replay_recording",
             KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
-            KafkaMessage::Checkin(_) => "checkin",
+            KafkaMessage::CheckIn(_) => "check_in",
         }
     }
 
@@ -1111,7 +1111,7 @@ impl Message for KafkaMessage {
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
-            Self::Checkin(_message) => Uuid::nil(),
+            Self::CheckIn(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {

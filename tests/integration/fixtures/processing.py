@@ -53,7 +53,7 @@ def processing_config(get_topic_name):
                 "metrics": get_topic_name("metrics"),
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
-                "crons": get_topic_name("crons"),
+                "monitors": get_topic_name("monitors"),
             }
 
         if not processing.get("redis"):
@@ -294,8 +294,10 @@ def replay_events_consumer(kafka_consumer):
 
 
 @pytest.fixture
-def crons_consumer(kafka_consumer):
-    return lambda timeout=None: CronsConsumer(timeout=timeout, *kafka_consumer("crons"))
+def monitors_consumer(kafka_consumer):
+    return lambda timeout=None: MonitorsConsumer(
+        timeout=timeout, *kafka_consumer("monitors")
+    )
 
 
 class MetricsConsumer(ConsumerBase):
@@ -405,12 +407,12 @@ class ReplayEventsConsumer(ConsumerBase):
         return payload, event
 
 
-class CronsConsumer(ConsumerBase):
-    def get_checkin(self):
+class MonitorsConsumer(ConsumerBase):
+    def get_check_in(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
 
         wrapper = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert wrapper["type"] == "checkin"
+        assert wrapper["type"] == "check_in"
         return json.loads(wrapper["payload"].decode("utf8")), wrapper

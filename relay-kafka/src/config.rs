@@ -39,8 +39,8 @@ pub enum KafkaTopic {
     ReplayEvents,
     /// ReplayRecordings, large blobs sent by the replay sdk
     ReplayRecordings,
-    /// Cron monitor checkins.
-    Crons,
+    /// Monitor check-ins.
+    Monitors,
 }
 
 impl KafkaTopic {
@@ -60,7 +60,7 @@ impl KafkaTopic {
             Profiles,
             ReplayEvents,
             ReplayRecordings,
-            Crons,
+            Monitors,
         ];
         TOPICS.iter()
     }
@@ -96,8 +96,8 @@ pub struct TopicAssignments {
     pub replay_events: TopicAssignment,
     /// Recordings topic name.
     pub replay_recordings: TopicAssignment,
-    /// Cron monitor checkins.
-    pub crons: TopicAssignment,
+    /// Monitor check-ins.
+    pub monitors: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -118,7 +118,7 @@ impl TopicAssignments {
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
-            KafkaTopic::Crons => &self.crons,
+            KafkaTopic::Monitors => &self.monitors,
         }
     }
 }
@@ -138,7 +138,7 @@ impl Default for TopicAssignments {
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
-            crons: "ingest-crons".to_owned().into(),
+            monitors: "ingest-monitors".to_owned().into(),
         }
     }
 }

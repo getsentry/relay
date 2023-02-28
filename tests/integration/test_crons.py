@@ -1,25 +1,27 @@
-def generate_checkin():
+def generate_check_in():
     return {
-        "checkin_id": "a460c25ff2554577b920fcfacae4e5eb",
+        "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
         "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
         "status": "in_progress",
         "duration": 21.0,
     }
 
 
-def test_crons_with_processing(mini_sentry, relay_with_processing, crons_consumer):
+def test_monitors_with_processing(
+    mini_sentry, relay_with_processing, monitors_consumer
+):
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(42)
-    crons_consumer = crons_consumer()
+    monitors_consumer = monitors_consumer()
 
-    checkin = generate_checkin()
-    relay.send_cron_checkin(42, checkin)
+    check_in = generate_check_in()
+    relay.send_check_in(42, check_in)
 
-    checkin, message = crons_consumer.get_checkin()
+    check_in, message = monitors_consumer.get_check_in()
     assert message["start_time"] is not None
     assert message["project_id"] == 42
-    assert checkin == {
-        "checkin_id": "a460c25ff2554577b920fcfacae4e5eb",
+    assert check_in == {
+        "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
         "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
         "status": "in_progress",
         "duration": 21.0,

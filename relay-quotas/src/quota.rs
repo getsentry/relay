@@ -108,7 +108,7 @@ impl CategoryUnit {
             | DataCategory::Profile
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
-            | DataCategory::Cron => Some(Self::Count),
+            | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
             DataCategory::Unknown => None,

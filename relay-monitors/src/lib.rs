@@ -1,14 +1,14 @@
-//! Crons protocol and processing for Sentry.
+//! Monitors protocol and processing for Sentry.
 //!
-//! [Cron Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job
-//! in Sentry. Once implemented, it'll allow you to get alerts and metrics to help you solve errors,
+//! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
+//! Sentry. Once implemented, it'll allow you to get alerts and metrics to help you solve errors,
 //! detect timeouts, and prevent disruptions to your service.
 //!
 //! # API
 //!
 //! The public API documentation is available on [Sentry Docs](https://docs.sentry.io/api/crons/).
 //!
-//! [cron monitors]: https://docs.sentry.io/product/crons/
+//! [monitors]: https://docs.sentry.io/product/crons/
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
@@ -19,23 +19,23 @@
 use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
 
-/// Error returned from [`process_checkin`].
+/// Error returned from [`process_check_in`].
 #[derive(Debug, thiserror::Error)]
-pub enum ProcessCheckinError {
+pub enum ProcessCheckInError {
     /// Failed to deserialize the payload.
-    #[error("failed to deserialize checkin")]
+    #[error("failed to deserialize check in")]
     Json(#[from] serde_json::Error),
 }
 
 ///
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum CheckinStatus {
-    /// Checkin had no issues during execution.
+enum CheckInStatus {
+    /// Check-in had no issues during execution.
     Ok,
-    /// Checkin failed or otherwise had some issues.
+    /// Check-in failed or otherwise had some issues.
     Error,
-    /// Checkin is expectred to complete.
+    /// Check-in is expectred to complete.
     InProgress,
     /// Monitor did not check in on time.
     Missed,
@@ -51,38 +51,38 @@ where
     uuid.as_simple().serialize(serializer)
 }
 
-/// The cron monitor checkin payload.
+/// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
-struct Checkin {
-    /// Unique identifier of this checkin.
+struct CheckIn {
+    /// Unique identifier of this check-in.
     #[serde(serialize_with = "uuid_simple")]
-    checkin_id: Uuid, // TODO(ja): roundtrip without slashes
+    check_in_id: Uuid,
 
-    /// Identifier of the monitor for this checkin.
+    /// Identifier of the monitor for this check-in.
     #[serde(serialize_with = "uuid_simple")]
     monitor_id: Uuid,
 
-    /// Status of this checkin. Defaults to `"unknown"`.
-    status: CheckinStatus,
+    /// Status of this check-in. Defaults to `"unknown"`.
+    status: CheckInStatus,
 
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     duration: Option<f64>,
 }
 
-/// Normalizes a cron monitor checkin payload.
+/// Normalizes a monitor check-in payload.
 ///
 /// Returns `None` if the payload was valid and does not have to be changed. Returns `Some` for
 /// valid payloads that were normalized.
-pub fn process_checkin(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckinError> {
-    let mut checkin = serde_json::from_slice::<Checkin>(payload)?;
+pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> {
+    let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
 
     // Missed status cannot be ingested, this is computed on the server.
-    if checkin.status == CheckinStatus::Missed {
-        checkin.status = CheckinStatus::Unknown;
+    if check_in.status == CheckInStatus::Missed {
+        check_in.status = CheckInStatus::Unknown;
     }
 
-    let serialized = serde_json::to_vec(&checkin)?;
+    let serialized = serde_json::to_vec(&check_in)?;
     Ok(serialized)
 }
 
@@ -94,14 +94,14 @@ mod tests {
     #[test]
     fn test_json_roundtrip() {
         let json = r#"{
-  "checkin_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
   "status": "in_progress",
   "duration": 21.0
 }"#;
 
-        let checkin = serde_json::from_str::<Checkin>(json).unwrap();
-        let serialized = serde_json::to_string_pretty(&checkin).unwrap();
+        let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
+        let serialized = serde_json::to_string_pretty(&check_in).unwrap();
 
         assert_eq!(json, serialized);
     }

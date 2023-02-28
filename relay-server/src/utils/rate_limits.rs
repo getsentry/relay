@@ -106,7 +106,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
         ItemType::ClientReport => None,
-        ItemType::Checkin => None,
+        ItemType::CheckIn => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -133,7 +133,7 @@ pub struct EnvelopeSummary {
     /// The number of replays.
     pub replay_quantity: usize,
 
-    /// The number of cron monitor checkins.
+    /// The number of monitor check-ins.
     pub checkin_quantity: usize,
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
@@ -177,7 +177,7 @@ impl EnvelopeSummary {
                 ItemType::Profile => summary.profile_quantity += 1,
                 ItemType::ReplayEvent => summary.replay_quantity += 1,
                 ItemType::ReplayRecording => summary.replay_quantity += 1,
-                ItemType::Checkin => summary.checkin_quantity += 1,
+                ItemType::CheckIn => summary.checkin_quantity += 1,
                 _ => (),
             }
         }
@@ -260,8 +260,8 @@ pub struct Enforcement {
     profiles: CategoryLimit,
     /// The combined replay item rate limit.
     replays: CategoryLimit,
-    /// The combined checkin item rate limit.
-    checkins: CategoryLimit,
+    /// The combined check-in item rate limit.
+    check_ins: CategoryLimit,
     /// Metrics extraction from a transaction is rate limited.
     event_metrics: CategoryLimit,
 }
@@ -290,7 +290,7 @@ impl Enforcement {
             sessions: _, // Do not report outcomes for sessions.
             profiles,
             replays,
-            checkins,
+            check_ins,
             event_metrics,
         } = self;
 
@@ -299,7 +299,7 @@ impl Enforcement {
             attachments,
             profiles,
             replays,
-            checkins,
+            check_ins,
             event_metrics,
         ];
 
@@ -552,10 +552,10 @@ where
         }
 
         if summary.checkin_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::Cron);
+            let item_scoping = scoping.item(DataCategory::Monitor);
             let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
             enforcement.replays = CategoryLimit::new(
-                DataCategory::Cron,
+                DataCategory::Monitor,
                 summary.checkin_quantity,
                 checkin_limits.longest(),
             );
@@ -598,7 +598,7 @@ where
             return false;
         }
 
-        if enforcement.checkins.is_active() && item.ty() == &ItemType::Checkin {
+        if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
             return false;
         }
 

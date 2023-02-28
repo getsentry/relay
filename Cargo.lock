@@ -3305,17 +3305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-crons"
-version = "23.2.0"
-dependencies = [
- "relay-common",
- "serde",
- "serde_json",
- "similar-asserts",
- "thiserror",
-]
-
-[[package]]
 name = "relay-dynamic-config"
 version = "23.1.1"
 dependencies = [
@@ -3465,6 +3454,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-monitors"
+version = "23.2.0"
+dependencies = [
+ "relay-common",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "thiserror",
+]
+
+[[package]]
 name = "relay-profiling"
 version = "23.2.0"
 dependencies = [
@@ -3570,13 +3570,13 @@ dependencies = [
  "relay-aws-extension",
  "relay-common",
  "relay-config",
- "relay-crons",
  "relay-dynamic-config",
  "relay-filter",
  "relay-general",
  "relay-kafka",
  "relay-log",
  "relay-metrics",
+ "relay-monitors",
  "relay-profiling",
  "relay-quotas",
  "relay-redis",
