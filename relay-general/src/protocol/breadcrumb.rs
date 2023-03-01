@@ -123,8 +123,11 @@ pub struct Breadcrumb {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use similar_asserts::assert_eq;
 
+    use crate::protocol::HttpElement;
     use crate::types::Map;
 
     use super::*;
@@ -138,7 +141,18 @@ mod tests {
   "level": "fatal",
   "message": "my message",
   "data": {
-    "a": "b"
+    "http": {
+      "query": {
+          "letters": "one",
+        "number": "1"
+      },
+      "more_items": "yes"
+    },
+    "knowledge": {
+      "idk": "true",
+      "know": "no"
+    },
+    "last_data_field": "finally"
   },
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "c": "d"
@@ -151,7 +165,18 @@ mod tests {
   "level": "fatal",
   "message": "my message",
   "data": {
-    "a": "b"
+    "http": {
+      "query": {
+        "letters": "one",
+        "number": "1"
+      },
+      "more_items": "yes"
+    },
+    "knowledge": {
+      "idk": "true",
+      "know": "no"
+    },
+    "last_data_field": "finally"
   },
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "c": "d"
@@ -163,14 +188,53 @@ mod tests {
             category: Annotated::new("mycategory".to_string()),
             level: Annotated::new(Level::Fatal),
             message: Annotated::new("my message".to_string()),
-            data: {
-                let mut map = Map::new();
-                map.insert(
-                    "a".to_string(),
-                    Annotated::new(Value::String("b".to_string())),
-                );
-                Annotated::new(map)
-            },
+            data: Annotated::new(DataElement {
+                http: Annotated::new(HttpElement {
+                    query: Annotated::new(Value::Object({
+                        let mut map = BTreeMap::new();
+                        map.insert(
+                            "letters".to_owned(),
+                            Annotated::new(Value::String("one".to_owned())),
+                        );
+                        map.insert(
+                            "number".to_owned(),
+                            Annotated::new(Value::String("1".to_owned())),
+                        );
+                        map
+                    })),
+                    other: {
+                        let mut map = BTreeMap::new();
+                        map.insert(
+                            "more_items".to_owned(),
+                            Annotated::new(Value::String("yes".to_owned())),
+                        );
+                        map
+                    },
+                }),
+                other: {
+                    let mut inner_map = BTreeMap::new();
+                    inner_map.insert(
+                        "idk".to_owned(),
+                        Annotated::new(Value::String("true".to_owned())),
+                    );
+                    inner_map.insert(
+                        "know".to_string(),
+                        Annotated::new(Value::String("no".to_string())),
+                    );
+
+                    let mut outter_map = BTreeMap::new();
+                    outter_map.insert(
+                        "knowledge".to_owned(),
+                        Annotated::new(Value::Object(inner_map)),
+                    );
+                    outter_map.insert(
+                        "last_data_field".to_owned(),
+                        Annotated::new(Value::String("finally".to_owned())),
+                    );
+
+                    outter_map
+                },
+            }),
             event_id: Annotated::new("52df9022835246eeb317dbd739ccd059".parse().unwrap()),
             other: {
                 let mut map = Map::new();

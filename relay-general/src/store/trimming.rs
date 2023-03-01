@@ -395,8 +395,8 @@ mod tests {
 
     use crate::processor::MaxChars;
     use crate::protocol::{
-        Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
-        RawStacktrace, TagEntry, Tags, Values,
+        Breadcrumb, Context, ContextInner, Contexts, DataElement, Event, Exception, ExtraValue,
+        Frame, RawStacktrace, TagEntry, Tags, Values,
     };
     use crate::types::{
         Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
@@ -585,14 +585,17 @@ mod tests {
         let event = Annotated::new(Event {
             breadcrumbs: Annotated::new(Values::new(
                 repeat(Annotated::new(Breadcrumb {
-                    data: {
-                        let mut map = Map::new();
-                        map.insert(
-                            "spamspamspam".to_string(),
-                            Annotated::new(Value::String("blablabla".to_string())),
-                        );
-                        Annotated::new(map)
-                    },
+                    data: Annotated::new(DataElement {
+                        http: Annotated::empty(),
+                        other: {
+                            let mut map = Map::new();
+                            map.insert(
+                                "spamspamspam".to_owned(),
+                                Annotated::new(Value::String("blablabla".to_owned())),
+                            );
+                            map
+                        },
+                    }),
                     ..Default::default()
                 }))
                 .take(200)
