@@ -543,15 +543,13 @@ impl ProjectCacheBroker {
                     // We know that this state is valid, so only check the other one.
                     continue;
                 }
-                // We return false if the project is in the cache and the state is missing,
-                // otherwise, even if the project completely missing, we still want to try to
-                // process envelopes, which will trigger fetch for the project.
+                // We return false if project is not cached or its state is invalid.
                 if self
                     .projects
                     .get(key)
                     // Make sure we have only cached and valid state.
                     .and_then(|p| p.valid_state())
-                    .map_or(false, |s| !s.invalid())
+                    .map_or(true, |s| s.invalid())
                 {
                     return false;
                 }
