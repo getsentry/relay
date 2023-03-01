@@ -1462,28 +1462,6 @@
 <a href="#1461" id="1461">1461</a>
 <a href="#1462" id="1462">1462</a>
 <a href="#1463" id="1463">1463</a>
-<a href="#1464" id="1464">1464</a>
-<a href="#1465" id="1465">1465</a>
-<a href="#1466" id="1466">1466</a>
-<a href="#1467" id="1467">1467</a>
-<a href="#1468" id="1468">1468</a>
-<a href="#1469" id="1469">1469</a>
-<a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a>
-<a href="#1472" id="1472">1472</a>
-<a href="#1473" id="1473">1473</a>
-<a href="#1474" id="1474">1474</a>
-<a href="#1475" id="1475">1475</a>
-<a href="#1476" id="1476">1476</a>
-<a href="#1477" id="1477">1477</a>
-<a href="#1478" id="1478">1478</a>
-<a href="#1479" id="1479">1479</a>
-<a href="#1480" id="1480">1480</a>
-<a href="#1481" id="1481">1481</a>
-<a href="#1482" id="1482">1482</a>
-<a href="#1483" id="1483">1483</a>
-<a href="#1484" id="1484">1484</a>
-<a href="#1485" id="1485">1485</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1695,10 +1673,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_convert_default_pii_config() {
         <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r###&quot;
         {
-          &quot;rules&quot;: {},
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
-          },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
@@ -1721,10 +1695,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
-          &quot;rules&quot;: {},
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
-          },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
@@ -1756,9 +1726,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 &quot;text&quot;: &quot;[Filtered]&quot;
               }
             }
-          },
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
@@ -1813,10 +1780,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
-          &quot;rules&quot;: {},
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
-          },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
               &quot;@common:filter&quot;,
@@ -1841,10 +1804,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
-          &quot;rules&quot;: {},
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
-          },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@ip:replace&quot;
@@ -2731,9 +2690,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 &quot;text&quot;: &quot;[Filtered]&quot;
               }
             }
-          },
-          &quot;vars&quot;: {
-            &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [

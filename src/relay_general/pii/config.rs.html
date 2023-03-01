@@ -271,6 +271,18 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
@@ -284,6 +296,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::SelectorSpec;
 
 <span class="kw">const </span>COMPILED_PATTERN_MAX_SIZE: usize = <span class="number">262_144</span>;
+
+<span class="doccomment">/// Helper method to check whether a flag is false.
+</span><span class="attr">#[allow(clippy::trivially_copy_pass_by_ref)]
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_flag_default(flag: <span class="kw-2">&amp;</span>bool) -&gt; bool {
+    !<span class="kw-2">*</span>flag
+}
 
 <span class="attr">#[derive(Clone, Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>PiiConfigError {
@@ -394,7 +412,7 @@
     <span class="doccomment">/// A reference to other rules to apply
     </span><span class="kw">pub </span>rules: Vec&lt;String&gt;,
     <span class="doccomment">/// When set to true, the outer rule is reported.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_flag_default&quot;</span>)]
     </span><span class="kw">pub </span>hide_inner: bool,
 }
 
@@ -405,7 +423,7 @@
     <span class="doccomment">/// A reference to another rule to apply.
     </span><span class="kw">pub </span>rule: String,
     <span class="doccomment">/// When set to true, the outer rule is reported.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_flag_default&quot;</span>)]
     </span><span class="kw">pub </span>hide_inner: bool,
 }
 
@@ -472,23 +490,29 @@
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>Vars {
     <span class="doccomment">/// The default secret key for hashing operations.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>hash_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="kw">impl </span>Vars {
+    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.hash_key.is_none()
+    }
 }
 
 <span class="doccomment">/// A set of named rule configurations.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 </span><span class="kw">pub struct </span>PiiConfig {
     <span class="doccomment">/// A map of custom PII rules.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>rules: BTreeMap&lt;String, RuleSpec&gt;,
 
     <span class="doccomment">/// Parameters for PII rules.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vars::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>vars: Vars,
 
     <span class="doccomment">/// Mapping of selectors to rules.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>applications: BTreeMap&lt;SelectorSpec, Vec&lt;String&gt;&gt;,
 
     <span class="doccomment">/// PII config derived from datascrubbing settings.

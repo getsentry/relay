@@ -3147,9 +3147,6 @@
 <a href="#3146" id="3146">3146</a>
 <a href="#3147" id="3147">3147</a>
 <a href="#3148" id="3148">3148</a>
-<a href="#3149" id="3149">3149</a>
-<a href="#3150" id="3150">3150</a>
-<a href="#3151" id="3151">3151</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -3195,7 +3192,7 @@
 <span class="doccomment">/// A condition that checks the values using the equality operator.
 ///
 /// For string values it supports case-insensitive comparison.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>EqCondOptions {
     <span class="attr">#[serde(default)]
@@ -3208,7 +3205,7 @@
 </span><span class="kw">pub struct </span>EqCondition {
     <span class="kw">pub </span>name: String,
     <span class="kw">pub </span>value: Value,
-    <span class="attr">#[serde(default)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
     </span><span class="kw">pub </span>options: EqCondOptions,
 }
 
@@ -3327,7 +3324,7 @@
     <span class="kw">pub </span>name: String,
     <span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>value: Value,
-    <span class="attr">#[serde(default)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;HashMap::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>options: HashMap&lt;String, Value&gt;,
 }
 
@@ -3604,6 +3601,11 @@
     }
 }
 
+<span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.
+</span><span class="kw">fn </span>is_default&lt;T: Default + PartialEq&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; bool {
+    <span class="kw-2">*</span>t == T::default()
+}
+
 <span class="doccomment">/// A sampling rule as it is deserialized from the project configuration.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
@@ -3619,7 +3621,7 @@
     /// closed on at least one end, the rule is considered a decaying rule.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;TimeRange::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>time_range: TimeRange,
-    <span class="attr">#[serde(default)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
     </span><span class="kw">pub </span>decaying_fn: DecayingFunction,
 }
 
@@ -3962,7 +3964,7 @@
 /// occurs. The sampling mode controlls whether the sample rate is relative to the original
 /// population of items before client-side sampling, or relative to the number received by Relay
 /// after client-side sampling.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub enum </span>SamplingMode {
     <span class="doccomment">/// The sample rate is based on the number of events received by Relay.
@@ -4178,7 +4180,7 @@
     <span class="doccomment">/// The ordered sampling rules v2 for the project.
     </span><span class="kw">pub </span>rules_v2: Vec&lt;SamplingRule&gt;,
     <span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
     </span><span class="kw">pub </span>mode: SamplingMode,
 }
 
@@ -5328,9 +5330,6 @@
                   &quot;UPPER&quot;,
                   &quot;lower&quot;,
                 ],
-                options: EqCondOptions(
-                  ignoreCase: false,
-                ),
               ),
               GlobCondition(
                 op: &quot;glob&quot;,
@@ -5405,7 +5404,6 @@
                 op: &quot;custom&quot;,
                 name: &quot;some_custom_op&quot;,
                 value: &quot;some val&quot;,
-                options: {},
               ),
             ]&quot;###</span>);
     }
@@ -5598,13 +5596,9 @@
         &quot;value&quot;: 2.0
       },
       &quot;type&quot;: &quot;transaction&quot;,
-      &quot;id&quot;: 1,
-      &quot;decayingFn&quot;: {
-        &quot;type&quot;: &quot;constant&quot;
-      }
+      &quot;id&quot;: 1
     }
-  ],
-  &quot;mode&quot;: &quot;received&quot;
+  ]
 }&quot;#</span>;
 
         <span class="macro">assert_eq!</span>(serialized_config, expected_serialized_config)
