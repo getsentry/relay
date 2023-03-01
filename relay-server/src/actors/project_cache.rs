@@ -1,5 +1,4 @@
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -379,13 +378,19 @@ struct QueueKey {
     sampling_key: ProjectKey,
 }
 
+impl QueueKey {
+    fn new(key: ProjectKey, sampling_key: ProjectKey) -> Self {
+        Self { key, sampling_key }
+    }
+}
+
 /// The queue (buffer) of the incoming envelopes.
 #[derive(Debug, Default)]
 struct Queue {
     /// Contains the cache of the incoming envelopes.
-    buffer: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
     /// Index of the buffered project keys.
-    index: HashMap<ProjectKey, BTreeSet<QueueKey>>,
+    index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
 }
 
 impl Queue {
@@ -410,23 +415,25 @@ impl Queue {
     where
         P: Fn(&QueueKey) -> bool,
     {
-        let mut keys = self.index.remove(partial_key).unwrap_or_default();
+        let mut result = Vec::new();
 
-        let mut result = vec![];
-        // Find those keys which match predicates.
+        let mut keys = self.index.remove(partial_key).unwrap_or_default();
+        let mut index = BTreeSet::new();
+
         while let Some(queue_key) = keys.pop_first() {
+            // Find those keys which match predicates and return keys into the index, where
+            // predicate is failing.
             if f(&queue_key) {
                 if let Some(envelopes) = self.buffer.remove(&queue_key) {
                     result.extend(envelopes);
                 }
+            } else {
+                index.insert(queue_key);
             }
-            // Return keys into the index, where predicate is failing.
-            else {
-                self.index
-                    .entry(*partial_key)
-                    .or_default()
-                    .insert(queue_key);
-            }
+        }
+
+        if !index.is_empty() {
+            self.index.insert(*partial_key, index);
         }
 
         result
@@ -435,19 +442,8 @@ impl Queue {
 
 impl Drop for Queue {
     fn drop(&mut self) {
-        for key in self.buffer.keys() {
-            if let Some(count) = self.buffer.get(key).map(|v| v.len()) {
-                relay_log::with_scope(
-                    |scope| {
-                        scope.set_tag("project_key", key.key);
-                        if key.key != key.sampling_key {
-                            scope.set_tag("sampling_key", key.sampling_key)
-                        }
-                    },
-                    || relay_log::error!("dropped project with {} envelopes", count),
-                );
-            }
-        }
+        let count: usize = self.buffer.values().map(|v| v.len()).sum();
+        relay_log::error!("dropped queue with {} envelopes", count);
     }
 }
 
@@ -485,8 +481,13 @@ impl ProjectCacheBroker {
         let mut count = 0;
         for (project_key, project) in expired {
             // Dequeue all the envelopes linked to the disposable project, which will be dropped
-            // once this for loop exits.
-            self.pending_envelopes.dequeue(&project_key, |_| true);
+            // once this for loop exits with an `Invalid(Internal)` outcome.
+            let envelopes = self.pending_envelopes.dequeue(&project_key, |_| true);
+            relay_log::with_scope(
+                |scope| scope.set_tag("project_key", project_key),
+                || relay_log::error!("eviced project with {} envelopes", envelopes.len()),
+            );
+
             self.garbage_disposal.dispose(project);
             count += 1;
         }
@@ -494,7 +495,7 @@ impl ProjectCacheBroker {
 
         // Log garbage queue size:
         let queue_size = self.garbage_disposal.queue_size() as f64;
-        relay_statsd::metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
+        metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
@@ -526,49 +527,49 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
 
-        let invalid = state.invalid();
-
         self.get_or_create_project(project_key)
             .update_state(state.clone(), no_cache);
 
-        // There is no much sense to dequeue and check anything if the incoming state is invalid.
-        if !invalid {
-            let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
-                for key in &[queue_key.key, queue_key.sampling_key] {
-                    if *key == project_key {
-                        // We know that this state is valid, so only check the other one.
-                        continue;
-                    }
-                    // We return false if the project is in the cache and the state is missing,
-                    // otherwise, even if the project completely missing, we still want to try to
-                    // process envelopes, which will trigger fetch for the project.
-                    if self
-                        .projects
-                        .get(key)
-                        // Make sure we have only cached and valid state.
-                        .map(|p| p.valid_state().filter(|state| !state.invalid()).is_none())
-                        .unwrap_or_default()
-                    {
-                        return false;
-                    }
-                }
-                true
-            });
+        // Envelopes need to remain in the queue while Relay receives invalid states from upstream.
+        if state.invalid() {
+            return;
+        }
 
-            // Try to flush all the envelopes again.
-            for (envelope, envelope_context) in envelopes {
-                let sampling_state = utils::get_sampling_key(&envelope).and_then(|key| {
-                    self.get_or_create_project(key)
-                        .get_cached_state(envelope.meta().no_cache())
-                });
-                self.handle_processing(
-                    project_key,
-                    state.clone(),
-                    sampling_state,
-                    envelope,
-                    envelope_context,
-                )
+        let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
+            for key in &[queue_key.key, queue_key.sampling_key] {
+                if *key == project_key {
+                    // We know that this state is valid, so only check the other one.
+                    continue;
+                }
+                // We return false if the project is in the cache and the state is missing,
+                // otherwise, even if the project completely missing, we still want to try to
+                // process envelopes, which will trigger fetch for the project.
+                if self
+                    .projects
+                    .get(key)
+                    // Make sure we have only cached and valid state.
+                    .and_then(|p| p.valid_state())
+                    .map_or(false, |s| !s.invalid())
+                {
+                    return false;
+                }
             }
+            true
+        });
+
+        // Flush envelopes where both states have resolved.
+        for (envelope, envelope_context) in envelopes {
+            let sampling_state = utils::get_sampling_key(&envelope)
+                .and_then(|key| self.projects.get(&key))
+                .and_then(|p| p.valid_state());
+
+            self.handle_processing(
+                project_key,
+                state.clone(),
+                sampling_state,
+                envelope,
+                envelope_context,
+            )
         }
     }
 
@@ -675,66 +676,34 @@ impl ProjectCacheBroker {
     /// is everyntually updated.
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
-    fn handle_validation(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
-        // Get our project key
-        let key = envelope.meta().public_key();
-        // Check is there is a sampling key on this envelope.
-        let sampling_key = utils::get_sampling_key(&envelope);
+    fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
+        let ValidateEnvelope { envelope, context } = message;
 
         // Fetch the project state for our key and make sure it's not invalid.
+        let key = envelope.meta().public_key();
         let project_state = self
             .get_or_create_project(key)
             .get_cached_state(envelope.meta().no_cache())
             .filter(|st| !st.invalid());
 
-        // Also, try to fetch the project state for sampling key and make sure it's not invalid.
-        let sampling_project_state = sampling_key.map(|key| {
-            (
-                key,
-                self.get_or_create_project(key)
-                    .get_cached_state(envelope.meta().no_cache())
-                    .filter(|st| !st.invalid()),
-            )
+        // Also, fetch the project state for sampling key and make sure it's not invalid.
+        let sampling_key = utils::get_sampling_key(&envelope);
+        let sampling_state = sampling_key.and_then(|key| {
+            self.get_or_create_project(key)
+                .get_cached_state(envelope.meta().no_cache())
+                .filter(|st| !st.invalid())
         });
 
-        // Check all the variants.
-        match (project_state, sampling_project_state) {
-            // Process the envelope, we have all the data.
-            (Some(state), Some((_, Some(sampling_state)))) => {
-                self.handle_processing(key, state, Some(sampling_state), envelope, envelope_context)
-            }
-
-            // Process our envelope, since there is no sampling key on this envelope.
-            (Some(state), None) => {
-                self.handle_processing(key, state, None, envelope, envelope_context)
-            }
-
-            // We have to buffer because one of the followup conditions met:
-            // 1. We have a root project, but the samping project is not fetched yet.
-            // 2. There is no state for sampling and root projects here yet.
-            // 3. There is no root project fetched yet.
-            (Some(_), Some((sampling_key, None)))
-            | (None, Some((sampling_key, None)))
-            | (None, Some((sampling_key, _))) => {
-                let key = QueueKey { key, sampling_key };
-                self.pending_envelopes
-                    .enqueue(key, (envelope, envelope_context))
-            }
-
-            // There is no project state and no sampling key - buffer.
-            (None, None) => {
-                let key = QueueKey {
-                    key,
-                    sampling_key: key,
-                };
-                self.pending_envelopes
-                    .enqueue(key, (envelope, envelope_context))
+        // Trigger processing once we have a project state and we either have a sampling project
+        // state or we do not need one.
+        if let Some(state) = project_state {
+            if sampling_state.is_some() || sampling_key.is_none() {
+                return self.handle_processing(key, state, sampling_state, envelope, context);
             }
         }
-    }
 
-    fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        self.handle_validation(message.envelope, message.context)
+        let key = QueueKey::new(key, sampling_key.unwrap_or(key));
+        self.pending_envelopes.enqueue(key, (envelope, context));
     }
 
     fn handle_rate_limits(&mut self, message: UpdateRateLimits) {
