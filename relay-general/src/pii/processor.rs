@@ -97,7 +97,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         // If also normalization failed the original value would be in the meta and could potentially leak PII.
         // This is why we set the "original_value" field to None if these two conditions are met.
         if meta.original_value().is_some() && &old_value != value {
-            //meta.set_original_value(Option::<String>::None);
+            meta.set_original_value(Option::<String>::None);
         }
 
         result
