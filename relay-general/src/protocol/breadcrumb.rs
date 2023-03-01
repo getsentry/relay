@@ -143,7 +143,7 @@ mod tests {
   "data": {
     "http": {
       "query": {
-          "letters": "one",
+        "letters": "one",
         "number": "1"
       },
       "more_items": "yes"
