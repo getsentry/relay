@@ -270,7 +270,14 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::env;
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::env;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
@@ -356,6 +363,9 @@
     <span class="doccomment">/// Enables reporting to Sentry.
     </span><span class="kw">pub </span>enabled: bool,
 
+    <span class="doccomment">/// Sets the environment for this service.
+    </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;&gt;,
+
     <span class="doccomment">/// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn&#39;t exist. Path must be UTF-8.
     </span><span class="kw">pub </span>_crash_db: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
@@ -375,6 +385,7 @@
                 </span>.parse()
                 .ok(),
             enabled: <span class="bool-val">false</span>,
+            environment: <span class="prelude-val">None</span>,
             _crash_db: <span class="prelude-val">None</span>,
         }
     }
@@ -448,6 +459,7 @@
             in_app_include: <span class="macro">vec!</span>[<span class="string">&quot;relay&quot;</span>],
             release: <span class="prelude-val">Some</span>(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
+            environment: sentry.environment.clone(),
             ..Default::default()
         });
 
