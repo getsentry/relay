@@ -87,7 +87,7 @@ module.exports = async ({github, context, core}) => {
       pull_number: context.payload.pull_request.number,
     });
 
-    if (pr.merged) {
+    if (pr.merged || pr.draft) {
       return;
     }
 
