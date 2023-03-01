@@ -1045,6 +1045,15 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "class": {
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "cpu_description": {
               "description": " CPU description.\n\n For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.",
               "default": null,
