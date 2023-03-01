@@ -6,15 +6,9 @@
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use crate::pii::{convert, PiiConfig};
+use crate::pii::{convert, is_flag_default, PiiConfig};
 
 use super::config::PiiConfigError;
-
-/// Helper method to check whether a flag is false.
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn is_flag_default(flag: &bool) -> bool {
-    !*flag
-}
 
 /// Configuration for Sentry's datascrubbing
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
