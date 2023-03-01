@@ -396,17 +396,9 @@ impl Queue {
 
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
-        // Add key to our index.
-        for partial_key in &[key.key, key.sampling_key] {
-            self.index.entry(*partial_key).or_default().insert(key);
-        }
-
-        match self.buffer.entry(key) {
-            Entry::Occupied(o) => o.into_mut().push(value),
-            Entry::Vacant(v) => {
-                v.insert(vec![value]);
-            }
-        }
+        self.index.entry(key.key).or_default().insert(key);
+        self.index.entry(key.sampling_key).or_default().insert(key);
+        self.buffer.entry(key).or_default().push(value);
     }
 
     /// Returns the list of buffered envelopes if they satisfy a predicate.
