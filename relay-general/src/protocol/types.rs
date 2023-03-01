@@ -1123,7 +1123,7 @@ pub struct DataElement {
     #[metastructure(pii = "maybe")]
     pub http: Annotated<HttpElement>,
 
-    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    #[metastructure(additional_properties, retain = "true", pii = "true")]
     pub other: Object<Value>,
 }
 

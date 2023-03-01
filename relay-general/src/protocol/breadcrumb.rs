@@ -1,7 +1,7 @@
 #[cfg(test)]
 use chrono::{TimeZone, Utc};
 
-use crate::protocol::{EventId, Level, Timestamp};
+use crate::protocol::{DataElement, EventId, Level, Timestamp};
 use crate::types::{Annotated, Object, Value};
 
 /// The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs", that
@@ -107,7 +107,7 @@ pub struct Breadcrumb {
     /// that are unsupported by the type are rendered as a key/value table.
     #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
-    pub data: Annotated<Object<Value>>,
+    pub data: Annotated<DataElement>,
 
     /// Identifier of the event this breadcrumb belongs to.
     ///
