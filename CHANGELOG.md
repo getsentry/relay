@@ -9,6 +9,7 @@
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
 - Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
 - Implement a new sampling algorithm with factors and multi-matching. ([#1790](https://github.com/getsentry/relay/pull/1790)
+- Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895]https://github.com/getsentry/relay/pull/1895)
 
 **Bug Fixes**:
 
