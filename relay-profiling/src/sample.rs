@@ -175,9 +175,11 @@ impl SampleProfile {
                     && self.device.manufacturer.is_some()
                     && self.device.model.is_some()
             }
-            Platform::Python | Platform::Javascript | Platform::Node | Platform::Php => {
-                self.runtime.is_some()
-            }
+            Platform::Dotnet
+            | Platform::Javascript
+            | Platform::Node
+            | Platform::Php
+            | Platform::Python => self.runtime.is_some(),
             _ => true,
         }
     }
@@ -234,20 +236,26 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MissingProfileMetadata);
     }
 
-    let Some(transaction) = profile.transactions.get(0).cloned() else {
-        return Err(ProfileError::NoTransactionAssociated);
-    };
+    if profile.transaction.is_none() {
+        profile.transaction = profile.transactions.drain(..).next();
+    }
+
+    let transaction = profile
+        .transaction
+        .as_ref()
+        .ok_or(ProfileError::NoTransactionAssociated)?;
 
     if !transaction.valid() {
         return Err(ProfileError::InvalidTransactionMetadata);
     }
 
-    // Clean samples before running the checks.
-    profile.remove_single_samples_per_thread();
-    profile.profile.samples.retain_mut(|sample| {
-        (transaction.relative_start_ns..transaction.relative_end_ns)
-            .contains(&sample.elapsed_since_start_ns)
-    });
+    // This is to be compatible with older SDKs
+    if transaction.relative_end_ns > 0 {
+        profile.profile.samples.retain_mut(|sample| {
+            (transaction.relative_start_ns..=transaction.relative_end_ns)
+                .contains(&sample.elapsed_since_start_ns)
+        });
+    }
 
     if profile.profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
@@ -261,9 +269,8 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
-    // truncate to one transaction for compatibility reasons
-    profile.transactions.truncate(1);
-    profile.transaction = Some(transaction);
+    // Clean samples before running the checks.
+    profile.remove_single_samples_per_thread();
     profile.strip_pointer_authentication_code();
 
     Ok(profile)
@@ -292,21 +299,6 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
         let profile = parse_sample_profile(payload);
         assert!(profile.is_ok());
-    }
-
-    #[test]
-    fn test_parse_multiple_transactions() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-        let data = parse_sample_profile(payload);
-        assert!(data.is_ok());
-    }
-
-    #[test]
-    fn test_no_transaction() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/no_transaction.json");
-        let data = parse_sample_profile(payload);
-        assert!(data.is_err());
     }
 
     fn generate_profile() -> SampleProfile {
@@ -418,6 +410,64 @@ mod tests {
     }
 
     #[test]
+    fn test_expand_with_samples_inclusive() {
+        let mut profile = generate_profile();
+
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.transaction = Some(TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 30,
+            relative_start_ns: 10,
+            trace_id: EventId::new(),
+        });
+        profile.profile.stacks.push(vec![0]);
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+        ]);
+
+        let payload = serde_json::to_vec(&profile).unwrap();
+        let profile = parse_profile(&payload[..]).unwrap();
+
+        assert_eq!(profile.profile.samples.len(), 3);
+    }
+
+    #[test]
     fn test_expand_with_all_samples_outside_transaction() {
         let mut profile = generate_profile();
 
@@ -431,7 +481,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transactions.push(TransactionMetadata {
+        profile.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -476,17 +526,69 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_samples_for_transaction() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-        let expanded_profile = match parse_profile(payload) {
-            Err(err) => panic!("cannot parse profile: {err:?}"),
-            Ok(profile) => profile,
+    fn test_copying_transaction() {
+        let mut profile = generate_profile();
+        let transaction = TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 100,
+            relative_start_ns: 0,
+            trace_id: EventId::new(),
         };
-        assert_eq!(expanded_profile.profile.samples.len(), 4);
 
-        for sample in &expanded_profile.profile.samples {
-            assert!(sample.elapsed_since_start_ns < expanded_profile.transactions[0].duration_ns());
-        }
+        profile.transactions.push(transaction.clone());
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.profile.stacks.push(vec![0]);
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+        ]);
+
+        let payload = serde_json::to_vec(&profile).unwrap();
+        let profile = parse_profile(&payload[..]).unwrap();
+
+        assert_eq!(Some(transaction), profile.transaction);
+        assert!(profile.transactions.is_empty());
+    }
+
+    #[test]
+    fn test_parse_with_no_transaction() {
+        let profile = generate_profile();
+        let payload = serde_json::to_vec(&profile).unwrap();
+        assert!(parse_profile(&payload[..]).is_err());
     }
 }
