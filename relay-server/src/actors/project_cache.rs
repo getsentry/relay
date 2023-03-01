@@ -1,6 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
-use std::mem;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -386,7 +385,7 @@ struct Queue {
     /// Contains the cache of the incoming envelopes.
     buffer: HashMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
     /// Index of the buffered project keys.
-    index: HashMap<ProjectKey, HashSet<QueueKey>>,
+    index: HashMap<ProjectKey, BTreeSet<QueueKey>>,
 }
 
 impl Queue {
@@ -399,10 +398,7 @@ impl Queue {
     pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
         // Add key to our index.
         for partial_key in &[key.key, key.sampling_key] {
-            self.index
-                .entry(*partial_key)
-                .or_insert(HashSet::from([key]))
-                .insert(key);
+            self.index.entry(*partial_key).or_default().insert(key);
         }
 
         match self.buffer.entry(key) {
@@ -422,17 +418,13 @@ impl Queue {
     where
         P: Fn(&QueueKey) -> bool,
     {
-        let mut keys = self
-            .index
-            .get_mut(partial_key)
-            .map(mem::take)
-            .unwrap_or_default();
+        let mut keys = self.index.remove(partial_key).unwrap_or_default();
 
         let mut result = vec![];
         // Find those keys which match predicates.
-        for qkey in keys.drain() {
-            if f(&qkey) {
-                if let Some(envelopes) = self.buffer.remove(&qkey) {
+        while let Some(queue_key) = keys.pop_first() {
+            if f(&queue_key) {
+                if let Some(envelopes) = self.buffer.remove(&queue_key) {
                     result.extend(envelopes);
                 }
             }
@@ -440,19 +432,9 @@ impl Queue {
             else {
                 self.index
                     .entry(*partial_key)
-                    .or_insert(HashSet::from([qkey]))
-                    .insert(qkey);
+                    .or_default()
+                    .insert(queue_key);
             }
-        }
-
-        // Remove the index all together if it's empty.
-        let empty_index = self
-            .index
-            .get(partial_key)
-            .map(|v| v.is_empty())
-            .unwrap_or_default();
-        if empty_index {
-            self.index.remove(partial_key);
         }
 
         result
@@ -561,8 +543,8 @@ impl ProjectCacheBroker {
         if !invalid {
             let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
                 for key in &[queue_key.key, queue_key.sampling_key] {
-                    // Do not check just updated state again.
                     if *key == project_key {
+                        // We know that this state is valid, so only check the other one.
                         continue;
                     }
                     // We return false if the project is in the cache and the state is missing,
@@ -735,7 +717,7 @@ impl ProjectCacheBroker {
                 self.handle_processing(key, state, None, envelope, envelope_context)
             }
 
-            // We have to buffe because one of the followup conditiones met:
+            // We have to buffer because one of the followup conditions met:
             // 1. We have a root project, but the samping project is not fetched yet.
             // 2. There is no state for sampling and root projects here yet.
             // 3. There is no root project fetched yet.
