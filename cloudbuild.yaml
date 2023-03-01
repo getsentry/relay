@@ -53,16 +53,25 @@ steps:
         ".",
       ]
 
+  - name: "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"
+    id: extract-deployment-assets
+    waitFor: ["build"]
+    entrypoint: "bash"
+    args:
+      - '-c'
+      - |-
+        tar -cf - /lib/x86_64-linux-gnu > ./libs.tar
+        cp /opt/relay-debug.zip /opt/relay.src.zip .
+
   - name: "gcr.io/cloud-builders/gsutil"
-    waitFor:
-    - build
+    id: upload-deployment-assets
+    waitFor: ["extract-deployment-assets"]
     entrypoint: 'bash'
     args:
       - '-c'
       - |-
-        tar -cf - /lib/x86_64-linux-gnu > libs.tar
-        gsutil cp libs.tar /opt/relay-debug.zip /opt/relay.src.zip \
-          gs://dicd-team-devinfra-cd--getsentry-relay/release-assets/$COMMIT_SHA/
+        gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip \
+        gs://dicd-team-devinfra-cd--getsentry-relay/deployment-assets/$COMMIT_SHA/
 
   # We push the image to GCR since the Sentry integration tests are polling
   - name: "gcr.io/cloud-builders/docker"
