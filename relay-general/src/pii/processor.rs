@@ -84,9 +84,23 @@ impl<'a> Processor for PiiProcessor<'a> {
             return Ok(());
         }
 
+        let mut old_value = String::new();
+        if meta.original_value().is_some() {
+            old_value = value.clone();
+        }
+
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        self.apply_all_rules(meta, state, Some(value))
+        let result = self.apply_all_rules(meta, state, Some(value));
+
+        // If the value has been changed, that implies it may have contained PII.
+        // If also normalization failed the original value would be in the meta and could potentially leak PII.
+        // This is why we set the "original_value" field to None if these two conditions are met.
+        if meta.original_value().is_some() && &old_value != value {
+            //meta.set_original_value(Option::<String>::None);
+        }
+
+        result
     }
 
     fn process_native_image_path(
