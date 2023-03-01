@@ -593,11 +593,14 @@ expression: "relay_general::protocol::event_json_schema()"
             "data": {
               "description": " Arbitrary data associated with this breadcrumb.\n\n Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters\n that are unsupported by the type are rendered as a key/value table.",
               "default": null,
-              "type": [
-                "object",
-                "null"
-              ],
-              "additionalProperties": true
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/DataElement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "event_id": {
               "description": " Identifier of the event this breadcrumb belongs to.\n\n Sentry events can appear as breadcrumbs in other events as long as they have occurred in the\n same organization. This identifier links to the original event.",
@@ -979,6 +982,27 @@ expression: "relay_general::protocol::event_json_schema()"
               }
             }
           ]
+        }
+      ]
+    },
+    "DataElement": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "http": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HttpElement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1990,6 +2014,19 @@ expression: "relay_general::protocol::event_json_schema()"
               }
             }
           ]
+        }
+      ]
+    },
+    "HttpElement": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "query": {
+              "default": null
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },

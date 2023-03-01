@@ -1,0 +1,35 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: breadcrumb
+---
+{
+  "data": {
+    "http": {
+      "query": {
+        "ccnumber": "[Filtered]",
+        "process_id": "123"
+      }
+    }
+  },
+  "_meta": {
+    "data": {
+      "http": {
+        "query": {
+          "ccnumber": {
+            "": {
+              "rem": [
+                [
+                  "@creditcard:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 16
+            }
+          }
+        }
+      }
+    }
+  }
+}
