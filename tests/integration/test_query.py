@@ -151,9 +151,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
         mini_sentry.test_failures.clear()
 
 
-def test_query_retry_maxed_out(
-    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
-):
+def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consumer):
     """
     Assert that a query is not retried an infinite amount of times.
 
@@ -162,7 +160,6 @@ def test_query_retry_maxed_out(
     """
     request_count = 0
 
-    outcomes_consumer = outcomes_consumer()
     events_consumer = events_consumer()
 
     @mini_sentry.app.endpoint("get_project_config")
@@ -190,14 +187,9 @@ def test_query_retry_maxed_out(
         relay.send_event(42)
         time.sleep(query_timeout)
 
-        outcome = outcomes_consumer.get_outcome()
-        assert (outcome["outcome"], outcome["reason"]) == (3, "project_state")
         assert request_count == 1 + RETRIES
-
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error\n  caused by: no error details",
-            "Relay sent us event: error fetching project state 31a5a894b4524f74a9a8d0e27e21ba91: deadline exceeded",
-            "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
     finally:
         mini_sentry.test_failures.clear()

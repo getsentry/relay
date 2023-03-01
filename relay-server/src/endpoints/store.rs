@@ -1,18 +1,16 @@
 //! Handles event store requests.
 
-use actix::prelude::*;
-use actix_web::{HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{http::Method, App, HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use futures01::Future;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
 
-use crate::body::StoreBody;
+use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 // Transparent 1x1 gif
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
@@ -67,11 +65,16 @@ fn parse_event(
     Ok(envelope)
 }
 
-fn extract_envelope(
+async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
+) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_payload_size = request.state().config().max_event_size();
+    let data = body::store_body(request, max_payload_size).await?;
+
+    if data.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
+    }
 
     // If the content type is missing, assume "application/json".
     let content_type = match request.content_type() {
@@ -79,20 +82,10 @@ fn extract_envelope(
         content_type => ContentType::from(content_type),
     };
 
-    let future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::from)
-        .and_then(move |data| {
-            if data.is_empty() {
-                return Err(BadStoreRequest::EmptyBody);
-            }
-
-            match content_type {
-                ContentType::Envelope => parse_envelope(meta, data),
-                _ => parse_event(meta, content_type, data),
-            }
-        });
-
-    Box::new(future)
+    match content_type {
+        ContentType::Envelope => parse_envelope(meta, data),
+        _ => parse_event(meta, content_type, data),
+    }
 }
 
 #[derive(Serialize)]
@@ -101,52 +94,46 @@ struct StoreResponse {
     id: Option<EventId>,
 }
 
-fn create_response(id: Option<EventId>, is_get_request: bool) -> HttpResponse {
-    if is_get_request {
-        HttpResponse::Ok().content_type("image/gif").body(PIXEL)
-    } else {
-        HttpResponse::Ok().json(StoreResponse { id })
-    }
-}
-
 /// Handler for the JSON event store endpoint.
 ///
 /// This simply delegates to `store_event` which does all the work.
 /// `handle_store_event` is an adaptor for `store_event` which cannot
 /// be used directly as a request handler since not all of its arguments
 /// implement the FromRequest trait.
-fn store_event(
+async fn store_event(
     meta: RequestMeta,
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let is_get_request = request.method() == "GET";
+) -> Result<HttpResponse, BadStoreRequest> {
+    let envelope = extract_envelope(&request, meta).await?;
+    let id = common::handle_envelope(request.state(), envelope).await?;
 
-    common::handle_store_like_request(
-        meta,
-        request,
-        extract_envelope,
-        move |id| create_response(id, is_get_request),
-        true,
-    )
+    Ok(match request.method() {
+        &Method::GET => HttpResponse::Ok().content_type("image/gif").body(PIXEL),
+        _ => HttpResponse::Ok().json(StoreResponse { id }),
+    })
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of
         // slashes. The trailing slash can also be omitted, optionally.
         .resource(&common::normpath(r"/api/{project:\d+}/store/"), |r| {
             r.name("store-default");
-            r.post().with(store_event);
-            r.get().with(store_event);
+            r.post()
+                .with_async(|m, r| common::handler(store_event(m, r)));
+            r.get()
+                .with_async(|m, r| common::handler(store_event(m, r)));
         })
         // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
         // request.
         .resource(&common::normpath(r"/api/store/"), |r| {
             r.name("store-legacy");
-            r.post().with(store_event);
-            r.get().with(store_event);
+            r.post()
+                .with_async(|m, r| common::handler(store_event(m, r)));
+            r.get()
+                .with_async(|m, r| common::handler(store_event(m, r)));
         })
         .register()
 }

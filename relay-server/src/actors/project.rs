@@ -1,24 +1,20 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
 use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use relay_auth::PublicKey;
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_filter::{matches_any_origin, FiltersConfig};
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
-use relay_general::types::SpanAttribute;
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_filter::matches_any_origin;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
-use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;
 
@@ -30,14 +26,10 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics_extraction::sessions::SessionMetricsConfig;
-use crate::metrics_extraction::transactions::TransactionMetricsConfig;
-use crate::metrics_extraction::TaggingRule;
+
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, RetryBackoff,
-};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
 
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
@@ -68,145 +60,6 @@ pub enum ExpiryState {
 
 /// Sender type for messages that respond with project states.
 pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectState>>;
-
-/// Features exposed by project config.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum Feature {
-    /// Enables ingestion and normalization of profiles.
-    #[serde(rename = "organizations:profiling")]
-    Profiling,
-    /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
-    #[serde(rename = "organizations:session-replay")]
-    SessionReplay,
-    /// Enables data scrubbing of replay recording payloads.
-    #[serde(rename = "organizations:session-replay-recording-scrubbing")]
-    SessionReplayRecordingScrubbing,
-    /// Enables transaction names normalization.
-    ///
-    /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
-    #[serde(rename = "organizations:transaction-name-normalize")]
-    TransactionNameNormalize,
-
-    /// Unused.
-    ///
-    /// This used to control the initial experimental metrics extraction for sessions and has been
-    /// discontinued.
-    #[serde(rename = "organizations:metrics-extraction")]
-    Deprecated1,
-
-    /// Forward compatibility.
-    #[serde(other)]
-    Unknown,
-}
-
-/// These are config values that the user can modify in the UI.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct ProjectConfig {
-    /// URLs that are permitted for cross original JavaScript requests.
-    pub allowed_domains: Vec<String>,
-    /// List of relay public keys that are permitted to access this project.
-    pub trusted_relays: Vec<PublicKey>,
-    /// Configuration for PII stripping.
-    pub pii_config: Option<PiiConfig>,
-    /// The grouping configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grouping_config: Option<Value>,
-    /// Configuration for filter rules.
-    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
-    pub filter_settings: FiltersConfig,
-    /// Configuration for data scrubbers.
-    #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
-    pub datascrubbing_settings: DataScrubbingConfig,
-    /// Maximum event retention for the organization.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_retention: Option<u16>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub quotas: Vec<Quota>,
-    /// Configuration for sampling traces, if not present there will be no sampling.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dynamic_sampling: Option<SamplingConfig>,
-    /// Configuration for measurements.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub measurements: Option<MeasurementsConfig>,
-    /// Configuration for operation breakdown. Will be emitted only if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub breakdowns_v2: Option<BreakdownsConfig>,
-    /// Configuration for extracting metrics from sessions.
-    #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
-    pub session_metrics: SessionMetricsConfig,
-    /// Configuration for extracting metrics from transaction events.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
-    /// The span attributes configuration.
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub span_attributes: BTreeSet<SpanAttribute>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
-    /// Exposable features enabled for this project.
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub features: BTreeSet<Feature>,
-    /// Transaction renaming rules.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tx_name_rules: Vec<TransactionNameRule>,
-}
-
-impl Default for ProjectConfig {
-    fn default() -> Self {
-        ProjectConfig {
-            allowed_domains: vec!["*".to_string()],
-            trusted_relays: vec![],
-            pii_config: None,
-            grouping_config: None,
-            filter_settings: FiltersConfig::default(),
-            datascrubbing_settings: DataScrubbingConfig::default(),
-            event_retention: None,
-            quotas: Vec::new(),
-            dynamic_sampling: None,
-            measurements: None,
-            breakdowns_v2: None,
-            session_metrics: SessionMetricsConfig::default(),
-            transaction_metrics: None,
-            span_attributes: BTreeSet::new(),
-            metric_conditional_tagging: Vec::new(),
-            features: BTreeSet::new(),
-            tx_name_rules: Vec::new(),
-        }
-    }
-}
-
-/// These are config values that are passed to external Relays.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase", remote = "ProjectConfig")]
-pub struct LimitedProjectConfig {
-    pub allowed_domains: Vec<String>,
-    pub trusted_relays: Vec<PublicKey>,
-    pub pii_config: Option<PiiConfig>,
-    /// Configuration for filter rules.
-    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
-    pub filter_settings: FiltersConfig,
-    #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
-    pub datascrubbing_settings: DataScrubbingConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dynamic_sampling: Option<SamplingConfig>,
-    #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
-    pub session_metrics: SessionMetricsConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub span_attributes: BTreeSet<SpanAttribute>,
-    /// Configuration for measurements.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub measurements: Option<MeasurementsConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub breakdowns_v2: Option<BreakdownsConfig>,
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub features: BTreeSet<Feature>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tx_name_rules: Vec<TransactionNameRule>,
-}
 
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -608,6 +461,11 @@ impl Project {
         }
     }
 
+    /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
+    pub fn next_fetch_attempt(&self) -> Option<Instant> {
+        self.next_fetch_attempt
+    }
+
     /// The rate limits that are active for this project.
     pub fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
@@ -667,6 +525,13 @@ impl Project {
         }
     }
 
+    /// Returns `true` if backoff expired and new attempt can be triggered.
+    fn can_fetch(&self) -> bool {
+        self.next_fetch_attempt
+            .map(|next_attempt_at| next_attempt_at <= Instant::now())
+            .unwrap_or(true)
+    }
+
     /// Triggers a debounced refresh of the project state.
     ///
     /// If the state is already being updated in the background, this method checks if the request
@@ -676,10 +541,7 @@ impl Project {
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
         let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
-            && self
-                .next_fetch_attempt
-                .map(|next_attempt_at| next_attempt_at <= Instant::now())
-                .unwrap_or(true);
+            && self.can_fetch();
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
@@ -831,15 +693,15 @@ impl Project {
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
-            Some(state) => self.flush_validation(envelope, context, state),
-            None => self.pending_validations.push_back((envelope, context)),
+            Some(state) if !state.invalid() => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
         }
     }
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
         // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if let Some(state) = self.valid_state() {
+        if let Some(state) = self.valid_state().filter(|state| !state.invalid()) {
             // Never use rules from another organization.
             if state.organization_id == message.project_state.organization_id {
                 message.sampling_project_state = Some(state);
@@ -901,6 +763,18 @@ impl Project {
             _ => self.state = Some(state.clone()),
         }
 
+        // If the state is still invalid, return back the taken channel and schedule state update.
+        if state.invalid() {
+            self.state_channel = Some(channel);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
+            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+            return;
+        }
+
         // Flush all queued `ValidateEnvelope` messages
         while let Some((envelope, context)) = self.pending_validations.pop_front() {
             self.flush_validation(envelope, context, state.clone());
@@ -934,12 +808,23 @@ impl Project {
         })
     }
 
+    /// Runs the checks on incoming envelopes.
+    ///
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    ///
+    /// * checks the rate limits
+    /// * validates the envelope meta in `check_request` - determines whether the given request
+    ///   should be accepted or discarded
+    ///
+    /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
+    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// pipeline.
     pub fn check_envelope(
         &mut self,
         mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.valid_state();
+        let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
 
         if let Some(ref state) = state {

@@ -2,8 +2,10 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use actix_web::dev::Payload;
+use actix_web::error::PayloadError;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use bytes::Bytes;
+use futures::{compat::Stream01CompatExt, TryStreamExt};
 use futures01::{Async, Poll, Stream};
 
 /// A shared reference to an actix request payload.
@@ -45,6 +47,29 @@ impl SharedPayload {
     pub fn unread_data(&mut self, chunk: Bytes) {
         self.inner.unread_data(chunk);
         self.done.store(false, Ordering::Relaxed);
+    }
+
+    /// Stream a chunk of the raw request body.
+    ///
+    /// When the request body has been exhausted, this will return None.
+    pub async fn chunk(&mut self) -> Result<Option<Bytes>, PayloadError> {
+        if self.done.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+
+        // Resolve the next chunk from the actix payload stream (futures 0.1 compatibility).
+        let result = (&mut self.inner).compat().try_next().await;
+
+        if let Ok(None) = result {
+            self.done.store(true, Ordering::Relaxed);
+        }
+
+        result
+    }
+
+    /// Consume the remaining response body.
+    pub async fn consume(mut self) {
+        while let Ok(Some(_)) = self.chunk().await {}
     }
 }
 

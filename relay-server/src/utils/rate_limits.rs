@@ -1,14 +1,14 @@
 use std::fmt::{self, Write};
 
+use relay_common::DataCategory;
+use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    ReasonCode, Scoping,
+    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    Scoping,
 };
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::project::ProjectConfig;
 use crate::envelope::{Envelope, Item, ItemType};
-use crate::utils::ErrorBoundary;
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -562,6 +562,13 @@ where
             return false;
         }
 
+        // Remove replays independently of events.
+        if enforcement.replays.is_active()
+            && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
+        {
+            return false;
+        }
+
         true
     }
 }
@@ -583,10 +590,10 @@ mod tests {
     use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
-    use relay_quotas::RetryAfter;
+    use relay_dynamic_config::TransactionMetricsConfig;
+    use relay_quotas::{ItemScoping, RetryAfter};
 
     use crate::envelope::{AttachmentType, ContentType};
-    use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 
     #[test]
     fn test_format_rate_limits() {
@@ -874,6 +881,28 @@ mod tests {
             .map(|outcome| (outcome.category, outcome.quantity))
             .collect::<Vec<_>>();
         assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
+    }
+
+    /// Limit replays.
+    #[test]
+    fn test_enforce_limit_replays() {
+        let mut envelope = envelope![ReplayEvent, ReplayRecording];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Replay);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
     }
 
     #[test]

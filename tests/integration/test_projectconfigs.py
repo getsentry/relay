@@ -241,7 +241,8 @@ def get_response(relay, packed, signature):
 def test_unparsable_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2}
+        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2},
+        "http": {"max_retry_interval": 1},
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
@@ -294,12 +295,9 @@ def test_unparsable_project_config(mini_sentry, relay):
     } == data
 
     try:
-        # This event will be dropped since the project state is invalid.
-        pytest.raises(HTTPError, lambda: relay.send_event(project_key))
-        time.sleep(0.5)
+        relay.send_event(project_key)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-            "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
     finally:
         mini_sentry.test_failures.clear()
@@ -327,29 +325,16 @@ def test_unparsable_project_config(mini_sentry, relay):
     ]
 
     # Wait for caches to expire. And we will get into the grace period.
-    time.sleep(2)
-    # The state should be stale at this point, once we request it, the update will be scheduled.
-    # But we still get back the cached invalid project state.
+    time.sleep(3)
+    # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
     data = get_response(relay, packed, signature)
-    assert {
-        "configs": {
-            public_key: {
-                "projectId": None,
-                "lastChange": None,
-                "disabled": True,
-                "publicKeys": [],
-                "slug": None,
-                "config": {
-                    "allowedDomains": ["*"],
-                    "trustedRelays": [],
-                    "piiConfig": None,
-                },
-                "organizationId": None,
-            }
-        }
-    } == data
-    # give it a time to refresh the state
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
     time.sleep(1)
+
+    # We should have the previous events through now.
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
     # This must succeed, since we will re-request the project state update at this point.
     relay.send_event(project_key)
@@ -425,15 +410,13 @@ def test_cached_project_config(mini_sentry, relay):
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
 
-    # Wait till grace period expires as well and we should be dropping events now.
+    # Wait till grace period expires as well and we should start buffering the events now.
     time.sleep(5)
     try:
-        # This event will be dropped since the project state is invalid.
         relay.send_event(project_key)
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-            "Relay sent us event: dropped envelope: invalid data (project_state)",
         }
     finally:
         mini_sentry.test_failures.clear()

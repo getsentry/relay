@@ -119,7 +119,10 @@ pub use crate::outcomes::discard_reason;
 enum Platform {
     Android,
     Cocoa,
+    Dotnet,
+    Javascript,
     Node,
+    Php,
     Python,
     Rust,
 }

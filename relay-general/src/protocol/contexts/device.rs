@@ -178,9 +178,9 @@ impl DeviceContext {
 
 impl FromUserAgentInfo for DeviceContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?.to_owned();
+        let device = client_hints.sec_ch_ua_model?.trim().replace('\"', "");
 
-        if device.trim().is_empty() {
+        if device.is_empty() {
             return None;
         }
 
@@ -245,6 +245,20 @@ mod tests {
                 Annotated::new("moto g31(w)".to_string().into()),
             )),
         ];
+            PairList(headers)
+        });
+
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
+        assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
+    }
+
+    #[test]
+    fn test_strip_whitespace_and_quotes() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
+                Annotated::new("   \"moto g31(w)\"".to_string().into()),
+            ))];
             PairList(headers)
         });
 

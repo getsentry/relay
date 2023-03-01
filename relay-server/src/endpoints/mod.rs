@@ -3,8 +3,6 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
-use crate::service::ServiceApp;
-
 mod attachments;
 mod common;
 mod envelope;
@@ -20,7 +18,11 @@ mod statics;
 mod store;
 mod unreal;
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+use actix_web::App;
+
+use crate::service::ServiceState;
+
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     app
         // Internal routes pointing to /api/relay
         .configure(health_check::configure_app)

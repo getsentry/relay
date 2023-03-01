@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Extract attachments from transaction events and send them to kafka individually. ([#1844](https://github.com/getsentry/relay/pull/1844))
+- Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
+- Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
+- Add Dotnet, Javascript and PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871), [#1876](https://github.com/getsentry/relay/pull/1876), [#1885](https://github.com/getsentry/relay/pull/1885))
+- Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
+- Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895]https://github.com/getsentry/relay/pull/1895)
+
+**Bug Fixes**:
+
+- Enforce rate limits for session replays. ([#1877](https://github.com/getsentry/relay/pull/1877))
+
+**Internal**:
+
+- Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
+- Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
+- Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
+
 ## 23.2.0
 
 **Features**:
@@ -9,7 +30,7 @@
 - Add count transactions toward root project. ([#1734](https://github.com/getsentry/relay/pull/1734))
 - Add or remove the profile ID on the transaction's profiling context. ([#1801](https://github.com/getsentry/relay/pull/1801))
 - Implement a new sampling algorithm with factors and multi-matching. ([#1790](https://github.com/getsentry/relay/pull/1790)
-- Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895]https://github.com/getsentry/relay/pull/1895)
+- Add Cloud Resource context. ([#1854](https://github.com/getsentry/relay/pull/1854))
 
 **Bug Fixes**:
 

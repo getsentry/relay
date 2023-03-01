@@ -35,7 +35,7 @@ use relay_system::{Addr, FromMessage, Service};
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
-use crate::service::ServerError;
+use crate::service::ServiceError;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
@@ -720,12 +720,10 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = &config
-                .kafka_config(*topic)
-                .context(ServerError::KafkaError)?;
+            let kafka_config = &config.kafka_config(*topic).context(ServiceError::Kafka)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .context(ServerError::KafkaError)?;
+                .context(ServiceError::Kafka)?;
         }
 
         Ok(Self {

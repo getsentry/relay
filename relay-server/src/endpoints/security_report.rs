@@ -1,17 +1,15 @@
 //! Endpoints for security reports.
 
-use actix_web::actix::ResponseFuture;
-use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-use futures01::Future;
+use actix_web::{pred, App, HttpMessage, HttpRequest, HttpResponse, Query, Request};
 use serde::Deserialize;
 
 use relay_general::protocol::EventId;
 
-use crate::body::StoreBody;
+use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
 struct SecurityReportParams {
@@ -19,57 +17,46 @@ struct SecurityReportParams {
     sentry_environment: Option<String>,
 }
 
-fn extract_envelope(
+async fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
     params: SecurityReportParams,
-) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
+) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_payload_size = request.state().config().max_event_size();
-    let future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::from)
-        .and_then(move |data| {
-            if data.is_empty() {
-                return Err(BadStoreRequest::EmptyBody);
-            }
+    let data = body::store_body(request, max_payload_size).await?;
 
-            let mut report_item = Item::new(ItemType::RawSecurity);
-            report_item.set_payload(ContentType::Json, data);
+    if data.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
+    }
 
-            if let Some(sentry_release) = params.sentry_release {
-                report_item.set_header("sentry_release", sentry_release);
-            }
+    let mut report_item = Item::new(ItemType::RawSecurity);
+    report_item.set_payload(ContentType::Json, data);
 
-            if let Some(sentry_environment) = params.sentry_environment {
-                report_item.set_header("sentry_environment", sentry_environment);
-            }
+    if let Some(sentry_release) = params.sentry_release {
+        report_item.set_header("sentry_release", sentry_release);
+    }
 
-            let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-            envelope.add_item(report_item);
+    if let Some(sentry_environment) = params.sentry_environment {
+        report_item.set_header("sentry_environment", sentry_environment);
+    }
 
-            Ok(envelope)
-        });
-    Box::new(future)
-}
+    let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
+    envelope.add_item(report_item);
 
-fn create_response() -> HttpResponse {
-    HttpResponse::Ok().finish()
+    Ok(envelope)
 }
 
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-fn store_security_report(
+async fn store_security_report(
     meta: RequestMeta,
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    common::handle_store_like_request(
-        meta,
-        request,
-        move |data, meta| extract_envelope(data, meta, params.into_inner()),
-        |_| create_response(),
-        true,
-    )
+) -> Result<HttpResponse, BadStoreRequest> {
+    let envelope = extract_envelope(&request, meta, params.into_inner()).await?;
+    common::handle_envelope(request.state(), envelope).await?;
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[derive(Debug)]
@@ -97,21 +84,21 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
     }
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
+pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
     common::cors(app)
         // Default security endpoint
         .resource(&common::normpath(r"/api/{project:\d+}/security/"), |r| {
             r.name("store-security-report");
             r.post()
                 .filter(SecurityReportFilter)
-                .with(store_security_report);
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         // Legacy security endpoint
         .resource(&common::normpath(r"/api/{project:\d+}/csp-report/"), |r| {
             r.name("store-csp-report");
             r.post()
                 .filter(SecurityReportFilter)
-                .with(store_security_report);
+                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
         })
         .register()
 }

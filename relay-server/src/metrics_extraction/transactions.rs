@@ -1,19 +1,18 @@
-use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::utils;
-use crate::metrics_extraction::TaggingRule;
-use crate::statsd::RelayCounters;
+use std::collections::BTreeMap;
+
 use relay_common::{SpanStatus, UnixTimestamp};
+use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
-    User,
+    AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::AggregatorConfig;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
+
+use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::statsd::RelayCounters;
+use crate::utils::SamplingResult;
 
 /// Error returned from [`extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -28,94 +27,6 @@ pub enum ExtractMetricsError {
     /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
-}
-
-/// The metric on which the user satisfaction threshold is applied.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum SatisfactionMetric {
-    Duration,
-    Lcp,
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration for a single threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SatisfactionThreshold {
-    metric: SatisfactionMetric,
-    threshold: f64,
-}
-
-/// Configuration for applying the user satisfaction threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SatisfactionConfig {
-    /// The project-wide threshold to apply.
-    project_threshold: SatisfactionThreshold,
-    /// Transaction-specific overrides of the project-wide threshold.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
-}
-
-/// Configuration for extracting custom measurements from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct CustomMeasurementConfig {
-    /// The maximum number of custom measurements to extract. Defaults to zero.
-    limit: usize,
-}
-
-/// Maximum supported version of metrics extraction from transactions.
-///
-/// The version is an integer scalar, incremented by one on each new version.
-const EXTRACT_MAX_VERSION: u16 = 1;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum AcceptTransactionNames {
-    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    ClientBased,
-
-    /// Only accept transaction names with a low-cardinality source.
-    /// Any value other than "clientBased" will be interpreted as "strict".
-    #[serde(other)]
-    Strict,
-}
-
-impl Default for AcceptTransactionNames {
-    fn default() -> Self {
-        Self::Strict
-    }
-}
-
-/// Configuration for extracting metrics from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct TransactionMetricsConfig {
-    /// The required version to extract transaction metrics.
-    version: u16,
-    extract_metrics: BTreeSet<String>,
-    extract_custom_tags: BTreeSet<String>,
-    satisfaction_thresholds: Option<SatisfactionConfig>,
-    custom_measurements: CustomMeasurementConfig,
-    accept_transaction_names: AcceptTransactionNames,
-}
-
-impl TransactionMetricsConfig {
-    /// Creates an enabled configuration with empty defaults.
-    #[cfg(test)]
-    pub fn new() -> Self {
-        Self {
-            version: 1,
-            ..Self::default()
-        }
-    }
-
-    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
-    pub fn is_enabled(&self) -> bool {
-        self.version > 0 && self.version <= EXTRACT_MAX_VERSION
-    }
 }
 
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
@@ -155,67 +66,6 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
     Some(method.clone())
-}
-
-/// Satisfaction value used for Apdex and User Misery
-/// <https://docs.sentry.io/product/performance/metrics/#apdex>
-enum UserSatisfaction {
-    Satisfied,
-    Tolerated,
-    Frustrated,
-}
-
-impl fmt::Display for UserSatisfaction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            UserSatisfaction::Satisfied => write!(f, "satisfied"),
-            UserSatisfaction::Tolerated => write!(f, "tolerated"),
-            UserSatisfaction::Frustrated => write!(f, "frustrated"),
-        }
-    }
-}
-
-impl UserSatisfaction {
-    /// The frustration threshold is always four times the threshold
-    /// (see <https://docs.sentry.io/product/performance/metrics/#apdex>)
-    const FRUSTRATION_FACTOR: f64 = 4.0;
-
-    fn from_value(value: f64, threshold: f64) -> Self {
-        if value <= threshold {
-            Self::Satisfied
-        } else if value <= Self::FRUSTRATION_FACTOR * threshold {
-            Self::Tolerated
-        } else {
-            Self::Frustrated
-        }
-    }
-}
-
-/// Extract the the satisfaction value depending on the actual measurement/duration value
-/// and the configured threshold.
-fn extract_user_satisfaction(
-    config: &Option<SatisfactionConfig>,
-    transaction: &Event,
-    start_timestamp: Timestamp,
-    end_timestamp: Timestamp,
-) -> Option<UserSatisfaction> {
-    if let Some(config) = config {
-        let threshold = transaction
-            .transaction
-            .value()
-            .and_then(|name| config.transaction_thresholds.get(name))
-            .unwrap_or(&config.project_threshold);
-        if let Some(value) = match threshold.metric {
-            SatisfactionMetric::Duration => Some(relay_common::chrono_to_positive_millis(
-                end_timestamp - start_timestamp,
-            )),
-            SatisfactionMetric::Lcp => store::get_measurement(transaction, "lcp"),
-            SatisfactionMetric::Unknown => None,
-        } {
-            return Some(UserSatisfaction::from_value(value, threshold.threshold));
-        }
-    }
-    None
 }
 
 fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
@@ -371,14 +221,16 @@ fn extract_universal_tags(
     tags
 }
 
+#[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
 pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
-    project_metrics: &mut Vec<Metric>,
-    sampling_metrics: &mut Vec<Metric>,
     transaction_from_dsc: Option<&str>,
+    sampling_result: &SamplingResult,
+    project_metrics: &mut Vec<Metric>,  // output parameter
+    sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
@@ -387,6 +239,7 @@ pub fn extract_transaction_metrics(
         config,
         event,
         transaction_from_dsc,
+        sampling_result,
         project_metrics,
         sampling_metrics,
     )?;
@@ -401,6 +254,7 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     event: &Event,
     transaction_from_dsc: Option<&str>,
+    sampling_result: &SamplingResult,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
@@ -493,13 +347,6 @@ fn extract_transaction_metrics_inner(
         }
     }
 
-    let user_satisfaction =
-        extract_user_satisfaction(&config.satisfaction_thresholds, event, start, end);
-    let tags_with_satisfaction = match user_satisfaction {
-        Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
-        None => tags,
-    };
-
     // Duration
     metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
@@ -507,8 +354,18 @@ fn extract_transaction_metrics_inner(
         MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
-        tags_with_satisfaction.clone(),
+        tags.clone(),
     ));
+
+    let mut root_counter_tags = BTreeMap::new();
+    if let Some(name) = transaction_from_dsc {
+        root_counter_tags.insert("transaction".to_owned(), name.to_owned());
+    }
+    let decision = match sampling_result {
+        SamplingResult::Keep => "keep".to_owned(),
+        SamplingResult::Drop(_) => "drop".to_owned(),
+    };
+    root_counter_tags.insert("decision".to_owned(), decision);
 
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new_mri(
@@ -517,10 +374,7 @@ fn extract_transaction_metrics_inner(
         MetricUnit::None,
         MetricValue::Counter(1.0),
         timestamp,
-        match transaction_from_dsc {
-            Some(name) => BTreeMap::from([("transaction".to_owned(), name.to_owned())]),
-            None => BTreeMap::new(),
-        },
+        root_counter_tags,
     ));
 
     // User
@@ -532,12 +386,7 @@ fn extract_transaction_metrics_inner(
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 timestamp,
-                // A single user might end up in multiple satisfaction buckets when they have
-                // some satisfying transactions and some frustrating transactions.
-                // This is OK as long as we do not add these numbers *after* aggregation:
-                //     <WRONG>total_users = uniqIf(user, satisfied) + uniqIf(user, tolerated) + uniqIf(user, frustrated)</WRONG>
-                //     <RIGHT>total_users = uniq(user)</RIGHT>
-                tags_with_satisfaction,
+                tags,
             ));
         }
     }
@@ -620,14 +469,13 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
 
-    use relay_general::protocol::{Contexts, User};
+    use relay_dynamic_config::TaggingRule;
+    use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
-
-    use crate::metrics_extraction::TaggingRule;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {
@@ -730,9 +578,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -870,9 +719,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -961,9 +811,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1039,9 +890,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1060,218 +912,6 @@ mod tests {
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
         assert_eq!(duration_metric.tags["environment"], "fake_environment");
         assert_eq!(duration_metric.tags["platform"], "other");
-    }
-
-    #[test]
-    fn test_user_satisfaction() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:01+0100",
-            "user": {
-                "id": "user123"
-            },
-            "contexts": {
-                "trace": {
-                    "status": "ok"
-                }
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-            {
-            "satisfactionThresholds": {
-                "projectThreshold": {
-                    "metric": "duration",
-                    "threshold": 300
-                },
-                "extra_key": "should_be_ignored"
-            }
-        }
-        "#,
-        )
-        .unwrap();
-
-        let aggregator_config = aggregator_config();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
-            &mut sampling_metrics,
-            Some("test_transaction"),
-        )
-        .unwrap();
-        assert_eq!(metrics.len(), 2);
-
-        let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.tags.len(), 3);
-        assert_eq!(duration_metric.tags["satisfaction"], "tolerated");
-        assert_eq!(duration_metric.tags["transaction.status"], "ok");
-
-        let user_metric = &metrics[1];
-        assert_eq!(user_metric.tags.len(), 3);
-        assert_eq!(user_metric.tags["satisfaction"], "tolerated");
-    }
-
-    #[test]
-    fn test_user_satisfaction_override() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "satisfactionThresholds": {
-                "projectThreshold": {
-                    "metric": "duration",
-                    "threshold": 300
-                },
-                "transactionThresholds": {
-                    "foo": {
-                        "metric": "lcp",
-                        "threshold": 42
-                    }
-                }
-            }
-        }
-        "#,
-        )
-        .unwrap();
-
-        let aggregator_config = aggregator_config();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
-            &mut sampling_metrics,
-            Some("test_transaction"),
-        )
-        .unwrap();
-        insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
-                value: Distribution(
-                    41.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "measurement_rating": "good",
-                    "platform": "other",
-                },
-            },
-            Metric {
-                name: "d:transactions/duration@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                    "satisfaction": "satisfied",
-                },
-            },
-        ]
-        "###);
-    }
-
-    #[test]
-    fn test_user_satisfaction_catch_new_metric() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "satisfactionThresholds": {
-                "projectThreshold": {
-                    "metric": "unknown_metric",
-                    "threshold": 300
-                }
-            }
-        }
-        "#,
-        )
-        .unwrap();
-
-        let aggregator_config = aggregator_config();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
-            &mut sampling_metrics,
-            Some("test_transaction"),
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
-                value: Distribution(
-                    41.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "measurement_rating": "good",
-                    "platform": "other",
-                },
-            },
-            Metric {
-                name: "d:transactions/duration@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                },
-            },
-        ]
-        "###);
     }
 
     #[test]
@@ -1325,9 +965,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1434,9 +1075,10 @@ mod tests {
             &config,
             &tagging_config,
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1520,9 +1162,10 @@ mod tests {
             &config,
             &tagging_config,
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
@@ -1567,9 +1210,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1605,9 +1249,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
@@ -1652,9 +1297,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         );
 
         assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
@@ -1676,14 +1322,67 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
         metrics[0].tags.get("transaction").cloned()
+    }
+
+    #[test]
+    fn test_root_counter_keep() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "transaction": "ignored",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            Some("root_transaction"),
+            &SamplingResult::Keep,
+            &mut metrics,
+            &mut sampling_metrics,
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(sampling_metrics, @r###"
+        [
+            Metric {
+                name: "c:transactions/count_per_root_project@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "decision": "keep",
+                    "transaction": "root_transaction",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -2035,9 +1734,10 @@ mod tests {
             &config,
             &[],
             event.value().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
             &mut metrics,
             &mut sampling_metrics,
-            Some("test_transaction"),
         )
         .unwrap();
 

@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -800,6 +799,73 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "CloudResourceContext": {
+      "description": " Cloud Resource Context.\n\n This context describes the cloud resource the event originated from.\n\n Example:\n\n ```json\n \"cloud_resource\": {\n     \"cloud.account.id\": \"499517922981\",\n     \"cloud.provider\": \"aws\",\n     \"cloud.platform\": \"aws_ec2\",\n     \"cloud.region\": \"us-east-1\",\n     \"cloud.vavailability_zone\": \"us-east-1e\",\n     \"host.id\": \"i-07d3301208fe0a55a\",\n     \"host.type\": \"t2.large\"\n }\n ```",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "cloud.account.id": {
+              "description": " The cloud account ID the resource is assigned to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.availability_zone": {
+              "description": " The zone where the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.platform": {
+              "description": " The cloud platform in use.\n The prefix of the service SHOULD match the one specified in cloud_provider.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.provider": {
+              "description": " Name of the cloud provider.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cloud.region": {
+              "description": " The geographical region the resource is running.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host.id": {
+              "description": " Unique host ID.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "host.type": {
+              "description": " Machine type of the host.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "CodeId": {
       "type": "string"
     },
@@ -838,6 +904,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/OtelContext"
+        },
+        {
+          "$ref": "#/definitions/CloudResourceContext"
         },
         {
           "type": "object",
@@ -942,6 +1011,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/NativeDebugImage"
+        },
+        {
+          "$ref": "#/definitions/SourceMapDebugImage"
         },
         {
           "type": "object",
@@ -2837,6 +2909,47 @@ expression: "relay_general::protocol::event_json_schema()"
               "type": [
                 "string",
                 "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SourceMapDebugImage": {
+      "description": " A debug image pointing to a source map.\n\n Examples:\n\n ```json\n {\n   \"type\": \"sourcemap\",\n   \"code_file\": \"https://example.com/static/js/main.min.js\",\n   \"debug_id\": \"395835f4-03e0-4436-80d3-136f0749a893\"\n }\n ```\n\n **Note:** Stack frames and the correlating entries in the debug image here\n for `code_file`/`abs_path` are not PII stripped as they need to line up\n perfectly for source map processing.",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "code_file",
+            "debug_id"
+          ],
+          "properties": {
+            "code_file": {
+              "description": " Path and name of the image file as URL. (required).\n\n The absolute path to the minified JavaScript file.  This helps to correlate the file to the stack trace.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "debug_file": {
+              "description": " Path and name of the associated source map.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "debug_id": {
+              "description": " Unique debug identifier of the source map.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/DebugId"
+                },
+                {
+                  "type": "null"
+                }
               ]
             }
           },
