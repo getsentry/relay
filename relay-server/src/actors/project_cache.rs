@@ -443,7 +443,9 @@ impl Queue {
 impl Drop for Queue {
     fn drop(&mut self) {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
-        relay_log::error!("dropped queue with {} envelopes", count);
+        if count > 0 {
+            relay_log::error!("dropped queue with {} envelopes", count);
+        }
     }
 }
 
