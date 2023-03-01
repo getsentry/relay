@@ -538,22 +538,22 @@ impl ProjectCacheBroker {
         }
 
         let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
-            for key in &[queue_key.key, queue_key.sampling_key] {
-                if *key == project_key {
-                    // We know that this state is valid, so only check the other one.
-                    continue;
-                }
-                // We return false if project is not cached or its state is invalid.
-                if self
-                    .projects
-                    .get(key)
-                    // Make sure we have only cached and valid state.
-                    .and_then(|p| p.valid_state())
-                    .map_or(true, |s| s.invalid())
-                {
-                    return false;
-                }
+            // Pick envelopes which belong to the incoming project.
+            if project_key != queue_key.key {
+                return false;
             }
+
+            // We return false if project is not cached or its state is invalid.
+            if self
+                .projects
+                .get(&queue_key.sampling_key)
+                // Make sure we have only cached and valid state.
+                .and_then(|p| p.valid_state())
+                .map_or(true, |s| s.invalid())
+            {
+                return false;
+            }
+
             true
         });
 
