@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
+- Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
+- Add Cloud Resource context. ([#1854](https://github.com/getsentry/relay/pull/1854))
+
 ## 0.8.18
 
 - Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
