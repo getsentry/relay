@@ -87,7 +87,8 @@ module.exports = async ({github, context, core}) => {
       pull_number: context.payload.pull_request.number,
     });
 
-    if (pr.merged || pr.draft) {
+   // While in draft mode, skip the check because changelogs often cause merge conflicts.
+   if (pr.merged || pr.draft) {
       return;
     }
 
