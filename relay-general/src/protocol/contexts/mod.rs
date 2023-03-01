@@ -22,6 +22,8 @@ mod trace;
 pub use trace::*;
 mod otel;
 pub use otel::*;
+mod cloud_resource;
+pub use cloud_resource::*;
 
 use crate::types::{Annotated, FromValue, Object, Value};
 use crate::user_agent::{ClientHints, RawUserAgentInfo};
@@ -58,8 +60,10 @@ pub enum Context {
     Reprocessing(Box<ReprocessingContext>),
     /// Response information.
     Response(Box<ResponseContext>),
-    /// OpenTelemetry information
+    /// OpenTelemetry information.
     Otel(Box<OtelContext>),
+    /// Cloud resource information.
+    CloudResource(Box<CloudResourceContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -83,6 +87,7 @@ impl Context {
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Otel(_) => Some(OtelContext::default_key()),
+            Context::CloudResource(_) => Some(CloudResourceContext::default_key()),
             Context::Other(_) => None,
         }
     }
@@ -92,12 +97,12 @@ impl Context {
 /// With an automatically derived function which tries to first get the context from client hints,
 /// if that fails it tries for the user agent string.
 pub trait FromUserAgentInfo: Sized {
-    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self>;
-    fn from_user_agent(user_agent: &str) -> Option<Self>;
+    fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self>;
+    fn parse_user_agent(user_agent: &str) -> Option<Self>;
 
     fn from_hints_or_ua(raw_info: &RawUserAgentInfo<&str>) -> Option<Self> {
-        Self::from_client_hints(&raw_info.client_hints)
-            .or_else(|| raw_info.user_agent.and_then(Self::from_user_agent))
+        Self::parse_client_hints(&raw_info.client_hints)
+            .or_else(|| raw_info.user_agent.and_then(Self::parse_user_agent))
     }
 }
 

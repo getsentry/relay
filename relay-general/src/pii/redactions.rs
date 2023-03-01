@@ -36,7 +36,7 @@ pub enum Redaction {
     ///
     /// The main difference to `Remove` is that if the redaction is explicitly
     /// set to `Remove` it also applies in situations where a default
-    /// redaction is therwise not passed down (for instance with `Multiple`).
+    /// redaction is otherwise not passed down (for instance with `Multiple`).
     #[default]
     Default,
     /// Removes the value and puts nothing in its place.
@@ -47,4 +47,32 @@ pub enum Redaction {
     Mask,
     /// Replaces the value with a hash
     Hash,
+    /// Added for forward compatibility as catch-all variant.
+    #[serde(other, skip_serializing)]
+    Other,
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_redaction_deser_method() {
+        let json = r#"{"method": "replace", "text": "[filter]"}"#;
+
+        let deser: Redaction = serde_json::from_str(json).unwrap();
+        let redaction = Redaction::Replace(ReplaceRedaction {
+            text: "[filter]".to_string(),
+        });
+        assert!(deser == redaction);
+    }
+
+    #[test]
+    fn test_redaction_deser_other() {
+        let json = r#"{"method": "foo", "text": "[filter]"}"#;
+
+        let deser: Redaction = serde_json::from_str(json).unwrap();
+        assert!(matches!(deser, Redaction::Other));
+    }
 }

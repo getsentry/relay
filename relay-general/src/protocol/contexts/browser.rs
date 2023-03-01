@@ -29,7 +29,7 @@ impl BrowserContext {
 }
 
 impl FromUserAgentInfo for BrowserContext {
-    fn from_client_hints(client_hints: &user_agent::ClientHints<&str>) -> Option<Self> {
+    fn parse_client_hints(client_hints: &user_agent::ClientHints<&str>) -> Option<Self> {
         let (browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
 
         Some(Self {
@@ -39,7 +39,7 @@ impl FromUserAgentInfo for BrowserContext {
         })
     }
 
-    fn from_user_agent(user_agent: &str) -> Option<Self> {
+    fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let browser = user_agent::parse_user_agent(user_agent);
 
         if !store::user_agent::is_known(&browser.family) {
@@ -47,7 +47,7 @@ impl FromUserAgentInfo for BrowserContext {
         }
 
         Some(Self {
-            name: Annotated::from(browser.family),
+            name: Annotated::from(browser.family.into_owned()),
             version: Annotated::from(store::user_agent::get_version(
                 &browser.major,
                 &browser.minor,
@@ -172,7 +172,7 @@ mod tests {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-        let from_hints = BrowserContext::from_client_hints(&client_hints);
+        let from_hints = BrowserContext::parse_client_hints(&client_hints);
         assert!(from_hints.is_none())
     }
 

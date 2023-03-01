@@ -5,53 +5,34 @@ use actix_web::{error::PayloadError, HttpRequest};
 use bytes::Bytes;
 use data_encoding::BASE64;
 use flate2::read::ZlibDecoder;
-use futures01::prelude::*;
 use url::form_urlencoded;
 
 use relay_statsd::metric;
 
-use crate::body::RequestBody;
+use crate::body;
 use crate::statsd::RelayHistograms;
 
-/// Future that resolves to a complete store endpoint body.
-pub struct StoreBody {
-    inner: RequestBody,
-    result: Option<Result<Bytes, PayloadError>>,
-}
-
-impl StoreBody {
-    /// Create `StoreBody` for request.
-    pub fn new<S>(req: &HttpRequest<S>, limit: usize) -> Self {
-        Self {
-            inner: RequestBody::new(req, limit),
-            result: data_from_querystring(req).map(|body| decode_bytes(body.as_bytes())),
-        }
+/// Reads the body of a store request.
+///
+/// In addition to [`request_body`](crate::body::request_body), this also supports two additional
+/// modes of sending encoded payloads:
+///
+///  - In query parameters of the HTTP request.
+///  - As base64-encoded zlib compression without additional HTTP headers.
+///
+/// If the body exceeds the given `limit` during streaming or decompression, an error is returned.
+pub async fn store_body<S>(req: &HttpRequest<S>, limit: usize) -> Result<Bytes, PayloadError> {
+    if let Some(body) = data_from_querystring(req) {
+        return decode_bytes(body.as_bytes(), limit);
     }
-}
 
-impl Future for StoreBody {
-    type Item = Bytes;
-    type Error = PayloadError;
+    let body = body::request_body(req, limit).await?;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(result) = self.result.take() {
-            return result.map(Async::Ready);
-        }
+    metric!(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() as u64);
+    let decoded = decode_bytes(body, limit)?;
+    metric!(histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() as u64);
 
-        let poll = match self.inner.poll()? {
-            Async::Ready(body) => {
-                metric!(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() as u64);
-                let decoded = decode_bytes(body)?;
-                metric!(
-                    histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() as u64
-                );
-                Async::Ready(decoded)
-            }
-            Async::NotReady => Async::NotReady,
-        };
-
-        Ok(poll)
-    }
+    Ok(decoded)
 }
 
 fn data_from_querystring<S>(req: &HttpRequest<S>) -> Option<Cow<'_, str>> {
@@ -65,7 +46,10 @@ fn data_from_querystring<S>(req: &HttpRequest<S>) -> Option<Cow<'_, str>> {
     Some(value)
 }
 
-fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, PayloadError> {
+fn decode_bytes<B>(body: B, limit: usize) -> Result<Bytes, PayloadError>
+where
+    B: Into<Bytes> + AsRef<[u8]>,
+{
     if body.as_ref().starts_with(b"{") {
         return Ok(body.into());
     }
@@ -79,7 +63,7 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, PayloadE
         return Ok(binary_body.into());
     }
 
-    let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
+    let mut decode_stream = ZlibDecoder::new(binary_body.as_slice()).take(limit as u64);
     let mut bytes = vec![];
     decode_stream.read_to_end(&mut bytes)?;
 

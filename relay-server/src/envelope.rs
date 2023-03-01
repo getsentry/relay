@@ -41,13 +41,13 @@ use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use relay_dynamic_config::ErrorBoundary;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::DynamicSamplingContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 

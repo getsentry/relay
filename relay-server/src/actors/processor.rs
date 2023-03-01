@@ -20,6 +20,7 @@ use tokio::sync::Semaphore;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
+use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
 use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
@@ -41,29 +42,28 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectConfig, ProjectState};
+use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
-    FormDataIter, SamplingResult,
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    SamplingResult,
 };
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServerError,
+    crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -282,6 +282,13 @@ struct ProcessEnvelopeState {
     /// This element is obtained from the event or transaction item and re-serialized into the
     /// resulting item.
     sample_rates: Option<Value>,
+
+    /// The result of a dynamic sampling operation on this envelope.
+    ///
+    /// This defaults to [`SamplingResult::Keep`] and is determined based on dynamic sampling rules
+    /// in the project configuration. In the drop case, this contains a list of rules that applied
+    /// on the envelope.
+    sampling_result: SamplingResult,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -534,7 +541,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServerError::GeoIpError)?),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
                 None => None,
             };
 
@@ -1298,6 +1305,7 @@ impl EnvelopeProcessorService {
             transaction_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
+            sampling_result: SamplingResult::Keep,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -1753,6 +1761,13 @@ impl EnvelopeProcessorService {
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
 
+                let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
+                metric!(
+                    histogram(RelayHistograms::EventSpans) = span_count,
+                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                    platform = event.platform.as_str().unwrap_or("other"),
+                );
+
                 let otel_context = event
                     .contexts
                     .value()
@@ -1993,9 +2008,10 @@ impl EnvelopeProcessorService {
                         extraction_config,
                         &project_config.metric_conditional_tagging,
                         event,
+                        transaction_from_dsc,
+                        &state.sampling_result,
                         &mut state.extracted_metrics.project_metrics,
                         &mut state.extracted_metrics.sampling_metrics,
-                        transaction_from_dsc,
                     );
                 }
             );
@@ -2111,17 +2127,20 @@ impl EnvelopeProcessorService {
     }
 
     /// Run dynamic sampling rules to see if we keep the envelope or remove it.
-    fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let client_ip = state.envelope.meta().client_addr();
-
-        match utils::should_keep_event(
+    fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
+        state.sampling_result = utils::should_keep_event(
             self.config.processing_enabled(),
             &state.project_state,
             state.sampling_project_state.as_deref(),
             state.envelope.dsc(),
             state.event.value(),
-            client_ip,
-        ) {
+            state.envelope.meta().client_addr(),
+        );
+    }
+
+    /// Apply the dynamic sampling decision from `compute_sampling_decision`.
+    fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        match std::mem::take(&mut state.sampling_result) {
             SamplingResult::Drop(rule_ids) => {
                 state
                     .envelope_context
@@ -2203,6 +2222,7 @@ impl EnvelopeProcessorService {
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
+            self.compute_sampling_decision(state);
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
@@ -2374,6 +2394,8 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+        use relay_quotas::ItemScoping;
+
         let RateLimitFlushBuckets {
             mut bucket_limiter,
             partition_key,
@@ -2509,10 +2531,10 @@ mod tests {
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
 
+    use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
-    use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
 
@@ -2683,7 +2705,10 @@ mod tests {
             ..Event::default()
         };
 
-        for (sample_rate, shouldkeep) in [(0.0, false), (1.0, true)] {
+        for (sample_rate, expected_result) in [
+            (0.0, SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))),
+            (1.0, SamplingResult::Keep),
+        ] {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
                 RuleType::Transaction,
@@ -2697,6 +2722,7 @@ mod tests {
                 transaction_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
+                sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -2706,8 +2732,12 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                 ),
             };
-            let result = service.sample_envelope(&mut state);
-            assert_eq!(result.is_ok(), shouldkeep);
+
+            // TODO: This does not test if the sampling decision is actually applied. This should be
+            // refactored to send a proper Envelope in and call process_state to cover the full
+            // pipeline.
+            service.compute_sampling_decision(&mut state);
+            assert_eq!(state.sampling_result, expected_result);
         }
     }
 

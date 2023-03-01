@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.1.1"
+version = "23.2.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 float-ord = "0.3.1"
 fnv = "1.0.7"
-hash32 = "0.1.1"
+hash32 = "0.3.1"
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }

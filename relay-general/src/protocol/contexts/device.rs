@@ -173,10 +173,10 @@ impl DeviceContext {
 }
 
 impl FromUserAgentInfo for DeviceContext {
-    fn from_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?.to_owned();
+    fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
+        let device = client_hints.sec_ch_ua_model?.trim().replace('\"', "");
 
-        if device.trim().is_empty() {
+        if device.is_empty() {
             return None;
         }
 
@@ -186,7 +186,7 @@ impl FromUserAgentInfo for DeviceContext {
         })
     }
 
-    fn from_user_agent(user_agent: &str) -> Option<Self> {
+    fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let device = parse_device(user_agent);
 
         if !is_known(&device.family) {
@@ -194,9 +194,9 @@ impl FromUserAgentInfo for DeviceContext {
         }
 
         Some(Self {
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
+            family: Annotated::new(device.family.into_owned()),
+            model: Annotated::from(device.model.map(|cow| cow.into_owned())),
+            brand: Annotated::from(device.brand.map(|cow| cow.into_owned())),
             ..DeviceContext::default()
         })
     }
@@ -249,6 +249,20 @@ mod tests {
     }
 
     #[test]
+    fn test_strip_whitespace_and_quotes() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
+                Annotated::new("   \"moto g31(w)\"".to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
+        assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
+    }
+
+    #[test]
     fn test_ignore_empty_device() {
         let headers = Headers({
             let headers = vec![Annotated::new((
@@ -259,7 +273,7 @@ mod tests {
         });
 
         let client_hints = RawUserAgentInfo::from_headers(&headers).client_hints;
-        let from_hints = DeviceContext::from_client_hints(&client_hints);
+        let from_hints = DeviceContext::parse_client_hints(&client_hints);
         assert!(from_hints.is_none())
     }
 

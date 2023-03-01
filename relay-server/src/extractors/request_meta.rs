@@ -3,10 +3,10 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Instant;
 
-use actix::ResponseFuture;
+use actix_web::dev::AsyncResult;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-use futures01::{future, Future};
+use futures::TryFutureExt;
 use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -17,10 +17,11 @@ use relay_common::{
 };
 use relay_quotas::Scoping;
 
-use crate::body::PeekLine;
+use crate::body;
 use crate::extractors::ForwardedFor;
 use crate::middlewares::StartTime;
 use crate::service::ServiceState;
+use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
@@ -30,6 +31,9 @@ pub enum BadEventMeta {
 
     #[error("multiple authorization payloads detected")]
     MultipleAuth,
+
+    #[error("unsupported protocol version ({0})")]
+    UnsupportedProtocolVersion(u16),
 
     #[error("bad envelope authentication header")]
     BadEnvelopeAuth(#[source] serde_json::Error),
@@ -51,7 +55,9 @@ impl ResponseError for BadEventMeta {
             | Self::MultipleAuth
             | Self::BadAuth(_)
             | Self::BadEnvelopeAuth(_) => HttpResponse::Unauthorized(),
-            Self::BadProject(_) | Self::BadPublicKey(_) => HttpResponse::BadRequest(),
+            Self::UnsupportedProtocolVersion(_) | Self::BadProject(_) | Self::BadPublicKey(_) => {
+                HttpResponse::BadRequest()
+            }
         };
 
         builder.json(&ApiErrorResponse::from_error(self))
@@ -223,6 +229,7 @@ impl<D> RequestMeta<D> {
     }
 
     /// Returns the protocol version of the event payload.
+    #[allow(dead_code)] // used in tests and processing mode
     pub fn version(&self) -> u16 {
         self.version
     }
@@ -512,9 +519,20 @@ impl FromRequest<ServiceState> for RequestMeta {
             project_id,
         };
 
+        // For now, we only handle <= v8 and drop everything else
+        let version = auth.version();
+        if version > relay_common::PROTOCOL_VERSION {
+            return Err(BadEventMeta::UnsupportedProtocolVersion(version));
+        }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::EventProtocol) += 1,
+            version = &version.to_string()
+        );
+
         Ok(RequestMeta {
             dsn,
-            version: auth.version(),
+            version,
             client: auth.client_agent().map(str::to_owned),
             origin: partial_meta.origin,
             remote_addr: partial_meta.remote_addr,
@@ -547,28 +565,30 @@ impl EnvelopeMeta {
     }
 }
 
+async fn extract_envelope_meta(
+    request: HttpRequest<ServiceState>,
+) -> Result<EnvelopeMeta, actix_web::Error> {
+    let result = RequestMeta::extract(&request).map(EnvelopeMeta::new);
+    if !matches!(result, Err(BadEventMeta::MissingAuth)) {
+        return result.map_err(|e| e.into());
+    }
+
+    let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
+        return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
+    };
+
+    let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
+    let partial_meta = PartialMeta::from_headers(&request);
+    Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
+}
+
 impl FromRequest<ServiceState> for EnvelopeMeta {
     type Config = ();
-    type Result = Result<ResponseFuture<Self, BadEventMeta>, BadEventMeta>;
+    type Result = AsyncResult<Self, actix_web::Error>;
 
     fn from_request(request: &HttpRequest<ServiceState>, _config: &Self::Config) -> Self::Result {
-        let result = RequestMeta::extract(request).map(EnvelopeMeta::new);
-        if !matches!(result, Err(BadEventMeta::MissingAuth)) {
-            return Ok(Box::new(future::result(result)));
-        }
-
-        let partial_meta = PartialMeta::from_headers(request);
-        let future = PeekLine::new(request, Self::MAX_HEADER_SIZE).then(move |result| {
-            let request_meta = if let Ok(Some(json)) = result {
-                serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?
-            } else {
-                return Err(BadEventMeta::MissingAuth);
-            };
-
-            Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-        });
-
-        Ok(Box::new(future))
+        let future = extract_envelope_meta(request.clone());
+        AsyncResult::future(Box::new(Box::pin(future).compat()))
     }
 }
 
