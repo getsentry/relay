@@ -12,6 +12,12 @@ use crate::processor::SelectorSpec;
 
 const COMPILED_PATTERN_MAX_SIZE: usize = 262_144;
 
+/// Helper method to check whether a flag is false.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub(crate) fn is_flag_default(flag: &bool) -> bool {
+    !*flag
+}
+
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum PiiConfigError {
     #[error("could not parse pattern")]
@@ -121,7 +127,7 @@ pub struct MultipleRule {
     /// A reference to other rules to apply
     pub rules: Vec<String>,
     /// When set to true, the outer rule is reported.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_flag_default")]
     pub hide_inner: bool,
 }
 
@@ -132,7 +138,7 @@ pub struct AliasRule {
     /// A reference to another rule to apply.
     pub rule: String,
     /// When set to true, the outer rule is reported.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_flag_default")]
     pub hide_inner: bool,
 }
 
@@ -199,23 +205,29 @@ pub struct RuleSpec {
 #[serde(rename_all = "camelCase")]
 pub struct Vars {
     /// The default secret key for hashing operations.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_key: Option<String>,
+}
+
+impl Vars {
+    fn is_empty(&self) -> bool {
+        self.hash_key.is_none()
+    }
 }
 
 /// A set of named rule configurations.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct PiiConfig {
     /// A map of custom PII rules.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub rules: BTreeMap<String, RuleSpec>,
 
     /// Parameters for PII rules.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vars::is_empty")]
     pub vars: Vars,
 
     /// Mapping of selectors to rules.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub applications: BTreeMap<SelectorSpec, Vec<String>>,
 
     /// PII config derived from datascrubbing settings.
