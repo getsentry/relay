@@ -84,7 +84,8 @@ async fn load_local_states(
     while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
-        if !entry.metadata().await?.is_file() {
+        let metadata = entry.metadata().await?;
+        if !(metadata.is_file() || metadata.is_symlink()) {
             relay_log::warn!("skipping {:?}, not a file", path);
             continue;
         }
@@ -181,5 +182,71 @@ impl Service for LocalProjectSourceService {
             }
             relay_log::info!("project local cache stopped");
         });
+    }
+}
+
+/// This works only on Unix systems.
+#[cfg(not(target_os = "windows"))]
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use relay_common::{ProjectId, ProjectKey};
+
+    use crate::actors::project::{ProjectState, PublicKeyConfig};
+
+    use super::load_local_states;
+
+    /// Tests that we can follow the symlinks and read the project file properly.
+    #[tokio::test]
+    async fn test_symlinked_projects() {
+        let temp1 = tempfile::tempdir().unwrap();
+        let temp2 = tempfile::tempdir().unwrap();
+
+        let tmp_project_file = "111111.json";
+        let project_key = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
+
+        let mut tmp_project_state = ProjectState::allowed();
+        tmp_project_state.public_keys.push(PublicKeyConfig {
+            public_key: project_key,
+            numeric_id: None,
+        });
+
+        // create the project file
+        let project_state = serde_json::to_string(&tmp_project_state).unwrap();
+        tokio::fs::write(
+            temp1.path().join(tmp_project_file),
+            project_state.as_bytes(),
+        )
+        .await
+        .unwrap();
+
+        tokio::fs::symlink(
+            temp1.path().join(tmp_project_file),
+            temp2.path().join(tmp_project_file),
+        )
+        .await
+        .unwrap();
+
+        let extracted_project_state = load_local_states(temp2.path()).await.unwrap();
+
+        assert_eq!(
+            extracted_project_state
+                .get(&project_key)
+                .unwrap()
+                .project_id,
+            Some(ProjectId::from_str("111111").unwrap())
+        );
+
+        assert_eq!(
+            extracted_project_state
+                .get(&project_key)
+                .unwrap()
+                .public_keys
+                .first()
+                .unwrap()
+                .public_key,
+            project_key,
+        )
     }
 }

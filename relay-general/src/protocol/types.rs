@@ -1117,6 +1117,26 @@ impl schemars::JsonSchema for Timestamp {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct DataElement {
+    #[metastructure(pii = "maybe")]
+    pub http: Annotated<HttpElement>,
+
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    pub other: Object<Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct HttpElement {
+    #[metastructure(pii = "true")]
+    pub query: Annotated<Value>,
+
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    pub other: Object<Value>,
+}
+
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
