@@ -38,6 +38,9 @@ static RUNTIME_DOTNET_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap());
 
 const GIB: u64 = 1024 * 1024 * 1024;
+const DEVICE_CLASS_LOW: u64 = 1;
+const DEVICE_CLASS_MEDIUM: u64 = 2;
+const DEVICE_CLASS_HIGH: u64 = 3;
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
@@ -201,16 +204,17 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
+// Reads device specs (family, memory, cpu, etc) and sets the device class to high, medium, or low.
 fn normalize_device_context(device: &mut DeviceContext) {
     if let Some(family) = device.family.value() {
         if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
             if let Some(processor_frequency) = device.processor_frequency.value() {
                 if processor_frequency < &2000 {
-                    device.class = Annotated::new(1);
+                    device.class = Annotated::new(DEVICE_CLASS_LOW);
                 } else if processor_frequency < &3000 {
-                    device.class = Annotated::new(2);
+                    device.class = Annotated::new(DEVICE_CLASS_MEDIUM);
                 } else {
-                    device.class = Annotated::new(3);
+                    device.class = Annotated::new(DEVICE_CLASS_HIGH);
                 }
             }
         } else if device.processor_frequency.value().is_some()
@@ -221,13 +225,13 @@ fn normalize_device_context(device: &mut DeviceContext) {
                 || device.memory_size.value().unwrap() < &(4 * GIB)
                 || device.processor_count.value().unwrap() < &8
             {
-                device.class = Annotated::new(1);
+                device.class = Annotated::new(DEVICE_CLASS_LOW);
             } else if device.processor_frequency.value().unwrap() < &2500
                 || device.memory_size.value().unwrap() < &(6 * GIB)
             {
-                device.class = Annotated::new(2);
+                device.class = Annotated::new(DEVICE_CLASS_MEDIUM);
             } else {
-                device.class = Annotated::new(3);
+                device.class = Annotated::new(DEVICE_CLASS_HIGH);
             }
         }
     }

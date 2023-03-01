@@ -160,6 +160,8 @@ pub struct DeviceContext {
     /// Whether location support is available on the device.
     pub supports_location_service: Annotated<bool>,
 
+    // The performance class of the device, stored as a number.
+    // This value is synthesized from the device's specs in normalize_device_context.
     pub class: Annotated<u64>,
 
     /// Additional arbitrary fields for forwards compatibility
