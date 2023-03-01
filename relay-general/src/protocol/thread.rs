@@ -125,6 +125,7 @@ pub struct Thread {
     /// A flag indicating whether the thread was responsible for rendering the user interface.
     pub main: Annotated<bool>,
 
+    /// Thread state at the time of the crash.
     #[metastructure(skip_serialization = "empty")]
     pub state: Annotated<String>,
 
