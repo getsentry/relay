@@ -675,6 +675,10 @@
 <a href="#674" id="674">674</a>
 <a href="#675" id="675">675</a>
 <a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -797,6 +801,8 @@
     /// This is the category for transaction payloads that were accepted and stored in full. In
     /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
     </span>TransactionIndexed = <span class="number">9</span>,
+    <span class="doccomment">/// Monitor check-ins.
+    </span>Monitor = <span class="number">10</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -822,6 +828,7 @@
             <span class="string">&quot;replay&quot; </span>=&gt; <span class="self">Self</span>::Replay,
             <span class="string">&quot;transaction_processed&quot; </span>=&gt; <span class="self">Self</span>::TransactionProcessed,
             <span class="string">&quot;transaction_indexed&quot; </span>=&gt; <span class="self">Self</span>::TransactionIndexed,
+            <span class="string">&quot;monitor&quot; </span>=&gt; <span class="self">Self</span>::Monitor,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -840,6 +847,7 @@
             <span class="self">Self</span>::Replay =&gt; <span class="string">&quot;replay&quot;</span>,
             <span class="self">Self</span>::TransactionProcessed =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
             <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
+            <span class="self">Self</span>::Monitor =&gt; <span class="string">&quot;monitor&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }

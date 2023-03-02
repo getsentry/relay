@@ -771,6 +771,7 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -880,7 +881,8 @@
             | DataCategory::Security
             | DataCategory::Profile
             | DataCategory::TransactionProcessed
-            | DataCategory::TransactionIndexed =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
+            | DataCategory::TransactionIndexed
+            | DataCategory::Monitor =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),
             DataCategory::Unknown =&gt; <span class="prelude-val">None</span>,

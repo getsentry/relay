@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ProcessCheckInError","Error returned from [`process_check_in`]."]],"fn":[["process_check_in","Normalizes a monitor check-in payload."]]};

@@ -1913,6 +1913,14 @@
 <a href="#1912" id="1912">1912</a>
 <a href="#1913" id="1913">1913</a>
 <a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::env;
@@ -2439,6 +2447,8 @@
     </span>max_attachments_size: ByteSize,
     <span class="doccomment">/// The maximum combined size for all client reports in an envelope or request.
     </span>max_client_reports_size: ByteSize,
+    <span class="doccomment">/// The maximum payload size for a monitor check-in.
+    </span>max_check_in_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for an entire envelopes. Individual limits still apply.
     </span>max_envelope_size: ByteSize,
     <span class="doccomment">/// The maximum number of session items per envelope.
@@ -2486,6 +2496,7 @@
             max_attachment_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_attachments_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_client_reports_size: ByteSize::kibibytes(<span class="number">4</span>),
+            max_check_in_size: ByteSize::kibibytes(<span class="number">100</span>),
             max_envelope_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_session_count: <span class="number">100</span>,
             max_api_payload_size: ByteSize::mebibytes(<span class="number">20</span>),
@@ -3603,6 +3614,11 @@
     <span class="doccomment">/// Returns the maxmium combined size of client reports in bytes.
     </span><span class="kw">pub fn </span>max_client_reports_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_client_reports_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Returns the maxmium payload size of a monitor check-in in bytes.
+    </span><span class="kw">pub fn </span>max_check_in_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_check_in_size.as_bytes()
     }
 
     <span class="doccomment">/// Returns the maximum size of an envelope payload in bytes.

@@ -18,6 +18,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_kafka":["",[["producer",[],["mod.rs","utils.rs"]]],["config.rs","lib.rs","statsd.rs"]],\
 "relay_log":["",[],["lib.rs","setup.rs","test.rs","utils.rs"]],\
 "relay_metrics":["",[],["aggregation.rs","lib.rs","protocol.rs","statsd.rs"]],\
+"relay_monitors":["",[],["lib.rs"]],\
 "relay_profiling":["",[],["android.rs","cocoa.rs","error.rs","lib.rs","measurements.rs","native_debug_image.rs","outcomes.rs","sample.rs","transaction_metadata.rs","utils.rs"]],\
 "relay_quotas":["",[],["lib.rs","quota.rs","rate_limit.rs","redis.rs"]],\
 "relay_redis":["",[],["config.rs","lib.rs","real.rs"]],\

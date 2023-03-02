@@ -79,6 +79,16 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -109,7 +119,9 @@
             | ItemType::Security
             | ItemType::ReplayEvent
             | ItemType::RawSecurity
-            | ItemType::FormData =&gt; event_size += item.len(),
+            | ItemType::FormData =&gt; {
+                event_size += item.len();
+            }
             ItemType::Attachment | ItemType::UnrealReport | ItemType::ReplayRecording =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_attachment_size() {
                     <span class="kw">return </span><span class="bool-val">false</span>;
@@ -117,17 +129,25 @@
 
                 attachments_size += item.len()
             }
-            ItemType::Session =&gt; session_count += <span class="number">1</span>,
-            ItemType::Sessions =&gt; session_count += <span class="number">1</span>,
-            ItemType::UserReport =&gt; (),
-            ItemType::Metrics =&gt; (),
-            ItemType::MetricBuckets =&gt; (),
-            ItemType::ClientReport =&gt; client_reports_size += item.len(),
+            ItemType::Session | ItemType::Sessions =&gt; {
+                session_count += <span class="number">1</span>;
+            }
+            ItemType::ClientReport =&gt; {
+                client_reports_size += item.len();
+            }
             ItemType::Profile =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_profile_size() {
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
             }
+            ItemType::CheckIn =&gt; {
+                <span class="kw">if </span>item.len() &gt; config.max_check_in_size() {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
+                }
+            }
+            ItemType::UserReport =&gt; (),
+            ItemType::Metrics =&gt; (),
+            ItemType::MetricBuckets =&gt; (),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; (),
         }
     }

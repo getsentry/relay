@@ -389,6 +389,13 @@
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -430,6 +437,8 @@
     </span>ReplayEvents,
     <span class="doccomment">/// ReplayRecordings, large blobs sent by the replay sdk
     </span>ReplayRecordings,
+    <span class="doccomment">/// Monitor check-ins.
+    </span>Monitors,
 }
 
 <span class="kw">impl </span>KafkaTopic {
@@ -437,7 +446,7 @@
     /// It will have to be adjusted if the new variants are added.
     </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">&#39;static</span>, <span class="self">Self</span>&gt; {
         <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
-        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">11</span>] = [
+        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">12</span>] = [
             Events,
             Attachments,
             Transactions,
@@ -449,6 +458,7 @@
             Profiles,
             ReplayEvents,
             ReplayRecordings,
+            Monitors,
         ];
         TOPICS.iter()
     }
@@ -484,6 +494,8 @@
     </span><span class="kw">pub </span>replay_events: TopicAssignment,
     <span class="doccomment">/// Recordings topic name.
     </span><span class="kw">pub </span>replay_recordings: TopicAssignment,
+    <span class="doccomment">/// Monitor check-ins.
+    </span><span class="kw">pub </span>monitors: TopicAssignment,
 }
 
 <span class="kw">impl </span>TopicAssignments {
@@ -504,6 +516,7 @@
             KafkaTopic::Profiles =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiles,
             KafkaTopic::ReplayEvents =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_events,
             KafkaTopic::ReplayRecordings =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_recordings,
+            KafkaTopic::Monitors =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.monitors,
         }
     }
 }
@@ -523,6 +536,7 @@
             profiles: <span class="string">&quot;profiles&quot;</span>.to_owned().into(),
             replay_events: <span class="string">&quot;ingest-replay-events&quot;</span>.to_owned().into(),
             replay_recordings: <span class="string">&quot;ingest-replay-recordings&quot;</span>.to_owned().into(),
+            monitors: <span class="string">&quot;ingest-monitors&quot;</span>.to_owned().into(),
         }
     }
 }

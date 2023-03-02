@@ -1643,6 +1643,12 @@
 <a href="#1642" id="1642">1642</a>
 <a href="#1643" id="1643">1643</a>
 <a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1745,12 +1751,14 @@
     </span>MetricBuckets,
     <span class="doccomment">/// Client internal report (eg: outcomes).
     </span>ClientReport,
-    <span class="doccomment">/// Profile event payload encoded in JSON
+    <span class="doccomment">/// Profile event payload encoded as JSON.
     </span>Profile,
-    <span class="doccomment">/// Replay metadata and breadcrumb payload
+    <span class="doccomment">/// Replay metadata and breadcrumb payload.
     </span>ReplayEvent,
-    <span class="doccomment">/// Replay Recording data
+    <span class="doccomment">/// Replay Recording data.
     </span>ReplayRecording,
+    <span class="doccomment">/// Monitor check-in encoded as JSON.
+    </span>CheckIn,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -1792,6 +1800,7 @@
             <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;profile&quot;</span>),
             <span class="self">Self</span>::ReplayEvent =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_event&quot;</span>),
             <span class="self">Self</span>::ReplayRecording =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_recording&quot;</span>),
+            <span class="self">Self</span>::CheckIn =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;check_in&quot;</span>),
             <span class="self">Self</span>::Unknown(s) =&gt; s.fmt(f),
         }
     }
@@ -1818,6 +1827,7 @@
             <span class="string">&quot;profile&quot; </span>=&gt; <span class="self">Self</span>::Profile,
             <span class="string">&quot;replay_event&quot; </span>=&gt; <span class="self">Self</span>::ReplayEvent,
             <span class="string">&quot;replay_recording&quot; </span>=&gt; <span class="self">Self</span>::ReplayRecording,
+            <span class="string">&quot;check_in&quot; </span>=&gt; <span class="self">Self</span>::CheckIn,
             other =&gt; <span class="self">Self</span>::Unknown(other.to_owned()),
         })
     }
@@ -2321,7 +2331,8 @@
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
-            | ItemType::Profile =&gt; <span class="bool-val">false</span>,
+            | ItemType::Profile
+            | ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -2350,6 +2361,7 @@
             ItemType::ClientReport =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
             ItemType::Profile =&gt; <span class="bool-val">true</span>,
+            ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
