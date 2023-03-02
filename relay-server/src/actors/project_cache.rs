@@ -490,7 +490,7 @@ impl ProjectCacheBroker {
             let envelopes = self.pending_envelopes.dequeue(&project_key, |_| true);
             relay_log::with_scope(
                 |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("eviced project with {} envelopes", envelopes.len()),
+                || relay_log::error!("evicted project with {} envelopes", envelopes.len()),
             );
 
             self.garbage_disposal.dispose(project);
@@ -665,14 +665,14 @@ impl ProjectCacheBroker {
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
     ///
     /// Few conditions are checked here:
-    /// - If there is no dynamic sampling key and the project is already cached, we do strait to
+    /// - If there is no dynamic sampling key and the project is already cached, we do straight to
     /// processing otherwise buffer the envelopes.
-    /// - If there is a dynamic sampling key is provided, if the root and sampling project
+    /// - If the dynamic sampling key is provided and if the root and sampling projects
     /// are cached - process the envelope, buffer otherwise.
     ///
     /// This means if the caches are hot we always process all the incoming envelopes without any
-    /// delay. But in case if the project state cannot be fetched, we keep buffering till the state
-    /// is everyntually updated.
+    /// delay. But in case the project state cannot be fetched, we keep buffering till the state
+    /// is eventually updated.
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
