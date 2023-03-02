@@ -544,17 +544,11 @@ impl ProjectCacheBroker {
             }
 
             // We return false if project is not cached or its state is invalid.
-            if self
-                .projects
+            self.projects
                 .get(&queue_key.sampling_key)
                 // Make sure we have only cached and valid state.
                 .and_then(|p| p.valid_state())
-                .map_or(true, |s| s.invalid())
-            {
-                return false;
-            }
-
-            true
+                .map_or(false, |s| !s.invalid())
         });
 
         // Flush envelopes where both states have resolved.
@@ -639,13 +633,14 @@ impl ProjectCacheBroker {
         envelope: Box<Envelope>,
         envelope_context: EnvelopeContext,
     ) {
-        if let Ok(CheckedEnvelope {
-            envelope: Some((envelope, envelope_context)),
-            ..
-        }) = self
-            .get_or_create_project(project_key)
-            .check_envelope(envelope, envelope_context)
-        {
+        // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
+        // function returns any error, which will also be ignored here.
+        let Some(Ok(checked)) = self
+            .projects
+            .get_mut(&project_key)
+            .map(|p| p.check_envelope(envelope, envelope_context)) else { return; };
+
+        if let Some((envelope, envelope_context)) = checked.envelope {
             let mut process = ProcessEnvelope {
                 envelope,
                 envelope_context,
