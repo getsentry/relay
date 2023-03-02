@@ -1,7 +1,9 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, DeviceContext, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{
+    Context, DeviceClass, DeviceContext, OsContext, ResponseContext, RuntimeContext,
+};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -38,9 +40,6 @@ static RUNTIME_DOTNET_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap());
 
 const GIB: u64 = 1024 * 1024 * 1024;
-const DEVICE_CLASS_LOW: u64 = 1;
-const DEVICE_CLASS_MEDIUM: u64 = 2;
-const DEVICE_CLASS_HIGH: u64 = 3;
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
@@ -210,28 +209,24 @@ fn normalize_device_context(device: &mut DeviceContext) {
         if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
             if let Some(processor_frequency) = device.processor_frequency.value() {
                 if processor_frequency < &2000 {
-                    device.class = Annotated::new(DEVICE_CLASS_LOW);
+                    device.class = DeviceClass::LOW.into();
                 } else if processor_frequency < &3000 {
-                    device.class = Annotated::new(DEVICE_CLASS_MEDIUM);
+                    device.class = DeviceClass::MEDIUM.into();
                 } else {
-                    device.class = Annotated::new(DEVICE_CLASS_HIGH);
+                    device.class = DeviceClass::HIGH.into();
                 }
             }
-        } else if device.processor_frequency.value().is_some()
-            && device.processor_count.value().is_some()
-            && device.memory_size.value().is_some()
-        {
-            if device.processor_frequency.value().unwrap() < &2000
-                || device.memory_size.value().unwrap() < &(4 * GIB)
-                || device.processor_count.value().unwrap() < &8
-            {
-                device.class = Annotated::new(DEVICE_CLASS_LOW);
-            } else if device.processor_frequency.value().unwrap() < &2500
-                || device.memory_size.value().unwrap() < &(6 * GIB)
-            {
-                device.class = Annotated::new(DEVICE_CLASS_MEDIUM);
+        } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
+            device.processor_frequency.value(),
+            device.processor_count.value(),
+            device.memory_size.value(),
+        ) {
+            if freq < 2000 || proc < 8 || mem < 4 * GIB {
+                device.class = DeviceClass::LOW.into();
+            } else if freq < 2500 || mem < 6 * GIB {
+                device.class = DeviceClass::MEDIUM.into();
             } else {
-                device.class = Annotated::new(DEVICE_CLASS_HIGH);
+                device.class = DeviceClass::HIGH.into();
             }
         }
     }
@@ -638,7 +633,7 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(1, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::LOW, *device.class.value().unwrap());
     }
 
     #[test]
@@ -649,7 +644,7 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(2, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::MEDIUM, *device.class.value().unwrap());
     }
 
     #[test]
@@ -660,7 +655,7 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(3, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::HIGH, *device.class.value().unwrap());
     }
 
     #[test]
@@ -683,7 +678,7 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(1, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::LOW, *device.class.value().unwrap());
     }
 
     #[test]
@@ -696,7 +691,7 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(2, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::MEDIUM, *device.class.value().unwrap());
     }
 
     #[test]
@@ -709,6 +704,6 @@ mod tests {
             ..DeviceContext::default()
         };
         normalize_device_context(&mut device);
-        assert_eq!(3, *device.class.value().unwrap());
+        assert_eq!(DeviceClass::HIGH, *device.class.value().unwrap());
     }
 }
