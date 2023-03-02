@@ -3153,6 +3153,14 @@ expression: "relay_general::protocol::event_json_schema()"
                   "type": "null"
                 }
               ]
+            },
+            "state": {
+              "description": " Thread state at the time of the crash.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false

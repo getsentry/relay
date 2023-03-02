@@ -229,7 +229,7 @@ fn format_pretty(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io
 
     writeln!(
         f,
-        " {styled_level} {styled_target:width$} > {}",
+        " {styled_level:5} {styled_target:width$} > {}",
         record.args(),
         width = max_target_width(target),
     )
