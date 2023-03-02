@@ -1020,13 +1020,35 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles from the envelope if the feature flag is not enabled
+    /// Remove profiles from the envelope if the feature flag is not enabled.
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => profiling_enabled,
             _ => true,
         });
+    }
+
+    /// Normalize monitor check-ins and remove invalid ones.
+    #[cfg(feature = "processing")]
+    fn process_check_ins(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| {
+            if item.ty() != &ItemType::CheckIn {
+                return true;
+            }
+
+            match relay_monitors::process_check_in(&item.payload()) {
+                Ok(processed) => {
+                    item.set_payload(ContentType::Json, processed);
+                    true
+                }
+                Err(error) => {
+                    // TODO: Track an outcome.
+                    relay_log::debug!("dropped invalid monitor check-in: {}", LogError(&error));
+                    false
+                }
+            }
+        })
     }
 
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
@@ -1567,6 +1589,8 @@ impl EnvelopeProcessorService {
             ItemType::Profile => false,
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
+            ItemType::CheckIn => false,
+
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
         }
@@ -2235,6 +2259,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
+            self.process_check_ins(state);
         });
 
         if state.has_event() {
