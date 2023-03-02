@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
+
 ## 0.8.18
 
 - Add `instruction_addr_adjustment` field to `RawStacktrace`. ([#1716](https://github.com/getsentry/relay/pull/1716))
