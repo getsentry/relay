@@ -10,6 +10,7 @@
 - Add Dotnet, Javascript and PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871), [#1876](https://github.com/getsentry/relay/pull/1876), [#1885](https://github.com/getsentry/relay/pull/1885))
 - Initial support for the Crons beta. ([#1886](https://github.com/getsentry/relay/pull/1886))
 - Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
+- Scrub `breadcrumb.data.http.query` with default scrubbers. ([#1901](https://github.com/getsentry/relay/pull/1901))
 
 **Bug Fixes**:
 

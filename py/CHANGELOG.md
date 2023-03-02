@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Scrub `breadcrumb.data.http.query` with default scrubbers. ([#1901](https://github.com/getsentry/relay/pull/1901))
+
 ## 0.8.19
 
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
