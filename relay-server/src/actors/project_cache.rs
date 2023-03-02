@@ -413,20 +413,20 @@ impl Queue {
     pub fn dequeue<P>(
         &mut self,
         partial_key: &ProjectKey,
-        f: P,
+        predicate: P,
     ) -> Vec<(Box<Envelope>, EnvelopeContext)>
     where
         P: Fn(&QueueKey) -> bool,
     {
         let mut result = Vec::new();
 
-        let mut keys = self.index.remove(partial_key).unwrap_or_default();
+        let mut queue_keys = self.index.remove(partial_key).unwrap_or_default();
         let mut index = BTreeSet::new();
 
-        while let Some(queue_key) = keys.pop_first() {
+        while let Some(queue_key) = queue_keys.pop_first() {
             // Find those keys which match predicates and return keys into the index, where
             // predicate is failing.
-            if f(&queue_key) {
+            if predicate(&queue_key) {
                 if let Some(envelopes) = self.buffer.remove(&queue_key) {
                     result.extend(envelopes);
                 }
@@ -541,24 +541,18 @@ impl ProjectCacheBroker {
         }
 
         let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
-            // Pick envelopes which belong to the incoming project.
-            for key in &[queue_key.root_key, queue_key.sampling_key] {
-                if project_key == *key {
-                    continue;
-                }
+            let partial_key = if queue_key.root_key == project_key {
+                queue_key.sampling_key
+            } else {
+                queue_key.root_key
+            };
 
-                // We return false if project is not cached or its state is invalid.
-                if self
-                    .projects
-                    .get(&queue_key.sampling_key)
-                    // Make sure we have only cached and valid state.
-                    .and_then(|p| p.valid_state())
-                    .map_or(true, |s| s.invalid())
-                {
-                    return false;
-                }
-            }
-            true
+            // We return false if project is not cached or its state is invalid, true otherwise.
+            self.projects
+                .get(&partial_key)
+                // Make sure we have only cached and valid state.
+                .and_then(|p| p.valid_state())
+                .map_or(false, |s| !s.invalid())
         });
 
         // Flush envelopes where both states have resolved.
