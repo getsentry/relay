@@ -228,27 +228,27 @@ impl SampleProfile {
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        self.remove_idle_samples_at_the_start();
-        self.profile.samples.reverse();
-        self.remove_idle_samples_at_the_start();
-        self.profile.samples.reverse();
-    }
+        if let Some(start) = self.profile.samples.iter().position(|sample| {
+            match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => false,
+            }
+        }) {
+            if start > 0 {
+                self.profile.samples.drain(..start);
+            }
+        }
 
-    fn remove_idle_samples_at_the_start(&mut self) {
-        let mut thread_ids: HashSet<u64> = HashSet::new();
-        self.profile
-            .samples
-            .retain(|sample| match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => {
-                    if stack.is_empty() && !thread_ids.contains(&sample.thread_id) {
-                        false
-                    } else {
-                        thread_ids.insert(sample.thread_id);
-                        true
-                    }
-                }
-                None => true,
-            });
+        if let Some(end) = self.profile.samples.iter().rev().position(|sample| {
+            match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => false,
+            }
+        }) {
+            if end > 0 {
+                self.profile.samples.drain(end..);
+            }
+        }
     }
 
     fn cleanup_thread_metadata(&mut self) {
