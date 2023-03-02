@@ -720,8 +720,6 @@ def test_transaction_metrics_count_per_root_project(
             "version": 1,
         }
 
-    relay.send_event(41)
-
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
     transaction["measurements"] = {
