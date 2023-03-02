@@ -209,10 +209,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
@@ -235,10 +231,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
@@ -270,9 +262,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "text": "[Filtered]"
               }
             }
-          },
-          "vars": {
-            "hashKey": null
           },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
@@ -327,10 +316,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
               "@common:filter",
@@ -355,10 +340,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@ip:replace"
@@ -1245,9 +1226,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "text": "[Filtered]"
               }
             }
-          },
-          "vars": {
-            "hashKey": null
           },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [

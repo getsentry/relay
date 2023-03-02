@@ -3595,6 +3595,7 @@ dependencies = [
  "symbolic-common",
  "symbolic-unreal",
  "take_mut",
+ "tempfile",
  "thiserror",
  "tokio 1.25.0",
  "tokio-timer",
