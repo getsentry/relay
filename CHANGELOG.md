@@ -8,6 +8,7 @@
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
 - Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
 - Add Dotnet, Javascript and PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871), [#1876](https://github.com/getsentry/relay/pull/1876), [#1885](https://github.com/getsentry/relay/pull/1885))
+- Initial support for the Crons beta. ([#1886](https://github.com/getsentry/relay/pull/1886))
 - Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
 
 **Bug Fixes**:
