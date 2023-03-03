@@ -374,14 +374,14 @@ struct UpdateProjectState {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 struct QueueKey {
-    root_key: ProjectKey,
+    own_key: ProjectKey,
     sampling_key: ProjectKey,
 }
 
 impl QueueKey {
-    fn new(key: ProjectKey, sampling_key: ProjectKey) -> Self {
+    fn new(own_key: ProjectKey, sampling_key: ProjectKey) -> Self {
         Self {
-            root_key: key,
+            own_key,
             sampling_key,
         }
     }
@@ -404,7 +404,7 @@ impl Queue {
 
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
-        self.index.entry(key.root_key).or_default().insert(key);
+        self.index.entry(key.own_key).or_default().insert(key);
         self.index.entry(key.sampling_key).or_default().insert(key);
         self.buffer.entry(key).or_default().push(value);
     }
@@ -541,13 +541,15 @@ impl ProjectCacheBroker {
         }
 
         let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
-            let partial_key = if queue_key.root_key == project_key {
+            let partial_key = if queue_key.own_key == project_key {
                 queue_key.sampling_key
             } else {
-                queue_key.root_key
+                queue_key.own_key
             };
 
             // We return false if project is not cached or its state is invalid, true otherwise.
+            // We only have to check `partial_key`, because we already know that the `project_key`s `state`
+            // is valid and loaded.
             self.projects
                 .get(&partial_key)
                 // Make sure we have only cached and valid state.
@@ -561,7 +563,7 @@ impl ProjectCacheBroker {
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 
-            self.handle_processing(state.clone(), sampling_state, envelope, envelope_context)
+            self.handle_processing(state.clone(), sampling_state, envelope, envelope_context);
         }
     }
 
@@ -673,9 +675,9 @@ impl ProjectCacheBroker {
         let ValidateEnvelope { envelope, context } = message;
 
         // Fetch the project state for our key and make sure it's not invalid.
-        let root_key = envelope.meta().public_key();
+        let own_key = envelope.meta().public_key();
         let project_state = self
-            .get_or_create_project(root_key)
+            .get_or_create_project(own_key)
             .get_cached_state(envelope.meta().no_cache())
             .filter(|st| !st.invalid());
 
@@ -695,7 +697,7 @@ impl ProjectCacheBroker {
             }
         }
 
-        let key = QueueKey::new(root_key, sampling_key.unwrap_or(root_key));
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.pending_envelopes.enqueue(key, (envelope, context));
     }
 
