@@ -1,5 +1,6 @@
 ---
 source: relay-general/src/pii/processor.rs
+assertion_line: 1052
 expression: span
 ---
 {
@@ -9,7 +10,8 @@ expression: span
         "ccnumber": "[Filtered]",
         "process_id": "123"
       }
-    }
+    },
+    "do_not_scrub": "5105105105105100"
   },
   "_meta": {
     "data": {

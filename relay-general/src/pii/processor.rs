@@ -1025,27 +1025,20 @@ mod tests {
 
     #[test]
     fn test_scrub_span_data_object_is_scrubbed() {
-        let mut span = Annotated::new(Span {
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: Annotated::new(Value::Object({
-                        let mut map = BTreeMap::new();
-                        map.insert(
-                            "ccnumber".to_owned(),
-                            Annotated::new(Value::String("5105105105105100".to_owned())),
-                        );
-                        map.insert(
-                            "process_id".to_owned(),
-                            Annotated::new(Value::String("123".to_owned())),
-                        );
-                        map
-                    })),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+        let mut span = Annotated::<Span>::from_json(
+            r#"{
+            "data": {
+                "http": {
+                    "query": {
+                        "ccnumber": "5105105105105100",
+                        "process_id": "123"
+                    }
+                },
+                "do_not_scrub": "5105105105105100"
+            }
+        }"#,
+        )
+        .unwrap();
 
         let ds_config = DataScrubbingConfig {
             scrub_data: true,
