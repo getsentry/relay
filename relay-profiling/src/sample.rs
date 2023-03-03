@@ -234,20 +234,16 @@ impl SampleProfile {
                 None => false,
             }
         }) {
-            if start > 0 {
-                self.profile.samples.drain(..start);
-            }
+            self.profile.samples.drain(..start);
         }
 
-        if let Some(end) = self.profile.samples.iter().rev().position(|sample| {
+        if let Some(end) = self.profile.samples.iter().rposition(|sample| {
             match self.profile.stacks.get(sample.stack_id) {
                 Some(stack) => !stack.is_empty(),
                 None => false,
             }
         }) {
-            if end > 0 {
-                self.profile.samples.drain(end..);
-            }
+            self.profile.samples.truncate(end + 1);
         }
     }
 
@@ -668,7 +664,7 @@ mod tests {
             module: Some("".to_string()),
         });
         profile.profile.stacks = vec![vec![0], vec![]];
-        profile.profile.samples.extend(vec![
+        profile.profile.samples = vec![
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
@@ -714,16 +710,35 @@ mod tests {
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 80,
+                elapsed_since_start_ns: 90,
+                thread_id: 1,
+            },
+        ];
+
+        profile.remove_idle_samples_at_the_edge();
+
+        assert_eq!(profile.profile.samples.len(), 3);
+
+        profile.profile.samples = vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 90,
+                elapsed_since_start_ns: 50,
                 thread_id: 1,
             },
-        ]);
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 60,
+                thread_id: 1,
+            },
+        ];
 
         profile.remove_idle_samples_at_the_edge();
 
