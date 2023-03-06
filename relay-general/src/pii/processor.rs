@@ -29,7 +29,7 @@ impl<'a> PiiProcessor<'a> {
 
     fn apply_all_rules(
         &self,
-        meta: &mut Meta,
+        mut meta: Option<&mut Meta>,
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
@@ -42,8 +42,10 @@ impl<'a> PiiProcessor<'a> {
             if state.path().matches_selector(selector) {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
+                    dbg!(&rule);
                     let reborrowed_value = value.as_deref_mut();
-                    apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
+                    dbg!(&reborrowed_value);
+                    apply_rule_to_value(&mut meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
         }
@@ -59,6 +61,22 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        let mut foo = false;
+        if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut() {
+            //dbg!(&original_value);
+            if self
+                .apply_all_rules(None, state, Some(original_value))
+                .is_err()
+            {
+                foo = true;
+            }
+            dbg!(&original_value);
+        }
+
+        if foo {
+            meta.set_original_value(Option::<String>::None);
+        }
+
         // booleans cannot be PII, and strings are handled in process_string
         if state.value_type().contains(ValueType::Boolean)
             || state.value_type().contains(ValueType::String)
@@ -71,7 +89,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         }
 
         // apply rules based on key/path
-        self.apply_all_rules(meta, state, None)
+        self.apply_all_rules(Some(meta), state, None)
     }
 
     fn process_string(
@@ -84,23 +102,9 @@ impl<'a> Processor for PiiProcessor<'a> {
             return Ok(());
         }
 
-        let mut old_value = String::new();
-        if meta.original_value().is_some() {
-            old_value = value.clone();
-        }
-
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        let result = self.apply_all_rules(meta, state, Some(value));
-
-        // If the value has been changed, that implies it may have contained PII.
-        // If also normalization failed the original value would be in the meta and could potentially leak PII.
-        // This is why we set the "original_value" field to None if these two conditions are met.
-        if meta.original_value().is_some() && &old_value != value {
-            meta.set_original_value(Option::<String>::None);
-        }
-
-        result
+        self.apply_all_rules(Some(meta), state, Some(value))
     }
 
     fn process_native_image_path(
@@ -190,7 +194,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 }
 
 fn apply_rule_to_value(
-    meta: &mut Meta,
+    meta: &mut Option<&mut Meta>,
     rule: &RuleRef,
     key: Option<&str>,
     mut value: Option<&mut String>,
@@ -203,7 +207,9 @@ fn apply_rule_to_value(
     // anything, we can only remove the value (not replace, hash, etc).
     if rule.ty == RuleType::Anything && (value.is_none() || !should_redact_chunks) {
         // The value is a container, @anything on a container can do nothing but delete.
-        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+        if let Some(meta) = meta {
+            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+        }
         return Err(ProcessingAction::DeleteValueHard);
     }
 
@@ -226,7 +232,9 @@ fn apply_rule_to_value(
                         // @anything.
                         apply_regex!(&ANYTHING_REGEX, replace_behavior);
                     } else {
-                        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+                        if let Some(meta) = meta {
+                            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()))
+                        }
                         return Err(ProcessingAction::DeleteValueHard);
                     }
                 } else {
@@ -380,6 +388,8 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    use insta::assert_debug_snapshot;
+
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
@@ -387,10 +397,117 @@ mod tests {
         LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
-    use crate::types::{Annotated, Object, Value};
+    use crate::types::{Annotated, FromValue, Object, Value};
 
     use super::*;
 
+    fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
+        use crate::pii::convert::to_pii_config as to_pii_config_impl;
+        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        if let Some(ref config) = rv {
+            let roundtrip: PiiConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(&roundtrip, config);
+        }
+        rv
+    }
+
+    #[test]
+    fn test_ip_stripped() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "user": {
+                    "username": "73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "is this an ip address? ", //  <--------
+                },
+                "breadcrumbs": {
+                    "values": [
+                        {
+                            "message": "73.133.27.120",
+                            "data": {
+                                "test_data": "73.133.27.120" // test deep wildcard stripping
+                                }
+                        },
+                    ],
+                },
+                "sdk": {
+                    "client_ip": "should also be stripped"
+                }
+            })
+            .into(),
+        );
+
+        dbg!(&data);
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: false,
+            scrub_ip_addresses: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
+        assert!(data
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .ip_address
+            .meta()
+            .original_value()
+            .is_none());
+    }
+
+    /*
+
+         objection: find out why user's original value isn't getting stripped despite being PII.
+           so it seems that its not getting stripped cause its not passed to process_string.
+           objection: find out why its not passed to process_string.
+
+           but does that even matter though?
+
+
+
+           state of the whatever...
+
+           1. it tries to parse the json into an Event. If any of the fields fail to be parsed, it'll be
+           an annotated None value and in the meta, the original value will be set, which is the text
+           that failed to become a proper object.
+
+           2. A datascrubbingconfig is created. It contains info on the scrubbing of data within this
+           event, such as fields to exclude, and whether it should scrub ip addresses. It also has a
+           oncecell PIIConfig as a field. im not exactly sure why it's like this.
+
+           3. a PiiConfig is created from the datascrubbingconfig. I mean, pii is more narrow than
+           datascrubbing but it still seems a bit odd to me the way its done.
+
+           4. a PiiProcessor is created from the PiiConfig. by itself it only has the apply_all_rules
+           method which... applies the rules. but it also implements the Processor trait which should
+           process the values so thats cool. i guess thats where all the PII stuff is going on.
+
+           5. it creates a processingstate.. which is interesting, hmm
+
+           6. put the processing state and the processor and the data in process_value()
+
+           7. process_value() will generically do the following:
+               1. do some magic before_process shit
+               2. based on the result of that, either keep, delete, or mark as invalid the value
+               3. do some processing
+               4. same as #2
+
+           specifically in our case it will do the following:
+
+           8. in before_process it checks if value_type of state contains some stuff, but state havent
+           interacted at all with the value, so thats weird.
+
+           9. apply_all_rules is called but with None as value, which i can't udnerstand the point then.
+    */
     #[test]
     fn test_basic_stripping() {
         let config = PiiConfig::from_json(

@@ -157,20 +157,30 @@ where
 
 /// Splits the string into chunks, maps each chunk and then joins chunks again, emitting
 /// remarks along the process.
-pub fn process_chunked_value<F>(value: &mut String, meta: &mut Meta, f: F)
+pub fn process_chunked_value<F>(value: &mut String, meta: &mut Option<&mut Meta>, f: F)
 where
     F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
 {
-    let chunks = split_chunks(value, meta.iter_remarks());
-    let (new_value, remarks) = join_chunks(f(chunks));
+    dbg!(&value, "!@#$!@#$!");
 
-    if new_value != *value {
-        meta.clear_remarks();
-        for remark in remarks.into_iter() {
-            meta.add_remark(remark);
+    if let Some(meta) = meta {
+        let chunks = split_chunks(value, meta.iter_remarks());
+        let (new_value, remarks) = join_chunks(f(chunks));
+
+        if new_value != *value {
+            meta.clear_remarks();
+            for remark in remarks.into_iter() {
+                meta.add_remark(remark);
+            }
+            meta.set_original_length(Some(bytecount::num_chars(value.as_bytes())));
+            *value = new_value;
         }
-        meta.set_original_length(Some(bytecount::num_chars(value.as_bytes())));
-        *value = new_value;
+    } else {
+        let chunk = Chunk::Text {
+            text: Cow::Owned(value.clone()),
+        };
+        let (new_val, _) = join_chunks(vec![chunk]);
+        *value = new_val;
     }
 }
 
