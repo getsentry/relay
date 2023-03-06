@@ -1062,6 +1062,15 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "DeviceClass": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      ]
+    },
     "DeviceContext": {
       "description": " Device information.\n\n Device context describes the device that caused the event. This is most appropriate for mobile\n applications.",
       "anyOf": [
@@ -1119,12 +1128,14 @@ expression: "relay_general::protocol::event_json_schema()"
             },
             "class": {
               "default": null,
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/DeviceClass"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "cpu_description": {
               "description": " CPU description.\n\n For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.",
