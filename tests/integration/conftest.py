@@ -27,6 +27,7 @@ from .fixtures.processing import (
     sessions_consumer,
     metrics_consumer,
     replay_events_consumer,
+    monitors_consumer,
 )  # noqa
 
 

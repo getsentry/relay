@@ -3241,7 +3241,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.18"
+version = "0.8.19"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3454,6 +3454,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-monitors"
+version = "23.2.0"
+dependencies = [
+ "relay-common",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "thiserror",
+]
+
+[[package]]
 name = "relay-profiling"
 version = "23.2.0"
 dependencies = [
@@ -3565,6 +3576,7 @@ dependencies = [
  "relay-kafka",
  "relay-log",
  "relay-metrics",
+ "relay-monitors",
  "relay-profiling",
  "relay-quotas",
  "relay-redis",
@@ -3583,6 +3595,7 @@ dependencies = [
  "symbolic-common",
  "symbolic-unreal",
  "take_mut",
+ "tempfile",
  "thiserror",
  "tokio 1.25.0",
  "tokio-timer",

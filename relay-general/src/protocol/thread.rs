@@ -125,6 +125,10 @@ pub struct Thread {
     /// A flag indicating whether the thread was responsible for rendering the user interface.
     pub main: Annotated<bool>,
 
+    /// Thread state at the time of the crash.
+    #[metastructure(skip_serialization = "empty")]
+    pub state: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -169,6 +173,7 @@ mod tests {
   "crashed": true,
   "current": true,
   "main": true,
+  "state": "RUNNABLE",
   "other": "value"
 }"#;
         let thread = Annotated::new(Thread {
@@ -179,6 +184,7 @@ mod tests {
             crashed: Annotated::new(true),
             current: Annotated::new(true),
             main: Annotated::new(true),
+            state: Annotated::new("RUNNABLE".to_string()),
             other: {
                 let mut map = Map::new();
                 map.insert(
