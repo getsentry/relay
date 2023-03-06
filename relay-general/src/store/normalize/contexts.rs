@@ -205,6 +205,10 @@ fn normalize_response(response: &mut ResponseContext) {
 
 // Reads device specs (family, memory, cpu, etc) and sets the device class to high, medium, or low.
 fn normalize_device_context(device: &mut DeviceContext) {
+    // Unset device class if it is sent by the client, since this value should be computed by relay.
+    if device.class.value().is_some() {
+        device.class = Annotated::empty();
+    }
     if let Some(family) = device.family.value() {
         if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
             if let Some(processor_frequency) = device.processor_frequency.value() {
