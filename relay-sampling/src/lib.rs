@@ -43,7 +43,7 @@ pub enum RuleType {
 /// A condition that checks the values using the equality operator.
 ///
 /// For string values it supports case-insensitive comparison.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondOptions {
     #[serde(default)]
@@ -56,7 +56,7 @@ pub struct EqCondOptions {
 pub struct EqCondition {
     pub name: String,
     pub value: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub options: EqCondOptions,
 }
 
@@ -175,7 +175,7 @@ pub struct CustomCondition {
     pub name: String,
     #[serde(default)]
     pub value: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub options: HashMap<String, Value>,
 }
 
@@ -452,6 +452,11 @@ impl ActiveRule {
     }
 }
 
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -467,7 +472,7 @@ pub struct SamplingRule {
     /// closed on at least one end, the rule is considered a decaying rule.
     #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
     pub time_range: TimeRange,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub decaying_fn: DecayingFunction,
 }
 
@@ -810,7 +815,7 @@ impl FieldValueProvider for DynamicSamplingContext {
 /// occurs. The sampling mode controlls whether the sample rate is relative to the original
 /// population of items before client-side sampling, or relative to the number received by Relay
 /// after client-side sampling.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum SamplingMode {
     /// The sample rate is based on the number of events received by Relay.
@@ -1026,7 +1031,7 @@ pub struct SamplingConfig {
     /// The ordered sampling rules v2 for the project.
     pub rules_v2: Vec<SamplingRule>,
     /// Defines which population of items a dynamic sample rate applies to.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub mode: SamplingMode,
 }
 
@@ -2176,9 +2181,6 @@ mod tests {
                   "UPPER",
                   "lower",
                 ],
-                options: EqCondOptions(
-                  ignoreCase: false,
-                ),
               ),
               GlobCondition(
                 op: "glob",
@@ -2253,7 +2255,6 @@ mod tests {
                 op: "custom",
                 name: "some_custom_op",
                 value: "some val",
-                options: {},
               ),
             ]"###);
     }
@@ -2446,13 +2447,9 @@ mod tests {
         "value": 2.0
       },
       "type": "transaction",
-      "id": 1,
-      "decayingFn": {
-        "type": "constant"
-      }
+      "id": 1
     }
-  ],
-  "mode": "received"
+  ]
 }"#;
 
         assert_eq!(serialized_config, expected_serialized_config)

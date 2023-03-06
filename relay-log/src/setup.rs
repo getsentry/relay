@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -84,6 +85,9 @@ pub struct SentryConfig {
     /// Enables reporting to Sentry.
     pub enabled: bool,
 
+    /// Sets the environment for this service.
+    pub environment: Option<Cow<'static, str>>,
+
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     pub _crash_db: Option<PathBuf>,
@@ -103,6 +107,7 @@ impl Default for SentryConfig {
                 .parse()
                 .ok(),
             enabled: false,
+            environment: None,
             _crash_db: None,
         }
     }
@@ -176,6 +181,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
+            environment: sentry.environment.clone(),
             ..Default::default()
         });
 
@@ -223,7 +229,7 @@ fn format_pretty(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io
 
     writeln!(
         f,
-        " {styled_level} {styled_target:width$} > {}",
+        " {styled_level:5} {styled_target:width$} > {}",
         record.args(),
         width = max_target_width(target),
     )

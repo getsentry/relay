@@ -363,11 +363,14 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use crate::pii::{PiiConfig, ReplaceRedaction};
+
+    use std::collections::BTreeMap;
+
+    use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
-        Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request, TagEntry, Tags,
+        Addr, DataElement, DebugImage, DebugMeta, Event, ExtraValue, Headers, HttpElement,
+        LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, Object, Value};
@@ -966,5 +969,93 @@ mod tests {
             ReplaceBehavior::Value,
         );
         assert_eq!(chunks, res);
+    }
+
+    #[test]
+    fn test_scrub_span_data_not_scrubbed() {
+        let mut span = Annotated::new(Span {
+            data: Annotated::new(DataElement {
+                http: Annotated::new(HttpElement {
+                    query: Annotated::new(Value::String("dance=true".to_owned())),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(span);
+    }
+
+    #[test]
+    fn test_scrub_span_data_is_scrubbed() {
+        let mut span = Annotated::new(Span {
+            data: Annotated::new(DataElement {
+                http: Annotated::new(HttpElement {
+                    query: Annotated::new(Value::String(
+                        "ccnumber=5105105105105100&process_id=123".to_owned(),
+                    )),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(span);
+    }
+
+    #[test]
+    fn test_scrub_span_data_object_is_scrubbed() {
+        let mut span = Annotated::new(Span {
+            data: Annotated::new(DataElement {
+                http: Annotated::new(HttpElement {
+                    query: Annotated::new(Value::Object({
+                        let mut map = BTreeMap::new();
+                        map.insert(
+                            "ccnumber".to_owned(),
+                            Annotated::new(Value::String("5105105105105100".to_owned())),
+                        );
+                        map.insert(
+                            "process_id".to_owned(),
+                            Annotated::new(Value::String("123".to_owned())),
+                        );
+                        map
+                    })),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(span);
     }
 }
