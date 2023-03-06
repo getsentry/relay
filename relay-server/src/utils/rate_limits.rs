@@ -106,6 +106,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
         ItemType::ClientReport => None,
+        ItemType::CheckIn => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -131,6 +132,9 @@ pub struct EnvelopeSummary {
 
     /// The number of replays.
     pub replay_quantity: usize,
+
+    /// The number of monitor check-ins.
+    pub checkin_quantity: usize,
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
@@ -173,6 +177,7 @@ impl EnvelopeSummary {
                 ItemType::Profile => summary.profile_quantity += 1,
                 ItemType::ReplayEvent => summary.replay_quantity += 1,
                 ItemType::ReplayRecording => summary.replay_quantity += 1,
+                ItemType::CheckIn => summary.checkin_quantity += 1,
                 _ => (),
             }
         }
@@ -255,6 +260,8 @@ pub struct Enforcement {
     profiles: CategoryLimit,
     /// The combined replay item rate limit.
     replays: CategoryLimit,
+    /// The combined check-in item rate limit.
+    check_ins: CategoryLimit,
     /// Metrics extraction from a transaction is rate limited.
     event_metrics: CategoryLimit,
 }
@@ -272,20 +279,31 @@ impl Enforcement {
         envelope: &Envelope,
         scoping: &Scoping,
     ) -> impl Iterator<Item = TrackOutcome> {
+        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let scoping = *scoping;
+        let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().remote_addr();
+
         let Self {
             event,
             attachments,
             sessions: _, // Do not report outcomes for sessions.
             profiles,
             replays,
+            check_ins,
             event_metrics,
         } = self;
-        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-        let scoping = *scoping;
-        let event_id = envelope.event_id();
-        let remote_addr = envelope.meta().remote_addr();
 
-        [event, attachments, profiles, replays, event_metrics]
+        let limits = [
+            event,
+            attachments,
+            profiles,
+            replays,
+            check_ins,
+            event_metrics,
+        ];
+
+        limits
             .into_iter()
             .filter(move |limit| limit.is_active())
             .map(move |limit| TrackOutcome {
@@ -533,6 +551,17 @@ where
             rate_limits.merge(replay_limits);
         }
 
+        if summary.checkin_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::Monitor);
+            let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
+            enforcement.replays = CategoryLimit::new(
+                DataCategory::Monitor,
+                summary.checkin_quantity,
+                checkin_limits.longest(),
+            );
+            rate_limits.merge(checkin_limits);
+        }
+
         Ok((enforcement, rate_limits))
     }
 
@@ -566,6 +595,10 @@ where
         if enforcement.replays.is_active()
             && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
         {
+            return false;
+        }
+
+        if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
             return false;
         }
 
