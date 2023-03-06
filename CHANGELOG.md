@@ -21,8 +21,8 @@
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
 - Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
+- Move the pending envelopes buffering into the project cache. ([#1879](https://github.com/getsentry/relay/pull/1879))
 - Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
-
 
 ## 23.2.0
 
