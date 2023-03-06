@@ -18,7 +18,7 @@ def test_local_project_config(mini_sentry, relay):
     project_id = 42
     config = mini_sentry.basic_project_config(project_id)
     relay_config = {
-        "cache": {"file_interval": 1, "project_expiry": 1, "project_grace_period": 0}
+        "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=False)
     relay.config_dir.mkdir("projects").join("42.json").write(
