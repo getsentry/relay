@@ -654,9 +654,10 @@ impl ProjectCacheBroker {
         }
 
         // These must not be empty.
-        if state
-            .get_public_key_config()
-            .map_or(true, |pk| pk.numeric_id.is_none())
+        if !state.disabled()
+            && state
+                .get_public_key_config()
+                .map_or(true, |pk| pk.numeric_id.is_none())
         {
             relay_log::with_scope(
                 |scope| {

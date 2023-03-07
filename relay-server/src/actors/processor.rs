@@ -1854,9 +1854,36 @@ impl EnvelopeProcessorService {
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
         if key_id.is_none() {
-            relay_log::error!(
-                "project state for key {} is missing key id",
-                envelope.meta().public_key()
+            relay_log::with_scope(
+                |scope| {
+                    scope.set_extra(
+                        "project_state_key",
+                        format!("{:?}", project_state.get_public_key_config()).into(),
+                    );
+                    scope.set_extra(
+                        "state_last_fetch",
+                        project_state.last_fetch.elapsed().as_secs().into(),
+                    );
+                    scope.set_extra(
+                        "envelope_pub_key",
+                        envelope.meta().public_key().as_str().into(),
+                    );
+                    scope.set_extra(
+                        "project_slug",
+                        project_state
+                            .slug
+                            .as_ref()
+                            .unwrap_or(&String::new())
+                            .to_owned()
+                            .into(),
+                    );
+                },
+                || {
+                    relay_log::error!(
+                        "project state for key {} is missing key id",
+                        envelope.meta().public_key()
+                    )
+                },
             );
         }
 
