@@ -11,6 +11,8 @@
 - Initial support for the Crons beta. ([#1886](https://github.com/getsentry/relay/pull/1886))
 - Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
 - Scrub `breadcrumb.data.http.query` with default scrubbers. ([#1901](https://github.com/getsentry/relay/pull/1901))
+- Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895](https://github.com/getsentry/relay/pull/1895))
+- Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
 
 **Bug Fixes**:
 
@@ -21,6 +23,7 @@
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
 - Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
+- Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
 
 ## 23.2.0
 
