@@ -26,8 +26,6 @@ pipelines:
                       type: manual
                   fetch_materials: true
                   jobs:
-                      # XXX: Can't have pop releases yet unless we give
-                      # permission for relay-pop to read from relay deploy bucket.
                       deploy-pop-europe-1:
                           timeout: 1200
                           elastic_profile_id: relay-pop
