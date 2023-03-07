@@ -378,8 +378,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-
-    use std::collections::BTreeMap;
+    use super::*;
 
     use insta::assert_debug_snapshot;
 
@@ -391,8 +390,7 @@ mod tests {
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, FromValue, Object, Value};
-
-    use super::*;
+    use std::collections::BTreeMap;
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::pii::convert::to_pii_config as to_pii_config_impl;
@@ -457,50 +455,6 @@ mod tests {
             .is_none());
     }
 
-    /*
-
-         objection: find out why user's original value isn't getting stripped despite being PII.
-           so it seems that its not getting stripped cause its not passed to process_string.
-           objection: find out why its not passed to process_string.
-
-           but does that even matter though?
-
-
-
-           state of the whatever...
-
-           1. it tries to parse the json into an Event. If any of the fields fail to be parsed, it'll be
-           an annotated None value and in the meta, the original value will be set, which is the text
-           that failed to become a proper object.
-
-           2. A datascrubbingconfig is created. It contains info on the scrubbing of data within this
-           event, such as fields to exclude, and whether it should scrub ip addresses. It also has a
-           oncecell PIIConfig as a field. im not exactly sure why it's like this.
-
-           3. a PiiConfig is created from the datascrubbingconfig. I mean, pii is more narrow than
-           datascrubbing but it still seems a bit odd to me the way its done.
-
-           4. a PiiProcessor is created from the PiiConfig. by itself it only has the apply_all_rules
-           method which... applies the rules. but it also implements the Processor trait which should
-           process the values so thats cool. i guess thats where all the PII stuff is going on.
-
-           5. it creates a processingstate.. which is interesting, hmm
-
-           6. put the processing state and the processor and the data in process_value()
-
-           7. process_value() will generically do the following:
-               1. do some magic before_process shit
-               2. based on the result of that, either keep, delete, or mark as invalid the value
-               3. do some processing
-               4. same as #2
-
-           specifically in our case it will do the following:
-
-           8. in before_process it checks if value_type of state contains some stuff, but state havent
-           interacted at all with the value, so thats weird.
-
-           9. apply_all_rules is called but with None as value, which i can't udnerstand the point then.
-    */
     #[test]
     fn test_basic_stripping() {
         let config = PiiConfig::from_json(
