@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Scrub `breadcrumb.data.http.query` with default scrubbers. ([#1901](https://github.com/getsentry/relay/pull/1901))
+- Scrub `breadcrumb.data.http.query` & `data.other` with default scrubbers. ([#1901](https://github.com/getsentry/relay/pull/1901))
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
 
 ## 0.8.19
