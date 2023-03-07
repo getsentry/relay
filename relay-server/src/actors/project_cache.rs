@@ -563,7 +563,13 @@ impl ProjectCacheBroker {
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 
-            self.handle_processing(state.clone(), sampling_state, envelope, envelope_context);
+            self.handle_processing(
+                "merge_state",
+                state.clone(),
+                sampling_state,
+                envelope,
+                envelope_context,
+            );
         }
     }
 
@@ -627,12 +633,51 @@ impl ProjectCacheBroker {
     /// Handles the processing of the provided envelope.
     fn handle_processing(
         &mut self,
+        caller: &str,
         state: Arc<ProjectState>,
         sampling_state: Option<Arc<ProjectState>>,
         envelope: Box<Envelope>,
         envelope_context: EnvelopeContext,
     ) {
         let project_key = envelope.meta().public_key();
+
+        // Projest must be valid at this point.
+        if state.invalid() {
+            relay_log::with_scope(
+                |scope| {
+                    scope.set_tag("project_key", project_key);
+                    scope.set_extra("caller", caller.into());
+                    scope.set_extra("state_last_fetch", format!("{:?}", state.last_fetch).into());
+                },
+                || relay_log::error!("project state is invalid"),
+            );
+        }
+
+        // These should be the same.
+        if state.is_matching_key(project_key) {
+            relay_log::with_scope(
+                |scope| {
+                    scope.set_tag("project_key", project_key);
+                    scope.set_extra("caller", caller.into());
+                    scope.set_extra(
+                        "project_state_key",
+                        format!("{:?}", state.get_public_key_config()).into(),
+                    );
+                    scope.set_extra("state_last_fetch", format!("{:?}", state.last_fetch).into());
+                    scope.set_extra(
+                        "project_slug",
+                        state
+                            .slug
+                            .as_ref()
+                            .unwrap_or(&String::new())
+                            .to_owned()
+                            .into(),
+                    );
+                },
+                || relay_log::error!("envelope pub key and project state pub key do not match"),
+            );
+        }
+
         // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
         // function returns any error, which will also be ignored here.
         let Some(Ok(checked)) = self
@@ -693,7 +738,13 @@ impl ProjectCacheBroker {
         // state or we do not need one.
         if let Some(state) = project_state {
             if sampling_state.is_some() || sampling_key.is_none() {
-                return self.handle_processing(state, sampling_state, envelope, context);
+                return self.handle_processing(
+                    "handle_validate_envelope",
+                    state,
+                    sampling_state,
+                    envelope,
+                    context,
+                );
             }
         }
 
