@@ -424,7 +424,6 @@ mod tests {
                 "sdk": {
                     "client_ip": "should also be stripped"
                 },
-                "wtf": "wth 73.133.27.120"
             })
             .into(),
         );
@@ -442,17 +441,6 @@ mod tests {
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
         assert_debug_snapshot!(&data);
-        dbg!(&data);
-        assert!(data
-            .value()
-            .unwrap()
-            .user
-            .value()
-            .unwrap()
-            .ip_address
-            .meta()
-            .original_value()
-            .is_none());
     }
 
     #[test]

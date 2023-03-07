@@ -176,30 +176,5 @@ Event {
     measurements: ~,
     breakdowns: ~,
     _metrics: ~,
-    other: {
-        "wtf": Annotated(
-            String(
-                "wth [ip]",
-            ),
-            Meta {
-                remarks: [
-                    Remark {
-                        ty: Substituted,
-                        rule_id: "@ip:replace",
-                        range: Some(
-                            (
-                                4,
-                                8,
-                            ),
-                        ),
-                    },
-                ],
-                errors: [],
-                original_length: Some(
-                    17,
-                ),
-                original_value: None,
-            },
-        ),
-    },
+    other: {},
 }
