@@ -559,33 +559,7 @@ impl ProjectCacheBroker {
 
         // Flush envelopes where both states have resolved.
         for (envelope, envelope_context) in envelopes {
-            // If the incoming state is the update for the sampling state, we have to get first own
-            // project state and use it for processing the envelope.
-            let own_key = envelope.meta().public_key();
-            let (own_state, sampling_state) = if project_key == own_key {
-                (
-                    Some(state.clone()),
-                    utils::get_sampling_key(&envelope)
-                        .and_then(|key| self.projects.get(&key))
-                        .and_then(|p| p.valid_state()),
-                )
-            } else {
-                (
-                    self.projects.get(&own_key).and_then(|p| p.valid_state()),
-                    Some(state.clone()),
-                )
-            };
-
-            if let Some(state) = own_state {
-                self.handle_processing(state, sampling_state, envelope, envelope_context);
-            } else {
-                // This should never happen, since we **must** dequeue only envelopes, where
-                // all the projects have the valid entry in the cache.
-                relay_log::error!(
-                    "Project with key {} disappeared from the project cache.",
-                    own_key
-                );
-            }
+            self.handle_processing(envelope, envelope_context);
         }
     }
 
@@ -647,31 +621,36 @@ impl ProjectCacheBroker {
     }
 
     /// Handles the processing of the provided envelope.
-    fn handle_processing(
-        &mut self,
-        state: Arc<ProjectState>,
-        sampling_state: Option<Arc<ProjectState>>,
-        envelope: Box<Envelope>,
-        envelope_context: EnvelopeContext,
-    ) {
+    ///
+    /// This function will is called only when the all the required prerequisites are met:
+    ///  * own project state is cached
+    ///  * the samling state, if required is also cached.
+    fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
         let project_key = envelope.meta().public_key();
         // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
         // function returns any error, which will also be ignored here.
-        let Some(Ok(checked)) = self
+        let Some((Some(own_project_state), Ok(checked))) = self
             .projects
             .get_mut(&project_key)
-            .map(|p| p.check_envelope(envelope, envelope_context)) else { return; };
+            .map(|p| (p.valid_state(), p.check_envelope(envelope, envelope_context)))
+        else {
+            return;
+        };
 
         if let Some((envelope, envelope_context)) = checked.envelope {
+            let sampling_state = utils::get_sampling_key(&envelope)
+                .and_then(|key| self.projects.get(&key))
+                .and_then(|p| p.valid_state());
+
             let mut process = ProcessEnvelope {
                 envelope,
                 envelope_context,
-                project_state: state.clone(),
+                project_state: own_project_state.clone(),
                 sampling_project_state: None,
             };
 
             if let Some(sampling_state) = sampling_state {
-                if state.organization_id == sampling_state.organization_id {
+                if own_project_state.organization_id == sampling_state.organization_id {
                     process.sampling_project_state = Some(sampling_state)
                 }
             }
@@ -713,10 +692,8 @@ impl ProjectCacheBroker {
 
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
-        if let Some(state) = project_state {
-            if sampling_state.is_some() || sampling_key.is_none() {
-                return self.handle_processing(state, sampling_state, envelope, context);
-            }
+        if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
+            return self.handle_processing(envelope, context);
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
