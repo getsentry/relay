@@ -42,9 +42,7 @@ impl<'a> PiiProcessor<'a> {
             if state.path().matches_selector(selector) {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
-                    dbg!(&rule);
                     let reborrowed_value = value.as_deref_mut();
-                    dbg!(&reborrowed_value);
                     apply_rule_to_value(&mut meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
@@ -62,15 +60,17 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         let mut foo = false;
-        if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut() {
-            //dbg!(&original_value);
-            if self
-                .apply_all_rules(None, state, Some(original_value))
-                .is_err()
+
+        if true {
+            if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut()
             {
-                foo = true;
+                if self
+                    .apply_all_rules(None, state, Some(original_value))
+                    .is_err()
+                {
+                    foo = true;
+                }
             }
-            dbg!(&original_value);
         }
 
         if foo {
@@ -413,12 +413,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ip_stripped() {
+    fn test_scrub_original_value() {
         let mut data = Event::from_value(
             serde_json::json!({
                 "user": {
-                    "username": "73.133.27.120", // should be stripped despite not being "known ip field"
-                    "ip_address": "is this an ip address? ", //  <--------
+                    "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "is this an ip address? 73.133.27.120", //  <--------
                 },
                 "breadcrumbs": {
                     "values": [
@@ -432,12 +432,11 @@ mod tests {
                 },
                 "sdk": {
                     "client_ip": "should also be stripped"
-                }
+                },
+                "wtf": "wth 73.133.27.120"
             })
             .into(),
         );
-
-        dbg!(&data);
 
         let scrubbing_config = DataScrubbingConfig {
             scrub_data: false,
@@ -452,6 +451,7 @@ mod tests {
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
         assert_debug_snapshot!(&data);
+        dbg!(&data);
         assert!(data
             .value()
             .unwrap()
