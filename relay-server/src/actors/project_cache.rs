@@ -559,11 +559,33 @@ impl ProjectCacheBroker {
 
         // Flush envelopes where both states have resolved.
         for (envelope, envelope_context) in envelopes {
-            let sampling_state = utils::get_sampling_key(&envelope)
-                .and_then(|key| self.projects.get(&key))
-                .and_then(|p| p.valid_state());
+            // If the incoming state is the update for the sampling state, we have to get first own
+            // project state and use it for processing the envelope.
+            let own_key = envelope.meta().public_key();
+            let (own_state, sampling_state) = if project_key == own_key {
+                (
+                    Some(state.clone()),
+                    utils::get_sampling_key(&envelope)
+                        .and_then(|key| self.projects.get(&key))
+                        .and_then(|p| p.valid_state()),
+                )
+            } else {
+                (
+                    self.projects.get(&own_key).and_then(|p| p.valid_state()),
+                    Some(state.clone()),
+                )
+            };
 
-            self.handle_processing(state.clone(), sampling_state, envelope, envelope_context);
+            if let Some(state) = own_state {
+                self.handle_processing(state, sampling_state, envelope, envelope_context);
+            } else {
+                // This should never happen, since we **must** dequeue only envelopes, where
+                // all the projects have the valid entry in the cache.
+                relay_log::error!(
+                    "Project with key {} disappeared from the project cache.",
+                    own_key
+                );
+            }
         }
     }
 
