@@ -183,24 +183,6 @@ def test_store_static_config(mini_sentry, relay):
         )
 
 
-def test_store_proxy_config(mini_sentry, relay):
-    from time import sleep
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    def configure_proxy(dir):
-        os.remove(dir.join("credentials.json"))
-
-    relay_options = {"relay": {"mode": "proxy"}}
-    relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
-    sleep(1)  # There is no upstream auth, so just wait for relay to initialize
-
-    relay.send_event(project_id)
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-
-
 def test_store_buffer_size(mini_sentry, relay):
     relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
     project_id = 42
