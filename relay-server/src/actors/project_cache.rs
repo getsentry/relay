@@ -626,7 +626,7 @@ impl ProjectCacheBroker {
     ///
     /// The following pre-conditions must be met before calling this function:
     /// - Envelope's project state must be cached and valid.
-    /// - Optional: if dynamic sampling keys exists, the dyanmic project state must be cached and valid.
+    /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
