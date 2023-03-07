@@ -1,6 +1,5 @@
 ---
 source: relay-general/src/pii/processor.rs
-assertion_line: 1052
 expression: span
 ---
 {
@@ -11,10 +10,23 @@ expression: span
         "process_id": "123"
       }
     },
-    "do_not_scrub": "5105105105105100"
+    "also_scrub": "[Filtered]"
   },
   "_meta": {
     "data": {
+      "also_scrub": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 16
+        }
+      },
       "http": {
         "query": {
           "ccnumber": {

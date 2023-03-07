@@ -9,10 +9,24 @@ expression: breadcrumb
         "ccnumber": "[Filtered]",
         "process_id": "123"
       }
-    }
+    },
+    "also_scrub": "[Filtered]"
   },
   "_meta": {
     "data": {
+      "also_scrub": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 16
+        }
+      },
       "http": {
         "query": {
           "ccnumber": {

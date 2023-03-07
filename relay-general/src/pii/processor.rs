@@ -364,8 +364,6 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 #[cfg(test)]
 mod tests {
 
-    use std::collections::BTreeMap;
-
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
@@ -1034,7 +1032,7 @@ mod tests {
                         "process_id": "123"
                     }
                 },
-                "do_not_scrub": "5105105105105100"
+                "also_scrub": "5105105105105100"
             }
         }"#,
         )
@@ -1081,27 +1079,20 @@ mod tests {
 
     #[test]
     fn test_breadcrumb_data_object_is_scrubbed() {
-        let mut breadcrumb = Annotated::new(Breadcrumb {
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: {
-                        let mut map = BTreeMap::new();
-                        map.insert(
-                            "ccnumber".to_owned(),
-                            Annotated::new(Value::String("5105105105105100".to_owned())),
-                        );
-                        map.insert(
-                            "process_id".to_owned(),
-                            Annotated::new(Value::String("123".to_owned())),
-                        );
-                        Annotated::new(Value::Object(map))
-                    },
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+        let mut breadcrumb = Annotated::<Breadcrumb>::from_json(
+            r#"{
+            "data": {
+                "http": {
+                    "query": {
+                      "ccnumber": "5105105105105100",
+                      "process_id": "123"
+                    }
+                },
+                "also_scrub": "5105105105105100"
+            }
+        }"#,
+        )
+        .unwrap();
 
         let ds_config = DataScrubbingConfig {
             scrub_data: true,
