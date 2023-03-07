@@ -653,8 +653,11 @@ impl ProjectCacheBroker {
             );
         }
 
-        // These should be the same.
-        if !state.is_matching_key(project_key) {
+        // These must not be empty.
+        if state
+            .get_public_key_config()
+            .map_or(true, |pk| pk.numeric_id.is_none())
+        {
             relay_log::with_scope(
                 |scope| {
                     scope.set_tag("project_key", project_key);
