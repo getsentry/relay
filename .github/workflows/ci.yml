@@ -316,7 +316,7 @@ jobs:
           docker run --rm --entrypoint cat "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" -cf - /lib/x86_64-linux-gnu > libs.tar
           gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip \
-          "gs://dicd-team-devinfra-cd--getsentry-relay/deployment-assets/${{ github.event.pull_request.head.sha || github.sha }}/"
+          "gs://dicd-team-devinfra-cd--relay/deployment-assets/${{ github.event.pull_request.head.sha || github.sha }}/"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'
