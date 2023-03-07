@@ -207,11 +207,9 @@ fn apply_rule_to_value(
     macro_rules! apply_regex {
         ($regex:expr, $replace_behavior:expr) => {
             if let Some(ref mut value) = value {
-                if let Some(meta) = meta {
-                    process_chunked_value(value, meta, |chunks| {
-                        apply_regex_to_chunks(chunks, rule, $regex, $replace_behavior)
-                    });
-                }
+                process_chunked_value(value, meta, |chunks| {
+                    apply_regex_to_chunks(chunks, rule, $regex, $replace_behavior)
+                });
             }
         };
     }
@@ -381,6 +379,7 @@ mod tests {
     use super::*;
 
     use insta::assert_debug_snapshot;
+    use std::collections::BTreeMap;
 
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
@@ -390,7 +389,6 @@ mod tests {
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, FromValue, Object, Value};
-    use std::collections::BTreeMap;
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::pii::convert::to_pii_config as to_pii_config_impl;
