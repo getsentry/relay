@@ -59,22 +59,13 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let mut foo = false;
-
-        if true {
-            if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut()
+        if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut() {
+            if self
+                .apply_all_rules(None, state, Some(original_value))
+                .is_err()
             {
-                if self
-                    .apply_all_rules(None, state, Some(original_value))
-                    .is_err()
-                {
-                    foo = true;
-                }
+                meta.set_original_value(Option::<String>::None);
             }
-        }
-
-        if foo {
-            meta.set_original_value(Option::<String>::None);
         }
 
         // booleans cannot be PII, and strings are handled in process_string
@@ -216,9 +207,11 @@ fn apply_rule_to_value(
     macro_rules! apply_regex {
         ($regex:expr, $replace_behavior:expr) => {
             if let Some(ref mut value) = value {
-                process_chunked_value(value, meta, |chunks| {
-                    apply_regex_to_chunks(chunks, rule, $regex, $replace_behavior)
-                });
+                if let Some(meta) = meta {
+                    process_chunked_value(value, meta, |chunks| {
+                        apply_regex_to_chunks(chunks, rule, $regex, $replace_behavior)
+                    });
+                }
             }
         };
     }
