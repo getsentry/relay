@@ -633,45 +633,47 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
         let project_key = envelope.meta().public_key();
 
-        // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
-        // function returns any error, which will also be ignored here.
-        if let Some(project) = self.projects.get_mut(&project_key) {
-            if let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) {
-                if let Ok(CheckedEnvelope {
-                    envelope: Some((envelope, envelope_context)),
-                    ..
-                }) = project.check_envelope(envelope, envelope_context)
-                {
-                    let sampling_state = utils::get_sampling_key(&envelope)
-                        .and_then(|key| self.projects.get(&key))
-                        .and_then(|p| p.valid_state());
-
-                    let mut process = ProcessEnvelope {
-                        envelope,
-                        envelope_context,
-                        project_state: own_project_state.clone(),
-                        sampling_project_state: None,
-                    };
-
-                    if let Some(sampling_state) = sampling_state {
-                        if own_project_state.organization_id == sampling_state.organization_id {
-                            process.sampling_project_state = Some(sampling_state)
-                        }
-                    }
-
-                    EnvelopeProcessor::from_registry().send(process);
-                }
-            } else {
-                relay_log::with_scope(
-                    |scope| scope.set_tag("project_key", project_key),
-                    || relay_log::error!("project has no valid cached state"),
-                );
-            }
-        } else {
+        let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::with_scope(
                 |scope| scope.set_tag("project_key", project_key),
                 || relay_log::error!("project could not be found in the cache"),
             );
+            return;
+        };
+
+        let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) else {
+            relay_log::with_scope(
+                |scope| scope.set_tag("project_key", project_key),
+                || relay_log::error!("project has no valid cached state"),
+            );
+            return;
+        };
+
+        // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
+        // function returns any error, which will also be ignored here.
+        if let Ok(CheckedEnvelope {
+            envelope: Some((envelope, envelope_context)),
+            ..
+        }) = project.check_envelope(envelope, envelope_context)
+        {
+            let sampling_state = utils::get_sampling_key(&envelope)
+                .and_then(|key| self.projects.get(&key))
+                .and_then(|p| p.valid_state());
+
+            let mut process = ProcessEnvelope {
+                envelope,
+                envelope_context,
+                project_state: own_project_state.clone(),
+                sampling_project_state: None,
+            };
+
+            if let Some(sampling_state) = sampling_state {
+                if own_project_state.organization_id == sampling_state.organization_id {
+                    process.sampling_project_state = Some(sampling_state)
+                }
+            }
+
+            EnvelopeProcessor::from_registry().send(process);
         }
     }
 
