@@ -1,7 +1,9 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{
+    Context, DeviceClass, DeviceContext, OsContext, ResponseContext, RuntimeContext,
+};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -36,6 +38,8 @@ static OS_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Mono 5.4, .NET Core 2.0
 static RUNTIME_DOTNET_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap());
+
+const GIB: u64 = 1024 * 1024 * 1024;
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
@@ -199,11 +203,45 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
+// Reads device specs (family, memory, cpu, etc) and sets the device class to high, medium, or low.
+fn normalize_device_context(device: &mut DeviceContext) {
+    // Unset device class if it is sent by the client, since this value should be computed by relay.
+    if device.class.value().is_some() {
+        device.class = Annotated::empty();
+    }
+    if let Some(family) = device.family.value() {
+        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+            if let Some(processor_frequency) = device.processor_frequency.value() {
+                if processor_frequency < &2000 {
+                    device.class = DeviceClass::LOW.into();
+                } else if processor_frequency < &3000 {
+                    device.class = DeviceClass::MEDIUM.into();
+                } else {
+                    device.class = DeviceClass::HIGH.into();
+                }
+            }
+        } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
+            device.processor_frequency.value(),
+            device.processor_count.value(),
+            device.memory_size.value(),
+        ) {
+            if freq < 2000 || proc < 8 || mem < 4 * GIB {
+                device.class = DeviceClass::LOW.into();
+            } else if freq < 2500 || mem < 6 * GIB {
+                device.class = DeviceClass::MEDIUM.into();
+            } else {
+                device.class = DeviceClass::HIGH.into();
+            }
+        }
+    }
+}
+
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
+        Context::Device(device) => normalize_device_context(device),
         _ => (),
     }
 }
@@ -579,5 +617,97 @@ mod tests {
         // may be revisited
         assert_eq!(Some("15.0"), os.kernel_version.as_str());
         assert_eq!(None, os.build.value());
+    }
+
+    #[test]
+    fn test_apple_no_device_class() {
+        let mut device = DeviceContext {
+            family: "iPhone".to_string().into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(None, device.class.value());
+    }
+
+    #[test]
+    fn test_apple_low_device_class() {
+        let mut device = DeviceContext {
+            family: "iPhone".to_string().into(),
+            processor_frequency: 1000.into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::LOW, *device.class.value().unwrap());
+    }
+
+    #[test]
+    fn test_apple_medium_device_class() {
+        let mut device = DeviceContext {
+            family: "iPhone".to_string().into(),
+            processor_frequency: 2000.into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::MEDIUM, *device.class.value().unwrap());
+    }
+
+    #[test]
+    fn test_apple_high_device_class() {
+        let mut device = DeviceContext {
+            family: "iPhone".to_string().into(),
+            processor_frequency: 3000.into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::HIGH, *device.class.value().unwrap());
+    }
+
+    #[test]
+    fn test_android_no_device_class() {
+        let mut device = DeviceContext {
+            family: "android".to_string().into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(None, device.class.value());
+    }
+
+    #[test]
+    fn test_android_low_device_class() {
+        let mut device = DeviceContext {
+            family: "android".to_string().into(),
+            processor_frequency: 1000.into(),
+            processor_count: 6.into(),
+            memory_size: (2 * GIB).into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::LOW, *device.class.value().unwrap());
+    }
+
+    #[test]
+    fn test_android_medium_device_class() {
+        let mut device = DeviceContext {
+            family: "android".to_string().into(),
+            processor_frequency: 2000.into(),
+            processor_count: 8.into(),
+            memory_size: (6 * GIB).into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::MEDIUM, *device.class.value().unwrap());
+    }
+
+    #[test]
+    fn test_android_high_device_class() {
+        let mut device = DeviceContext {
+            family: "android".to_string().into(),
+            processor_frequency: 2500.into(),
+            processor_count: 8.into(),
+            memory_size: (6 * GIB).into(),
+            ..DeviceContext::default()
+        };
+        normalize_device_context(&mut device);
+        assert_eq!(DeviceClass::HIGH, *device.class.value().unwrap());
     }
 }
