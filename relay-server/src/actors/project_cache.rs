@@ -677,7 +677,7 @@ impl ProjectCacheBroker {
                             .into(),
                     );
                 },
-                || relay_log::error!("envelope pub key and project state pub key do not match"),
+                || relay_log::error!("state is missing pub keys"),
             );
         }
 
