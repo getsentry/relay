@@ -1123,6 +1123,9 @@ pub struct DataElement {
     #[metastructure(pii = "maybe")]
     pub http: Annotated<HttpElement>,
 
+    // Even if it doesn't make sense for users to send PII-sensitive information
+    // here, it may be possible. We always scrub additional fields to ensure no
+    // PII is present there.
     #[metastructure(additional_properties, retain = "true", pii = "true")]
     pub other: Object<Value>,
 }
