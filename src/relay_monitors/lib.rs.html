@@ -102,7 +102,6 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -164,8 +163,7 @@
     </span>check_in_id: Uuid,
 
     <span class="doccomment">/// Identifier of the monitor for this check-in.
-    </span><span class="attr">#[serde(serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
-    </span>monitor_id: Uuid,
+    </span>monitor_slug: String,
 
     <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
     </span>status: CheckInStatus,
@@ -196,7 +194,7 @@
     </span><span class="kw">fn </span>test_json_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-  &quot;monitor_id&quot;: &quot;4dc8556e039245c7bd569f8cf513ea42&quot;,
+  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
   &quot;duration&quot;: 21.0
 }&quot;#</span>;
