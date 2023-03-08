@@ -210,7 +210,7 @@ impl AwsExtension {
             }
             NextEventResponse::Shutdown(response) => {
                 relay_log::debug!("Received SHUTDOWN: reason {}", response.shutdown_reason);
-                Controller::from_registry().do_send(Signal(SignalType::Term));
+                Controller::trigger_shutdown(true);
                 Ok(ControlFlow::Break(()))
             }
         }
