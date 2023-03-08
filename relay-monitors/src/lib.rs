@@ -16,8 +16,12 @@
 )]
 #![warn(missing_docs)]
 
+use once_cell::sync::OnceCell;
+use regex::Regex;
 use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
+
+const SLUG_LENGTH: usize = 50;
 
 /// Error returned from [`process_check_in`].
 #[derive(Debug, thiserror::Error)]
@@ -77,6 +81,23 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
     if check_in.status == CheckInStatus::Missed {
         check_in.status = CheckInStatus::Unknown;
     }
+
+    static SLUG_CLEANER: OnceCell<Regex> = OnceCell::new();
+    let slug_cleaner_regex = SLUG_CLEANER.get_or_init(|| Regex::new(r"[^a-zA-Z0-9\s_-]").unwrap());
+
+    let clean_slug = slug_cleaner_regex
+        .replace_all(check_in.monitor_slug.as_str(), "")
+        .to_lowercase();
+
+    static SLUGIFIER: OnceCell<Regex> = OnceCell::new();
+    let slugifier_regex = SLUGIFIER.get_or_init(|| Regex::new(r"[\s_\-]+").unwrap());
+
+    check_in.monitor_slug = slugifier_regex
+        .replace_all(clean_slug.as_str(), "-")
+        .get(..SLUG_LENGTH)
+        .unwrap_or("")
+        .trim_matches('-')
+        .to_string();
 
     Ok(serde_json::to_vec(&check_in)?)
 }
