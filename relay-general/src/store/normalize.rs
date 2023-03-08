@@ -15,9 +15,9 @@ use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
+    self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, DeviceClass, Event,
+    EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
+    Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -35,6 +35,8 @@ mod spans;
 mod stacktrace;
 
 pub mod user_agent;
+
+const GIB: u64 = 1024 * 1024 * 1024;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -661,6 +663,41 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
     logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
+// Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high, medium, or low.
+fn normalize_device_class(event: &mut Event) {
+    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    let tag_name = "device.class".to_string();
+    if let Some(ref mut contexts) = event.contexts.value_mut() {
+        if let Some(Context::Device(ref mut device)) = contexts.get_context_mut("device") {
+            if let Some(family) = device.family.value() {
+                if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+                    if let Some(processor_frequency) = device.processor_frequency.value() {
+                        if processor_frequency < &2000 {
+                            tags.insert(tag_name, Annotated::new(DeviceClass::LOW.to_string()));
+                        } else if processor_frequency < &3000 {
+                            tags.insert(tag_name, Annotated::new(DeviceClass::MEDIUM.to_string()));
+                        } else {
+                            tags.insert(tag_name, Annotated::new(DeviceClass::HIGH.to_string()));
+                        }
+                    }
+                } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
+                    device.processor_frequency.value(),
+                    device.processor_count.value(),
+                    device.memory_size.value(),
+                ) {
+                    if freq < 2000 || proc < 8 || mem < 4 * GIB {
+                        tags.insert(tag_name, Annotated::new(DeviceClass::LOW.to_string()));
+                    } else if freq < 2500 || mem < 6 * GIB {
+                        tags.insert(tag_name, Annotated::new(DeviceClass::MEDIUM.to_string()));
+                    } else {
+                        tags.insert(tag_name, Annotated::new(DeviceClass::HIGH.to_string()));
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
@@ -738,6 +775,7 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
+        normalize_device_class(event);
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
@@ -995,6 +1033,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
     use serde_json::json;
@@ -1002,8 +1042,8 @@ mod tests {
 
     use crate::processor::process_value;
     use crate::protocol::{
-        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
-        Span, SpanId, TagEntry, TraceId, Values,
+        ContextInner, Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
+        RawStacktrace, Span, SpanId, TagEntry, TraceId, Values,
     };
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
@@ -2496,5 +2536,213 @@ mod tests {
             std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
             "If you add new fields, update the test accordingly"
         );
+    }
+
+    #[test]
+    fn test_no_device_class() {
+        let mut event = Event {
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        let tags = &event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        assert_eq!(None, tags.get("device_class"));
+    }
+
+    #[test]
+    fn test_apple_low_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 1000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apple_medium_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 2000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apple_high_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 3000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_low_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 1000.into(),
+                        processor_count: 6.into(),
+                        memory_size: (2 * GIB).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_medium_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 2000.into(),
+                        processor_count: 8.into(),
+                        memory_size: (6 * GIB).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_high_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 2500.into(),
+                        processor_count: 8.into(),
+                        memory_size: (6 * GIB).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }
