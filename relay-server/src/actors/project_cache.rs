@@ -402,6 +402,9 @@ impl ProjectCacheBroker {
     }
 
     /// Sends the message to [`BufferService`] to dequeue the envelopes.
+    ///
+    /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
+    /// forwarded to `handle_processing`.
     pub fn dequeue(&mut self, partial_key: ProjectKey) {
         let mut result = Vec::new();
         let mut queue_keys = self.index.remove(&partial_key).unwrap_or_default();

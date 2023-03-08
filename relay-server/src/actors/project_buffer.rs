@@ -8,6 +8,11 @@ use relay_system::{FromMessage, Interface, Service};
 use crate::envelope::Envelope;
 use crate::utils::EnvelopeContext;
 
+/// This key represents the index element in the queue.
+///
+/// It consists from two parts, the own key of the project and the sampling key which points to the
+/// sampling project. The sampling key can be the same as the own key if the own and sampling
+/// projects are the same.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueueKey {
     pub own_key: ProjectKey,
@@ -53,6 +58,9 @@ impl DequeueMany {
 }
 
 /// Removes the provided keys from the internal buffer.
+///
+/// If any of the provided keys are still have the envelopes, the error will be logged with the
+/// number of envelopes dropped for the specific project key.
 #[derive(Debug)]
 pub struct RemoveMany {
     project_key: ProjectKey,
@@ -65,7 +73,18 @@ impl RemoveMany {
     }
 }
 
-/// The Interface for [`BufferService`] service.
+/// The envelopes [`BufferService`].
+///
+/// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumilating
+/// till the request to dequeue them again comes in.
+///
+/// To add the envelopes to the buffer use [`Enqueue`] which will persists the envelope in the
+/// internal storage. To retrie the envelopes one can use [`DequeueMany`], where one expected
+/// provide the list of [`QueueKey`]s and the [`mpsc::UnboundedSender`] - all the found envelopes
+/// will be streamed back to this sender.
+///
+/// There is also a [`RemoveMany`] operation, which, when requested, removes the found keys from
+/// the queue and drop them. If the any of the keys still have envelopes, the error will be logged.
 #[derive(Debug)]
 pub enum Buffer {
     Enqueue(Enqueue),
@@ -99,6 +118,7 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+/// In-memory implementation of the [`Buffer`] interface.
 #[derive(Debug)]
 pub struct BufferService {
     /// Contains the cache of the incoming envelopes.
@@ -106,6 +126,7 @@ pub struct BufferService {
 }
 
 impl BufferService {
+    /// Creates a new [`BufferService`].
     pub fn new() -> Self {
         Self {
             buffer: BTreeMap::new(),
@@ -135,6 +156,8 @@ impl BufferService {
     /// Handles the remove request.
     ///
     /// This remove all the envelopes from the internal buffer for the provided keys.
+    /// If any of the provided keys are still have the envelopes, the error will be logged with the
+    /// number of envelopes dropped for the specific project key.
     fn handle_remove(&mut self, message: RemoveMany) {
         let RemoveMany { project_key, keys } = message;
         let mut count = 0;
