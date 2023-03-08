@@ -260,23 +260,18 @@ impl Replay {
     }
 
     fn normalize_array_fields(&mut self) {
-        let new_error_ids = self.error_ids.value_mut().as_mut().map(|items| {
+        if let Some(items) = self.error_ids.value_mut() {
             items.truncate(100);
-            items.to_owned()
-        });
-        self.error_ids.set_value(new_error_ids);
+        }
 
-        let new_trace_ids = self.trace_ids.value_mut().as_mut().map(|items| {
+        if let Some(items) = self.trace_ids.value_mut() {
             items.truncate(100);
-            items.to_owned()
-        });
-        self.trace_ids.set_value(new_trace_ids);
+        }
 
-        let new_urls = self.urls.value_mut().as_mut().map(|items| {
+        if let Some(items) = self.urls.value_mut() {
             items.truncate(100);
-            items.to_owned()
-        });
-        self.urls.set_value(new_urls);
+        }
+
     }
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
