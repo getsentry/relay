@@ -316,7 +316,6 @@ mod tests {
   "supports_gyroscope": true,
   "supports_audio": true,
   "supports_location_service": true,
-  "class": 1,
   "other": "value",
   "type": "device"
 }"#;
