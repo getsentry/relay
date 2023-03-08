@@ -24,6 +24,7 @@
 - Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
 - Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
+- Move the pending envelopes buffering into the project cache. ([#1907](https://github.com/getsentry/relay/pull/1907))
 
 ## 23.2.0
 
