@@ -1033,8 +1033,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
     use serde_json::json;
