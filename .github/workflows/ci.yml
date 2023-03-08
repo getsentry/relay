@@ -301,6 +301,13 @@ jobs:
           workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
           service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
 
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+        with:
+          # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          version: '>= 390.0.0'
+
       - name: Configure docker
         run: |
           gcloud auth configure-docker us.gcr.io
