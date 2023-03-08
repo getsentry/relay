@@ -256,6 +256,27 @@ impl Replay {
         self.normalize_ip_address(client_ip);
         self.normalize_user_agent(user_agent);
         self.normalize_type();
+        self.normalize_array_fields();
+    }
+
+    fn normalize_array_fields(&mut self) {
+        let new_error_ids = self.error_ids.value_mut().as_mut().map(|items| {
+            items.truncate(100);
+            items.to_owned()
+        });
+        self.error_ids.set_value(new_error_ids);
+
+        let new_trace_ids = self.trace_ids.value_mut().as_mut().map(|items| {
+            items.truncate(100);
+            items.to_owned()
+        });
+        self.trace_ids.set_value(new_trace_ids);
+
+        let new_urls = self.urls.value_mut().as_mut().map(|items| {
+            items.truncate(100);
+            items.to_owned()
+        });
+        self.urls.set_value(new_urls);
     }
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
@@ -537,6 +558,35 @@ mod tests {
             .get("credit-card");
 
         assert_eq!(maybe_credit_card, Some("[Filtered]"));
+    }
+
+    #[test]
+    fn test_capped_values() {
+        let urls: Vec<Annotated<String>> = (0..101)
+            .map(|_| Annotated::new("localhost:9000".to_string()))
+            .collect();
+
+        let error_ids: Vec<Annotated<String>> = (0..101)
+            .map(|_| Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()))
+            .collect();
+
+        let trace_ids: Vec<Annotated<String>> = (0..101)
+            .map(|_| Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()))
+            .collect();
+
+        let mut replay = Annotated::new(Replay {
+            urls: Annotated::new(urls),
+            error_ids: Annotated::new(error_ids),
+            trace_ids: Annotated::new(trace_ids),
+            ..Default::default()
+        });
+
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize_array_fields();
+
+        assert!(replay_value.error_ids.value().unwrap().len() == 100);
+        assert!(replay_value.trace_ids.value().unwrap().len() == 100);
+        assert!(replay_value.urls.value().unwrap().len() == 100);
     }
 
     fn simple_enabled_config() -> DataScrubbingConfig {
