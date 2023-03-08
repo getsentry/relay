@@ -29,7 +29,7 @@ impl<'a> PiiProcessor<'a> {
 
     fn apply_all_rules(
         &self,
-        mut meta: Option<&mut Meta>,
+        meta: &mut Meta,
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
@@ -43,7 +43,7 @@ impl<'a> PiiProcessor<'a> {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
-                    apply_rule_to_value(&mut meta, rule, state.path().key(), reborrowed_value)?;
+                    apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
         }
@@ -61,7 +61,7 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ProcessingResult {
         if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut() {
             if self
-                .apply_all_rules(None, state, Some(original_value))
+                .apply_all_rules(&mut Meta::default(), state, Some(original_value))
                 .is_err()
             {
                 meta.set_original_value(Option::<String>::None);
@@ -80,7 +80,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         }
 
         // apply rules based on key/path
-        self.apply_all_rules(Some(meta), state, None)
+        self.apply_all_rules(meta, state, None)
     }
 
     fn process_string(
@@ -95,7 +95,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        self.apply_all_rules(Some(meta), state, Some(value))
+        self.apply_all_rules(meta, state, Some(value))
     }
 
     fn process_native_image_path(
@@ -185,7 +185,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 }
 
 fn apply_rule_to_value(
-    meta: &mut Option<&mut Meta>,
+    meta: &mut Meta,
     rule: &RuleRef,
     key: Option<&str>,
     mut value: Option<&mut String>,
@@ -198,9 +198,7 @@ fn apply_rule_to_value(
     // anything, we can only remove the value (not replace, hash, etc).
     if rule.ty == RuleType::Anything && (value.is_none() || !should_redact_chunks) {
         // The value is a container, @anything on a container can do nothing but delete.
-        if let Some(meta) = meta {
-            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
-        }
+        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
         return Err(ProcessingAction::DeleteValueHard);
     }
 
@@ -223,9 +221,7 @@ fn apply_rule_to_value(
                         // @anything.
                         apply_regex!(&ANYTHING_REGEX, replace_behavior);
                     } else {
-                        if let Some(meta) = meta {
-                            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()))
-                        }
+                        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
                         return Err(ProcessingAction::DeleteValueHard);
                     }
                 } else {

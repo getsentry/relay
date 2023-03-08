@@ -270,7 +270,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
         return;
     }
 
-    process_chunked_value(value, &mut Some(meta), |chunks| {
+    process_chunked_value(value, meta, |chunks| {
         let mut length = 0;
         let mut new_chunks = vec![];
 
