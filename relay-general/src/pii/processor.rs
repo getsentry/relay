@@ -12,6 +12,7 @@ use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
+use crate::types::Value;
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 /// A processor that performs PII stripping.
@@ -59,7 +60,10 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(crate::types::Value::String(original_value)) = meta.original_value_as_mut() {
+        // Also apply pii scrubbing to the original value (set by normalization or other processors),
+        // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
+        // value is returned.
+        if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
             if self
                 .apply_all_rules(&mut Meta::default(), state, Some(original_value))
                 .is_err()
