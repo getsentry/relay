@@ -600,26 +600,6 @@ impl<'a> Path<'a> {
             return false;
         }
 
-        /*
-
-
-         wtf is the selector?
-             some kind of logic with and/or/not that decide if it mathes a path?
-             at the end it recurses down to a vector of seletorpathitems which matches on different
-             things like a type, index, key, or wildcards, or deepwildcards
-
-
-             so what this function does, is that if it doesnt match on a path but one of the selectors,
-             it will recursively call itself until it hits a path.
-
-             why return false if the length of the path vector is longer than the depth?
-
-
-
-
-        */
-        dbg!("oOOoOoOOO");
-        dbg!(selector);
         match *selector {
             SelectorSpec::Path(ref path) => {
                 // fastest path: the selector is deeper than the current structure.

@@ -24,115 +24,10 @@ Event {
     dist: ~,
     environment: ~,
     site: ~,
-    user: User {
-        id: ~,
-        email: ~,
-        ip_address: Meta {
-            remarks: [],
-            errors: [
-                Error {
-                    kind: InvalidData,
-                    data: {
-                        "reason": String(
-                            "expected an ip address",
-                        ),
-                    },
-                },
-            ],
-            original_length: None,
-            original_value: None,
-        },
-        username: Annotated(
-            "hey  man [ip]",
-            Meta {
-                remarks: [
-                    Remark {
-                        ty: Substituted,
-                        rule_id: "@ip:replace",
-                        range: Some(
-                            (
-                                9,
-                                13,
-                            ),
-                        ),
-                    },
-                ],
-                errors: [],
-                original_length: Some(
-                    22,
-                ),
-                original_value: None,
-            },
-        ),
-        name: ~,
-        geo: ~,
-        segment: ~,
-        data: ~,
-        other: {},
-    },
+    user: ~,
     request: ~,
     contexts: ~,
-    breadcrumbs: Values {
-        values: [
-            Breadcrumb {
-                timestamp: ~,
-                ty: ~,
-                category: ~,
-                level: ~,
-                message: Annotated(
-                    "[ip]",
-                    Meta {
-                        remarks: [
-                            Remark {
-                                ty: Substituted,
-                                rule_id: "@ip:replace",
-                                range: Some(
-                                    (
-                                        0,
-                                        4,
-                                    ),
-                                ),
-                            },
-                        ],
-                        errors: [],
-                        original_length: Some(
-                            13,
-                        ),
-                        original_value: None,
-                    },
-                ),
-                data: {
-                    "test_data": Annotated(
-                        String(
-                            "[ip]",
-                        ),
-                        Meta {
-                            remarks: [
-                                Remark {
-                                    ty: Substituted,
-                                    rule_id: "@ip:replace",
-                                    range: Some(
-                                        (
-                                            0,
-                                            4,
-                                        ),
-                                    ),
-                                },
-                            ],
-                            errors: [],
-                            original_length: Some(
-                                13,
-                            ),
-                            original_value: None,
-                        },
-                    ),
-                },
-                event_id: ~,
-                other: {},
-            },
-        ],
-        other: {},
-    },
+    breadcrumbs: ~,
     exceptions: ~,
     stacktrace: ~,
     template: ~,
@@ -140,28 +35,7 @@ Event {
     tags: ~,
     extra: ~,
     debug_meta: ~,
-    client_sdk: ClientSdkInfo {
-        name: ~,
-        version: ~,
-        integrations: ~,
-        packages: ~,
-        client_ip: Meta {
-            remarks: [],
-            errors: [
-                Error {
-                    kind: InvalidData,
-                    data: {
-                        "reason": String(
-                            "expected an ip address",
-                        ),
-                    },
-                },
-            ],
-            original_length: None,
-            original_value: None,
-        },
-        other: {},
-    },
+    client_sdk: ~,
     ingest_path: ~,
     errors: ~,
     key_id: ~,
@@ -169,7 +43,25 @@ Event {
     grouping_config: ~,
     checksum: ~,
     csp: ~,
-    hpkp: ~,
+    hpkp: Meta {
+        remarks: [],
+        errors: [
+            Error {
+                kind: InvalidData,
+                data: {
+                    "reason": String(
+                        "expected hpkp",
+                    ),
+                },
+            },
+        ],
+        original_length: None,
+        original_value: Some(
+            String(
+                "invalid data [ip]",
+            ),
+        ),
+    },
     expectct: ~,
     expectstaple: ~,
     spans: ~,
