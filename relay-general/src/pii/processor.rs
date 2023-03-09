@@ -36,31 +36,17 @@ impl<'a> PiiProcessor<'a> {
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
-        dbg!("omg");
         let pii = state.attrs().pii;
         if pii == Pii::False {
-            dbg!("pii is falsel");
             return Ok(());
         }
-        /*
-
-                   How is the state created anyway?
-
-        */
-
-        dbg!("HEYYYYYYYYYYY");
         for (selector, rules) in self.compiled_config.applications.iter() {
-            dbg!("!@#$!@#$!@1", rules, &value);
             if state.path().matches_selector(selector) {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
                     apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
-            } else {
-                dbg!("@@@@@");
-                dbg!(&state.path(), &value, &rules, selector);
-                dbg!("#####");
             }
         }
 
@@ -81,26 +67,23 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
             if let Some(parent) = state.iter().next() {
-                let mut attrs = FieldAttrs::new();
-                attrs.pii = Pii::True;
+                let attrs = FieldAttrs {
+                    pii: Pii::True,
+                    ..Default::default()
+                };
 
                 let new_state = parent.enter_static(
-                    "foobar",
+                    "",
                     Some(Cow::Owned(attrs)),
                     enumset::enum_set!(ValueType::String),
                 );
 
-                dbg!(&new_state);
-                dbg!(&new_state.attrs());
-                dbg!(&new_state.attrs().pii);
                 if self
                     .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
                     .is_err()
                 {
-                    dbg!("antifuck");
                     meta.set_original_value(Option::<String>::None);
                 }
-                dbg!("fuck");
             }
         }
 
@@ -475,8 +458,6 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-
-        dbg!(&data);
 
         //assert_debug_snapshot!(&data);
     }
