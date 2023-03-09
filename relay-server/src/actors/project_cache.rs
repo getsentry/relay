@@ -15,6 +15,9 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
+use crate::actors::project_buffer::{
+    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
@@ -372,86 +375,6 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-struct QueueKey {
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-}
-
-impl QueueKey {
-    fn new(own_key: ProjectKey, sampling_key: ProjectKey) -> Self {
-        Self {
-            own_key,
-            sampling_key,
-        }
-    }
-}
-
-/// The queue (buffer) of the incoming envelopes.
-#[derive(Debug, Default)]
-struct Queue {
-    /// Contains the cache of the incoming envelopes.
-    buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
-    /// Index of the buffered project keys.
-    index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
-}
-
-impl Queue {
-    /// Creates an empty queue.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Adds the value to the queue for the provided key.
-    pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
-        self.index.entry(key.own_key).or_default().insert(key);
-        self.index.entry(key.sampling_key).or_default().insert(key);
-        self.buffer.entry(key).or_default().push(value);
-    }
-
-    /// Returns the list of buffered envelopes if they satisfy a predicate.
-    pub fn dequeue<P>(
-        &mut self,
-        partial_key: &ProjectKey,
-        predicate: P,
-    ) -> Vec<(Box<Envelope>, EnvelopeContext)>
-    where
-        P: Fn(&QueueKey) -> bool,
-    {
-        let mut result = Vec::new();
-
-        let mut queue_keys = self.index.remove(partial_key).unwrap_or_default();
-        let mut index = BTreeSet::new();
-
-        while let Some(queue_key) = queue_keys.pop_first() {
-            // Find those keys which match predicates and return keys into the index, where
-            // predicate is failing.
-            if predicate(&queue_key) {
-                if let Some(envelopes) = self.buffer.remove(&queue_key) {
-                    result.extend(envelopes);
-                }
-            } else {
-                index.insert(queue_key);
-            }
-        }
-
-        if !index.is_empty() {
-            self.index.insert(*partial_key, index);
-        }
-
-        result
-    }
-}
-
-impl Drop for Queue {
-    fn drop(&mut self) {
-        let count: usize = self.buffer.values().map(|v| v.len()).sum();
-        if count > 0 {
-            relay_log::error!("dropped queue with {} envelopes", count);
-        }
-    }
-}
-
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -459,15 +382,66 @@ impl Drop for Queue {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    // need hashbrown because drain_filter is not stable in std yet
+    // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    pending_envelopes: Queue,
+    /// Index of the buffered project keys.
+    buffer_tx: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
+    index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
+    buffer: Addr<Buffer>,
 }
 
 impl ProjectCacheBroker {
+    /// Adds the value to the queue for the provided key.
+    pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
+        self.index.entry(key.own_key).or_default().insert(key);
+        self.index.entry(key.sampling_key).or_default().insert(key);
+        self.buffer.send(Enqueue::new(key, value));
+    }
+
+    /// Sends the message to [`BufferService`] to dequeue the envelopes.
+    ///
+    /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
+    /// forwarded to `handle_processing`.
+    pub fn dequeue(&mut self, partial_key: ProjectKey) {
+        let mut result = Vec::new();
+        let mut queue_keys = self.index.remove(&partial_key).unwrap_or_default();
+        let mut index = BTreeSet::new();
+
+        while let Some(queue_key) = queue_keys.pop_first() {
+            // We only have to check `other_key`, because we already know that the `partial_key`s `state`
+            // is valid and loaded.
+            let other_key = if queue_key.own_key == partial_key {
+                queue_key.sampling_key
+            } else {
+                queue_key.own_key
+            };
+
+            if self
+                .projects
+                .get(&other_key)
+                // Make sure we have only cached and valid state.
+                .and_then(|p| p.valid_state())
+                .map_or(false, |s| !s.invalid())
+            {
+                result.push(queue_key);
+            } else {
+                index.insert(queue_key);
+            }
+        }
+
+        if !index.is_empty() {
+            self.index.insert(partial_key, index);
+        }
+
+        if !result.is_empty() {
+            self.buffer
+                .send(DequeueMany::new(result, self.buffer_tx.clone()))
+        }
+    }
+
     /// Evict projects that are over its expiry date.
     ///
     /// Ideally, we would use `check_expiry` to determine expiry here.
@@ -485,14 +459,8 @@ impl ProjectCacheBroker {
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
         for (project_key, project) in expired {
-            // Dequeue all the envelopes linked to the disposable project, which will be dropped
-            // once this for loop exits with an `Invalid(Internal)` outcome.
-            let envelopes = self.pending_envelopes.dequeue(&project_key, |_| true);
-            if !envelopes.is_empty() {
-                relay_log::with_scope(
-                    |scope| scope.set_tag("project_key", project_key),
-                    || relay_log::error!("evicted project with {} envelopes", envelopes.len()),
-                );
+            if let Some(keys) = self.index.remove(&project_key) {
+                self.buffer.send(RemoveMany::new(project_key, keys))
             }
 
             self.garbage_disposal.dispose(project);
@@ -525,8 +493,8 @@ impl ProjectCacheBroker {
 
     /// Updates the [`Project`] with received [`ProjectState`].
     ///
-    /// If the project state is valid, the internal `pending_envelopes` queue is also checked if
-    /// there are any envelopes buffered for this specific project, which could be processed now.
+    /// If the project state is valid we also send the message to [`BufferService`] to dequeue the
+    /// envelopes for this project.
     fn merge_state(&mut self, message: UpdateProjectState) {
         let UpdateProjectState {
             project_key,
@@ -537,31 +505,8 @@ impl ProjectCacheBroker {
         self.get_or_create_project(project_key)
             .update_state(state.clone(), no_cache);
 
-        // Envelopes need to remain in the queue while Relay receives invalid states from upstream.
-        if state.invalid() {
-            return;
-        }
-
-        let envelopes = self.pending_envelopes.dequeue(&project_key, |queue_key| {
-            let partial_key = if queue_key.own_key == project_key {
-                queue_key.sampling_key
-            } else {
-                queue_key.own_key
-            };
-
-            // We return false if project is not cached or its state is invalid, true otherwise.
-            // We only have to check `partial_key`, because we already know that the `project_key`s `state`
-            // is valid and loaded.
-            self.projects
-                .get(&partial_key)
-                // Make sure we have only cached and valid state.
-                .and_then(|p| p.valid_state())
-                .map_or(false, |s| !s.invalid())
-        });
-
-        // Flush envelopes where both states have resolved.
-        for (envelope, envelope_context) in envelopes {
-            self.handle_processing(envelope, envelope_context);
+        if !state.invalid() {
+            self.dequeue(project_key);
         }
     }
 
@@ -715,7 +660,7 @@ impl ProjectCacheBroker {
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
-        self.pending_envelopes.enqueue(key, (envelope, context));
+        self.enqueue(key, (envelope, context));
     }
 
     fn handle_rate_limits(&mut self, message: UpdateRateLimits) {
@@ -786,6 +731,9 @@ impl Service for ProjectCacheService {
             // Channel for async project state responses back into the project cache.
             let (state_tx, mut state_rx) = mpsc::unbounded_channel();
 
+            // Channel for envelope buffering.
+            let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
@@ -794,7 +742,9 @@ impl Service for ProjectCacheService {
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, redis),
                 state_tx,
-                pending_envelopes: Queue::new(),
+                buffer_tx,
+                index: Default::default(),
+                buffer: BufferService::new().start(),
             };
 
             loop {
@@ -802,6 +752,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = state_rx.recv() => broker.merge_state(message),
+                    Some((envelope, context)) = buffer_rx.recv() => broker.handle_processing(envelope, context),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
