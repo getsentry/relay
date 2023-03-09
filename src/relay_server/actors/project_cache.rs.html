@@ -784,55 +784,6 @@
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
-<a href="#807" id="807">807</a>
-<a href="#808" id="808">808</a>
-<a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a>
-<a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
-<a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
-<a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a>
-<a href="#832" id="832">832</a>
-<a href="#833" id="833">833</a>
-<a href="#834" id="834">834</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -850,6 +801,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_buffer::{
+    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
@@ -1207,86 +1161,6 @@
     </span>no_cache: bool,
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-</span><span class="kw">struct </span>QueueKey {
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-}
-
-<span class="kw">impl </span>QueueKey {
-    <span class="kw">fn </span>new(own_key: ProjectKey, sampling_key: ProjectKey) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            own_key,
-            sampling_key,
-        }
-    }
-}
-
-<span class="doccomment">/// The queue (buffer) of the incoming envelopes.
-</span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">struct </span>Queue {
-    <span class="doccomment">/// Contains the cache of the incoming envelopes.
-    </span>buffer: BTreeMap&lt;QueueKey, Vec&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;&gt;,
-    <span class="doccomment">/// Index of the buffered project keys.
-    </span>index: BTreeMap&lt;ProjectKey, BTreeSet&lt;QueueKey&gt;&gt;,
-}
-
-<span class="kw">impl </span>Queue {
-    <span class="doccomment">/// Creates an empty queue.
-    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::default()
-    }
-
-    <span class="doccomment">/// Adds the value to the queue for the provided key.
-    </span><span class="kw">pub fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, value: (Box&lt;Envelope&gt;, EnvelopeContext)) {
-        <span class="self">self</span>.index.entry(key.own_key).or_default().insert(key);
-        <span class="self">self</span>.index.entry(key.sampling_key).or_default().insert(key);
-        <span class="self">self</span>.buffer.entry(key).or_default().push(value);
-    }
-
-    <span class="doccomment">/// Returns the list of buffered envelopes if they satisfy a predicate.
-    </span><span class="kw">pub fn </span>dequeue&lt;P&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        partial_key: <span class="kw-2">&amp;</span>ProjectKey,
-        predicate: P,
-    ) -&gt; Vec&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;
-    <span class="kw">where
-        </span>P: Fn(<span class="kw-2">&amp;</span>QueueKey) -&gt; bool,
-    {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::new();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>queue_keys = <span class="self">self</span>.index.remove(partial_key).unwrap_or_default();
-        <span class="kw">let </span><span class="kw-2">mut </span>index = BTreeSet::new();
-
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(queue_key) = queue_keys.pop_first() {
-            <span class="comment">// Find those keys which match predicates and return keys into the index, where
-            // predicate is failing.
-            </span><span class="kw">if </span>predicate(<span class="kw-2">&amp;</span>queue_key) {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(envelopes) = <span class="self">self</span>.buffer.remove(<span class="kw-2">&amp;</span>queue_key) {
-                    result.extend(envelopes);
-                }
-            } <span class="kw">else </span>{
-                index.insert(queue_key);
-            }
-        }
-
-        <span class="kw">if </span>!index.is_empty() {
-            <span class="self">self</span>.index.insert(<span class="kw-2">*</span>partial_key, index);
-        }
-
-        result
-    }
-}
-
-<span class="kw">impl </span>Drop <span class="kw">for </span>Queue {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>count: usize = <span class="self">self</span>.buffer.values().map(|v| v.len()).sum();
-        <span class="kw">if </span>count &gt; <span class="number">0 </span>{
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped queue with {} envelopes&quot;</span>, count);
-        }
-    }
-}
-
 <span class="doccomment">/// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -1294,15 +1168,66 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
-    <span class="comment">// need hashbrown because drain_filter is not stable in std yet
+    <span class="comment">// Need hashbrown because drain_filter is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
-    pending_envelopes: Queue,
+    <span class="doccomment">/// Index of the buffered project keys.
+    </span>buffer_tx: mpsc::UnboundedSender&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
+    index: BTreeMap&lt;ProjectKey, BTreeSet&lt;QueueKey&gt;&gt;,
+    buffer: Addr&lt;Buffer&gt;,
 }
 
 <span class="kw">impl </span>ProjectCacheBroker {
+    <span class="doccomment">/// Adds the value to the queue for the provided key.
+    </span><span class="kw">pub fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, value: (Box&lt;Envelope&gt;, EnvelopeContext)) {
+        <span class="self">self</span>.index.entry(key.own_key).or_default().insert(key);
+        <span class="self">self</span>.index.entry(key.sampling_key).or_default().insert(key);
+        <span class="self">self</span>.buffer.send(Enqueue::new(key, value));
+    }
+
+    <span class="doccomment">/// Sends the message to [`BufferService`] to dequeue the envelopes.
+    ///
+    /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
+    /// forwarded to `handle_processing`.
+    </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partial_key: ProjectKey) {
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>queue_keys = <span class="self">self</span>.index.remove(<span class="kw-2">&amp;</span>partial_key).unwrap_or_default();
+        <span class="kw">let </span><span class="kw-2">mut </span>index = BTreeSet::new();
+
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(queue_key) = queue_keys.pop_first() {
+            <span class="comment">// We only have to check `other_key`, because we already know that the `partial_key`s `state`
+            // is valid and loaded.
+            </span><span class="kw">let </span>other_key = <span class="kw">if </span>queue_key.own_key == partial_key {
+                queue_key.sampling_key
+            } <span class="kw">else </span>{
+                queue_key.own_key
+            };
+
+            <span class="kw">if </span><span class="self">self
+                </span>.projects
+                .get(<span class="kw-2">&amp;</span>other_key)
+                <span class="comment">// Make sure we have only cached and valid state.
+                </span>.and_then(|p| p.valid_state())
+                .map_or(<span class="bool-val">false</span>, |s| !s.invalid())
+            {
+                result.push(queue_key);
+            } <span class="kw">else </span>{
+                index.insert(queue_key);
+            }
+        }
+
+        <span class="kw">if </span>!index.is_empty() {
+            <span class="self">self</span>.index.insert(partial_key, index);
+        }
+
+        <span class="kw">if </span>!result.is_empty() {
+            <span class="self">self</span>.buffer
+                .send(DequeueMany::new(result, <span class="self">self</span>.buffer_tx.clone()))
+        }
+    }
+
     <span class="doccomment">/// Evict projects that are over its expiry date.
     ///
     /// Ideally, we would use `check_expiry` to determine expiry here.
@@ -1320,14 +1245,8 @@
         <span class="comment">// Defer dropping the projects to a dedicated thread:
         </span><span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
         <span class="kw">for </span>(project_key, project) <span class="kw">in </span>expired {
-            <span class="comment">// Dequeue all the envelopes linked to the disposable project, which will be dropped
-            // once this for loop exits with an `Invalid(Internal)` outcome.
-            </span><span class="kw">let </span>envelopes = <span class="self">self</span>.pending_envelopes.dequeue(<span class="kw-2">&amp;</span>project_key, |<span class="kw">_</span>| <span class="bool-val">true</span>);
-            <span class="kw">if </span>!envelopes.is_empty() {
-                relay_log::with_scope(
-                    |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, project_key),
-                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;evicted project with {} envelopes&quot;</span>, envelopes.len()),
-                );
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(keys) = <span class="self">self</span>.index.remove(<span class="kw-2">&amp;</span>project_key) {
+                <span class="self">self</span>.buffer.send(RemoveMany::new(project_key, keys))
             }
 
             <span class="self">self</span>.garbage_disposal.dispose(project);
@@ -1360,8 +1279,8 @@
 
     <span class="doccomment">/// Updates the [`Project`] with received [`ProjectState`].
     ///
-    /// If the project state is valid, the internal `pending_envelopes` queue is also checked if
-    /// there are any envelopes buffered for this specific project, which could be processed now.
+    /// If the project state is valid we also send the message to [`BufferService`] to dequeue the
+    /// envelopes for this project.
     </span><span class="kw">fn </span>merge_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateProjectState) {
         <span class="kw">let </span>UpdateProjectState {
             project_key,
@@ -1372,31 +1291,8 @@
         <span class="self">self</span>.get_or_create_project(project_key)
             .update_state(state.clone(), no_cache);
 
-        <span class="comment">// Envelopes need to remain in the queue while Relay receives invalid states from upstream.
-        </span><span class="kw">if </span>state.invalid() {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">let </span>envelopes = <span class="self">self</span>.pending_envelopes.dequeue(<span class="kw-2">&amp;</span>project_key, |queue_key| {
-            <span class="kw">let </span>partial_key = <span class="kw">if </span>queue_key.own_key == project_key {
-                queue_key.sampling_key
-            } <span class="kw">else </span>{
-                queue_key.own_key
-            };
-
-            <span class="comment">// We return false if project is not cached or its state is invalid, true otherwise.
-            // We only have to check `partial_key`, because we already know that the `project_key`s `state`
-            // is valid and loaded.
-            </span><span class="self">self</span>.projects
-                .get(<span class="kw-2">&amp;</span>partial_key)
-                <span class="comment">// Make sure we have only cached and valid state.
-                </span>.and_then(|p| p.valid_state())
-                .map_or(<span class="bool-val">false</span>, |s| !s.invalid())
-        });
-
-        <span class="comment">// Flush envelopes where both states have resolved.
-        </span><span class="kw">for </span>(envelope, envelope_context) <span class="kw">in </span>envelopes {
-            <span class="self">self</span>.handle_processing(envelope, envelope_context);
+        <span class="kw">if </span>!state.invalid() {
+            <span class="self">self</span>.dequeue(project_key);
         }
     }
 
@@ -1550,7 +1446,7 @@
         }
 
         <span class="kw">let </span>key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
-        <span class="self">self</span>.pending_envelopes.enqueue(key, (envelope, context));
+        <span class="self">self</span>.enqueue(key, (envelope, context));
     }
 
     <span class="kw">fn </span>handle_rate_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateRateLimits) {
@@ -1621,6 +1517,9 @@
             <span class="comment">// Channel for async project state responses back into the project cache.
             </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::unbounded_channel();
 
+            <span class="comment">// Channel for envelope buffering.
+            </span><span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
+
             <span class="comment">// Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             </span><span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
@@ -1629,7 +1528,9 @@
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, redis),
                 state_tx,
-                pending_envelopes: Queue::new(),
+                buffer_tx,
+                index: Default::default(),
+                buffer: BufferService::new().start(),
             };
 
             <span class="kw">loop </span>{
@@ -1637,6 +1538,7 @@
                     biased;
 
                     <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
+                    <span class="prelude-val">Some</span>((envelope, context)) = buffer_rx.recv() =&gt; broker.handle_processing(envelope, context),
                     <span class="kw">_ </span>= ticker.tick() =&gt; broker.evict_stale_project_caches(),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message),
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
