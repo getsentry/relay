@@ -59,8 +59,7 @@ struct CheckIn {
     check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
-    #[serde(serialize_with = "uuid_simple")]
-    monitor_id: Uuid,
+    monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
     status: CheckInStatus,
@@ -91,7 +90,7 @@ mod tests {
     fn test_json_roundtrip() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
-  "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
+  "monitor_slug": "my-monitor",
   "status": "in_progress",
   "duration": 21.0
 }"#;
