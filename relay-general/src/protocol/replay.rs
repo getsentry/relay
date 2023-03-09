@@ -271,7 +271,6 @@ impl Replay {
         if let Some(items) = self.urls.value_mut() {
             items.truncate(100);
         }
-
     }
 
     fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
