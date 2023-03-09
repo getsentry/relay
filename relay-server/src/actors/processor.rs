@@ -2754,7 +2754,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 envelope_context: EnvelopeContext::new(
                     &envelope,
-                    TestSemaphore::new(42).try_acquire().unwrap(),
+                    Some(TestSemaphore::new(42).try_acquire().unwrap()),
                 ),
             };
 

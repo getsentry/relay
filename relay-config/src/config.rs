@@ -732,6 +732,21 @@ impl Default for Http {
     }
 }
 
+fn default_persistent_buffer_path() -> PathBuf {
+    PathBuf::from("envelope-buffer.db")
+}
+
+/// Controls internal caching behavior.
+#[derive(Serialize, Deserialize, Debug)]
+struct PersistentBuffer {
+    /// True if the Relay should persist the incoming envelopes to the disk in case they cannot be
+    /// processed right away.
+    enabled: bool,
+    /// The path to the persistent buffer file.
+    #[serde(default = "default_persistent_buffer_path")]
+    path: PathBuf,
+}
+
 /// Controls internal caching behavior.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -765,6 +780,11 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
+    /// The settings to configure persistent buffering.
+    ///
+    /// When enabled all the incoming envelope will be persisted to the disk instead of keeping
+    /// them in memory.
+    persistent_envelope_buffer: Option<PersistentBuffer>,
 }
 
 impl Default for Cache {
@@ -780,6 +800,7 @@ impl Default for Cache {
             batch_size: 500,
             file_interval: 10,     // 10 seconds
             eviction_interval: 60, // 60 seconds
+            persistent_envelope_buffer: None,
         }
     }
 }
@@ -1670,6 +1691,24 @@ impl Config {
     /// memory when expired.
     pub fn cache_eviction_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.eviction_interval.into())
+    }
+
+    /// Returns `true` if the persistent envelope buffer is enabled, `false` otherwise.
+    pub fn cache_persistent_buffer_enabled(&self) -> bool {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map_or(false, |b| b.enabled)
+    }
+
+    /// Returns the path to the persistent envelope buffer file.
+    pub fn cache_persistent_buffer_path(&self) -> PathBuf {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map_or(default_persistent_buffer_path(), |b| b.path.clone())
     }
 
     /// Returns the maximum size of an event payload in bytes.

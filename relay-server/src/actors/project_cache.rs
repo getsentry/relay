@@ -6,6 +6,7 @@ use tokio::time::Instant;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
+use relay_log::LogError;
 use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -16,7 +17,7 @@ use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_buffer::{
-    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+    Buffer, DequeueMany, Enqueue, MemoryBufferService, QueueKey, RemoveMany, SqliteBufferService,
 };
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
@@ -733,6 +734,23 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+            let buffer = if config.cache_persistent_buffer_enabled() {
+                match SqliteBufferService::from_path(config.cache_persistent_buffer_path()).await {
+                    Ok(buf) => buf.start(),
+
+                    // TODO: how to propagate this error to the entire rely and stop it?
+                    // Should this panic? But this will only kill the service and not the relay.
+                    Err(err) => {
+                        relay_log::error!(
+                            "failed to start SqliteBufferService: {}",
+                            LogError(&err)
+                        );
+                        return;
+                    }
+                }
+            } else {
+                MemoryBufferService::new().start()
+            };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
@@ -743,8 +761,8 @@ impl Service for ProjectCacheService {
                 source: ProjectSource::start(config, redis),
                 state_tx,
                 buffer_tx,
-                index: Default::default(),
-                buffer: BufferService::new().start(),
+                index: BTreeMap::new(),
+                buffer,
             };
 
             loop {

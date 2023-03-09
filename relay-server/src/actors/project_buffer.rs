@@ -1,12 +1,35 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
+use futures::TryStreamExt;
+use sqlx::migrate::MigrateError;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::{Pool, Row, Sqlite};
 use tokio::sync::mpsc;
 
 use relay_common::ProjectKey;
+use relay_log::LogError;
 use relay_system::{FromMessage, Interface, Service};
 
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, EnvelopeError};
 use crate::utils::EnvelopeContext;
+
+/// The set of errors which can happend while working the the buffer.
+#[derive(Debug, thiserror::Error)]
+pub enum BufferError {
+    /// Describes the errors linked with the `Sqlite` backed buffer.
+    #[error("failed to fetch data from the database")]
+    DatabaseError(#[from] sqlx::Error),
+
+    #[error(transparent)]
+    EnvelopeError(#[from] EnvelopeError),
+
+    #[error("failed to run migrations")]
+    MigrationFailed(#[from] MigrateError),
+
+    #[error("failed to read the migrations directory")]
+    MissingMigrations,
+}
 
 /// This key represents the index element in the queue.
 ///
@@ -120,12 +143,12 @@ impl FromMessage<RemoveMany> for Buffer {
 
 /// In-memory implementation of the [`Buffer`] interface.
 #[derive(Debug)]
-pub struct BufferService {
+pub struct MemoryBufferService {
     /// Contains the cache of the incoming envelopes.
     buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
 }
 
-impl BufferService {
+impl MemoryBufferService {
     /// Creates a new [`BufferService`].
     pub fn new() -> Self {
         Self {
@@ -182,7 +205,7 @@ impl BufferService {
     }
 }
 
-impl Service for BufferService {
+impl Service for MemoryBufferService {
     type Interface = Buffer;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
@@ -194,11 +217,129 @@ impl Service for BufferService {
     }
 }
 
-impl Drop for BufferService {
+impl Drop for MemoryBufferService {
     fn drop(&mut self) {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
         if count > 0 {
             relay_log::error!("dropped queue with {} envelopes", count);
         }
+    }
+}
+
+/// [`Buffer`] interface implementation backed by SQLite.
+#[derive(Debug)]
+pub struct SqliteBufferService {
+    db: Pool<Sqlite>,
+}
+
+impl SqliteBufferService {
+    /// Creates a new [`SqliteBufferService`] from the provide path to the sqlite database file.
+    pub async fn from_path(path: PathBuf) -> Result<Self, BufferError> {
+        let options = SqliteConnectOptions::new()
+            .filename(PathBuf::from("sqlite://").join(path))
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(true);
+
+        let db = SqlitePoolOptions::new().connect_with(options).await?;
+        Ok(Self { db })
+    }
+
+    /// Handles the enqueueing messages into the internal buffer.
+    async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
+        let Enqueue {
+            key,
+            value: (envelope, mut envelope_context),
+        } = message;
+
+        let envelope_bytes = envelope.to_vec()?;
+        sqlx::query("INSERT INTO envelopes (own_key, sampling_key, envelope) VALUES (?, ?, ?)")
+            .bind(key.own_key.to_string())
+            .bind(key.sampling_key.to_string())
+            .bind(envelope_bytes)
+            .execute(&self.db)
+            .await?;
+
+        envelope_context.spool();
+        Ok(())
+    }
+
+    /// Handles the dequeueing messages from the internal buffer.
+    ///
+    /// This method removes the envelopes from the buffer and stream them to the sender.
+    async fn handle_dequeue(&self, message: DequeueMany) -> Result<(), BufferError> {
+        let DequeueMany { keys, sender } = message;
+
+        for key in keys {
+            let mut envelopes = sqlx::query(
+                "DELETE FROM envelopes WHERE own_key = ? AND sampling_key = ? RETURNING envelope",
+            )
+            .bind(key.own_key.to_string())
+            .bind(key.sampling_key.to_string())
+            .fetch(&self.db);
+
+            while let Some(row) = envelopes.try_next().await? {
+                let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
+                let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
+                let envelope = Envelope::parse_bytes(envelope_bytes)?;
+                // TODO: issue a permit here as well?
+                let context = EnvelopeContext::new(&envelope, None);
+                sender.send((envelope, context)).ok();
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handles the remove request.
+    ///
+    /// This remove all the envelopes from the internal buffer for the provided keys.
+    /// If any of the provided keys are still have the envelopes, the error will be logged with the
+    /// number of envelopes dropped for the specific project key.
+    async fn handle_remove(&self, message: RemoveMany) -> Result<(), BufferError> {
+        let RemoveMany { project_key, keys } = message;
+
+        let mut count = 0;
+        for key in keys {
+            let result =
+                sqlx::query("DELETE FROM envelopes where own_key = ? AND sampling_key = ?")
+                    .bind(key.own_key.to_string())
+                    .bind(key.sampling_key.to_string())
+                    .execute(&self.db)
+                    .await?;
+
+            count += result.rows_affected();
+        }
+
+        if count > 0 {
+            relay_log::with_scope(
+                |scope| scope.set_tag("project_key", project_key),
+                || relay_log::error!("evicted project with {} envelopes", count),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Handles all the incoming messages from the [`Buffer`] interface.
+    async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
+        match message {
+            Buffer::Enqueue(message) => self.handle_enqueue(message).await,
+            Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
+            Buffer::RemoveMany(message) => self.handle_remove(message).await,
+        }
+    }
+}
+
+impl Service for SqliteBufferService {
+    type Interface = Buffer;
+
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                if let Err(err) = self.handle_message(message).await {
+                    relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
+                }
+            }
+        });
     }
 }

@@ -238,10 +238,19 @@ def get_response(relay, packed, signature):
     return data
 
 
-def test_unparsable_project_config(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "cache_enabled",
+    [False, True],
+)
+def test_unparsable_project_config(cache_enabled, mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2},
+        "cache": {
+            "project_expiry": 2,
+            "project_grace_period": 20,
+            "miss_expiry": 2,
+            "persistent_envelope_buffer": {"enabled": cache_enabled},
+        },
         "http": {"max_retry_interval": 1},
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)

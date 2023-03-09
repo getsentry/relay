@@ -69,6 +69,7 @@ pub struct EnvelopeContext {
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
     done: bool,
+    spooled: bool,
 }
 
 impl EnvelopeContext {
@@ -84,6 +85,7 @@ impl EnvelopeContext {
             scoping: meta.get_partial_scoping(),
             slot,
             done: false,
+            spooled: false,
         }
     }
 
@@ -99,8 +101,8 @@ impl EnvelopeContext {
     /// Computes an envelope context from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`EnvelopeContext::scope`].
-    pub fn new(envelope: &Envelope, slot: SemaphorePermit) -> Self {
-        Self::new_internal(envelope, Some(slot))
+    pub fn new(envelope: &Envelope, slot: Option<SemaphorePermit>) -> Self {
+        Self::new_internal(envelope, slot)
     }
 
     /// Update the context with new envelope information.
@@ -241,10 +243,19 @@ impl EnvelopeContext {
 
         self.done = true;
     }
+
+    /// Marks this context as spooled, meaning that the envelope that this context belongs to was
+    /// bufered.
+    pub fn spool(&mut self) {
+        self.slot.take();
+        self.spooled = true;
+    }
 }
 
 impl Drop for EnvelopeContext {
     fn drop(&mut self) {
-        self.reject(Outcome::Invalid(DiscardReason::Internal));
+        if !self.spooled {
+            self.reject(Outcome::Invalid(DiscardReason::Internal));
+        }
     }
 }
