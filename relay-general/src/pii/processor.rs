@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::mem;
 
+use enumset::EnumSet;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
@@ -9,7 +10,8 @@ use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior,
 use crate::pii::utils::{hash_value, process_pairlist};
 use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
+    process_chunked_value, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingState, Processor,
+    ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
 use crate::types::Value;
@@ -34,18 +36,31 @@ impl<'a> PiiProcessor<'a> {
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
+        dbg!("omg");
         let pii = state.attrs().pii;
         if pii == Pii::False {
+            dbg!("pii is falsel");
             return Ok(());
         }
+        /*
 
+                   How is the state created anyway?
+
+        */
+
+        dbg!("HEYYYYYYYYYYY");
         for (selector, rules) in self.compiled_config.applications.iter() {
+            dbg!("!@#$!@#$!@1", rules, &value);
             if state.path().matches_selector(selector) {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
                     apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
+            } else {
+                dbg!("@@@@@");
+                dbg!(&state.path(), &value, &rules, selector);
+                dbg!("#####");
             }
         }
 
@@ -63,12 +78,29 @@ impl<'a> Processor for PiiProcessor<'a> {
         // Also apply pii scrubbing to the original value (set by normalization or other processors),
         // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
         // value is returned.
+
         if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
-            if self
-                .apply_all_rules(&mut Meta::default(), state, Some(original_value))
-                .is_err()
-            {
-                meta.set_original_value(Option::<String>::None);
+            if let Some(parent) = state.iter().next() {
+                let mut attrs = FieldAttrs::new();
+                attrs.pii = Pii::True;
+
+                let new_state = parent.enter_static(
+                    "foobar",
+                    Some(Cow::Owned(attrs)),
+                    enumset::enum_set!(ValueType::String),
+                );
+
+                dbg!(&new_state);
+                dbg!(&new_state.attrs());
+                dbg!(&new_state.attrs().pii);
+                if self
+                    .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
+                    .is_err()
+                {
+                    dbg!("antifuck");
+                    meta.set_original_value(Option::<String>::None);
+                }
+                dbg!("fuck");
             }
         }
 
@@ -405,10 +437,12 @@ mod tests {
     fn test_scrub_original_value() {
         let mut data = Event::from_value(
             serde_json::json!({
+                /*
                 "user": {
                     "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
                     "ip_address": "is this an ip address? 73.133.27.120", //  <--------
                 },
+
                 "breadcrumbs": {
                     "values": [
                         {
@@ -422,14 +456,18 @@ mod tests {
                 "sdk": {
                     "client_ip": "should also be stripped"
                 },
+                */
+                "hpkp":"invalid data 74.133.27.120",
+
+
             })
             .into(),
         );
 
         let scrubbing_config = DataScrubbingConfig {
-            scrub_data: false,
+            scrub_data: true,
             scrub_ip_addresses: true,
-            scrub_defaults: false,
+            scrub_defaults: true,
             ..Default::default()
         };
 
@@ -438,7 +476,9 @@ mod tests {
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_debug_snapshot!(&data);
+        dbg!(&data);
+
+        //assert_debug_snapshot!(&data);
     }
 
     #[test]

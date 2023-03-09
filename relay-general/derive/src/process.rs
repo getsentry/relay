@@ -187,6 +187,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             where
                 P: crate::processor::Processor,
             {
+                dbg!("@ASDFASDSDFASDFASDFASDFAF");
                 match *self {
                     #process_child_values_arms
                 }

@@ -73,6 +73,7 @@ impl SelectorPathItem {
     /// `pii` is not the same as `state.attrs().pii`, but rather the PII flag of the state we're
     /// actually trying to match against. `i` is the position of the path item within the path.
     pub(super) fn matches_state(&self, pii: Pii, i: usize, state: &ProcessingState<'_>) -> bool {
+        dbg!(state.value_type().as_u128());
         match (self, pii) {
             (_, Pii::False) => false,
 
@@ -83,7 +84,7 @@ impl SelectorPathItem {
             (SelectorPathItem::DeepWildcard, Pii::True) => true,
             (SelectorPathItem::DeepWildcard, Pii::Maybe) => false,
 
-            (SelectorPathItem::Type(ty), Pii::True) => state.value_type().contains(*ty),
+            (SelectorPathItem::Type(ty), Pii::True) => dbg!(state.value_type().contains(*ty)),
             (SelectorPathItem::Type(ty), Pii::Maybe) => {
                 state.value_type().contains(*ty)
                     && match ty {
