@@ -134,7 +134,6 @@ pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {
     where
         P: Processor,
     {
-        dbg!("hey what am i doing here");
         self.process_child_values(processor, state)
     }
 

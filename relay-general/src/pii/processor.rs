@@ -13,8 +13,7 @@ use crate::processor::{
     ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
-use crate::types::Value;
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
