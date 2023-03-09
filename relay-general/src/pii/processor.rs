@@ -38,6 +38,7 @@ impl<'a> PiiProcessor<'a> {
         if pii == Pii::False {
             return Ok(());
         }
+
         for (selector, rules) in self.compiled_config.applications.iter() {
             if state.path().matches_selector(selector) {
                 #[allow(clippy::needless_option_as_deref)]

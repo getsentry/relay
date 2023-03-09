@@ -83,7 +83,7 @@ impl SelectorPathItem {
             (SelectorPathItem::DeepWildcard, Pii::True) => true,
             (SelectorPathItem::DeepWildcard, Pii::Maybe) => false,
 
-            (SelectorPathItem::Type(ty), Pii::True) => dbg!(state.value_type().contains(*ty)),
+            (SelectorPathItem::Type(ty), Pii::True) => state.value_type().contains(*ty),
             (SelectorPathItem::Type(ty), Pii::Maybe) => {
                 state.value_type().contains(*ty)
                     && match ty {
