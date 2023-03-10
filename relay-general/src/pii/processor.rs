@@ -59,11 +59,10 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // Also apply pii scrubbing to the original value (set by normalization or other processors),
-        // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
-        // value is returned.
-
         if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
+            // Also apply pii scrubbing to the original value (set by normalization or other processors),
+            // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
+            // value is returned.
             if let Some(parent) = state.iter().next() {
                 let path = state.path();
                 let new_state = parent.enter_borrowed(
