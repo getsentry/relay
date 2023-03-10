@@ -75,6 +75,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                     .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
                     .is_err()
                 {
+                    // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
                     meta.set_original_value(Option::<String>::None);
                 }
             }
