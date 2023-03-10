@@ -14,9 +14,7 @@ use super::TransactionNameRule;
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Debug, Default)]
 pub struct TransactionNameConfig<'r> {
-    /// True if identifiers should be erased from the transaction name.
-    ///
-    /// Applies both pattern-based rules and rules discovered by the clusterer.
+    /// True if regex patterns should be applied to erase identifiers from the transaction name.
     pub scrub_identifiers: bool,
     /// True if transaction names scrubbed by regex patterns should be marked as [`TransactionSource::Sanitized`].
     ///
@@ -282,6 +280,7 @@ fn set_default_transaction_source(event: &mut Event) {
 /// Normalize the transaction name.
 ///
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
+/// Returns `Ok(true)` if the name was changed.
 fn scrub_identifiers(transaction: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
         .capture_names()
