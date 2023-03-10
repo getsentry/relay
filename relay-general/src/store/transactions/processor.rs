@@ -456,7 +456,6 @@ mod tests {
 
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
-    use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
@@ -1565,6 +1564,85 @@ mod tests {
         "###);
     }
 
+    #[test]
+    fn test_transaction_name_normalize_mark_as_sanitized() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "int",
+                    "s",
+                    5,
+                    45
+                  ],
+                  [
+                    "int",
+                    "s",
+                    51,
+                    54
+                  ]
+                ],
+                "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+              }
+            }
+          }
+        }
+        "###);
+    }
+
     /// When no identifiers are scrubbed, we should not set an original value in _meta.
     #[test]
     fn test_transaction_name_skip_original_value() {
@@ -1916,22 +1994,6 @@ mod tests {
            }
          }
          "###);
-    }
-
-    #[test]
-    fn test_normalize_transaction_names() {
-        let should_be_replaced = [
-            "/aaa11111-aa11-11a1-a11a-1aaa1111a111",
-            "/1aa111aa-11a1-11aa-a111-a1a11111aa11",
-            "/00a00000-0000-0000-0000-000000000001",
-            "/test/b25feeaa-ed2d-4132-bcbd-6232b7922add/url",
-        ];
-        let replaced = should_be_replaced.map(|s| {
-            let mut s = Annotated::new(s.to_owned());
-            scrub_identifiers(&mut s).unwrap();
-            s.0.unwrap()
-        });
-        assert_debug_snapshot!(replaced);
     }
 
     macro_rules! transaction_name_test {
