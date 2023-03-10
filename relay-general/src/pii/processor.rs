@@ -9,8 +9,7 @@ use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior,
 use crate::pii::utils::{hash_value, process_pairlist};
 use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingState, Processor,
-    ValueType,
+    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
