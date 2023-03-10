@@ -24,7 +24,56 @@ Event {
     dist: ~,
     environment: ~,
     site: ~,
-    user: ~,
+    user: User {
+        id: ~,
+        email: ~,
+        ip_address: Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "expected an ip address",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                String(
+                    "is this an ip address? [ip]",
+                ),
+            ),
+        },
+        username: Annotated(
+            "hey  man [ip]",
+            Meta {
+                remarks: [
+                    Remark {
+                        ty: Substituted,
+                        rule_id: "@ip:replace",
+                        range: Some(
+                            (
+                                9,
+                                13,
+                            ),
+                        ),
+                    },
+                ],
+                errors: [],
+                original_length: Some(
+                    22,
+                ),
+                original_value: None,
+            },
+        ),
+        name: ~,
+        geo: ~,
+        segment: ~,
+        data: ~,
+        other: {},
+    },
     request: ~,
     contexts: ~,
     breadcrumbs: ~,

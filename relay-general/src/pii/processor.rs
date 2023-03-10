@@ -413,6 +413,10 @@ mod tests {
     fn test_scrub_original_value() {
         let mut data = Event::from_value(
             serde_json::json!({
+                "user": {
+                    "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "is this an ip address? 73.133.27.120", //  <--------
+                },
                 "hpkp":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
             })
             .into(),
