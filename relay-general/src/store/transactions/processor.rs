@@ -282,6 +282,11 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
             }
         }
 
+        if caps.is_empty() {
+            // Nothing to do for this transaction.
+            return Ok(());
+        }
+
         // Sort by the capture end position.
         caps.sort_by_key(|(capture, _)| capture.end());
         let mut changed = String::with_capacity(trans.len());
@@ -1524,7 +1529,7 @@ mod tests {
         "###);
     }
 
-    /// When no identifiers are scrubbed, we should not set an original value.
+    /// When no identifiers are scrubbed, we should not set an original value in _meta.
     #[test]
     fn test_transaction_name_skip_original_value() {
         let json = r#"
@@ -1558,33 +1563,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
-        {
-          "type": "transaction",
-          "transaction": "/foo/static/page",
-          "transaction_info": {
-            "source": "url"
-          },
-          "modules": {
-            "rack": "1.2.3"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.ruby"
-          },
-          "spans": [],
-        }
-        "###);
+        assert!(event.meta().is_empty());
     }
 
     #[test]
