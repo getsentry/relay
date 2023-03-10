@@ -66,14 +66,10 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
             if let Some(parent) = state.iter().next() {
-                let attrs = FieldAttrs {
-                    pii: Pii::True,
-                    ..Default::default()
-                };
-
-                let new_state = parent.enter_static(
-                    "",
-                    Some(Cow::Owned(attrs)),
+                let path = state.path();
+                let new_state = parent.enter_borrowed(
+                    path.key().unwrap_or(""),
+                    Some(Cow::Borrowed(state.attrs())),
                     enumset::enum_set!(ValueType::String),
                 );
 
