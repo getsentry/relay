@@ -12,14 +12,14 @@ use smallvec::SmallVec;
 
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
-use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
+use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
     EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
     Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
+use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -671,8 +671,7 @@ pub struct LightNormalizationConfig<'a> {
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
-    pub normalize_transaction_name: bool,
-    pub tx_name_rules: &'a [TransactionNameRule],
+    pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
 }
 
@@ -688,11 +687,9 @@ pub fn light_normalize_event(
         // Validate and normalize transaction
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.normalize_transaction_name,
-            config.tx_name_rules,
-        );
+        // can revert some changes to ProcessingAction)
+        let mut transactions_processor =
+            transactions::TransactionsProcessor::new(&config.transaction_name_config);
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values

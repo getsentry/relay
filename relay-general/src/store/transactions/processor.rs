@@ -11,19 +11,29 @@ use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, 
 
 use super::TransactionNameRule;
 
+/// Configuration around removing high-cardinality parts of URL transactions.
+#[derive(Debug, Default)]
+pub struct TransactionNameConfig<'r> {
+    /// True if identifiers should be erased from the transaction name.
+    ///
+    /// Applies both pattern-based rules and rules discovered by the clusterer.
+    pub scrub_identifiers: bool,
+    /// True if transaction names scrubbed by regex patterns should be marked as [`TransactionSource::Sanitized`].
+    ///
+    /// Transaction names modified by clusterer rules are always marked as such.
+    pub mark_scrubbed_as_sanitized: bool,
+    /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
+    pub rules: &'r [TransactionNameRule],
+}
+
 /// Rejects transactions based on required fields.
-#[derive(Default)]
 pub struct TransactionsProcessor<'r> {
-    normalize_names: bool,
-    tx_name_rules: &'r [TransactionNameRule],
+    name_config: &'r TransactionNameConfig<'r>,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(normalize_names: bool, tx_name_rules: &'r [TransactionNameRule]) -> Self {
-        Self {
-            normalize_names,
-            tx_name_rules,
-        }
+    pub fn new(name_config: &'r TransactionNameConfig<'r>) -> Self {
+        Self { name_config }
     }
 
     /// Applies the rule if any found to the transaction name.
@@ -42,7 +52,7 @@ impl<'r> TransactionsProcessor<'r> {
     ) -> ProcessingResult {
         if let Some(info) = info.as_mut() {
             transaction.apply(|transaction, meta| {
-                let result = self.tx_name_rules.iter().find_map(|rule| {
+                let result = self.name_config.rules.iter().find_map(|rule| {
                     rule.match_and_apply(Cow::Borrowed(transaction), info)
                         .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
                 });
@@ -63,6 +73,19 @@ impl<'r> TransactionsProcessor<'r> {
             })?;
         }
         Ok(())
+    }
+}
+
+impl<'r> Default for TransactionsProcessor<'r> {
+    fn default() -> Self {
+        const NAME_CONFIG: TransactionNameConfig = TransactionNameConfig {
+            scrub_identifiers: false,
+            mark_scrubbed_as_sanitized: false,
+            rules: &[],
+        };
+        Self {
+            name_config: &NAME_CONFIG,
+        }
     }
 }
 
@@ -259,12 +282,13 @@ fn set_default_transaction_source(event: &mut Event) {
 /// Normalize the transaction name.
 ///
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
-fn normalize_transaction_name(transaction: &mut Annotated<String>) -> ProcessingResult {
+fn scrub_identifiers(transaction: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
         .capture_names()
         .flatten()
         .collect::<Vec<_>>();
 
+    let mut did_change = false;
     transaction.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
@@ -301,10 +325,12 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
 
         if !changed.is_empty() && changed != "*" {
             meta.set_original_value(Some(trans.to_string()));
-            *trans = changed
+            *trans = changed;
+            did_change = true;
         }
         Ok(())
-    })
+    })?;
+    Ok(did_change)
 }
 
 impl Processor for TransactionsProcessor<'_> {
@@ -340,9 +366,16 @@ impl Processor for TransactionsProcessor<'_> {
         if matches!(
             event.get_transaction_source(),
             &TransactionSource::Url | &TransactionSource::Sanitized
-        ) && self.normalize_names
+        ) && self.name_config.scrub_identifiers
         {
-            normalize_transaction_name(&mut event.transaction)?;
+            let changed = scrub_identifiers(&mut event.transaction)?;
+            if changed && self.name_config.mark_scrubbed_as_sanitized {
+                let source = &mut event
+                    .transaction_info
+                    .get_or_insert_with(Default::default)
+                    .source;
+                source.set_value(Some(TransactionSource::Sanitized));
+            }
         }
 
         validate_transaction(event)?;
@@ -1474,7 +1507,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(true, &[]),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                scrub_identifiers: true,
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1558,7 +1594,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(true, &[]),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                scrub_identifiers: true,
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1616,7 +1655,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(false, &rules),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                rules: rules.as_ref(),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1669,7 +1711,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(false, &rules),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                rules: rules.as_ref(),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1756,7 +1801,10 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(false, &rules),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                rules: rules.as_ref(),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1820,7 +1868,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(false, &[rule]),
+            &mut TransactionsProcessor::new(&TransactionNameConfig {
+                rules: &[rule],
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1877,7 +1928,7 @@ mod tests {
         ];
         let replaced = should_be_replaced.map(|s| {
             let mut s = Annotated::new(s.to_owned());
-            normalize_transaction_name(&mut s).unwrap();
+            scrub_identifiers(&mut s).unwrap();
             s.0.unwrap()
         });
         assert_debug_snapshot!(replaced);
@@ -1914,7 +1965,10 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(true, &[]),
+                    &mut TransactionsProcessor::new(&TransactionNameConfig {
+                        scrub_identifiers: true,
+                        ..Default::default()
+                    }),
                     ProcessingState::root(),
                 )
                 .unwrap();

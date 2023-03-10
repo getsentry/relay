@@ -30,7 +30,7 @@ use relay_general::protocol::{
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
+use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
@@ -2195,10 +2195,15 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
-            normalize_transaction_name: state
-                .project_state
-                .has_feature(Feature::TransactionNameNormalize),
-            tx_name_rules: &state.project_state.config.tx_name_rules,
+            transaction_name_config: TransactionNameConfig {
+                scrub_identifiers: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameNormalize),
+                mark_scrubbed_as_sanitized: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
+                rules: &state.project_state.config.tx_name_rules,
+            },
 
             is_renormalize: false,
         };
