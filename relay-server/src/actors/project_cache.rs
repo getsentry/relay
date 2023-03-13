@@ -21,6 +21,7 @@ use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::actors::upstream::UpstreamRelay;
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
@@ -294,9 +295,14 @@ struct ProjectSource {
 
 impl ProjectSource {
     /// Starts all project source services in the current runtime.
-    pub fn start(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
+    pub fn start(
+        config: Arc<Config>,
+        upstream_relay: Addr<UpstreamRelay>,
+        _redis: Option<RedisPool>,
+    ) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
+        let upstream_source =
+            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
@@ -380,6 +386,7 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    envelope_processor: Addr<EnvelopeProcessor>,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -616,7 +623,7 @@ impl ProjectCacheBroker {
                 }
             }
 
-            EnvelopeProcessor::from_registry().send(process);
+            self.envelope_processor.send(process);
         }
     }
 
@@ -706,13 +713,25 @@ impl ProjectCacheBroker {
 #[derive(Debug)]
 pub struct ProjectCacheService {
     config: Arc<Config>,
+    envelope_processor: Addr<EnvelopeProcessor>,
+    upstream_relay: Addr<UpstreamRelay>,
     redis: Option<RedisPool>,
 }
 
 impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
-    pub fn new(config: Arc<Config>, redis: Option<RedisPool>) -> Self {
-        Self { config, redis }
+    pub fn new(
+        config: Arc<Config>,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        upstream_relay: Addr<UpstreamRelay>,
+        redis: Option<RedisPool>,
+    ) -> Self {
+        Self {
+            config,
+            envelope_processor,
+            upstream_relay,
+            redis,
+        }
     }
 }
 
@@ -720,7 +739,12 @@ impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let Self { config, redis } = self;
+        let Self {
+            config,
+            redis,
+            envelope_processor,
+            upstream_relay,
+        } = self;
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -736,9 +760,10 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                envelope_processor,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
-                source: ProjectSource::start(config, redis),
+                source: ProjectSource::start(config, upstream_relay, redis),
                 state_tx,
                 buffer_tx,
                 index: Default::default(),
