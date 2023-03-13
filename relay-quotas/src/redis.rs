@@ -1,11 +1,11 @@
 use std::fmt;
 use std::sync::Arc;
 
-use thiserror::Error;
-
 use relay_common::UnixTimestamp;
 use relay_log::protocol::value;
-use relay_redis::{redis::Script, RedisError, RedisPool};
+use relay_redis::redis::Script;
+use relay_redis::{RedisError, RedisPool};
+use thiserror::Error;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -258,12 +258,12 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_common::{ProjectId, ProjectKey};
-    use relay_redis::{redis::Commands, RedisConfigOptions};
-
-    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    use crate::rate_limit::RateLimitScope;
+    use relay_redis::redis::Commands;
+    use relay_redis::RedisConfigOptions;
 
     use super::*;
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::rate_limit::RateLimitScope;
 
     fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")

@@ -108,9 +108,7 @@
 
 use std::cell::RefCell;
 use std::error::Error;
-use std::fmt;
-use std::panic;
-use std::thread;
+use std::{fmt, panic, thread};
 
 pub use relay_ffi_macros::catch_unwind;
 

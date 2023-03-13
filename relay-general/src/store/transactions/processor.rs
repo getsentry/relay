@@ -2,14 +2,13 @@ use std::borrow::Cow;
 
 use relay_common::SpanStatus;
 
+use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
-
-use super::TransactionNameRule;
 
 /// Rejects transactions based on required fields.
 #[derive(Default)]
@@ -426,13 +425,12 @@ mod tests {
     use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::store::LazyGlob;
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
-
-    use super::*;
 
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();

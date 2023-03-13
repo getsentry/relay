@@ -1,6 +1,5 @@
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
-
 use relay_log::LogError;
 use relay_statsd::metric;
 

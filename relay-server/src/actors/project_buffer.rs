@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use tokio::sync::mpsc;
-
 use relay_common::ProjectKey;
 use relay_system::{FromMessage, Interface, Service};
+use tokio::sync::mpsc;
 
 use crate::envelope::Envelope;
 use crate::utils::EnvelopeContext;

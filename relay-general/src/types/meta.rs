@@ -1,7 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use serde::ser::SerializeSeq;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 
 use crate::processor::estimate_size;

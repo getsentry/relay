@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
-use crate::protocol::RawStacktrace;
-use crate::protocol::Stacktrace;
+use crate::protocol::{RawStacktrace, Stacktrace};
 use crate::types::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -138,9 +137,8 @@ pub struct Thread {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::Map;
-
     use super::*;
+    use crate::types::Map;
 
     #[test]
     fn test_thread_id() {

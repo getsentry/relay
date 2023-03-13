@@ -616,16 +616,14 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::collections::BTreeMap;
-
-    use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
+    use smallvec::smallvec;
 
+    use super::*;
     use crate::envelope::{AttachmentType, ContentType};
 
     #[test]

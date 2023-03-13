@@ -7,10 +7,9 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
+use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
 use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
@@ -1000,6 +999,7 @@ mod tests {
     use serde_json::json;
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{
         ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
@@ -1008,8 +1008,6 @@ mod tests {
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
     use crate::user_agent::ClientHints;
-
-    use super::*;
 
     impl Default for NormalizeProcessor<'_> {
         fn default() -> Self {

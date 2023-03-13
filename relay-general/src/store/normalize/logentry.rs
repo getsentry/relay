@@ -84,9 +84,8 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::Object;
-
     use super::*;
+    use crate::types::Object;
 
     #[test]
     fn test_format_python() {

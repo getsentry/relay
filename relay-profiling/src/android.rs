@@ -3,9 +3,8 @@ use std::collections::{HashMap, HashSet};
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
 use data_encoding::BASE64_NOPAD;
-use serde::{Deserialize, Serialize};
-
 use relay_general::protocol::EventId;
+use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::transaction_metadata::TransactionMetadata;

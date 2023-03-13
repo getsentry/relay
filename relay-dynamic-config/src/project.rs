@@ -1,8 +1,5 @@
 use std::collections::BTreeSet;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -10,6 +7,8 @@ use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionName
 use relay_general::types::SpanAttribute;
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::feature::Feature;
 use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};

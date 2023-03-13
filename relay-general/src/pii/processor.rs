@@ -366,6 +366,7 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    use super::*;
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
@@ -374,8 +375,6 @@ mod tests {
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, Object, Value};
-
-    use super::*;
 
     #[test]
     fn test_basic_stripping() {
