@@ -24,6 +24,11 @@ use crate::upstream::UpstreamDescriptor;
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
+static CONFIG_YAML_HEADER: &str = r###"# Please see the relevant documentation.
+# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/
+# All config options: https://docs.sentry.io/product/relay/options/
+"###;
+
 /// Indicates config related errors.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
@@ -194,16 +199,7 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
         match Self::format() {
             ConfigFormat::Yaml => {
-                f.write_all(b"# Please see the relevant documentation:\n")
-                    .unwrap();
-                f.write_all(
-                    b"# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/\n"
-                )
-                .unwrap();
-                f.write_all(
-                    b"# All config options: https://docs.sentry.io/product/relay/options/\n",
-                )
-                .unwrap();
+                f.write_all(CONFIG_HEADER.as_bytes())?;
                 serde_yaml::to_writer(&mut f, self)
                     .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?
             }
