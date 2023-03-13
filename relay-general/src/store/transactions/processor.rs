@@ -12,7 +12,7 @@ use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, 
 use super::TransactionNameRule;
 
 /// Configuration around removing high-cardinality parts of URL transactions.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct TransactionNameConfig<'r> {
     /// True if regex patterns should be applied to erase identifiers from the transaction name.
     pub scrub_identifiers: bool,
@@ -25,12 +25,13 @@ pub struct TransactionNameConfig<'r> {
 }
 
 /// Rejects transactions based on required fields.
+#[derive(Default)]
 pub struct TransactionsProcessor<'r> {
-    name_config: &'r TransactionNameConfig<'r>,
+    name_config: TransactionNameConfig<'r>,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(name_config: &'r TransactionNameConfig<'r>) -> Self {
+    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
         Self { name_config }
     }
 
@@ -71,19 +72,6 @@ impl<'r> TransactionsProcessor<'r> {
             })?;
         }
         Ok(())
-    }
-}
-
-impl<'r> Default for TransactionsProcessor<'r> {
-    fn default() -> Self {
-        const NAME_CONFIG: TransactionNameConfig = TransactionNameConfig {
-            scrub_identifiers: false,
-            mark_scrubbed_as_sanitized: false,
-            rules: &[],
-        };
-        Self {
-            name_config: &NAME_CONFIG,
-        }
     }
 }
 
@@ -1506,7 +1494,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
                 ..Default::default()
             }),
@@ -1593,7 +1581,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
                 ..Default::default()
             }),
@@ -1630,7 +1618,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
                 mark_scrubbed_as_sanitized: true,
                 ..Default::default()
@@ -1733,7 +1721,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1789,7 +1777,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1879,7 +1867,7 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1946,7 +1934,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(&TransactionNameConfig {
+            &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: &[rule],
                 ..Default::default()
             }),
@@ -2043,7 +2031,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(&TransactionNameConfig {
+                    &mut TransactionsProcessor::new(TransactionNameConfig {
                         scrub_identifiers: true,
                         ..Default::default()
                     }),

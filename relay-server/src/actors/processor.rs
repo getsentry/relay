@@ -2209,7 +2209,7 @@ impl EnvelopeProcessorService {
         };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            relay_general::store::light_normalize_event(&mut state.event, &config)
+            relay_general::store::light_normalize_event(&mut state.event, config)
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
 
