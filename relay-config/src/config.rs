@@ -199,7 +199,7 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
         match Self::format() {
             ConfigFormat::Yaml => {
-                f.write_all(CONFIG_HEADER.as_bytes())?;
+                f.write_all(CONFIG_YAML_HEADER.as_bytes())?;
                 serde_yaml::to_writer(&mut f, self)
                     .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?
             }
