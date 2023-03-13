@@ -549,6 +549,11 @@ impl Meta {
         self.0.as_ref().and_then(|x| x.original_value.as_ref())
     }
 
+    /// Returns a mutable reference to the original value, if any.
+    pub fn original_value_as_mut(&mut self) -> Option<&mut Value> {
+        self.0.as_mut().and_then(|x| x.original_value.as_mut())
+    }
+
     /// Sets the original value.
     pub fn set_original_value<T>(&mut self, original_value: Option<T>)
     where
