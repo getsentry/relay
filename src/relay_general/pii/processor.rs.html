@@ -1060,6 +1060,67 @@
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
 <a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::mem;
 
@@ -1074,7 +1135,7 @@
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
-<span class="kw">use </span><span class="kw">crate</span>::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 <span class="doccomment">/// A processor that performs PII stripping.
 </span><span class="kw">pub struct </span>PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -1121,6 +1182,28 @@
         meta: <span class="kw-2">&amp;mut </span>Meta,
         state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
     ) -&gt; ProcessingResult {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(Value::String(original_value)) = meta.original_value_as_mut() {
+            <span class="comment">// Also apply pii scrubbing to the original value (set by normalization or other processors),
+            // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
+            // value is returned.
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = state.iter().next() {
+                <span class="kw">let </span>path = state.path();
+                <span class="kw">let </span>new_state = parent.enter_borrowed(
+                    path.key().unwrap_or(<span class="string">&quot;&quot;</span>),
+                    <span class="prelude-val">Some</span>(Cow::Borrowed(state.attrs())),
+                    <span class="macro">enumset::enum_set!</span>(ValueType::String),
+                );
+
+                <span class="kw">if </span><span class="self">self
+                    </span>.apply_all_rules(<span class="kw-2">&amp;mut </span>Meta::default(), <span class="kw-2">&amp;</span>new_state, <span class="prelude-val">Some</span>(original_value))
+                    .is_err()
+                {
+                    <span class="comment">// `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
+                    </span>meta.set_original_value(<span class="prelude-ty">Option</span>::&lt;String&gt;::None);
+                }
+            }
+        }
+
         <span class="comment">// booleans cannot be PII, and strings are handled in process_string
         </span><span class="kw">if </span>state.value_type().contains(ValueType::Boolean)
             || state.value_type().contains(ValueType::String)
@@ -1425,7 +1508,9 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>std::collections::BTreeMap;
 
     <span class="kw">use </span><span class="kw">crate</span>::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -1435,9 +1520,46 @@
         LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
-    <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
+    <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, FromValue, Object, Value};
 
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">fn </span>to_pii_config(datascrubbing_config: <span class="kw-2">&amp;</span>DataScrubbingConfig) -&gt; <span class="prelude-ty">Option</span>&lt;PiiConfig&gt; {
+        <span class="kw">use </span><span class="kw">crate</span>::pii::convert::to_pii_config <span class="kw">as </span>to_pii_config_impl;
+        <span class="kw">let </span>rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = rv {
+            <span class="kw">let </span>roundtrip: PiiConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>roundtrip, config);
+        }
+        rv
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_scrub_original_value() {
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+            <span class="macro">serde_json::json!</span>({
+                <span class="string">&quot;user&quot;</span>: {
+                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;hey  man 73.133.27.120&quot;</span>, <span class="comment">// should be stripped despite not being &quot;known ip field&quot;
+                    </span><span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;is this an ip address? 73.133.27.120&quot;</span>, <span class="comment">//  &lt;--------
+                </span>},
+                <span class="string">&quot;hpkp&quot;</span>:<span class="string">&quot;invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 &quot;</span>,
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>scrubbing_config = DataScrubbingConfig {
+            scrub_data: <span class="bool-val">true</span>,
+            scrub_ip_addresses: <span class="bool-val">true</span>,
+            scrub_defaults: <span class="bool-val">true</span>,
+            ..Default::default()
+        };
+
+        <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>scrubbing_config).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+
+        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_basic_stripping() {
