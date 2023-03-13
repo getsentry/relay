@@ -96,7 +96,7 @@ impl RemoveMany {
     }
 }
 
-/// The envelopes [`BufferService`].
+/// The envelopes [`MemoryBufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumilating
 /// till the request to dequeue them again comes in.
@@ -149,7 +149,7 @@ pub struct MemoryBufferService {
 }
 
 impl MemoryBufferService {
-    /// Creates a new [`BufferService`].
+    /// Creates a new [`MemoryBufferService`].
     pub fn new() -> Self {
         Self {
             buffer: BTreeMap::new(),

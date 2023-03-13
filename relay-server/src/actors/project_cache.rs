@@ -402,7 +402,7 @@ impl ProjectCacheBroker {
         self.buffer.send(Enqueue::new(key, value));
     }
 
-    /// Sends the message to [`BufferService`] to dequeue the envelopes.
+    /// Sends the message to the buffer service to dequeue the envelopes.
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
     /// forwarded to `handle_processing`.
@@ -494,7 +494,7 @@ impl ProjectCacheBroker {
 
     /// Updates the [`Project`] with received [`ProjectState`].
     ///
-    /// If the project state is valid we also send the message to [`BufferService`] to dequeue the
+    /// If the project state is valid we also send the message to the buffer service to dequeue the
     /// envelopes for this project.
     fn merge_state(&mut self, message: UpdateProjectState) {
         let UpdateProjectState {
