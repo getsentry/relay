@@ -73,10 +73,12 @@ relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
+rmp-serde = "1.1.1"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
+sqlx = { version = "0.6.2", features = ["migrate", "sqlite", "runtime-tokio-native-tls"], default-features=false }
 symbolic-common = { version = "11.1.0", optional = true, default-features=false }
 symbolic-unreal = { version = "11.1.0", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
@@ -85,8 +87,6 @@ tokio = { version = "1.0", features = ["rt-multi-thread", "sync", "macros"] }
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
-sqlx = { version = "0.6.2", features = ["migrate", "sqlite", "runtime-tokio-native-tls"], default-features=false }
-rmp-serde = "1.1.1"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"
