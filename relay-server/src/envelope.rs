@@ -38,13 +38,13 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_common::UnixTimestamp;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use smallvec::SmallVec;
-
 use relay_dynamic_config::ErrorBoundary;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::DynamicSamplingContext;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -1152,9 +1152,9 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_common::ProjectId;
+
+    use super::*;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

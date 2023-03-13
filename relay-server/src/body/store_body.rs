@@ -1,13 +1,13 @@
 use std::borrow::Cow;
 use std::io::{self, ErrorKind, Read};
 
-use actix_web::{error::PayloadError, HttpRequest};
+use actix_web::error::PayloadError;
+use actix_web::HttpRequest;
 use bytes::Bytes;
 use data_encoding::BASE64;
 use flate2::read::ZlibDecoder;
-use url::form_urlencoded;
-
 use relay_statsd::metric;
+use url::form_urlencoded;
 
 use crate::body;
 use crate::statsd::RelayHistograms;

@@ -342,9 +342,10 @@ impl<'a> IntoIterator for &'a RateLimits {
 
 #[cfg(test)]
 mod tests {
+    use smallvec::smallvec;
+
     use super::*;
     use crate::quota::DataCategory;
-    use smallvec::smallvec;
 
     #[test]
     fn test_parse_retry_after() {

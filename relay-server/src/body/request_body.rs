@@ -1,4 +1,5 @@
-use actix_web::{error::PayloadError, HttpRequest};
+use actix_web::error::PayloadError;
+use actix_web::HttpRequest;
 use bytes::Bytes;
 
 use crate::extractors::{Decoder, SharedPayload};

@@ -6,9 +6,8 @@
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use crate::pii::{convert, is_flag_default, PiiConfig};
-
 use super::config::PiiConfigError;
+use crate::pii::{convert, is_flag_default, PiiConfig};
 
 /// Configuration for Sentry's datascrubbing
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

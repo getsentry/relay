@@ -250,9 +250,8 @@ pub fn normalize_context(context: &mut Context) {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::protocol::LenientString;
-
     use super::*;
+    use crate::protocol::LenientString;
 
     #[test]
     fn test_dotnet_framework_48_without_build_id() {

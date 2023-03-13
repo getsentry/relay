@@ -3,9 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
 use relay_log::LogError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;

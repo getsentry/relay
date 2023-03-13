@@ -2,9 +2,8 @@ use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::protocol::FromUserAgentInfo;
-use crate::store;
 use crate::types::{Annotated, Object, Value};
-use crate::user_agent;
+use crate::{store, user_agent};
 
 /// Web browser information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]

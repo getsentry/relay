@@ -1,9 +1,6 @@
 use std::ffi::CStr;
-use std::mem;
 use std::os::raw::c_char;
-use std::ptr;
-use std::slice;
-use std::str;
+use std::{mem, ptr, slice, str};
 
 use relay_common::Uuid;
 

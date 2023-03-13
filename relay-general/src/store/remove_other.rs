@@ -76,11 +76,10 @@ impl Processor for RemoveOtherProcessor {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
     use crate::testutils::get_value;
-
-    use super::*;
 
     #[test]
     fn test_remove_legacy_attributes() {

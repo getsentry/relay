@@ -2,14 +2,13 @@ use std::borrow::Cow;
 
 use relay_common::SpanStatus;
 
+use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
-
-use super::TransactionNameRule;
 
 /// Rejects transactions based on required fields.
 #[derive(Default)]
@@ -282,6 +281,11 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
             }
         }
 
+        if caps.is_empty() {
+            // Nothing to do for this transaction.
+            return Ok(());
+        }
+
         // Sort by the capture end position.
         caps.sort_by_key(|(capture, _)| capture.end());
         let mut changed = String::with_capacity(trans.len());
@@ -421,13 +425,12 @@ mod tests {
     use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::store::LazyGlob;
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
-
-    use super::*;
 
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
@@ -1522,6 +1525,43 @@ mod tests {
           }
         }
         "###);
+    }
+
+    /// When no identifiers are scrubbed, we should not set an original value in _meta.
+    #[test]
+    fn test_transaction_name_skip_original_value() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/static/page",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(true, &[]),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert!(event.meta().is_empty());
     }
 
     #[test]

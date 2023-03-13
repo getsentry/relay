@@ -1,9 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
 use relay_general::protocol::{Addr, EventId};
+use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::Measurement;

@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::ControlFlow;
 
+use relay_system::{Controller, Service, Signal, SignalType};
 use reqwest::{Client, ClientBuilder, StatusCode, Url};
 use serde::Deserialize;
-
-use relay_system::{Controller, Service, Signal, SignalType};
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";

@@ -1,12 +1,10 @@
 use std::borrow::Cow;
-use std::fmt;
-use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
-
-use url::Url;
+use std::{fmt, io};
 
 use relay_common::{Dsn, Scheme};
+use url::Url;
 
 /// Indicates failures in the upstream error api.
 #[derive(Debug, thiserror::Error)]

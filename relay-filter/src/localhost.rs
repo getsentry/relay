@@ -1,7 +1,6 @@
 //! Implements filtering for events originating from the localhost
-use url::Url;
-
 use relay_general::protocol::Event;
+use url::Url;
 
 use crate::{FilterConfig, FilterStatKey};
 
@@ -54,10 +53,10 @@ fn get_url(event: &Event) -> Option<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_general::protocol::{IpAddr, Request, User};
     use relay_general::types::Annotated;
+
+    use super::*;
 
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {

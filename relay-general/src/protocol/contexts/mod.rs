@@ -215,11 +215,10 @@ impl FromValue for Contexts {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
     use crate::types::{Map, Meta, ProcessingResult};
-
-    use super::*;
 
     #[test]
     fn test_other_context_roundtrip() {

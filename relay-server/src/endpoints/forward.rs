@@ -11,16 +11,16 @@ use std::pin::Pin;
 use actix::ResponseFuture;
 use actix_web::error::{ParseError, ResponseError};
 use actix_web::http::header::{self, HeaderName, HeaderValue};
-use actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
+use actix_web::http::uri::PathAndQuery;
+use actix_web::http::{HeaderMap, StatusCode};
 use actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::TryFutureExt;
 use once_cell::sync::Lazy;
-use tokio::sync::oneshot;
-
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;
 use relay_log::LogError;
+use tokio::sync::oneshot;
 
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,

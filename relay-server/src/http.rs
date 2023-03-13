@@ -10,12 +10,10 @@
 ///! logic.
 use std::io;
 
-use serde::de::DeserializeOwned;
-
 use relay_config::HttpEncoding;
-
 #[doc(inline)]
 pub use reqwest::StatusCode;
+use serde::de::DeserializeOwned;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpError {

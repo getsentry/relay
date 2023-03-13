@@ -1,9 +1,7 @@
-use std::fmt;
-use std::str;
+use std::{fmt, str};
 
 use once_cell::sync::OnceCell;
 use regex::Regex;
-
 use relay_common::impl_str_serde;
 
 /// Glob options represent the underlying regex emulating the globs.

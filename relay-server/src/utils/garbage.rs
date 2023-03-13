@@ -60,10 +60,8 @@ impl<T: Send + 'static> GarbageDisposal<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        thread::ThreadId,
-    };
+    use std::sync::{Arc, Mutex};
+    use std::thread::ThreadId;
 
     use super::GarbageDisposal;
 
