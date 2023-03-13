@@ -193,8 +193,20 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?;
 
         match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::to_writer(&mut f, self)
-                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
+            ConfigFormat::Yaml => {
+                f.write_all(b"# Please see the relevant documentation:\n")
+                    .unwrap();
+                f.write_all(
+                    b"# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/\n"
+                )
+                .unwrap();
+                f.write_all(
+                    b"# All config options: https://docs.sentry.io/product/relay/options/\n",
+                )
+                .unwrap();
+                serde_yaml::to_writer(&mut f, self)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?
+            }
             ConfigFormat::Json => serde_json::to_writer_pretty(&mut f, self)
                 .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
         }
