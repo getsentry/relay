@@ -193,9 +193,8 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey};
 
-    use crate::actors::project::{ProjectState, PublicKeyConfig};
-
     use super::load_local_states;
+    use crate::actors::project::{ProjectState, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.
     #[tokio::test]

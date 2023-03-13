@@ -109,10 +109,9 @@ use relay_general::protocol::EventId;
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
-use crate::sample::{parse_sample_profile, Version};
-
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
+use crate::sample::{parse_sample_profile, Version};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]

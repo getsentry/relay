@@ -22,11 +22,12 @@ mod schema;
 mod transactions;
 mod trimming;
 
-pub use self::clock_drift::*;
-pub use self::geo::*;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use transactions::*;
+
+pub use self::clock_drift::*;
+pub use self::geo::*;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]

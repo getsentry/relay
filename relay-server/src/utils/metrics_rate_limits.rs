@@ -1,6 +1,5 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::Utc;
-
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};

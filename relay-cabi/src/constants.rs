@@ -1,6 +1,6 @@
-use crate::core::RelayStr;
-
 pub use relay_common::{DataCategory, EventType, SpanStatus};
+
+use crate::core::RelayStr;
 
 /// Returns the API name of the given `DataCategory`.
 #[no_mangle]

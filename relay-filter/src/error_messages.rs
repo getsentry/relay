@@ -58,11 +58,10 @@ pub fn should_filter(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_general::protocol::{Exception, LogEntry, Values};
     use relay_general::types::Annotated;
 
+    use super::*;
     use crate::GlobPatterns;
 
     #[test]

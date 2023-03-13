@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-
 use relay_config::{Config, RelayMode};
 
 pub fn check_config(config: &Config) -> Result<()> {

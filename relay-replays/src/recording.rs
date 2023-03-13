@@ -17,14 +17,15 @@ use std::fmt;
 use std::io::Read;
 use std::rc::Rc;
 
-use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::bufread::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use once_cell::sync::Lazy;
-use serde::{de, ser, Deserializer};
-use serde_json::value::RawValue;
-
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
+use serde::{de, ser, Deserializer};
+use serde_json::value::RawValue;
 
 use crate::transform::Transform;
 

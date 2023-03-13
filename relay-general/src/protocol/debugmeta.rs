@@ -2,15 +2,13 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
+use enumset::EnumSet;
+use relay_common::Uuid;
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
-
-use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
-
-use relay_common::Uuid;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;
@@ -535,9 +533,8 @@ pub struct DebugMeta {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::Map;
-
     use super::*;
+    use crate::types::Map;
 
     #[test]
     fn test_debug_image_proguard_roundtrip() {

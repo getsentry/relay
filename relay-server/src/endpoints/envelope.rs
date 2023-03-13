@@ -1,9 +1,8 @@
 //! Handles envelope store requests.
 
 use actix_web::{App, HttpRequest, HttpResponse};
-use serde::Serialize;
-
 use relay_general::protocol::EventId;
+use serde::Serialize;
 
 use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};

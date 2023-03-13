@@ -72,9 +72,8 @@ pub struct Exception {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::Map;
-
     use super::*;
+    use crate::types::Map;
 
     #[test]
     fn test_exception_roundtrip() {

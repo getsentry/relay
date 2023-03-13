@@ -7,18 +7,14 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::fmt;
-use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, mem};
 
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
-use relay_system::{Interface, NoResponse};
-use serde::{Deserialize, Serialize};
-
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
@@ -30,7 +26,8 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use serde::{Deserialize, Serialize};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};

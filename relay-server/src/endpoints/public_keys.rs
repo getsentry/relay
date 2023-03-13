@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use actix_web::{actix::MailboxError, App, Error, Json};
+use actix_web::actix::MailboxError;
+use actix_web::{App, Error, Json};
 use futures::{future, TryFutureExt};
 
 use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};

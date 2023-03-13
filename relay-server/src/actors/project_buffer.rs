@@ -2,14 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use futures::TryStreamExt;
+use relay_common::ProjectKey;
+use relay_log::LogError;
+use relay_system::{FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Row, Sqlite};
 use tokio::sync::mpsc;
-
-use relay_common::ProjectKey;
-use relay_log::LogError;
-use relay_system::{FromMessage, Interface, Service};
 
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::utils::EnvelopeContext;

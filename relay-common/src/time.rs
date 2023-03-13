@@ -270,8 +270,9 @@ impl<'de> Deserialize<'de> for UnixTimestamp {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
+
+    use super::*;
 
     #[test]
     fn test_parse_timestamp_int() {

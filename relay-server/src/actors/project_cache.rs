@@ -1,9 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use tokio::sync::mpsc;
-use tokio::time::Instant;
-
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_log::LogError;
@@ -12,6 +9,8 @@ use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
@@ -20,14 +19,13 @@ use crate::actors::project_buffer::{
     Buffer, DequeueMany, Enqueue, MemoryBufferService, QueueKey, RemoveMany, SqliteBufferService,
 };
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+#[cfg(feature = "processing")]
+use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
-
-#[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
