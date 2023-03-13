@@ -385,11 +385,11 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use insta::assert_debug_snapshot;
     use std::collections::BTreeMap;
 
+    use insta::assert_debug_snapshot;
+
+    use super::*;
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{

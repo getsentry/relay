@@ -1,8 +1,7 @@
-use crate::protocol::{Context, ContextInner, Event, Mechanism};
-use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
-
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
+use crate::protocol::{Context, ContextInner, Event, Mechanism};
+use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 fn get_errno_name(errno: i64, os_hint: OsHint) -> Option<&'static str> {
     Some(match os_hint {
@@ -657,9 +656,8 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::SerializableAnnotated;
-
     use super::*;
+    use crate::types::SerializableAnnotated;
 
     #[test]
     fn test_normalize_missing() {

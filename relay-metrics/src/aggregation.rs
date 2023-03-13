@@ -1,22 +1,21 @@
-use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
-use std::fmt;
+use std::collections::hash_map::Entry;
+use std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
-use std::mem;
 use std::time::Duration;
+use std::{fmt, mem};
 
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use tokio::time::Instant;
-
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_log::LogError;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tokio::time::Instant;
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{

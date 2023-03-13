@@ -4,13 +4,12 @@ use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher as _};
-use serde::{Deserialize, Serialize};
-
 #[doc(inline)]
 pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
     UnixTimestamp,
 };
+use serde::{Deserialize, Serialize};
 
 /// Type used for Counter metric
 pub type CounterType = f64;

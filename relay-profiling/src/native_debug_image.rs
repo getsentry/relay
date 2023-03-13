@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use relay_general::protocol::{Addr, DebugId, NativeImagePath};
+use serde::{Deserialize, Serialize};
 
 use crate::utils::deserialize_number_from_string;
 
@@ -31,10 +30,10 @@ pub struct NativeDebugImage {
 
 #[cfg(test)]
 mod tests {
-    use super::NativeDebugImage;
-
     use relay_general::protocol::{Addr, DebugImage, NativeDebugImage as RelayNativeDebugImage};
     use relay_general::types::{Annotated, Map};
+
+    use super::NativeDebugImage;
 
     #[test]
     fn test_native_debug_image_compatibility() {

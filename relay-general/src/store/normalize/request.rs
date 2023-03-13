@@ -191,10 +191,9 @@ pub fn normalize_request(request: &mut Request) -> ProcessingResult {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::protocol::{Cookies, Headers, PairList, Query};
     use crate::types::Object;
-
-    use super::*;
 
     #[test]
     fn test_url_truncation() {

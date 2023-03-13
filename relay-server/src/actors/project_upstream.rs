@@ -1,14 +1,11 @@
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-use tokio::time::Instant;
-
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
@@ -17,6 +14,9 @@ use relay_statsd::metric;
 use relay_system::{
     BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchProjectState;

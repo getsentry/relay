@@ -1,4 +1,5 @@
-use std::{convert::TryFrom, fmt};
+use std::convert::TryFrom;
+use std::fmt;
 
 use globset::GlobBuilder;
 use once_cell::sync::OnceCell;

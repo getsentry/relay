@@ -64,11 +64,10 @@ impl Processor for EmitEventErrors {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Breadcrumb, Values};
     use crate::types::{ErrorKind, Object, Value};
-
-    use super::*;
 
     #[test]
     fn test_no_errors() {

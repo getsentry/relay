@@ -65,9 +65,8 @@ impl CloudResourceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Context;
-
     use super::*;
+    use crate::protocol::Context;
 
     #[test]
     pub(crate) fn test_cloud_resource_context_roundtrip() {

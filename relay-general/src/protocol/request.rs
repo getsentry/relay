@@ -1,12 +1,11 @@
 use std::iter::{FromIterator, IntoIterator};
 
 use cookie::Cookie;
-use url::form_urlencoded;
-
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
+use url::form_urlencoded;
 
 use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Error, FromValue, Object, Value};

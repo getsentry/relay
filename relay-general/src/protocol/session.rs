@@ -2,9 +2,8 @@ use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
 use relay_common::Uuid;
+use serde::{Deserialize, Serialize};
 
 use crate::macros::derive_fromstr_and_display;
 use crate::protocol::utils::null_to_default;

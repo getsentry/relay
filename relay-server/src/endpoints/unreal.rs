@@ -1,5 +1,4 @@
 use actix_web::{App, HttpRequest, HttpResponse};
-
 use relay_general::protocol::EventId;
 
 use crate::body;

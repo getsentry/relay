@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
-use serde::{Deserialize, Serialize};
 
 #[derive(
     Clone,
@@ -232,8 +233,7 @@ impl FromUserAgentInfo for DeviceContext {
 #[cfg(test)]
 mod tests {
     use crate::protocol::contexts::device::DeviceClass;
-    use crate::protocol::{DeviceContext, FromUserAgentInfo};
-    use crate::protocol::{Headers, PairList};
+    use crate::protocol::{DeviceContext, FromUserAgentInfo, Headers, PairList};
     use crate::types::{Annotated, Object, Value};
     use crate::user_agent::RawUserAgentInfo;
 

@@ -1,8 +1,6 @@
-use std::fmt;
-use std::fs;
+use std::{fmt, fs};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{process_value, SelectorSpec};
 use relay_general::protocol::{Event, IpAddr};
