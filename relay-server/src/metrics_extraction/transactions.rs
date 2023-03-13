@@ -7,8 +7,9 @@ use relay_general::protocol::{
 };
 use relay_general::store;
 use relay_general::types::Annotated;
-use relay_metrics::AggregatorConfig;
-use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::{
+    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
+};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::statsd::RelayCounters;
@@ -467,8 +468,6 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
@@ -476,6 +475,8 @@ mod tests {
     };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
+
+    use super::*;
 
     /// Returns an aggregator config that permits every timestamp.
     fn aggregator_config() -> AggregatorConfig {

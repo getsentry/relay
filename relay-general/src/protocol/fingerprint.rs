@@ -118,9 +118,8 @@ impl ProcessValue for Fingerprint {}
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::Meta;
-
     use super::*;
+    use crate::types::Meta;
 
     #[test]
     fn test_fingerprint_string() {

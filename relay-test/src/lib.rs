@@ -30,9 +30,8 @@
 use std::cell::RefCell;
 
 use actix::{System, SystemRunner};
-use futures01::{future, IntoFuture};
-
 pub use actix_web::test::*;
+use futures01::{future, IntoFuture};
 
 thread_local! {
     static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());

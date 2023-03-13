@@ -1,7 +1,6 @@
 use actix_web::{server, App};
 use anyhow::{Context, Result};
 use listenfd::ListenFd;
-
 use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
@@ -90,9 +89,10 @@ where
         config.tls_identity_path(),
         config.tls_identity_password(),
     ) {
-        use native_tls::{Identity, TlsAcceptor};
         use std::fs::File;
         use std::io::Read;
+
+        use native_tls::{Identity, TlsAcceptor};
 
         let mut file = File::open(path).unwrap();
         let mut data = vec![];

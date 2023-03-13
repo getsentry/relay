@@ -1,5 +1,4 @@
 use enumset::EnumSet;
-
 use relay_common::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};

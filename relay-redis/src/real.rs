@@ -1,12 +1,11 @@
 use std::fmt;
 
 use r2d2::{Pool, PooledConnection};
+pub use redis;
 use redis::ConnectionLike;
 use thiserror::Error;
 
 use crate::config::{RedisConfig, RedisConfigOptions};
-
-pub use redis;
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]

@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
-use thiserror::Error;
-
 use relay_statsd::metric;
+use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
 use crate::statsd::KafkaHistograms;

@@ -1,5 +1,5 @@
-use actix_web::{http::Method, App, HttpRequest, HttpResponse};
-
+use actix_web::http::Method;
+use actix_web::{App, HttpRequest, HttpResponse};
 use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};

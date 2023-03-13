@@ -1,6 +1,3 @@
-use bytes::Bytes;
-use relay_general::user_agent::RawUserAgentInfo;
-use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -10,20 +7,17 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use brotli2::write::BrotliEncoder;
+use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
-use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
-
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
-use relay_general::pii::PiiConfigError;
-use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
+use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
@@ -32,13 +26,29 @@ use relay_general::protocol::{
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
+use relay_replays::recording::RecordingScrubber;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
+use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
+#[cfg(feature = "processing")]
+use {
+    crate::actors::envelopes::SendMetrics,
+    crate::actors::project_cache::UpdateRateLimits,
+    crate::service::ServiceError,
+    crate::utils::{EnvelopeLimiter, MetricsLimiter},
+    anyhow::Context,
+    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
+    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
+};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -53,19 +63,6 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
     SamplingResult,
-};
-
-#[cfg(feature = "processing")]
-use {
-    crate::actors::envelopes::SendMetrics,
-    crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServiceError,
-    crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
-    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 /// The minimum clock drift for correction to apply.
@@ -2551,22 +2548,19 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
-
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
-
-    use super::*;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,

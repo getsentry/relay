@@ -9,7 +9,6 @@ use std::os::raw::c_char;
 use std::slice;
 
 use once_cell::sync::OnceCell;
-
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
 use relay_general::pii::{

@@ -144,13 +144,12 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::protocol::{
         Context, ContextInner, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext,
         TraceId,
     };
     use crate::types::Object;
-
-    use super::*;
 
     fn make_event(
         start: Timestamp,

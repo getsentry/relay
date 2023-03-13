@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
-use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
+use crate::processor::{
+    estimate_size_flat, process_chunked_value, process_value, BagSize, Chunk, MaxChars,
+    ProcessValue, ProcessingState, Processor, ValueType,
+};
 use crate::protocol::{Frame, RawStacktrace};
 use crate::types::{
     Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
@@ -390,9 +392,11 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
     use std::iter::repeat;
 
+    use similar_asserts::assert_eq;
+
+    use super::*;
     use crate::processor::MaxChars;
     use crate::protocol::{
         Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
@@ -401,8 +405,6 @@ mod tests {
     use crate::types::{
         Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
     };
-
-    use super::*;
 
     #[test]
     fn test_string_trimming() {

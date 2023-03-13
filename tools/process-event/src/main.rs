@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
+use anyhow::{format_err, Context, Result};
 use clap::Parser;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -15,8 +16,6 @@ use relay_general::store::{
     light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_general::types::Annotated;
-
-use anyhow::{format_err, Context, Result};
 
 /// Processes a Sentry event payload.
 ///
