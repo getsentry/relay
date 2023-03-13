@@ -36,8 +36,6 @@ mod stacktrace;
 
 pub mod user_agent;
 
-const GIB: u64 = 1024 * 1024 * 1024;
-
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -666,34 +664,14 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 // Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high, medium, or low.
 fn normalize_device_class(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
-    let tag_name = "device.class".to_string();
-    if let Some(ref mut contexts) = event.contexts.value_mut() {
-        if let Some(Context::Device(ref mut device)) = contexts.get_context_mut("device") {
-            if let Some(family) = device.family.value() {
-                if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
-                    if let Some(processor_frequency) = device.processor_frequency.value() {
-                        if processor_frequency < &2000 {
-                            tags.insert(tag_name, Annotated::new(DeviceClass::LOW.to_string()));
-                        } else if processor_frequency < &3000 {
-                            tags.insert(tag_name, Annotated::new(DeviceClass::MEDIUM.to_string()));
-                        } else {
-                            tags.insert(tag_name, Annotated::new(DeviceClass::HIGH.to_string()));
-                        }
-                    }
-                } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
-                    device.processor_frequency.value(),
-                    device.processor_count.value(),
-                    device.memory_size.value(),
-                ) {
-                    if freq < 2000 || proc < 8 || mem < 4 * GIB {
-                        tags.insert(tag_name, Annotated::new(DeviceClass::LOW.to_string()));
-                    } else if freq < 2500 || mem < 6 * GIB {
-                        tags.insert(tag_name, Annotated::new(DeviceClass::MEDIUM.to_string()));
-                    } else {
-                        tags.insert(tag_name, Annotated::new(DeviceClass::HIGH.to_string()));
-                    }
-                }
-            }
+    // Remove any existing device.class tag set by the client, since this should only be set by relay.
+    tags.remove("device.class");
+    if let Some(contexts) = event.contexts.value() {
+        if let Some(device_class) = DeviceClass::from_contexts(contexts) {
+            tags.insert(
+                "device.class".to_owned(),
+                Annotated::new(device_class.to_string()),
+            );
         }
     }
 }
@@ -2653,7 +2631,7 @@ mod tests {
                         family: "android".to_string().into(),
                         processor_frequency: 1000.into(),
                         processor_count: 6.into(),
-                        memory_size: (2 * GIB).into(),
+                        memory_size: (2 * 1024 * 1024 * 1024).into(),
                         ..Default::default()
                     })))),
                 );
@@ -2687,7 +2665,7 @@ mod tests {
                         family: "android".to_string().into(),
                         processor_frequency: 2000.into(),
                         processor_count: 8.into(),
-                        memory_size: (6 * GIB).into(),
+                        memory_size: (6 * 1024 * 1024 * 1024).into(),
                         ..Default::default()
                     })))),
                 );
@@ -2721,7 +2699,7 @@ mod tests {
                         family: "android".to_string().into(),
                         processor_frequency: 2500.into(),
                         processor_count: 8.into(),
-                        memory_size: (6 * GIB).into(),
+                        memory_size: (6 * 1024 * 1024 * 1024).into(),
                         ..Default::default()
                     })))),
                 );
