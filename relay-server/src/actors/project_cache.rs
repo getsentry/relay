@@ -11,6 +11,7 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
@@ -387,6 +388,8 @@ struct UpdateProjectState {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     envelope_processor: Addr<EnvelopeProcessor>,
+    envelope_manager: Addr<EnvelopeManager>,
+    project_cache: Addr<ProjectCache>,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -485,6 +488,10 @@ impl ProjectCacheBroker {
 
         let config = self.config.clone();
 
+        let project_cache = self.project_cache.clone();
+        let envelope_manager = self.envelope_manager.clone();
+        #[cfg(feature = "processing")]
+        let envelope_processor = self.envelope_processor.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -492,7 +499,14 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config)
+                Project::new(
+                    project_key,
+                    config,
+                    project_cache,
+                    envelope_manager,
+                    #[cfg(feature = "processing")]
+                    envelope_processor,
+                )
             })
     }
 
@@ -715,6 +729,7 @@ pub struct ProjectCacheService {
     config: Arc<Config>,
     envelope_processor: Addr<EnvelopeProcessor>,
     upstream_relay: Addr<UpstreamRelay>,
+    envelope_manager: Addr<EnvelopeManager>,
     redis: Option<RedisPool>,
 }
 
@@ -724,12 +739,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         envelope_processor: Addr<EnvelopeProcessor>,
         upstream_relay: Addr<UpstreamRelay>,
+        envelope_manager: Addr<EnvelopeManager>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             envelope_processor,
             upstream_relay,
+            envelope_manager,
             redis,
         }
     }
@@ -744,6 +761,7 @@ impl Service for ProjectCacheService {
             redis,
             envelope_processor,
             upstream_relay,
+            envelope_manager,
         } = self;
 
         tokio::spawn(async move {
@@ -761,6 +779,8 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 envelope_processor,
+                envelope_manager,
+                project_cache: rx.service_address(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, upstream_relay, redis),

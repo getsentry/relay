@@ -9,7 +9,7 @@ use relay_filter::matches_any_origin;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
-use relay_system::BroadcastChannel;
+use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use tokio::time::Instant;
@@ -390,6 +390,10 @@ pub struct Project {
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
+    #[cfg(feature = "processing")]
+    envelope_processor: Addr<EnvelopeProcessor>,
+    envelope_manager: Addr<EnvelopeManager>,
+    project_cache: Addr<ProjectCache>,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -399,12 +403,22 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
+    pub fn new(
+        key: ProjectKey,
+        config: Arc<Config>,
+        project_cache: Addr<ProjectCache>,
+        envelope_manager: Addr<EnvelopeManager>,
+        #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
+    ) -> Self {
         Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
+            project_cache,
+            #[cfg(feature = "processing")]
+            envelope_processor,
+            envelope_manager,
             config,
             state: None,
             state_channel: None,
@@ -542,7 +556,8 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+            self.project_cache
+                .send(RequestUpdate::new(self.project_key, no_cache));
         }
 
         channel
@@ -677,7 +692,8 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+            self.project_cache
+                .send(RequestUpdate::new(self.project_key, no_cache));
             return;
         }
 
@@ -794,7 +810,7 @@ impl Project {
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
-                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                    self.envelope_processor.send(RateLimitFlushBuckets {
                         bucket_limiter,
                         partition_key,
                     });
@@ -808,7 +824,7 @@ impl Project {
         };
 
         if !buckets.is_empty() {
-            EnvelopeManager::from_registry().send(SendMetrics {
+            self.envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
@@ -823,12 +839,71 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_system::Service;
     use serde_json::json;
+
+    use crate::actors::envelopes::EnvelopeManager;
+    #[cfg(feature = "processing")]
+    use crate::actors::processor::EnvelopeProcessor;
+    use crate::actors::project_cache::ProjectCache;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
-    #[test]
-    fn get_state_expired() {
+    struct TestProjectCacheService;
+
+    impl Service for TestProjectCacheService {
+        type Interface = ProjectCache;
+
+        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        Some(_) = rx.recv() => (),
+                        else => break,
+                    }
+                }
+            });
+        }
+    }
+
+    struct TestEnvelopeManagerService;
+
+    impl Service for TestEnvelopeManagerService {
+        type Interface = EnvelopeManager;
+
+        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        Some(_) = rx.recv() => (),
+                        else => break,
+                    }
+                }
+            });
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    struct TestEnvelopeProcessorService;
+
+    #[cfg(feature = "processing")]
+    impl Service for TestEnvelopeProcessorService {
+        type Interface = EnvelopeProcessor;
+
+        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        Some(_) = rx.recv() => (),
+                        else => break,
+                    }
+                }
+            });
+        }
+    }
+
+    #[tokio::test]
+    async fn get_state_expired() {
         for expiry in [9999, 0] {
             let config = Arc::new(
                 Config::from_json_value(json!(
@@ -847,7 +922,14 @@ mod tests {
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
-            let mut project = Project::new(project_key, config.clone());
+            let mut project = Project::new(
+                project_key,
+                config.clone(),
+                TestProjectCacheService {}.start(),
+                TestEnvelopeManagerService {}.start(),
+                #[cfg(feature = "processing")]
+                TestEnvelopeProcessorService {}.start(),
+            );
             project.state = Some(Arc::new(project_state));
 
             // Direct access should always yield a state:
@@ -863,8 +945,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_stale_cache() {
+    #[tokio::test]
+    async fn test_stale_cache() {
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -884,7 +966,14 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let mut project = Project::new(project_key, config);
+        let mut project = Project::new(
+            project_key,
+            config,
+            TestProjectCacheService {}.start(),
+            TestEnvelopeManagerService {}.start(),
+            #[cfg(feature = "processing")]
+            TestEnvelopeProcessorService {}.start(),
+        );
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
@@ -912,9 +1001,16 @@ mod tests {
         project.fetch_state(false);
     }
 
-    fn create_project(config: Option<serde_json::Value>) -> Project {
+    async fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let mut project = Project::new(
+            project_key,
+            Arc::new(Config::default()),
+            TestProjectCacheService {}.start(),
+            TestEnvelopeManagerService {}.start(),
+            #[cfg(feature = "processing")]
+            TestEnvelopeProcessorService {}.start(),
+        );
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {
@@ -933,16 +1029,16 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics() {
-        let project = create_project(None);
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics() {
+        let project = create_project(None).await;
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics_no_quota() {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -951,7 +1047,8 @@ mod tests {
                "limit": 0,
                "reasonCode": "foo",
            }]
-        })));
+        })))
+        .await;
 
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
 
@@ -968,16 +1065,16 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets() {
-        let project = create_project(None);
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets() {
+        let project = create_project(None).await;
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets_no_quota() {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -986,7 +1083,8 @@ mod tests {
                "limit": 0,
                "reasonCode": "foo",
            }]
-        })));
+        })))
+        .await;
 
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
 

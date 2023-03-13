@@ -144,6 +144,7 @@ impl ServiceState {
             config.clone(),
             processor.clone(),
             upstream_relay.clone(),
+            envelope_manager.clone(),
             redis_pool,
         )
         .start_in(&project_runtime);
