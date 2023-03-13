@@ -270,6 +270,7 @@ mod utils;
 mod testutils;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::Controller;
@@ -294,8 +295,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        HttpServer::start(&config, ServiceState::start(config.clone())?)?;
+        HttpServer::start(config.clone(), ServiceState::start(config)?)?;
         Controller::shutdown().await;
+        anyhow::Ok(())
     })?;
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do

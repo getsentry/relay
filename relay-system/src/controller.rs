@@ -4,6 +4,15 @@ use std::time::Duration;
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 
+/// TODO(ja): Doc
+#[derive(Clone, Copy, Debug)]
+pub enum ShutdownKind {
+    /// TODO(ja): Doc
+    Graceful,
+    /// TODO(ja): Doc
+    Immediate,
+}
+
 /// Shutdown request message sent by the [`Controller`] to subscribed actors.
 ///
 /// A handler has to ensure that it doesn't take longer than `timeout` to resolve the future.
@@ -32,11 +41,16 @@ static SHUTDOWN: OnceCell<ShutdownChannel> = OnceCell::new();
 /// Notifies a service about an upcoming shutdown.
 // TODO: The receiver of this message can not yet signal they have completed
 // shutdown.
-// TODO: Refactor this to a `Recipient`.
 pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 
 impl ShutdownHandle {
     /// Wait for a shutdown.
+    ///
+    /// This receives all shutdown signals after the shutdown handle instance has been obtained from
+    /// the [`Controller`]. To ensure receiving all shutdown signals, create an instance early and
+    /// reuse it.
+    ///
+    /// # Cancel safety
     ///
     /// This method is cancellation safe and can be used in `select!`.
     pub async fn notified(&mut self) -> Shutdown {
@@ -102,8 +116,8 @@ impl Controller {
     }
 
     /// Initiates the shutdown process of the system.
-    pub fn trigger_shutdown(graceful: bool) {
-        todo!("graceful {graceful}")
+    pub fn trigger_shutdown(kind: ShutdownKind) {
+        todo!("trigger shutdown in the monitor with {kind:?}");
     }
 
     /// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
