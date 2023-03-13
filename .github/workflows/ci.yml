@@ -48,24 +48,15 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Run Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --all-features --no-deps -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 
       - name: Check Docs
-        uses: actions-rs/cargo@v1
+        run: cargo doc --workspace --all-features --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: -Dwarnings
-        with:
-          command: doc
-          args: --workspace --all-features --no-deps --document-private-items
 
   lint_default:
     name: Lint Rust Default Features
@@ -89,10 +80,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --no-deps -- -D warnings
+        run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
 
   test:
     timeout-minutes: 20
@@ -120,12 +108,9 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
+        run: cargo test --workspace
         env:
           RUSTFLAGS: -Dwarnings
-        with:
-          command: test
-          args: --workspace
 
   test_all:
     timeout-minutes: 15
@@ -164,10 +149,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
+        run: cargo test --workspace --all-features
 
   test_py:
     strategy:
@@ -352,10 +334,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-features
+        run: cargo build --all-features
 
       - uses: actions/setup-python@v4
         with:

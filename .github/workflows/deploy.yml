@@ -34,12 +34,9 @@ jobs:
           key: ${{ github.job }}
 
       - name: Build Docs
-        uses: actions-rs/cargo@v1
+        run: cargo doc --workspace --all-features --no-deps
         env:
           RUSTDOCFLAGS: -Dwarnings
-        with:
-          command: doc
-          args: --workspace --all-features --no-deps
 
       - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
@@ -67,10 +64,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Generate Schema
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -p generate-schema -- -o event.schema.json
+        run: cargo run -p generate-schema -- -o event.schema.json
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
@@ -118,14 +112,11 @@ jobs:
           key: ${{ github.job }}
 
       - name: Document Metrics
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -p document-metrics -- -o relay_metrics.json
-            relay-kafka/src/statsd.rs
-            relay-metrics/src/statsd.rs
-            relay-server/src/statsd.rs
-            relay-system/src/statsd.rs
+        run: cargo run -p document-metrics -- -o relay_metrics.json
+          relay-kafka/src/statsd.rs
+          relay-metrics/src/statsd.rs
+          relay-server/src/statsd.rs
+          relay-system/src/statsd.rs
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'

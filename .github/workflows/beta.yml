@@ -29,13 +29,7 @@ jobs:
         run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
 
       - name: Run Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --all-features --no-deps -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 
       - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
+        run: cargo test --workspace --all-features
