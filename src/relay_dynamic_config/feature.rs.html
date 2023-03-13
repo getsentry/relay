@@ -30,6 +30,10 @@
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Features exposed by project config.
@@ -49,7 +53,11 @@
     /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
     </span>TransactionNameNormalize,
-
+    <span class="doccomment">/// True if transaction names scrubbed by regex patterns should be marked as &quot;sanitized&quot;.
+    ///
+    /// Transaction names modified by clusterer rules are always marked as such.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
+    </span>TransactionNameMarkScrubbedAsSanitized,
     <span class="doccomment">/// Unused.
     ///
     /// This used to control the initial experimental metrics extraction for sessions and has been

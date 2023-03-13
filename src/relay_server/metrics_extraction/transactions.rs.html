@@ -2369,7 +2369,7 @@
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
         </span><span class="kw">let </span>res = store::light_normalize_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>LightNormalizationConfig {
+            LightNormalizationConfig {
                 breakdowns_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>breakdowns_config),
                 ..Default::default()
             },
@@ -2514,7 +2514,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
         <span class="comment">// Normalize first, to make sure the units are correct:
-        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
+        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default());
         <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
@@ -2606,7 +2606,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
         <span class="comment">// Normalize first, to make sure the units are correct:
-        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
+        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default());
         <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
@@ -2753,7 +2753,7 @@
         .unwrap();
         <span class="kw">let </span>res = store::light_normalize_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>LightNormalizationConfig {
+            LightNormalizationConfig {
                 measurements_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config),
                 ..Default::default()
             },
@@ -3530,7 +3530,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="comment">// Normalize first, to make sure that the metrics were computed:
-        </span><span class="kw">let _ </span>= store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
+        </span><span class="kw">let _ </span>= store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default());
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_metrics = <span class="macro">vec!</span>[];

@@ -3337,6 +3337,11 @@
 <a href="#3336" id="3336">3336</a>
 <a href="#3337" id="3337">3337</a>
 <a href="#3338" id="3338">3338</a>
+<a href="#3339" id="3339">3339</a>
+<a href="#3340" id="3340">3340</a>
+<a href="#3341" id="3341">3341</a>
+<a href="#3342" id="3342">3342</a>
+<a href="#3343" id="3343">3343</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3363,7 +3368,7 @@
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
-<span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
+<span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 <span class="kw">use </span>relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_log::LogError;
@@ -5531,16 +5536,21 @@
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-            normalize_transaction_name: state
-                .project_state
-                .has_feature(Feature::TransactionNameNormalize),
-            tx_name_rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
+            transaction_name_config: TransactionNameConfig {
+                scrub_identifiers: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameNormalize),
+                mark_scrubbed_as_sanitized: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
+                rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
+            },
 
             is_renormalize: <span class="bool-val">false</span>,
         };
 
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
-            relay_general::store::light_normalize_event(<span class="kw-2">&amp;mut </span>state.event, <span class="kw-2">&amp;</span>config)
+            relay_general::store::light_normalize_event(<span class="kw-2">&amp;mut </span>state.event, config)
                 .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
         });
 

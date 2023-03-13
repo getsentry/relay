@@ -2494,9 +2494,6 @@
 <a href="#2493" id="2493">2493</a>
 <a href="#2494" id="2494">2494</a>
 <a href="#2495" id="2495">2495</a>
-<a href="#2496" id="2496">2496</a>
-<a href="#2497" id="2497">2497</a>
-<a href="#2498" id="2498">2498</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2510,14 +2507,14 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
 
-<span class="kw">use super</span>::{schema, transactions, BreakdownsConfig, TransactionNameRule};
+<span class="kw">use super</span>::{schema, transactions, BreakdownsConfig};
 <span class="kw">use </span><span class="kw">crate</span>::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     <span class="self">self</span>, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
     EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
     Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
-<span class="kw">use </span><span class="kw">crate</span>::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
+<span class="kw">use </span><span class="kw">crate</span>::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -3159,7 +3156,7 @@
     logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
-<span class="attr">#[derive(Default, Debug)]
+<span class="attr">#[derive(Clone, Default, Debug)]
 </span><span class="kw">pub struct </span>LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
     <span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
@@ -3169,14 +3166,13 @@
     <span class="kw">pub </span>measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
     <span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BreakdownsConfig&gt;,
     <span class="kw">pub </span>normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="kw">pub </span>normalize_transaction_name: bool,
-    <span class="kw">pub </span>tx_name_rules: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[TransactionNameRule],
+    <span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
     <span class="kw">pub </span>is_renormalize: bool,
 }
 
 <span class="kw">pub fn </span>light_normalize_event(
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
-    config: <span class="kw-2">&amp;</span>LightNormalizationConfig,
+    config: LightNormalizationConfig,
 ) -&gt; ProcessingResult {
     <span class="kw">if </span>config.is_renormalize {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -3186,11 +3182,9 @@
         <span class="comment">// Validate and normalize transaction
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction
-        </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
-            config.normalize_transaction_name,
-            config.tx_name_rules,
-        );
+        // can revert some changes to ProcessingAction)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor =
+            transactions::TransactionsProcessor::new(config.transaction_name_config);
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
         <span class="comment">// Check for required and non-empty values
@@ -3630,7 +3624,7 @@
         <span class="kw">let </span>config = StoreConfig::default();
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
@@ -3658,7 +3652,7 @@
         <span class="kw">let </span>config = StoreConfig::default();
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(Annotated::empty(), event.value().unwrap().user);
@@ -3682,7 +3676,7 @@
             client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
             ..Default::default()
         };
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
@@ -3711,7 +3705,7 @@
             client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
             ..Default::default()
         };
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
@@ -3737,7 +3731,7 @@
             client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
             ..Default::default()
         };
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
@@ -3750,7 +3744,7 @@
         <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>NormalizeProcessor::default();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.level), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Level::Error));
     }
@@ -3782,7 +3776,7 @@
             ..Event::default()
         });
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.level), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Level::Info));
     }
@@ -3799,7 +3793,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3821,7 +3815,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3839,7 +3833,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.environment), <span class="prelude-val">None</span>);
     }
@@ -3853,7 +3847,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>environment = <span class="macro">get_path!</span>(event.<span class="macro">environment!</span>);
@@ -3879,7 +3873,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>release = <span class="macro">get_path!</span>(event.<span class="macro">release!</span>);
@@ -3913,7 +3907,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.site), <span class="prelude-val">None</span>);
@@ -3968,7 +3962,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">tags!</span>).len(), <span class="number">1</span>);
@@ -3996,7 +3990,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4048,7 +4042,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="comment">// should keep the first occurrence of every tag
@@ -4110,7 +4104,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4209,7 +4203,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4242,7 +4236,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>dist = <span class="kw-2">&amp;</span>event.value().unwrap().dist;
@@ -4278,7 +4272,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4308,7 +4302,7 @@
         );
 
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4331,7 +4325,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
 
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">received!</span>), <span class="macro">get_value!</span>(event.<span class="macro">timestamp!</span>));
@@ -4358,7 +4352,7 @@
         );
 
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4405,7 +4399,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
         <span class="kw">let </span>config = LightNormalizationConfig::default();
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r###&quot;
@@ -4468,7 +4462,7 @@
             max_secs_in_future,
             ..Default::default()
         };
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4527,7 +4521,7 @@
             max_secs_in_future,
             ..Default::default()
         };
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4773,19 +4767,19 @@
             event
         }
 
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config.clone()).unwrap();
         <span class="kw">let </span>first = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
         <span class="comment">// Expected some fields (such as timestamps) exist after first light normalization.
 
-        </span>light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        </span>light_normalize_event(<span class="kw-2">&amp;mut </span>event, config.clone()).unwrap();
         <span class="kw">let </span>second = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>first, <span class="kw-2">&amp;</span>second, <span class="string">&quot;idempotency check failed&quot;</span>);
 
-        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         <span class="kw">let </span>third = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
@@ -4899,7 +4893,7 @@
                 .spans
                 .set_value(<span class="prelude-val">Some</span>(<span class="macro">vec!</span>[Annotated::&lt;Span&gt;::from_json(span).unwrap()]));
 
-            <span class="kw">let </span>res = light_normalize_event(<span class="kw-2">&amp;mut </span>modified_event, <span class="kw-2">&amp;</span>Default::default());
+            <span class="kw">let </span>res = light_normalize_event(<span class="kw-2">&amp;mut </span>modified_event, Default::default());
 
             <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{span:?}&quot;</span>);
         }
@@ -4919,7 +4913,7 @@
 
         <span class="kw">let </span>result = light_normalize_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>LightNormalizationConfig {
+            LightNormalizationConfig {
                 is_renormalize: <span class="bool-val">true</span>,
                 ..Default::default()
             },
