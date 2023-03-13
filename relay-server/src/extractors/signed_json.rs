@@ -2,11 +2,10 @@ use actix_web::actix::*;
 use actix_web::http::StatusCode;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures::{FutureExt, TryFutureExt};
-use serde::de::DeserializeOwned;
-
 use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
 use relay_log::Hub;
+use serde::de::DeserializeOwned;
 
 use crate::actors::relays::{GetRelay, RelayCache};
 use crate::body;

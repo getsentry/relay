@@ -1,7 +1,7 @@
 def generate_check_in():
     return {
         "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
-        "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
+        "monitor_slug": "my-monitor",
         "status": "in_progress",
         "duration": 21.0,
     }
@@ -22,7 +22,7 @@ def test_monitors_with_processing(
     assert message["project_id"] == 42
     assert check_in == {
         "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
-        "monitor_id": "4dc8556e039245c7bd569f8cf513ea42",
+        "monitor_slug": "my-monitor",
         "status": "in_progress",
         "duration": 21.0,
     }

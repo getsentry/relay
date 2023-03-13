@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use relay_general::protocol::EventId;
+use serde::{Deserialize, Serialize};
 
 use crate::utils::{deserialize_number_from_string, is_zero};
 

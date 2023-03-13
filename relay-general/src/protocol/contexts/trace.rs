@@ -190,9 +190,8 @@ impl TraceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Context;
-
     use super::*;
+    use crate::protocol::Context;
 
     #[test]
     pub(crate) fn test_trace_context_roundtrip() {

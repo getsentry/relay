@@ -2,7 +2,6 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-
 use relay_general::protocol::{Event, Exception};
 
 use crate::{FilterConfig, FilterStatKey};
@@ -126,10 +125,10 @@ fn get_exception_source(event: &Event) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_general::protocol::{Frame, JsonLenientString, RawStacktrace, Stacktrace, Values};
     use relay_general::types::Annotated;
+
+    use super::*;
 
     /// Returns an event with the specified exception on the last position in the stack.
     fn get_event_with_exception(e: Exception) -> Event {

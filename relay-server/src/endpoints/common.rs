@@ -3,15 +3,15 @@
 use std::fmt::Write;
 use std::future::Future;
 
+use actix_web::error::PayloadError;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{error::PayloadError, App, HttpResponse};
-use serde::Deserialize;
-
+use actix_web::{App, HttpResponse};
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
+use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};

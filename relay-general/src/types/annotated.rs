@@ -4,7 +4,6 @@ use std::fmt;
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
-
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -439,9 +438,8 @@ where
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::ErrorKind;
-
     use super::*;
+    use crate::types::ErrorKind;
 
     #[test]
     fn test_annotated_deserialize_with_meta() {

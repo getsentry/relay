@@ -10,7 +10,11 @@
 - Add Dotnet, Javascript and PHP support for profiling. ([#1871](https://github.com/getsentry/relay/pull/1871), [#1876](https://github.com/getsentry/relay/pull/1876), [#1885](https://github.com/getsentry/relay/pull/1885), [#1902](https://github.com/getsentry/relay/pull/1902))
 - Initial support for the Crons beta. ([#1886](https://github.com/getsentry/relay/pull/1886))
 - Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
+- Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895](https://github.com/getsentry/relay/pull/1895))
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
+- Move device.class from contexts to tags. ([#1911](https://github.com/getsentry/relay/pull/1911))
+- Optionally mark scrubbed URL transactions as sanitized. ([#1917](https://github.com/getsentry/relay/pull/1917))
+- Perform PII scrubbing on meta's original_value field ([#1892](https://github.com/getsentry/relay/pull/1892))
 
 **Bug Fixes**:
 
@@ -21,6 +25,8 @@
 - Revert back the addition of metric names as tag on Sentry errors when relay drops metrics. ([#1873](https://github.com/getsentry/relay/pull/1873))
 - Tag the dynamic sampling decision on `count_per_root_project` to measure effective sample rates. ([#1870](https://github.com/getsentry/relay/pull/1870))
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
+- Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
+- Move the pending envelopes buffering into the project cache. ([#1907](https://github.com/getsentry/relay/pull/1907))
 
 ## 23.2.0
 

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use serde::{de, Deserialize, Serialize};
-
 use relay_general::protocol::{Addr, EventId};
+use serde::{de, Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::native_debug_image::NativeDebugImage;

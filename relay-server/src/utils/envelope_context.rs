@@ -4,7 +4,6 @@ use std::net;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-
 use relay_common::DataCategory;
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;

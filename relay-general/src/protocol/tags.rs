@@ -76,9 +76,8 @@ impl std::ops::DerefMut for Tags {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::protocol::Event;
-
     use super::*;
+    use crate::protocol::Event;
 
     #[test]
     fn test_tags_from_object() {

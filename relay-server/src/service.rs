@@ -3,13 +3,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use once_cell::race::OnceBox;
-use tokio::runtime::Runtime;
-
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
 use relay_system::{Addr, Service};
+use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};

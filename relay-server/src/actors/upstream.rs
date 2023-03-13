@@ -12,11 +12,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use reqwest::header;
-use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::mpsc;
-use tokio::time::Instant;
-
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
 use relay_log::LogError;
@@ -26,13 +21,17 @@ use relay_quotas::{
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
+use reqwest::header;
+pub use reqwest::Method;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
-
-pub use reqwest::Method;
 
 /// Rate limits returned by the upstream.
 ///

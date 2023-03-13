@@ -1,9 +1,8 @@
 //! Endpoints for security reports.
 
 use actix_web::{pred, App, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-use serde::Deserialize;
-
 use relay_general::protocol::EventId;
+use serde::Deserialize;
 
 use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};

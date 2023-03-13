@@ -44,19 +44,13 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - name: Run Cargo Build
-        uses: actions-rs/cargo@v1
+        run: cargo build --manifest-path=relay/Cargo.toml --release --features ssl
         env:
           CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: packed
-        with:
-          command: build
-          args: --manifest-path=relay/Cargo.toml --release --features ssl
 
       - name: Bundle dSYM
         run: |
@@ -78,17 +72,11 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - name: Run Cargo Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --manifest-path=relay/Cargo.toml --release --features ssl
+        run: cargo build --manifest-path=relay/Cargo.toml --release --features ssl
 
       - name: Bundle PDB
         run: |

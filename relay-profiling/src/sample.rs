@@ -1,9 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
 use relay_general::protocol::{Addr, EventId};
+use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
@@ -226,6 +225,48 @@ impl SampleProfile {
         self.profile
             .strip_pointer_authentication_code(&self.platform, &self.device.architecture);
     }
+
+    fn remove_idle_samples_at_the_edge(&mut self) {
+        if let Some(start) = self.profile.samples.iter().position(|sample| {
+            match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => false,
+            }
+        }) {
+            self.profile.samples.drain(..start);
+        }
+
+        if let Some(end) = self.profile.samples.iter().rposition(|sample| {
+            match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => false,
+            }
+        }) {
+            self.profile.samples.truncate(end + 1);
+        }
+    }
+
+    fn cleanup_thread_metadata(&mut self) {
+        if let Some(thread_metadata) = &mut self.profile.thread_metadata {
+            let mut thread_ids: HashSet<String> = HashSet::new();
+            for sample in &self.profile.samples {
+                thread_ids.insert(sample.thread_id.to_string());
+            }
+            thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
+        }
+    }
+
+    fn cleanup_queue_metadata(&mut self) {
+        if let Some(queue_metadata) = &mut self.profile.queue_metadata {
+            let mut queue_addresses: HashSet<&String> = HashSet::new();
+            for sample in &self.profile.samples {
+                if let Some(queue_address) = &sample.queue_address {
+                    queue_addresses.insert(queue_address);
+                }
+            }
+            queue_metadata.retain(|queue_address, _| queue_addresses.contains(&queue_address));
+        }
+    }
 }
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
@@ -251,11 +292,15 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
     // This is to be compatible with older SDKs
     if transaction.relative_end_ns > 0 {
-        profile.profile.samples.retain_mut(|sample| {
+        profile.profile.samples.retain(|sample| {
             (transaction.relative_start_ns..=transaction.relative_end_ns)
                 .contains(&sample.elapsed_since_start_ns)
         });
     }
+
+    // Clean samples before running the checks.
+    profile.remove_idle_samples_at_the_edge();
+    profile.remove_single_samples_per_thread();
 
     if profile.profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
@@ -269,9 +314,9 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
-    // Clean samples before running the checks.
-    profile.remove_single_samples_per_thread();
     profile.strip_pointer_authentication_code();
+    profile.cleanup_thread_metadata();
+    profile.cleanup_queue_metadata();
 
     Ok(profile)
 }
@@ -590,5 +635,210 @@ mod tests {
         let profile = generate_profile();
         let payload = serde_json::to_vec(&profile).unwrap();
         assert!(parse_profile(&payload[..]).is_err());
+    }
+
+    #[test]
+    fn test_profile_remove_idle_samples_at_start_and_end() {
+        let mut profile = generate_profile();
+        let transaction = TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 100,
+            relative_start_ns: 0,
+            trace_id: EventId::new(),
+        };
+
+        profile.transaction = Some(transaction);
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.profile.stacks = vec![vec![0], vec![]];
+        profile.profile.samples = vec![
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 60,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 70,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 90,
+                thread_id: 1,
+            },
+        ];
+
+        profile.remove_idle_samples_at_the_edge();
+
+        assert_eq!(profile.profile.samples.len(), 3);
+
+        profile.profile.samples = vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 60,
+                thread_id: 1,
+            },
+        ];
+
+        profile.remove_idle_samples_at_the_edge();
+
+        assert_eq!(profile.profile.samples.len(), 3);
+    }
+
+    #[test]
+    fn test_profile_cleanup_metadata() {
+        let mut profile = generate_profile();
+        let transaction = TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 100,
+            relative_start_ns: 0,
+            trace_id: EventId::new(),
+        };
+
+        profile.transaction = Some(transaction);
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.profile.stacks = vec![vec![0]];
+
+        let mut thread_metadata: HashMap<String, ThreadMetadata> = HashMap::new();
+
+        thread_metadata.insert(
+            "1".to_string(),
+            ThreadMetadata {
+                name: Some("".to_string()),
+                priority: Some(1),
+            },
+        );
+        thread_metadata.insert(
+            "2".to_string(),
+            ThreadMetadata {
+                name: Some("".to_string()),
+                priority: Some(1),
+            },
+        );
+        thread_metadata.insert(
+            "3".to_string(),
+            ThreadMetadata {
+                name: Some("".to_string()),
+                priority: Some(1),
+            },
+        );
+        thread_metadata.insert(
+            "4".to_string(),
+            ThreadMetadata {
+                name: Some("".to_string()),
+                priority: Some(1),
+            },
+        );
+
+        let mut queue_metadata: HashMap<String, QueueMetadata> = HashMap::new();
+
+        queue_metadata.insert(
+            "0xdeadbeef".to_string(),
+            QueueMetadata {
+                label: "com.apple.main-thread".to_string(),
+            },
+        );
+
+        queue_metadata.insert(
+            "0x123456789".to_string(),
+            QueueMetadata {
+                label: "some-label".to_string(),
+            },
+        );
+
+        profile.profile.thread_metadata = Some(thread_metadata);
+        profile.profile.queue_metadata = Some(queue_metadata);
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 2,
+            },
+        ]);
+
+        profile.cleanup_thread_metadata();
+        profile.cleanup_queue_metadata();
+
+        assert_eq!(profile.profile.thread_metadata.unwrap().len(), 2);
+        assert_eq!(profile.profile.queue_metadata.unwrap().len(), 1);
     }
 }

@@ -1,19 +1,17 @@
 //! Common types of the protocol.
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
-use std::net;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
+use std::{fmt, net};
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
+use enumset::EnumSet;
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
-
-use enumset::EnumSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};

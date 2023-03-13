@@ -2,12 +2,11 @@ use std::fmt;
 use std::time::Duration;
 
 use actix::actors::signal;
+#[doc(inline)]
+pub use actix::actors::signal::{Signal, SignalType};
 use actix::prelude::*;
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
-
-#[doc(inline)]
-pub use actix::actors::signal::{Signal, SignalType};
 
 type ShutdownChannel = (
     watch::Sender<Option<Shutdown>>,

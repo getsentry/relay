@@ -43,15 +43,12 @@ impl ResponseContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::{
-        pii::{DataScrubbingConfig, PiiProcessor},
-        processor::{process_value, ProcessingState},
-        protocol::{Context, Event, PairList},
-        store::{StoreConfig, StoreProcessor},
-        testutils::assert_annotated_snapshot,
-        types::{Annotated, FromValue},
-    };
+    use crate::pii::{DataScrubbingConfig, PiiProcessor};
+    use crate::processor::{process_value, ProcessingState};
+    use crate::protocol::{Context, Event, PairList};
+    use crate::store::{StoreConfig, StoreProcessor};
+    use crate::testutils::assert_annotated_snapshot;
+    use crate::types::{Annotated, FromValue};
 
     #[test]
     fn test_response_context_roundtrip() {
