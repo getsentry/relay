@@ -526,17 +526,19 @@ pub enum OutcomeError {
 #[derive(Debug)]
 struct HttpOutcomeProducer {
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
     unsent_outcomes: Vec<TrackRawOutcome>,
     flush_handle: SleepHandle,
 }
 
 impl HttpOutcomeProducer {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
-        Ok(Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+        Self {
             config,
+            upstream_relay,
             unsent_outcomes: Vec::new(),
             flush_handle: SleepHandle::idle(),
-        })
+        }
     }
 
     fn send_batch(&mut self) {
@@ -556,11 +558,10 @@ impl HttpOutcomeProducer {
             outcomes: mem::take(&mut self.unsent_outcomes),
         };
 
+        let upstream_relay = self.upstream_relay.clone();
+
         tokio::spawn(async move {
-            match UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .await
-            {
+            match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
                     relay_log::error!("outcome batch sending failed with: {}", error)
@@ -909,7 +910,10 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
             EmitOutcomes::AsOutcomes if config.processing_enabled() => {
@@ -919,7 +923,10 @@ impl OutcomeProducerService {
             }
             EmitOutcomes::AsOutcomes => {
                 relay_log::info!("Configured to emit outcomes via http");
-                ProducerInner::Http(HttpOutcomeProducer::create(Arc::clone(&config))?)
+                ProducerInner::Http(HttpOutcomeProducer::new(
+                    Arc::clone(&config),
+                    upstream_relay,
+                ))
             }
             EmitOutcomes::AsClientReports => {
                 // We emit client reports, and we do NOT accept raw outcomes

@@ -113,7 +113,8 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
 
         let outcome_producer =
-            OutcomeProducerService::create(config.clone())?.start_in(&outcome_runtime);
+            OutcomeProducerService::create(config.clone(), upstream_relay.clone())?
+                .start_in(&outcome_runtime);
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
