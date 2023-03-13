@@ -12,7 +12,7 @@ use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -59,6 +59,28 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if let Some(Value::String(original_value)) = meta.original_value_as_mut() {
+            // Also apply pii scrubbing to the original value (set by normalization or other processors),
+            // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
+            // value is returned.
+            if let Some(parent) = state.iter().next() {
+                let path = state.path();
+                let new_state = parent.enter_borrowed(
+                    path.key().unwrap_or(""),
+                    Some(Cow::Borrowed(state.attrs())),
+                    enumset::enum_set!(ValueType::String),
+                );
+
+                if self
+                    .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
+                    .is_err()
+                {
+                    // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
+                    meta.set_original_value(Option::<String>::None);
+                }
+            }
+        }
+
         // booleans cannot be PII, and strings are handled in process_string
         if state.value_type().contains(ValueType::Boolean)
             || state.value_type().contains(ValueType::String)
@@ -363,7 +385,9 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
+    use insta::assert_debug_snapshot;
     use std::collections::BTreeMap;
 
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -373,9 +397,46 @@ mod tests {
         LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
-    use crate::types::{Annotated, Object, Value};
+    use crate::types::{Annotated, FromValue, Object, Value};
 
-    use super::*;
+    fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
+        use crate::pii::convert::to_pii_config as to_pii_config_impl;
+        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        if let Some(ref config) = rv {
+            let roundtrip: PiiConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(&roundtrip, config);
+        }
+        rv
+    }
+
+    #[test]
+    fn test_scrub_original_value() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "user": {
+                    "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
+                    "ip_address": "is this an ip address? 73.133.27.120", //  <--------
+                },
+                "hpkp":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
+    }
 
     #[test]
     fn test_basic_stripping() {
