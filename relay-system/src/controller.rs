@@ -184,7 +184,7 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
 }
 
 #[cfg(windows)]
-async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
+async fn monitor_shutdown(_timeout: Duration) -> io::Result<()> {
     use tokio::signal::windows::{ctrl_break, ctrl_c, ctrl_close};
 
     let mut ctrl_c = ctrl_c()?;
