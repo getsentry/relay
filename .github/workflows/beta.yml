@@ -2,7 +2,7 @@ name: Beta CI
 
 on:
   schedule:
-    - cron: "11 7 * * 1,4"
+    - cron: "11 7 * * 1,4" # At 07:11 AM, only on Monday and Thursday
 
 env:
   CARGO_TERM_COLOR: always
@@ -25,21 +25,11 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          profile: minimal
-          override: true
-          components: clippy
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
 
       - name: Run Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --all-features --no-deps -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 
       - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
+        run: cargo test --workspace --all-features
