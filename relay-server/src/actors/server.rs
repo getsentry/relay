@@ -144,7 +144,7 @@ pub struct HttpServer {
 }
 
 impl HttpServer {
-    pub fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
+    pub async fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
         let (server_tx, server_rx) = tokio::sync::oneshot::channel();
 
         std::thread::spawn(move || {
@@ -158,7 +158,7 @@ impl HttpServer {
             runner.run();
         });
 
-        let (system, http_server) = server_rx.blocking_recv()??;
+        let (system, http_server) = server_rx.await??;
         let service = Self {
             system,
             http_server,
