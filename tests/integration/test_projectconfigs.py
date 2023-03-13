@@ -249,7 +249,10 @@ def test_unparsable_project_config(cache_enabled, mini_sentry, relay):
             "project_expiry": 2,
             "project_grace_period": 20,
             "miss_expiry": 2,
-            "persistent_envelope_buffer": {"enabled": cache_enabled},
+            "persistent_envelope_buffer": {
+                "enabled": cache_enabled,
+                "path": "/tmp/test-buffer.db",
+            },
         },
         "http": {"max_retry_interval": 1},
     }
