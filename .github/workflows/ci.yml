@@ -40,12 +40,8 @@ jobs:
       - name: Run Flake8
         run: flake8 py
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: clippy, rustfmt, rust-docs
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -85,12 +81,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: clippy
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -120,11 +112,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -167,11 +156,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -200,11 +186,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: actions/setup-python@v4
         with:
@@ -361,11 +344,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:

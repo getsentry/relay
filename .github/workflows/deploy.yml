@@ -26,12 +26,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rust-docs
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component rust-docs --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -63,11 +59,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -117,11 +110,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
