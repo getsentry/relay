@@ -26,7 +26,9 @@ jobs:
           submodules: recursive
 
       - name: Install Rust Toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal --component clippy --no-self-update
+          rustup default ${{ matrix.rust }}
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
