@@ -38,9 +38,11 @@
 <a href="#37" id="37">37</a>
 <a href="#38" id="38">38</a>
 <a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
-<span class="kw">use </span>actix_web::{actix::MailboxError, App, Error, Json};
+<span class="kw">use </span>actix_web::actix::MailboxError;
+<span class="kw">use </span>actix_web::{App, Error, Json};
 <span class="kw">use </span>futures::{future, TryFutureExt};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};

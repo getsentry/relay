@@ -954,9 +954,6 @@
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -966,18 +963,14 @@
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryInto;
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::{fmt, mem};
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
-<span class="kw">use </span>relay_system::{Interface, NoResponse};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-
 <span class="kw">use </span>relay_common::{DataCategory, ProjectId, UnixTimestamp};
 <span class="kw">use </span>relay_config::{Config, EmitOutcomes};
 <span class="kw">use </span>relay_filter::FilterStatKey;
@@ -989,7 +982,8 @@
 <span class="kw">use </span>relay_quotas::{ReasonCode, Scoping};
 <span class="kw">use </span>relay_sampling::MatchedRuleIds;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Addr, FromMessage, Service};
+<span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendClientReports};
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};

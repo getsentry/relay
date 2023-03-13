@@ -547,14 +547,12 @@
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 <span class="kw">use </span>std::time::SystemTime;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-
 <span class="kw">use </span>relay_common::Uuid;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_fromstr_and_display;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::utils::null_to_default;

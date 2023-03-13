@@ -3169,26 +3169,24 @@
 <a href="#3168" id="3168">3168</a>
 <a href="#3169" id="3169">3169</a>
 <a href="#3170" id="3170">3170</a>
-<a href="#3171" id="3171">3171</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
-<span class="kw">use </span>std::fmt;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
+<span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::iter::{FromIterator, FusedIterator};
-<span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>float_ord::FloatOrd;
 <span class="kw">use </span>fnv::FnvHasher;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>thiserror::Error;
-<span class="kw">use </span>tokio::time::Instant;
-
 <span class="kw">use </span>relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>thiserror::Error;
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 <span class="kw">use crate</span>::{

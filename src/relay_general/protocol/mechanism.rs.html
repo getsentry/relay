@@ -453,7 +453,6 @@
 <a href="#452" id="452">452</a>
 <a href="#453" id="453">453</a>
 <a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Error, FromValue, Object, Value};
 
 <span class="doccomment">/// POSIX signal with optional extended data.
@@ -716,9 +715,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mechanism_roundtrip() {

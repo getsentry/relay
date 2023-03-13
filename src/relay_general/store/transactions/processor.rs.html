@@ -2011,20 +2011,17 @@
 <a href="#2010" id="2010">2010</a>
 <a href="#2011" id="2011">2011</a>
 <a href="#2012" id="2012">2012</a>
-<a href="#2013" id="2013">2013</a>
-<a href="#2014" id="2014">2014</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
 
+<span class="kw">use </span><span class="kw">super</span>::TransactionNameRule;
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
-
-<span class="kw">use </span><span class="kw">super</span>::TransactionNameRule;
 
 <span class="doccomment">/// Rejects transactions based on required fields.
 </span><span class="attr">#[derive(Default)]
@@ -2441,13 +2438,12 @@
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     <span class="kw">use </span><span class="kw">crate</span>::store::LazyGlob;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
     <span class="kw">use </span><span class="kw">crate</span>::types::Object;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>new_test_event() -&gt; Annotated&lt;Event&gt; {
         <span class="kw">let </span>start = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();

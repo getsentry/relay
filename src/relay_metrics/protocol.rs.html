@@ -901,20 +901,18 @@
 <a href="#900" id="900">900</a>
 <a href="#901" id="901">901</a>
 <a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
 <span class="kw">use </span>std::iter::FusedIterator;
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-
 <span class="attr">#[doc(inline)]
 </span><span class="kw">pub use </span>relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
     UnixTimestamp,
 };
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Type used for Counter metric
 </span><span class="kw">pub type </span>CounterType = f64;

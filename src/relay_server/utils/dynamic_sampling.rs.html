@@ -911,17 +911,11 @@
 <a href="#910" id="910">910</a>
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_general::protocol::Event;
 <span class="kw">use </span>relay_sampling::{
@@ -1076,22 +1070,18 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>similar_asserts::assert_eq;
-
     <span class="kw">use </span>chrono::Duration <span class="kw">as </span>DateDuration;
-    <span class="kw">use </span>relay_common::Uuid;
-
-    <span class="kw">use </span>relay_common::EventType;
+    <span class="kw">use </span>relay_common::{EventType, Uuid};
     <span class="kw">use </span>relay_general::protocol::{EventId, LenientString};
     <span class="kw">use </span>relay_general::types::Annotated;
     <span class="kw">use </span>relay_sampling::{
         DecayingFunction, EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType,
         SamplingConfig, SamplingMatch, SamplingRule, SamplingValue, TimeRange,
     };
-
-    <span class="kw">use </span><span class="kw">crate</span>::testutils::project_state_with_config;
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::project_state_with_config;
 
     <span class="macro">macro_rules! </span>assert_transaction_match {
         (<span class="macro-nonterminal">$res</span>:expr, <span class="macro-nonterminal">$sr</span>:expr, <span class="macro-nonterminal">$sd</span>:expr, $( <span class="macro-nonterminal">$id</span>:expr ),<span class="kw-2">*</span>) =&gt; {

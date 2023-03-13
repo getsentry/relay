@@ -73,13 +73,13 @@
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, ErrorKind, Read};
 
-<span class="kw">use </span>actix_web::{error::PayloadError, HttpRequest};
+<span class="kw">use </span>actix_web::error::PayloadError;
+<span class="kw">use </span>actix_web::HttpRequest;
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>data_encoding::BASE64;
 <span class="kw">use </span>flate2::read::ZlibDecoder;
-<span class="kw">use </span>url::form_urlencoded;
-
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>url::form_urlencoded;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;

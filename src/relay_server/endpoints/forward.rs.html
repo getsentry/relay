@@ -316,16 +316,16 @@
 <span class="kw">use </span>actix::ResponseFuture;
 <span class="kw">use </span>actix_web::error::{ParseError, ResponseError};
 <span class="kw">use </span>actix_web::http::header::{<span class="self">self</span>, HeaderName, HeaderValue};
-<span class="kw">use </span>actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
+<span class="kw">use </span>actix_web::http::uri::PathAndQuery;
+<span class="kw">use </span>actix_web::http::{HeaderMap, StatusCode};
 <span class="kw">use </span>actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>futures::TryFutureExt;
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>tokio::sync::oneshot;
-
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::utils::GlobMatcher;
 <span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>tokio::sync::oneshot;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,

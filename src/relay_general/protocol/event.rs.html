@@ -813,20 +813,15 @@
 <a href="#812" id="812">812</a>
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>relay_common::Uuid;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::gen::SchemaGenerator;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::schema::Schema;
-
 <span class="kw">use </span>serde::{Serialize, Serializer};
-
-<span class="kw">use </span>relay_common::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -1406,10 +1401,9 @@
     <span class="kw">use </span>chrono::{TimeZone, Utc};
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::TagEntry;
     <span class="kw">use </span><span class="kw">crate</span>::types::{Map, Meta};
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_roundtrip() {

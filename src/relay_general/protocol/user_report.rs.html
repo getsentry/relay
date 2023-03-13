@@ -31,10 +31,10 @@
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::utils::null_to_default;
-<span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
+</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::utils::null_to_default;
+<span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
 
 <span class="doccomment">/// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.
 ///

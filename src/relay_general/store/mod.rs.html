@@ -127,6 +127,7 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.
 </span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
@@ -151,11 +152,12 @@
 <span class="kw">mod </span>transactions;
 <span class="kw">mod </span>trimming;
 
-<span class="kw">pub use </span><span class="self">self</span>::clock_drift::<span class="kw-2">*</span>;
-<span class="kw">pub use </span><span class="self">self</span>::geo::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>normalize::breakdowns::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>normalize::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>transactions::<span class="kw-2">*</span>;
+
+<span class="kw">pub use </span><span class="self">self</span>::clock_drift::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::geo::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// The config for store.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]

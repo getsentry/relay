@@ -404,11 +404,12 @@
 <a href="#403" id="403">403</a>
 <a href="#404" id="404">404</a>
 <a href="#405" id="405">405</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::FromUserAgentInfo;
+</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="kw">use </span><span class="kw">crate</span>::protocol::FromUserAgentInfo;
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::is_known;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 <span class="kw">use </span><span class="kw">crate</span>::user_agent::{parse_device, ClientHints};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="attr">#[derive(
     Clone,
@@ -638,8 +639,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span><span class="kw">crate</span>::protocol::contexts::device::DeviceClass;
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::{DeviceContext, FromUserAgentInfo};
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Headers, PairList};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{DeviceContext, FromUserAgentInfo, Headers, PairList};
     <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
     <span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
 

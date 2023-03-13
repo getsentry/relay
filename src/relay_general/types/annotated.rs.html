@@ -535,15 +535,12 @@
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::gen::SchemaGenerator;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::schema::Schema;
-
 <span class="kw">use </span>serde::ser::SerializeMap;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -978,9 +975,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span><span class="kw">crate</span>::types::ErrorKind;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::ErrorKind;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_annotated_deserialize_with_meta() {

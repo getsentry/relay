@@ -421,7 +421,6 @@
 <a href="#420" id="420">420</a>
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from legacy browsers.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -574,10 +573,9 @@
     <span class="kw">const </span>SAFARI_6_UA: <span class="kw-2">&amp;</span>str =
         <span class="string">&quot;Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5&quot;</span>;
 
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>std::collections::BTreeSet;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::testutils;
 
     <span class="kw">fn </span>get_legacy_browsers_config(

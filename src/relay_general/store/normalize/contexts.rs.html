@@ -711,7 +711,6 @@
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
 <a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -964,9 +963,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::LenientString;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::LenientString;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_dotnet_framework_48_without_build_id() {

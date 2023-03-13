@@ -245,7 +245,6 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>serde::{Serialize, Serializer};
@@ -438,9 +437,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
 
     <span class="attr">#[test]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_roundtrip() {

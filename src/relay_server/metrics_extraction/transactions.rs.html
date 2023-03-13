@@ -1801,6 +1801,7 @@
 <a href="#1800" id="1800">1800</a>
 <a href="#1801" id="1801">1801</a>
 <a href="#1802" id="1802">1802</a>
+<a href="#1803" id="1803">1803</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{SpanStatus, UnixTimestamp};
@@ -1810,8 +1811,9 @@
 };
 <span class="kw">use </span>relay_general::store;
 <span class="kw">use </span>relay_general::types::Annotated;
-<span class="kw">use </span>relay_metrics::AggregatorConfig;
-<span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+<span class="kw">use </span>relay_metrics::{
+    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
+};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -2270,8 +2272,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>relay_dynamic_config::TaggingRule;
     <span class="kw">use </span>relay_general::protocol::{Contexts, Timestamp, User};
     <span class="kw">use </span>relay_general::store::{
@@ -2279,6 +2279,8 @@
     };
     <span class="kw">use </span>relay_general::types::Annotated;
     <span class="kw">use </span>relay_metrics::DurationUnit;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="doccomment">/// Returns an aggregator config that permits every timestamp.
     </span><span class="kw">fn </span>aggregator_config() -&gt; AggregatorConfig {

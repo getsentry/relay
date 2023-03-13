@@ -125,7 +125,6 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
 </pre><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -135,6 +134,7 @@
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Read};
 <span class="kw">use </span>std::path::PathBuf;
 
+<span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
@@ -143,8 +143,6 @@
     light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 <span class="kw">use </span>relay_general::types::Annotated;
-
-<span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
 
 <span class="doccomment">/// Processes a Sentry event payload.
 ///

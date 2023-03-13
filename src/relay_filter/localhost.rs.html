@@ -153,11 +153,9 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from the localhost
-</span><span class="kw">use </span>url::Url;
-
-<span class="kw">use </span>relay_general::protocol::Event;
+</span><span class="kw">use </span>relay_general::protocol::Event;
+<span class="kw">use </span>url::Url;
 
 <span class="kw">use crate</span>::{FilterConfig, FilterStatKey};
 
@@ -210,10 +208,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>relay_general::protocol::{IpAddr, Request, User};
     <span class="kw">use </span>relay_general::types::Annotated;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>get_event_with_ip_addr(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
         Event {

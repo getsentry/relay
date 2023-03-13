@@ -493,15 +493,15 @@
 </span><span class="kw">use </span>std::fmt::Write;
 <span class="kw">use </span>std::future::Future;
 
+<span class="kw">use </span>actix_web::error::PayloadError;
 <span class="kw">use </span>actix_web::http::{header, StatusCode};
 <span class="kw">use </span>actix_web::middleware::cors::{Cors, CorsBuilder};
-<span class="kw">use </span>actix_web::{error::PayloadError, App, HttpResponse};
-<span class="kw">use </span>serde::Deserialize;
-
+<span class="kw">use </span>actix_web::{App, HttpResponse};
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessMetrics};

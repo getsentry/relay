@@ -631,10 +631,12 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use </span>serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>serde::ser::SerializeSeq;
+<span class="kw">use </span>serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::estimate_size;

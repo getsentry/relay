@@ -895,6 +895,7 @@
 <a href="#894" id="894">894</a>
 <a href="#895" id="895">895</a>
 <a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
 </pre><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -906,11 +907,12 @@
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
 <span class="kw">use </span>data_encoding::BASE64URL_NOPAD;
 <span class="kw">use </span>hmac::{Hmac, Mac};
-<span class="kw">use </span>rand::{rngs::OsRng, thread_rng, RngCore};
-<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
-<span class="kw">use </span>sha2::Sha512;
-
+<span class="kw">use </span>rand::rngs::OsRng;
+<span class="kw">use </span>rand::{thread_rng, RngCore};
 <span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
+<span class="kw">use </span>serde::de::DeserializeOwned;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>sha2::Sha512;
 
 <span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 

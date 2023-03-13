@@ -659,7 +659,6 @@
 <a href="#658" id="658">658</a>
 <a href="#659" id="659">659</a>
 <a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::str::FromStr;
@@ -669,15 +668,14 @@
 <span class="kw">use </span>actix_web::http::header;
 <span class="kw">use </span>actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 <span class="kw">use </span>futures::TryFutureExt;
-<span class="kw">use </span>relay_general::user_agent::{ClientHints, RawUserAgentInfo};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>url::Url;
-
 <span class="kw">use </span>relay_common::{
     Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
     ProjectKey, Scheme,
 };
+<span class="kw">use </span>relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 <span class="kw">use </span>relay_quotas::Scoping;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;

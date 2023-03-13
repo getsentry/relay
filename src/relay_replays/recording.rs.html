@@ -563,6 +563,7 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay recordings payload and processor.
 //!
 //! # Data Scrubbing
@@ -582,14 +583,15 @@
 <span class="kw">use </span>std::io::Read;
 <span class="kw">use </span>std::rc::Rc;
 
-<span class="kw">use </span>flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
+<span class="kw">use </span>flate2::bufread::ZlibDecoder;
+<span class="kw">use </span>flate2::write::ZlibEncoder;
+<span class="kw">use </span>flate2::Compression;
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>serde::{de, ser, Deserializer};
-<span class="kw">use </span>serde_json::value::RawValue;
-
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 <span class="kw">use </span>relay_general::types::Meta;
+<span class="kw">use </span>serde::{de, ser, Deserializer};
+<span class="kw">use </span>serde_json::value::RawValue;
 
 <span class="kw">use </span><span class="kw">crate</span>::transform::Transform;
 

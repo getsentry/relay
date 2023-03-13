@@ -140,11 +140,11 @@
 <a href="#139" id="139">139</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Handles event store requests.
 
-</span><span class="kw">use </span>actix_web::{http::Method, App, HttpMessage, HttpRequest, HttpResponse};
+</span><span class="kw">use </span>actix_web::http::Method;
+<span class="kw">use </span>actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::{Bytes, BytesMut};
-<span class="kw">use </span>serde::Serialize;
-
 <span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};

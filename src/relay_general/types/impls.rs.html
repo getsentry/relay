@@ -1049,11 +1049,9 @@
 <a href="#1048" id="1048">1048</a>
 <a href="#1049" id="1049">1049</a>
 <a href="#1050" id="1050">1050</a>
-<a href="#1051" id="1051">1051</a>
-</pre><pre class="rust"><code><span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
+</pre><pre class="rust"><code><span class="kw">use </span>relay_common::Uuid;
+<span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::{Serialize, Serializer};
-
-<span class="kw">use </span>relay_common::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
 <span class="kw">use </span><span class="kw">crate</span>::types::{

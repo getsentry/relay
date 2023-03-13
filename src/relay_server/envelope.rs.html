@@ -1689,13 +1689,13 @@
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::UnixTimestamp;
-<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
-<span class="kw">use </span>smallvec::SmallVec;
-
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_general::types::Value;
 <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
+<span class="kw">use </span>serde::de::DeserializeOwned;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
@@ -2803,9 +2803,9 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>relay_common::ProjectId;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>request_meta() -&gt; RequestMeta {
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;

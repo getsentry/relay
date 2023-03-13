@@ -53,8 +53,8 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{http::Method, App, HttpRequest, HttpResponse};
-
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::http::Method;
+<span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
 <span class="kw">use </span>relay_general::protocol::EventId;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};

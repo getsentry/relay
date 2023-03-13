@@ -977,22 +977,17 @@
 <a href="#976" id="976">976</a>
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>enumset::EnumSet;
+<span class="kw">use </span>relay_common::Uuid;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::gen::SchemaGenerator;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::schema::Schema;
-
-<span class="kw">use </span>enumset::EnumSet;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-
-<span class="kw">use </span>relay_common::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Addr;
@@ -1517,9 +1512,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_debug_image_proguard_roundtrip() {

@@ -282,15 +282,13 @@
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::{Regex, RegexBuilder};
-<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
-
 <span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::pii::{CompiledPiiConfig, Redaction};
 <span class="kw">use </span><span class="kw">crate</span>::processor::SelectorSpec;

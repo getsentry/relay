@@ -775,10 +775,9 @@
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
-
-<span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 
 <span class="doccomment">/// Data scoping information.
 ///
@@ -1087,8 +1086,9 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>smallvec::smallvec;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_quota_reject_all() {

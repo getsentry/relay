@@ -179,16 +179,14 @@
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>r2d2::{Pool, PooledConnection};
+<span class="kw">pub use </span>redis;
 <span class="kw">use </span>redis::ConnectionLike;
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{RedisConfig, RedisConfigOptions};
-
-<span class="kw">pub use </span>redis;
 
 <span class="doccomment">/// An error returned from `RedisPool`.
 </span><span class="attr">#[derive(Debug, Error)]

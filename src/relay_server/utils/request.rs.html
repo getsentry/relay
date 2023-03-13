@@ -11,7 +11,9 @@
 <a href="#10" id="10">10</a>
 <a href="#11" id="11">11</a>
 <a href="#12" id="12">12</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{http::header, HttpMessage};
+<a href="#13" id="13">13</a>
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::http::header;
+<span class="kw">use </span>actix_web::HttpMessage;
 
 <span class="comment">// Resolve the content length from HTTP request headers.
 </span><span class="kw">pub fn </span>get_content_length&lt;T&gt;(req: <span class="kw-2">&amp;</span>T) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt;

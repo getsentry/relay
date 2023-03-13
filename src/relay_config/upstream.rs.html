@@ -179,17 +179,13 @@
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::io;
 <span class="kw">use </span>std::net::{SocketAddr, ToSocketAddrs};
 <span class="kw">use </span>std::str::FromStr;
-
-<span class="kw">use </span>url::Url;
+<span class="kw">use </span>std::{fmt, io};
 
 <span class="kw">use </span>relay_common::{Dsn, Scheme};
+<span class="kw">use </span>url::Url;
 
 <span class="doccomment">/// Indicates failures in the upstream error api.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]

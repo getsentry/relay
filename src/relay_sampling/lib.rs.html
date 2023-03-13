@@ -3145,8 +3145,6 @@
 <a href="#3144" id="3144">3144</a>
 <a href="#3145" id="3145">3145</a>
 <a href="#3146" id="3146">3146</a>
-<a href="#3147" id="3147">3147</a>
-<a href="#3148" id="3148">3148</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -3162,15 +3160,15 @@
 <span class="kw">use </span>std::num::ParseIntError;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>rand::{distributions::Uniform, Rng};
+<span class="kw">use </span>rand::distributions::Uniform;
+<span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_pcg::Pcg32;
-<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
-<span class="kw">use </span>serde_json::{Number, Value};
-
 <span class="kw">use </span>relay_common::{EventType, ProjectKey, Uuid};
 <span class="kw">use </span>relay_filter::GlobPatterns;
 <span class="kw">use </span>relay_general::protocol::{Context, Event, TraceContext};
 <span class="kw">use </span>relay_general::store;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>serde_json::{Number, Value};
 
 <span class="doccomment">/// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 </span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -4400,18 +4398,16 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>similar_asserts::assert_eq;
-
     <span class="kw">use </span>std::net::{IpAddr <span class="kw">as </span>NetIpAddr, Ipv4Addr};
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{TimeZone, Utc};
-
     <span class="kw">use </span>relay_general::protocol::{
         Contexts, Csp, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
         LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     <span class="kw">use </span>relay_general::types::Annotated;
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 

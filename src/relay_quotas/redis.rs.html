@@ -772,11 +772,11 @@
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>thiserror::Error;
-
 <span class="kw">use </span>relay_common::UnixTimestamp;
 <span class="kw">use </span>relay_log::protocol::value;
-<span class="kw">use </span>relay_redis::{redis::Script, RedisError, RedisPool};
+<span class="kw">use </span>relay_redis::redis::Script;
+<span class="kw">use </span>relay_redis::{RedisError, RedisPool};
+<span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::quota::{ItemScoping, Quota, QuotaScope};
 <span class="kw">use </span><span class="kw">crate</span>::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -1029,12 +1029,12 @@
     <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
     <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_redis::{redis::Commands, RedisConfigOptions};
-
-    <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    <span class="kw">use </span><span class="kw">crate</span>::rate_limit::RateLimitScope;
+    <span class="kw">use </span>relay_redis::redis::Commands;
+    <span class="kw">use </span>relay_redis::RedisConfigOptions;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    <span class="kw">use </span><span class="kw">crate</span>::rate_limit::RateLimitScope;
 
     <span class="kw">fn </span>build_rate_limiter() -&gt; RedisRateLimiter {
         <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)

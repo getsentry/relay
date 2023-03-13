@@ -410,16 +410,12 @@
 <a href="#409" id="409">409</a>
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::Utc;
-<span class="kw">use </span>tokio::sync::oneshot;
-
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
 <span class="kw">use </span>relay_general::protocol::ClientReport;
@@ -428,10 +424,13 @@
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse};
+<span class="kw">use </span>tokio::sync::oneshot;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, UpdateRateLimits};
+<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::{Store, StoreEnvelope, StoreError};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -442,9 +441,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 <span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeContext;
-
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::{Store, StoreEnvelope, StoreError};
 
 <span class="doccomment">/// Error created while handling [`SendEnvelope`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]

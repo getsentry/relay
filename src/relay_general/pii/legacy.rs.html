@@ -76,7 +76,6 @@
 <a href="#75" id="75">75</a>
 <a href="#76" id="76">76</a>
 <a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Legacy datascrubbing coniguration
 //!
 //! All these configuration options are ignored by the new data scrubbers which operate
@@ -85,9 +84,8 @@
 </span><span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::pii::{convert, is_flag_default, PiiConfig};
-
 <span class="kw">use </span><span class="kw">super</span>::config::PiiConfigError;
+<span class="kw">use </span><span class="kw">crate</span>::pii::{convert, is_flag_default, PiiConfig};
 
 <span class="doccomment">/// Configuration for Sentry&#39;s datascrubbing
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]

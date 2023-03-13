@@ -242,7 +242,6 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventProcessingError};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingResult};
@@ -309,11 +308,10 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{Breadcrumb, Values};
     <span class="kw">use </span><span class="kw">crate</span>::types::{ErrorKind, Object, Value};
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_errors() {

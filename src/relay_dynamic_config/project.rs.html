@@ -125,11 +125,7 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
-
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>serde_json::Value;
 
 <span class="kw">use </span>relay_auth::PublicKey;
 <span class="kw">use </span>relay_filter::FiltersConfig;
@@ -138,6 +134,8 @@
 <span class="kw">use </span>relay_general::types::SpanAttribute;
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>relay_sampling::SamplingConfig;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>serde_json::Value;
 
 <span class="kw">use </span><span class="kw">crate</span>::feature::Feature;
 <span class="kw">use crate</span>::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};

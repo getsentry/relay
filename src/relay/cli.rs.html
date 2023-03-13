@@ -361,29 +361,21 @@
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::env;
-<span class="kw">use </span>std::io;
-<span class="kw">use </span>std::path::{Path, PathBuf};
+</pre><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
+<span class="kw">use </span>std::{env, io};
 
 <span class="kw">use </span>anyhow::{anyhow, bail, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::ArgMatches;
 <span class="kw">use </span>clap_complete::Shell;
-<span class="kw">use </span>dialoguer::Confirm;
-<span class="kw">use </span>dialoguer::Select;
-
+<span class="kw">use </span>dialoguer::{Confirm, Select};
 <span class="kw">use </span>relay_common::Uuid;
 <span class="kw">use </span>relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::cliapp::make_app;
-<span class="kw">use </span><span class="kw">crate</span>::setup;
-<span class="kw">use </span><span class="kw">crate</span>::utils;
 <span class="kw">use </span><span class="kw">crate</span>::utils::get_theme;
+<span class="kw">use crate</span>::{setup, utils};
 
 <span class="kw">fn </span>load_config(path: <span class="kw">impl </span>AsRef&lt;Path&gt;, require: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Config&gt; {
     <span class="kw">match </span>Config::from_path(path) {

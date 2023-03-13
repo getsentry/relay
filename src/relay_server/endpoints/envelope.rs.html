@@ -50,13 +50,11 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Handles envelope store requests.
 
 </span><span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
-<span class="kw">use </span>serde::Serialize;
-
 <span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};

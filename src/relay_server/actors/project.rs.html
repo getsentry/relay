@@ -994,20 +994,10 @@
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-
-<span class="kw">use </span>smallvec::SmallVec;
-<span class="kw">use </span>tokio::time::Instant;
-<span class="kw">use </span>url::Url;
-
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
@@ -1016,21 +1006,23 @@
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::BroadcastChannel;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>smallvec::SmallVec;
+<span class="kw">use </span>tokio::time::Instant;
+<span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::EnvelopeProcessor;
+<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-
 <span class="kw">use </span><span class="kw">crate</span>::service::Registry;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
-
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

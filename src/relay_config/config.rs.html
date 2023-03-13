@@ -1917,27 +1917,17 @@
 <a href="#1916" id="1916">1916</a>
 <a href="#1917" id="1917">1917</a>
 <a href="#1918" id="1918">1918</a>
-<a href="#1919" id="1919">1919</a>
-<a href="#1920" id="1920">1920</a>
-<a href="#1921" id="1921">1921</a>
-<a href="#1922" id="1922">1922</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
-<span class="kw">use </span>std::env;
 <span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::fs;
-<span class="kw">use </span>std::io;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::{env, fmt, fs, io};
 
 <span class="kw">use </span>anyhow::Context;
-<span class="kw">use </span>serde::de::{Unexpected, Visitor};
-<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
-
 <span class="kw">use </span>relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 <span class="kw">use </span>relay_common::{Dsn, Uuid};
 <span class="kw">use </span>relay_kafka::{
@@ -1945,6 +1935,8 @@
 };
 <span class="kw">use </span>relay_metrics::AggregatorConfig;
 <span class="kw">use </span>relay_redis::RedisConfig;
+<span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::byte_size::ByteSize;
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
@@ -2970,9 +2962,9 @@
 
 <span class="doccomment">/// Alternative serialization of RelayInfo for config file using snake case.
 </span><span class="kw">mod </span>config_relay_info {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>serde::ser::SerializeMap;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="comment">// Uses snake_case as opposed to camelCase.
     </span><span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]

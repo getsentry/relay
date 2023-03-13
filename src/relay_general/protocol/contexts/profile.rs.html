@@ -54,11 +54,8 @@
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
 <a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
-
-<span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
+<span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
 
 <span class="doccomment">/// Profile context
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -78,9 +75,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
 
     <span class="attr">#[test]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_roundtrip() {

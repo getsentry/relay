@@ -56,10 +56,8 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
-
-<span class="kw">use </span>relay_general::protocol::{Addr, DebugId, NativeImagePath};
+</pre><pre class="rust"><code><span class="kw">use </span>relay_general::protocol::{Addr, DebugId, NativeImagePath};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
 
@@ -90,10 +88,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">super</span>::NativeDebugImage;
-
     <span class="kw">use </span>relay_general::protocol::{Addr, DebugImage, NativeDebugImage <span class="kw">as </span>RelayNativeDebugImage};
     <span class="kw">use </span>relay_general::types::{Annotated, Map};
+
+    <span class="kw">use </span><span class="kw">super</span>::NativeDebugImage;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_native_debug_image_compatibility() {

@@ -233,7 +233,6 @@
 <a href="#232" id="232">232</a>
 <a href="#233" id="233">233</a>
 <a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Breadcrumb, Event};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
@@ -312,11 +311,10 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
     <span class="kw">use </span><span class="kw">crate</span>::testutils::get_value;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_legacy_attributes() {

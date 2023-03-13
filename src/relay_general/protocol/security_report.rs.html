@@ -2496,8 +2496,9 @@
 }
 
 <span class="kw">mod </span>serde_date_time_3339 {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>serde::de::Visitor;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">pub fn </span>serialize&lt;S&gt;(date_time: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
@@ -3015,7 +3016,6 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
 
     <span class="attr">#[test]

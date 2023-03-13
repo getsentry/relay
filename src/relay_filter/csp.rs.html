@@ -602,10 +602,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>relay_general::protocol::Csp;
     <span class="kw">use </span>relay_general::types::Annotated;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>get_csp_event(blocked_uri: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, source_file: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; Event {
         <span class="kw">fn </span>annotated_string_or_none(val: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; Annotated&lt;String&gt; {

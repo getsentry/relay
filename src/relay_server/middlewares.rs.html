@@ -349,6 +349,7 @@
 <a href="#348" id="348">348</a>
 <a href="#349" id="349">349</a>
 <a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
 </pre><pre class="rust"><code><span class="attr">#![allow(deprecated)]
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -357,13 +358,14 @@
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>actix_web::error::Error;
+<span class="kw">use </span>actix_web::http::header;
 <span class="kw">use </span>actix_web::middleware::{Finished, Middleware, Response, Started};
-<span class="kw">use </span>actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
+<span class="kw">use </span>actix_web::{Body, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures::TryFutureExt;
-
-<span class="kw">use </span>relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
-<span class="kw">use </span>relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
+<span class="kw">use </span>relay_log::_sentry::integrations::backtrace::parse_stacktrace;
+<span class="kw">use </span>relay_log::_sentry::types::Uuid;
+<span class="kw">use </span>relay_log::_sentry::{parse_type_from_debug, Hub, Level, ScopeGuard};
 <span class="kw">use </span>relay_log::protocol::{ClientSdkPackage, Event, Exception, Request};
 <span class="kw">use </span>relay_statsd::metric;
 

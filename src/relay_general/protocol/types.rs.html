@@ -1344,24 +1344,20 @@
 <a href="#1343" id="1343">1343</a>
 <a href="#1344" id="1344">1344</a>
 <a href="#1345" id="1345">1345</a>
-<a href="#1346" id="1346">1346</a>
-<a href="#1347" id="1347">1347</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common types of the protocol.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::cmp::Ordering;
-<span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::iter::{FromIterator, IntoIterator};
-<span class="kw">use </span>std::net;
 <span class="kw">use </span>std::ops::{Add, Sub};
 <span class="kw">use </span>std::str::FromStr;
+<span class="kw">use </span>std::{fmt, net};
 
 <span class="kw">use </span>chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
+<span class="kw">use </span>enumset::EnumSet;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::gen::SchemaGenerator;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::schema::Schema;
-
-<span class="kw">use </span>enumset::EnumSet;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};

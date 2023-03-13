@@ -102,13 +102,11 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Endpoints for security reports.
 
 </span><span class="kw">use </span>actix_web::{pred, App, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-<span class="kw">use </span>serde::Deserialize;
-
 <span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};

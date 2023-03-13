@@ -184,7 +184,6 @@
 </pre><pre class="rust"><code><span class="kw">use </span>actix_web::{server, App};
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>listenfd::ListenFd;
-
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Controller, Service, Shutdown};
@@ -273,9 +272,10 @@
         config.tls_identity_path(),
         config.tls_identity_password(),
     ) {
-        <span class="kw">use </span>native_tls::{Identity, TlsAcceptor};
         <span class="kw">use </span>std::fs::File;
         <span class="kw">use </span>std::io::Read;
+
+        <span class="kw">use </span>native_tls::{Identity, TlsAcceptor};
 
         <span class="kw">let </span><span class="kw-2">mut </span>file = File::open(path).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[];

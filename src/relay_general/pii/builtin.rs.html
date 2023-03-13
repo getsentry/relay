@@ -1372,15 +1372,15 @@
 <span class="comment">// TODO: Move these tests to /tests
 </span><span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>similar_asserts::assert_eq;
     <span class="kw">use </span>std::collections::BTreeMap;
 
+    <span class="kw">use </span>similar_asserts::assert_eq;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::pii::config::PiiConfig;
     <span class="kw">use </span><span class="kw">crate</span>::pii::processor::PiiProcessor;
     <span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessingState, ValueType};
     <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Remark, RemarkType};
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, IntoValue)]
     </span><span class="kw">struct </span>FreeformRoot {

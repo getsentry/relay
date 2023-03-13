@@ -263,10 +263,10 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use </span>serde::{de, ser::Serializer, Serialize};
-
 <span class="kw">pub use </span>human_size::ParsingError <span class="kw">as </span>ByteSizeParseError;
 <span class="kw">use </span>human_size::{Any, Size, SpecificSize};
+<span class="kw">use </span>serde::ser::Serializer;
+<span class="kw">use </span>serde::{de, Serialize};
 
 <span class="doccomment">/// Represents a size in bytes.
 ///

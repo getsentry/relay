@@ -216,13 +216,11 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
 </pre><pre class="rust"><code><span class="kw">use </span>actix_web::multipart::{Multipart, MultipartItem};
 <span class="kw">use </span>actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>futures::compat::Future01CompatExt;
 <span class="kw">use </span>futures01::{stream, Stream};
-
 <span class="kw">use </span>relay_general::protocol::EventId;
 
 <span class="kw">use </span><span class="kw">crate</span>::body;

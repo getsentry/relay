@@ -393,11 +393,13 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::io;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
+<span class="kw">use </span>actix_web::error::PayloadError;
+<span class="kw">use </span>actix_web::{multipart, HttpMessage, HttpRequest};
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>futures::compat::Future01CompatExt;
 <span class="kw">use </span>futures01::{Async, Future, Poll, Stream};

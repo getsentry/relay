@@ -2497,8 +2497,6 @@
 <a href="#2496" id="2496">2496</a>
 <a href="#2497" id="2497">2497</a>
 <a href="#2498" id="2498">2498</a>
-<a href="#2499" id="2499">2499</a>
-<a href="#2500" id="2500">2500</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2508,10 +2506,9 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>relay_common::{DurationUnit, FractionUnit, MetricUnit};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
-
-<span class="kw">use </span>relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
 <span class="kw">use super</span>::{schema, transactions, BreakdownsConfig, TransactionNameRule};
 <span class="kw">use </span><span class="kw">crate</span>::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
@@ -3501,6 +3498,7 @@
     <span class="kw">use </span>serde_json::json;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{
         ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
@@ -3509,8 +3507,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{get_path, get_value};
     <span class="kw">use </span><span class="kw">crate</span>::types::{FromValue, SerializableAnnotated};
     <span class="kw">use </span><span class="kw">crate</span>::user_agent::ClientHints;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>Default <span class="kw">for </span>NormalizeProcessor&lt;<span class="lifetime">&#39;_</span>&gt; {
         <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{

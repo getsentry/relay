@@ -542,7 +542,6 @@
 <a href="#541" id="541">541</a>
 <a href="#542" id="542">542</a>
 <a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>url::Url;
@@ -736,10 +735,9 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{Cookies, Headers, PairList, Query};
     <span class="kw">use </span><span class="kw">crate</span>::types::Object;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_url_truncation() {

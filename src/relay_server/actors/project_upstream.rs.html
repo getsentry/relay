@@ -478,16 +478,13 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
-<span class="kw">use </span>std::collections::{hash_map::Entry, HashMap};
+<span class="kw">use </span>std::collections::hash_map::Entry;
+<span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>futures::future;
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>tokio::sync::mpsc;
-<span class="kw">use </span>tokio::time::Instant;
-
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
@@ -496,6 +493,9 @@
 <span class="kw">use </span>relay_system::{
     BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>tokio::sync::mpsc;
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchProjectState;

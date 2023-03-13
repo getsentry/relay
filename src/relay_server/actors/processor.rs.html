@@ -3337,16 +3337,7 @@
 <a href="#3336" id="3336">3336</a>
 <a href="#3337" id="3337">3337</a>
 <a href="#3338" id="3338">3338</a>
-<a href="#3339" id="3339">3339</a>
-<a href="#3340" id="3340">3340</a>
-<a href="#3341" id="3341">3341</a>
-<a href="#3342" id="3342">3342</a>
-<a href="#3343" id="3343">3343</a>
-<a href="#3344" id="3344">3344</a>
-</pre><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
-<span class="kw">use </span>relay_replays::recording::RecordingScrubber;
-<span class="kw">use </span>std::collections::BTreeMap;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net;
@@ -3355,20 +3346,17 @@
 <span class="kw">use </span>std::time::{Duration, Instant};
 
 <span class="kw">use </span>brotli2::write::BrotliEncoder;
+<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
 <span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
-<span class="kw">use </span>tokio::sync::Semaphore;
-
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 <span class="kw">use </span>relay_filter::FilterStatKey;
-<span class="kw">use </span>relay_general::pii::PiiConfigError;
-<span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
+<span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::{
     <span class="self">self</span>, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
@@ -3377,13 +3365,29 @@
 };
 <span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 <span class="kw">use </span>relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+<span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
+<span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
+<span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
+<span class="kw">use </span>tokio::sync::Semaphore;
+<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>{
+    <span class="kw">crate</span>::actors::envelopes::SendMetrics,
+    <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
+    <span class="kw">crate</span>::service::ServiceError,
+    <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
+    anyhow::Context,
+    relay_general::protocol::{Context <span class="kw">as </span>SentryContext, Contexts, ProfileContext},
+    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
+};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -3398,19 +3402,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
     SamplingResult,
-};
-
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>{
-    <span class="kw">crate</span>::actors::envelopes::SendMetrics,
-    <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
-    <span class="kw">crate</span>::service::ServiceError,
-    <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
-    relay_general::protocol::{Context <span class="kw">as </span>SentryContext, Contexts, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 <span class="doccomment">/// The minimum clock drift for correction to apply.
@@ -5891,22 +5882,19 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>similar_asserts::assert_eq;
-
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
-
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::EventId;
     <span class="kw">use </span>relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
     <span class="kw">use </span><span class="kw">crate</span>::utils::Semaphore <span class="kw">as </span>TestSemaphore;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">struct </span>TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
         item: Item,

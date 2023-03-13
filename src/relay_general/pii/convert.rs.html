@@ -1461,7 +1461,6 @@
 <a href="#1460" id="1460">1460</a>
 <a href="#1461" id="1461">1461</a>
 <a href="#1462" id="1462">1462</a>
-<a href="#1463" id="1463">1463</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1593,6 +1592,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use </span><span class="kw">super</span>::to_pii_config <span class="kw">as </span>to_pii_config_impl;
     <span class="doccomment">/// These tests are ported from Sentry&#39;s Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
     </span><span class="kw">use </span><span class="kw">crate</span>::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
@@ -1601,8 +1601,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::store::{StoreConfig, StoreProcessor};
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
     <span class="kw">use </span><span class="kw">crate</span>::types::FromValue;
-
-    <span class="kw">use </span><span class="kw">super</span>::to_pii_config <span class="kw">as </span>to_pii_config_impl;
 
     <span class="kw">fn </span>to_pii_config(datascrubbing_config: <span class="kw-2">&amp;</span>DataScrubbingConfig) -&gt; <span class="prelude-ty">Option</span>&lt;PiiConfig&gt; {
         <span class="kw">let </span>rv = to_pii_config_impl(datascrubbing_config).unwrap();

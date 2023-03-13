@@ -883,10 +883,14 @@
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
-<span class="kw">use </span><span class="kw">crate</span>::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
-<span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
+<span class="kw">use </span><span class="kw">crate</span>::processor::{
+    estimate_size_flat, process_chunked_value, process_value, BagSize, Chunk, MaxChars,
+    ProcessValue, ProcessingState, Processor, ValueType,
+};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Frame, RawStacktrace};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
@@ -1275,9 +1279,11 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>similar_asserts::assert_eq;
     <span class="kw">use </span>std::iter::repeat;
 
+    <span class="kw">use </span>similar_asserts::assert_eq;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::MaxChars;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{
         Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
@@ -1286,8 +1292,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::types::{
         Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
     };
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_string_trimming() {
