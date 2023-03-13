@@ -311,8 +311,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use crate::pii::{DataScrubbingConfig, PiiProcessor};
-    use crate::processor::process_value;
-    use crate::processor::ProcessingState;
+    use crate::processor::{process_value, ProcessingState};
     use crate::protocol::{
         BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
         Tags,

@@ -5,7 +5,8 @@ use actix_web::dev::Payload;
 use actix_web::error::PayloadError;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use bytes::Bytes;
-use futures::{compat::Stream01CompatExt, TryStreamExt};
+use futures::compat::Stream01CompatExt;
+use futures::TryStreamExt;
 use futures01::{Async, Poll, Stream};
 
 /// A shared reference to an actix request payload.

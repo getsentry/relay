@@ -564,8 +564,9 @@ struct ExpectCtRaw {
 }
 
 mod serde_date_time_3339 {
-    use super::*;
     use serde::de::Visitor;
+
+    use super::*;
 
     pub fn serialize<S>(date_time: &Option<DateTime<Utc>>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -1083,7 +1084,6 @@ impl SecurityReportType {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::testutils::assert_annotated_snapshot;
 
     #[test]

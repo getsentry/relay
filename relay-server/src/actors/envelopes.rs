@@ -4,8 +4,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use tokio::sync::oneshot;
-
 use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
@@ -14,10 +12,13 @@ use relay_metrics::{Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
+use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
+#[cfg(feature = "processing")]
+use crate::actors::store::{Store, StoreEnvelope, StoreError};
 use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -28,9 +29,6 @@ use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
 use crate::utils::EnvelopeContext;
-
-#[cfg(feature = "processing")]
-use crate::actors::store::{Store, StoreEnvelope, StoreError};
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]

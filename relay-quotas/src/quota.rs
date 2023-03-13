@@ -1,10 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use relay_common::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-
-use relay_common::{ProjectId, ProjectKey};
 
 /// Data scoping information.
 ///
@@ -313,8 +312,9 @@ impl Quota {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use smallvec::smallvec;
+
+    use super::*;
 
     #[test]
     fn test_parse_quota_reject_all() {

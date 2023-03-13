@@ -1,14 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
+use relay_common::Uuid;
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
-
 use serde::{Serialize, Serializer};
-
-use relay_common::Uuid;
 
 use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
@@ -588,10 +586,9 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::protocol::TagEntry;
     use crate::types::{Map, Meta};
-
-    use super::*;
 
     #[test]
     fn test_event_roundtrip() {

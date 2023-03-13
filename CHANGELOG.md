@@ -13,6 +13,8 @@
 - Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895](https://github.com/getsentry/relay/pull/1895))
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
 - Move device.class from contexts to tags. ([#1911](https://github.com/getsentry/relay/pull/1911))
+- Optionally mark scrubbed URL transactions as sanitized. ([#1917](https://github.com/getsentry/relay/pull/1917))
+- Perform PII scrubbing on meta's original_value field ([#1892](https://github.com/getsentry/relay/pull/1892))
 
 **Bug Fixes**:
 

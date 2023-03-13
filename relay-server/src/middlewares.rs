@@ -6,13 +6,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use actix_web::error::Error;
+use actix_web::http::header;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
-use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{Body, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
 use futures::TryFutureExt;
-
-use relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
-use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
+use relay_log::_sentry::integrations::backtrace::parse_stacktrace;
+use relay_log::_sentry::types::Uuid;
+use relay_log::_sentry::{parse_type_from_debug, Hub, Level, ScopeGuard};
 use relay_log::protocol::{ClientSdkPackage, Event, Exception, Request};
 use relay_statsd::metric;
 

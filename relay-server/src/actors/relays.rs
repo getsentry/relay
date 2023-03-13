@@ -3,15 +3,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-
 use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;

@@ -1,4 +1,5 @@
-use actix_web::{http::header, HttpMessage};
+use actix_web::http::header;
+use actix_web::HttpMessage;
 
 // Resolve the content length from HTTP request headers.
 pub fn get_content_length<T>(req: &T) -> Option<usize>

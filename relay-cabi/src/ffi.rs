@@ -1,9 +1,8 @@
-use sentry_release_parser::InvalidRelease;
-
 use relay_auth::{KeyParseError, UnpackError};
 use relay_ffi::Panic;
 use relay_general::store::GeoIpError;
 use relay_general::types::ProcessingAction;
+use sentry_release_parser::InvalidRelease;
 
 use crate::core::RelayStr;
 

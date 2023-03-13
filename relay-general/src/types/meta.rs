@@ -1,7 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use serde::ser::SerializeSeq;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 
 use crate::processor::estimate_size;
@@ -546,6 +547,11 @@ impl Meta {
     /// Returns a reference to the original value, if any.
     pub fn original_value(&self) -> Option<&Value> {
         self.0.as_ref().and_then(|x| x.original_value.as_ref())
+    }
+
+    /// Returns a mutable reference to the original value, if any.
+    pub fn original_value_as_mut(&mut self) -> Option<&mut Value> {
+        self.0.as_mut().and_then(|x| x.original_value.as_mut())
     }
 
     /// Sets the original value.
