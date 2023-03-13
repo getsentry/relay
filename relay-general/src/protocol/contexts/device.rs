@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
