@@ -607,15 +607,17 @@ struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
     flush_handle: SleepHandle,
+    envelope_manager: Addr<EnvelopeManager>,
 }
 
 impl ClientReportOutcomeProducer {
-    fn create(config: &Config) -> Self {
+    fn new(config: &Config, envelope_manager: Addr<EnvelopeManager>) -> Self {
         Self {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
+            envelope_manager,
         }
     }
 
@@ -624,9 +626,8 @@ impl ClientReportOutcomeProducer {
         self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
-        let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            envelope_manager.send(SendClientReports {
+            self.envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
@@ -913,6 +914,7 @@ impl OutcomeProducerService {
     pub fn create(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
+        envelope_manager: Addr<EnvelopeManager>,
     ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
@@ -931,7 +933,10 @@ impl OutcomeProducerService {
             EmitOutcomes::AsClientReports => {
                 // We emit client reports, and we do NOT accept raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
-                ProducerInner::ClientReport(ClientReportOutcomeProducer::create(&config))
+                ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
+                    &config,
+                    envelope_manager,
+                ))
             }
             EmitOutcomes::None => {
                 relay_log::info!("Configured to drop all outcomes");
