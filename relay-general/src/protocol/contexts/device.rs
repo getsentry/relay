@@ -206,7 +206,6 @@ impl FromUserAgentInfo for DeviceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::contexts::device::DeviceClass;
     use crate::protocol::{DeviceContext, FromUserAgentInfo, Headers, PairList};
     use crate::types::{Annotated, Object, Value};
     use crate::user_agent::RawUserAgentInfo;

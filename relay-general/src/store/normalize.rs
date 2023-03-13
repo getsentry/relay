@@ -663,14 +663,12 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 // Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high, medium, or low.
 fn normalize_device_class(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    let tag_name = "device.class".to_owned();
     // Remove any existing device.class tag set by the client, since this should only be set by relay.
     tags.remove("device.class");
     if let Some(contexts) = event.contexts.value() {
         if let Some(device_class) = DeviceClass::from_contexts(contexts) {
-            tags.insert(
-                "device.class".to_owned(),
-                Annotated::new(device_class.to_string()),
-            );
+            tags.insert(tag_name, Annotated::new(device_class.to_string()));
         }
     }
 }
