@@ -140,8 +140,13 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let project_cache =
-            ProjectCacheService::new(config.clone(), redis_pool).start_in(&project_runtime);
+        let project_cache = ProjectCacheService::new(
+            config.clone(),
+            processor.clone(),
+            upstream_relay.clone(),
+            redis_pool,
+        )
+        .start_in(&project_runtime);
 
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
