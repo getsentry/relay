@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use actix::System;
 use actix_web::{server, App};
 use anyhow::{Context, Result};
 use listenfd::ListenFd;
@@ -136,11 +139,38 @@ where
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
+    system: actix::System,
     http_server: actix::Recipient<server::StopServer>,
 }
 
 impl HttpServer {
-    pub fn start(config: &Config, service: ServiceState) -> anyhow::Result<Addr<()>> {
+    pub async fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
+        let (server_tx, server_rx) = tokio::sync::oneshot::channel();
+
+        std::thread::spawn(move || {
+            // Create a legacy actix system and spawn the actix-web server into it.
+            let runner = actix::System::new("relay");
+            let result = Self::spawn(&config, service).map(|addr| (System::current(), addr));
+            server_tx.send(result).ok();
+
+            // Block this thread until the actix system shuts down. The shutdown is emitted from the
+            // HttpService after a shutdown signal has been received and the timeout has passed.
+            runner.run();
+        });
+
+        let (system, http_server) = server_rx.await??;
+        let service = Self {
+            system,
+            http_server,
+        };
+
+        Ok(service.start())
+    }
+
+    fn spawn(
+        config: &Config,
+        service: ServiceState,
+    ) -> anyhow::Result<actix::Recipient<server::StopServer>> {
         metric!(counter(RelayCounters::ServerStarting) += 1);
 
         let mut server = server::new(move || make_app(service.clone()));
@@ -157,8 +187,7 @@ impl HttpServer {
         server = listen_ssl(server, config)?;
         dump_listen_infos(&server);
 
-        let http_server = server.start().recipient();
-        Ok(Self { http_server }.start())
+        Ok(server.start().recipient())
     }
 }
 
@@ -177,6 +206,14 @@ impl Service for HttpServer {
             self.http_server
                 .do_send(server::StopServer { graceful })
                 .ok();
+
+            // Wait the shutdown timeout and then stop the actix system, which also shuts down the
+            // thread that its running one.
+            if let Some(timeout) = timeout {
+                tokio::time::sleep(timeout).await;
+            }
+
+            self.system.stop();
         });
     }
 }

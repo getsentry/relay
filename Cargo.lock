@@ -3617,13 +3617,10 @@ dependencies = [
 name = "relay-system"
 version = "23.2.0"
 dependencies = [
- "actix",
- "futures 0.1.31",
  "futures 0.3.26",
  "once_cell",
  "relay-log",
  "relay-statsd",
- "tokio 0.1.22",
  "tokio 1.25.0",
 ]
 
@@ -4594,6 +4591,7 @@ dependencies = [
  "mio 0.8.5",
  "num_cpus",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2 0.4.7",
  "tokio-macros",
  "windows-sys 0.42.0",
