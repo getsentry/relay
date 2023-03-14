@@ -309,7 +309,7 @@ fn queue_envelope(
         ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
     }
 
-    if envelope.is_empty() {
+    if envelope_context.envelope().is_empty() {
         // The envelope can be empty here if it contained only metrics items which were removed
         // above. In this case, the envelope was accepted and needs no further queueing.
         envelope_context.accept();

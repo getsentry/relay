@@ -77,14 +77,18 @@ impl EnvelopeContext {
     fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
+        let event_id = envelope.event_id();
+        let start_time = meta.start_time();
+        let remote_addr = meta.client_addr();
+        let scoping = meta.get_partial_scoping();
         Self {
             envelope,
             summary,
-            start_time: meta.start_time(),
-            received_at: relay_common::instant_to_date_time(meta.start_time()),
-            event_id: envelope.event_id(),
-            remote_addr: meta.client_addr(),
-            scoping: meta.get_partial_scoping(),
+            start_time,
+            received_at: relay_common::instant_to_date_time(start_time),
+            event_id,
+            remote_addr,
+            scoping,
             slot,
             done: false,
         }

@@ -1054,70 +1054,75 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
-        state.envelope_mut().retain_items(|item| match item.ty() {
-            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok((profile_id, payload)) => {
-                    if payload.len() <= self.config.max_profile_size() {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
-                                    profile_id: Annotated::new(profile_id),
-                                })));
+        let envelope_context = &mut state.envelope_context;
+        envelope_context
+            .envelope_mut()
+            .retain_items(|item| match item.ty() {
+                ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
+                    Ok((profile_id, payload)) => {
+                        if payload.len() <= self.config.max_profile_size() {
+                            if let Some(event) = state.event.value_mut() {
+                                if event.ty.value() == Some(&EventType::Transaction) {
+                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                    contexts.add(SentryContext::Profile(Box::new(
+                                        ProfileContext {
+                                            profile_id: Annotated::new(profile_id),
+                                        },
+                                    )));
+                                }
                             }
+                            item.set_payload(ContentType::Json, payload);
+                            true
+                        } else {
+                            if let Some(event) = state.event.value_mut() {
+                                if event.ty.value() == Some(&EventType::Transaction) {
+                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                    contexts.remove(ProfileContext::default_key());
+                                }
+                            }
+                            state.envelope_context.track_outcome(
+                                Outcome::Invalid(DiscardReason::Profiling(
+                                    relay_profiling::discard_reason(
+                                        relay_profiling::ProfileError::ExceedSizeLimit,
+                                    ),
+                                )),
+                                DataCategory::Profile,
+                                1,
+                            );
+                            false
                         }
-                        item.set_payload(ContentType::Json, payload);
-                        true
-                    } else {
+                    }
+                    Err(err) => {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
                                 let contexts = event.contexts.get_or_insert_with(Contexts::new);
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
+
+                        match err {
+                            relay_profiling::ProfileError::InvalidJson(_) => {
+                                relay_log::warn!("invalid profile: {}", LogError(&err));
+                            }
+                            _ => relay_log::debug!("invalid profile: {}", err),
+                        };
                         state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(
-                                    relay_profiling::ProfileError::ExceedSizeLimit,
-                                ),
+                                relay_profiling::discard_reason(err),
                             )),
                             DataCategory::Profile,
                             1,
                         );
                         false
                     }
-                }
-                Err(err) => {
-                    if let Some(event) = state.event.value_mut() {
-                        if event.ty.value() == Some(&EventType::Transaction) {
-                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                            contexts.remove(ProfileContext::default_key());
-                        }
-                    }
-
-                    match err {
-                        relay_profiling::ProfileError::InvalidJson(_) => {
-                            relay_log::warn!("invalid profile: {}", LogError(&err));
-                        }
-                        _ => relay_log::debug!("invalid profile: {}", err),
-                    };
-                    state.envelope_context.track_outcome(
-                        Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )),
-                        DataCategory::Profile,
-                        1,
-                    );
-                    false
-                }
-            },
-            _ => true,
-        });
+                },
+                _ => true,
+            });
     }
 
     /// Remove replays if the feature flag is not enabled.
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let project_state = &mut state.project_state;
+        let project_state = &state.project_state;
         let replays_enabled = project_state.has_feature(Feature::SessionReplay);
         let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
@@ -1142,6 +1147,7 @@ impl EnvelopeProcessorService {
         };
 
         state
+            .envelope_context
             .envelope_mut()
             .retain_items(move |item| match item.ty() {
                 ItemType::ReplayEvent => {
@@ -1702,7 +1708,7 @@ impl EnvelopeProcessorService {
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
     fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = &mut state.envelope_mut();
+        let envelope = &mut state.envelope();
 
         let minidump_attachment =
             envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -2939,7 +2945,8 @@ mod tests {
         };
 
         let envelope_response = processor.process(message).unwrap();
-        let new_envelope = envelope_response.envelope.unwrap().envelope();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);

@@ -579,8 +579,7 @@ impl ProjectCacheBroker {
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
     fn handle_processing(&mut self, envelope_context: EnvelopeContext) {
-        let envelope = envelope_context.envelope();
-        let project_key = envelope.meta().public_key();
+        let project_key = envelope_context.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::with_scope(
@@ -605,7 +604,7 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(envelope_context)
         {
-            let sampling_state = utils::get_sampling_key(&envelope)
+            let sampling_state = utils::get_sampling_key(envelope_context.envelope())
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 

@@ -721,13 +721,14 @@ impl Project {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
-        let envelope = envelope_context.envelope_mut();
 
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope.meta());
+            scoping = state.scope_request(envelope_context.envelope().meta());
             envelope_context.scope(scoping);
 
-            if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
+            if let Err(reason) =
+                state.check_request(envelope_context.envelope().meta(), &self.config)
+            {
                 envelope_context.reject(Outcome::Invalid(reason));
                 return Err(reason);
             }
@@ -741,11 +742,12 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
-        enforcement.track_outcomes(&envelope, &scoping);
+        let (enforcement, rate_limits) =
+            envelope_limiter.enforce(envelope_context.envelope_mut(), &scoping)?;
+        enforcement.track_outcomes(&envelope_context.envelope(), &scoping);
         envelope_context.update();
 
-        let envelope = if envelope.is_empty() {
+        let envelope = if envelope_context.envelope().is_empty() {
             // Individual rate limits have already been issued above
             envelope_context.reject(Outcome::RateLimited(None));
             None
