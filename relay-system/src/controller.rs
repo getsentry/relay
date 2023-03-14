@@ -53,9 +53,8 @@ pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 impl ShutdownHandle {
     /// Wait for a shutdown.
     ///
-    /// This receives all shutdown signals after the shutdown handle instance has been obtained from
-    /// the [`Controller`]. To ensure receiving all shutdown signals, create an instance early and
-    /// reuse it.
+    /// This receives all shutdown signals since the [`Controller`] has been started, even before
+    /// this shutdown handle has been obtained.
     ///
     /// # Cancel safety
     ///
@@ -69,6 +68,29 @@ impl ShutdownHandle {
 
         Shutdown { timeout: None }
     }
+
+    /// Wait for the shutdown and timeout to complete.
+    ///
+    /// This waits for the first shutdown signal and then conditionally waits for the shutdown
+    /// timeout. If the shutdown timeout is interrupted by another signal, this function resolves
+    /// immediately.
+    ///
+    /// # Cancel safety
+    ///
+    /// This method is **not** cancel safe.
+    pub async fn finished(mut self) {
+        // Wait for the first signal to initiate shutdown.
+        let shutdown = self.notified().await;
+
+        // If this is a graceful signal, wait for either the timeout to elapse, or any other signal
+        // to upgrade to an immediate shutdown.
+        if let Some(timeout) = shutdown.timeout {
+            tokio::select! {
+                _ = self.notified() => (),
+                _ = tokio::time::sleep(timeout) => (),
+            }
+        }
+    }
 }
 
 /// Service to start and gracefully stop the system runtime.
@@ -78,10 +100,9 @@ impl ShutdownHandle {
 ///
 /// To shut down gracefully, other services can register with [`Controller::shutdown_handle`]. When
 /// a shutdown signal is sent to the process, every service will receive a [`Shutdown`] message with
-/// an optional timeout.
-///
-/// To wait for the entire shutdown sequence including the shutdown timeout instead, use
-/// [`Controller::shutdown`]. It resolves when the shutdown has finished.
+/// an optional timeout. To wait for the entire shutdown sequence including the shutdown timeout
+/// instead, use [`finished`](ShutdownHandle::finished). It resolves when the shutdown has
+/// completed.
 ///
 /// ### Example
 ///
@@ -133,7 +154,7 @@ impl ShutdownHandle {
 ///     Controller::trigger_shutdown(ShutdownMode::Graceful);
 ///
 ///     // Wait for the system to shut down before winding down the application.
-///     Controller::shutdown().await;
+///     Controller::shutdown_handle().finished().await;
 /// }
 /// ```
 #[derive(Debug)]
@@ -145,8 +166,8 @@ impl Controller {
         tokio::spawn(monitor_shutdown(shutdown_timeout));
     }
 
-    /// Initiates the shutdown process of the system.
-    pub fn trigger_shutdown(mode: ShutdownMode) {
+    /// Manually initiates the shutdown process of the system.
+    pub fn shutdown(mode: ShutdownMode) {
         let (ref tx, _) = *MANUAL_SHUTDOWN;
         tx.send(Some(mode)).ok();
     }
@@ -155,26 +176,6 @@ impl Controller {
     pub fn shutdown_handle() -> ShutdownHandle {
         let (_, ref rx) = *SHUTDOWN;
         ShutdownHandle(rx.clone())
-    }
-
-    /// Wait for the shutdown and timeout.
-    ///
-    /// This waits for the first shutdown signal and then conditionally waits for the shutdown
-    /// timeout. If the shutdown timeout is interrupted by another signal, this function resolves
-    /// immediately.
-    pub async fn shutdown() {
-        // Wait for the first signal to initiate shutdown.
-        let mut handle = Controller::shutdown_handle();
-        let shutdown = handle.notified().await;
-
-        // If this is a graceful signal, wait for either the timeout to elapse, or any other signal
-        // to upgrade to an immediate shutdown.
-        if let Some(timeout) = shutdown.timeout {
-            tokio::select! {
-                _ = handle.notified() => (),
-                _ = tokio::time::sleep(timeout) => (),
-            }
-        }
     }
 }
 

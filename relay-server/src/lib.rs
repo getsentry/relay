@@ -296,7 +296,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
         HttpServer::start(config.clone(), ServiceState::start(config)?).await?;
-        Controller::shutdown().await;
+        Controller::shutdown_handle().finished().await;
         anyhow::Ok(())
     })?;
 
