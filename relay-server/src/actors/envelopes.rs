@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use relay_common::ProjectKey;
+use relay_common::{Dsn, ProjectKey};
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
@@ -293,10 +293,9 @@ impl EnvelopeManagerService {
         } = message;
 
         let scoping = envelope_context.scoping();
-        match self
-            .submit_envelope(envelope_context.envelope(), scoping, None)
-            .await
-        {
+
+        let envelope = envelope_context.take_envelope();
+        match self.submit_envelope(envelope, scoping, None).await {
             Ok(_) => {
                 envelope_context.accept();
             }

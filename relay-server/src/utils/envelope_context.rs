@@ -1,5 +1,6 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use bytes::Bytes;
 use std::net;
 use std::time::Instant;
 
@@ -113,6 +114,14 @@ impl EnvelopeContext {
     /// Returns a mutable reference to the contained [`Envelope`].
     pub fn envelope_mut(&mut self) -> &mut Envelope {
         self.envelope.as_mut()
+    }
+
+    /// Take the envelope out of the context and replace it with a dummy.
+    ///
+    /// Note that after taking out the envelope, the envelope summary is incorrect.
+    pub(crate) fn take_envelope(&mut self) -> Box<Envelope> {
+        let dummy_envelope = Envelope::parse_bytes(Bytes::from("{}")).unwrap();
+        std::mem::replace(&mut self.envelope, dummy_envelope)
     }
 
     /// Update the context with new envelope information.
