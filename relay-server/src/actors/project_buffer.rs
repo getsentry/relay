@@ -4,7 +4,6 @@ use relay_common::ProjectKey;
 use relay_system::{FromMessage, Interface, Service};
 use tokio::sync::mpsc;
 
-use crate::envelope::Envelope;
 use crate::utils::EnvelopeContext;
 
 /// This key represents the index element in the queue.

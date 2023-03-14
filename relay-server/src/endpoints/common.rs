@@ -305,8 +305,8 @@ fn queue_envelope(
         let event_context = buffer_guard.enter(&event_envelope)?;
 
         // Update the old context after successful forking.
-        envelope_context.update(&envelope);
-        ProjectCache::from_registry().send(ValidateEnvelope::new(event_envelope, event_context));
+        envelope_context.update();
+        ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
     }
 
     if envelope.is_empty() {
@@ -315,7 +315,7 @@ fn queue_envelope(
         envelope_context.accept();
     } else {
         relay_log::trace!("queueing envelope");
-        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope, envelope_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope_context));
     }
 
     Ok(())
@@ -350,12 +350,12 @@ pub async fn handle_envelope(
     }
 
     let checked = ProjectCache::from_registry()
-        .send(CheckEnvelope::new(envelope, envelope_context))
+        .send(CheckEnvelope::new(envelope_context))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?
         .map_err(BadStoreRequest::EventRejected)?;
 
-    let Some((envelope, mut envelope_context)) = checked.envelope else {
+    let Some(mut envelope_context) = checked.envelope else {
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
@@ -364,7 +364,7 @@ pub async fn handle_envelope(
         return Err(PayloadError::Overflow.into());
     }
 
-    queue_envelope(envelope, envelope_context, buffer_guard)?;
+    queue_envelope(envelope_context, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
         Err(BadStoreRequest::RateLimited(checked.rate_limits))

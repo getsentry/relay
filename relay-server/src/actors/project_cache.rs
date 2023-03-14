@@ -22,7 +22,7 @@ use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::actors::upstream::UpstreamRelay;
-use crate::envelope::Envelope;
+
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};

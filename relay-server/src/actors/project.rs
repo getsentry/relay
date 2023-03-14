@@ -22,7 +22,7 @@ use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
-use crate::envelope::Envelope;
+
 use crate::extractors::RequestMeta;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
@@ -750,7 +750,7 @@ impl Project {
             envelope_context.reject(Outcome::RateLimited(None));
             None
         } else {
-            Some((envelope, envelope_context))
+            Some(envelope_context)
         };
 
         Ok(CheckedEnvelope {
