@@ -3328,20 +3328,6 @@
 <a href="#3327" id="3327">3327</a>
 <a href="#3328" id="3328">3328</a>
 <a href="#3329" id="3329">3329</a>
-<a href="#3330" id="3330">3330</a>
-<a href="#3331" id="3331">3331</a>
-<a href="#3332" id="3332">3332</a>
-<a href="#3333" id="3333">3333</a>
-<a href="#3334" id="3334">3334</a>
-<a href="#3335" id="3335">3335</a>
-<a href="#3336" id="3336">3336</a>
-<a href="#3337" id="3337">3337</a>
-<a href="#3338" id="3338">3338</a>
-<a href="#3339" id="3339">3339</a>
-<a href="#3340" id="3340">3340</a>
-<a href="#3341" id="3341">3341</a>
-<a href="#3342" id="3342">3342</a>
-<a href="#3343" id="3343">3343</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -6266,18 +6252,15 @@
             item
         });
 
-        <span class="kw">let </span>new_envelope = relay_test::with_system(<span class="kw">move </span>|| {
-            <span class="kw">let </span>envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: <span class="prelude-val">None</span>,
-                })
-                .unwrap();
+        <span class="kw">let </span>message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: <span class="prelude-val">None</span>,
+        };
 
-            envelope_response.envelope.unwrap().<span class="number">0
-        </span>});
+        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap().<span class="number">0</span>;
 
         <span class="macro">assert_eq!</span>(new_envelope.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(new_envelope.items().next().unwrap().ty(), <span class="kw-2">&amp;</span>ItemType::Event);
@@ -6315,43 +6298,41 @@
             item
         });
 
-        <span class="kw">let </span>new_envelope = relay_test::with_system(<span class="kw">move </span>|| {
-            <span class="kw">let </span><span class="kw-2">mut </span>datascrubbing_settings = DataScrubbingConfig::default();
-            <span class="comment">// enable all the default scrubbing
-            </span>datascrubbing_settings.scrub_data = <span class="bool-val">true</span>;
-            datascrubbing_settings.scrub_defaults = <span class="bool-val">true</span>;
-            datascrubbing_settings.scrub_ip_addresses = <span class="bool-val">true</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>datascrubbing_settings = DataScrubbingConfig::default();
+        <span class="comment">// enable all the default scrubbing
+        </span>datascrubbing_settings.scrub_data = <span class="bool-val">true</span>;
+        datascrubbing_settings.scrub_defaults = <span class="bool-val">true</span>;
+        datascrubbing_settings.scrub_ip_addresses = <span class="bool-val">true</span>;
 
-            <span class="comment">// Make sure to mask any IP-like looking data
-            </span><span class="kw">let </span>pii_config = PiiConfig::from_json(
-                <span class="string">r##&quot;
+        <span class="comment">// Make sure to mask any IP-like looking data
+        </span><span class="kw">let </span>pii_config = PiiConfig::from_json(
+            <span class="string">r##&quot;
                 {
                     &quot;applications&quot;: {
                         &quot;**&quot;: [&quot;@ip:mask&quot;]
                     }
                 }
                 &quot;##</span>,
-            )
-            .unwrap();
+        )
+        .unwrap();
 
-            <span class="kw">let </span>config = ProjectConfig {
-                datascrubbing_settings,
-                pii_config: <span class="prelude-val">Some</span>(pii_config),
-                ..Default::default()
-            };
+        <span class="kw">let </span>config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: <span class="prelude-val">Some</span>(pii_config),
+            ..Default::default()
+        };
 
-            <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
-            project_state.config = config;
-            <span class="kw">let </span>envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-                    envelope,
-                    project_state: Arc::new(project_state),
-                    sampling_project_state: <span class="prelude-val">None</span>,
-                })
-                .unwrap();
-            envelope_response.envelope.unwrap().<span class="number">0
-        </span>});
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        project_state.config = config;
+        <span class="kw">let </span>message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: <span class="prelude-val">None</span>,
+        };
+
+        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap().<span class="number">0</span>;
 
         <span class="kw">let </span>event_item = new_envelope.items().last().unwrap();
         <span class="kw">let </span>annotated_event: Annotated&lt;Event&gt; =
@@ -6415,17 +6396,14 @@
             item
         });
 
-        <span class="kw">let </span>envelope_response = relay_test::with_system(<span class="kw">move </span>|| {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: <span class="prelude-val">None</span>,
-                })
-                .unwrap()
-        });
+        <span class="kw">let </span>message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: <span class="prelude-val">None</span>,
+        };
 
+        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
         <span class="macro">assert!</span>(envelope_response.envelope.is_none());
     }
 
@@ -6466,17 +6444,14 @@
             item
         });
 
-        <span class="kw">let </span>envelope_response = relay_test::with_system(<span class="kw">move </span>|| {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: <span class="prelude-val">None</span>,
-                })
-                .unwrap()
-        });
+        <span class="kw">let </span>message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: <span class="prelude-val">None</span>,
+        };
 
+        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
         <span class="kw">let </span>(envelope, ctx) = envelope_response.envelope.unwrap();
         <span class="kw">let </span>item = envelope.items().next().unwrap();
         <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::ClientReport);
@@ -6526,17 +6501,14 @@
             item
         });
 
-        <span class="kw">let </span>envelope_response = relay_test::with_system(<span class="kw">move </span>|| {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: <span class="prelude-val">None</span>,
-                })
-                .unwrap()
-        });
+        <span class="kw">let </span>message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: <span class="prelude-val">None</span>,
+        };
 
+        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
         <span class="macro">assert!</span>(envelope_response.envelope.is_none());
     }
 

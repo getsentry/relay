@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["block_fn","Runs the provided function, blocking the current thread until the result future completes."],["setup","Setup the test environment."],["with_system","Runs the provided function with an active actix system."]],"struct":[["TestApp","Test application helper for testing request handlers."],["TestRequest","Test `HttpRequest` builder"],["TestServer","The `TestServer` type."],["TestServerBuilder","An `TestServer` builder"]]};
+window.SIDEBAR_ITEMS = {"fn":[["setup","Setup the test environment."]]};
