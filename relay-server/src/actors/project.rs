@@ -21,7 +21,7 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
-use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::actors::project_cache::{CheckedEnvelope, RequestUpdate};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::service::Registry;
@@ -377,7 +377,7 @@ impl StateChannel {
 
 enum GetOrFetch<'a> {
     Cached(Arc<ProjectState>),
-    Scheduled(&'a mut StateChannel),
+    Schedule(&'a mut StateChannel, Option<RequestUpdate>),
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -390,7 +390,6 @@ pub struct Project {
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
-    project_cache: Addr<ProjectCache>,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -400,13 +399,12 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(key: ProjectKey, config: Arc<Config>, project_cache: Addr<ProjectCache>) -> Self {
+    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            project_cache,
             config,
             state: None,
             state_channel: None,
@@ -528,7 +526,7 @@ impl Project {
     ///
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
-    fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
+    fn fetch_state(&mut self, no_cache: bool) -> (&mut StateChannel, Option<RequestUpdate>) {
         // If there is a running request and we do not need to upgrade it to no_cache, or if the
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
@@ -536,6 +534,7 @@ impl Project {
             && self.can_fetch();
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
+        let mut request_update = None;
 
         if should_fetch {
             channel.no_cache(no_cache);
@@ -544,11 +543,10 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            self.project_cache
-                .send(RequestUpdate::new(self.project_key, no_cache));
+            request_update = Some(RequestUpdate::new(self.project_key, no_cache));
         }
 
-        channel
+        (channel, request_update)
     }
 
     fn get_or_fetch_state(&mut self, mut no_cache: bool) -> GetOrFetch<'_> {
@@ -576,11 +574,11 @@ impl Project {
             ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
         };
 
-        let channel = self.fetch_state(no_cache);
+        let (channel, request_update) = self.fetch_state(no_cache);
 
         match cached_state {
             Some(state) => GetOrFetch::Cached(state),
-            None => GetOrFetch::Scheduled(channel),
+            None => GetOrFetch::Schedule(channel, request_update),
         }
     }
 
@@ -599,10 +597,13 @@ impl Project {
     /// background refresh.
     ///
     /// To wait for a valid state instead, use [`get_state`](Self::get_state).
-    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
+    pub fn get_cached_state(
+        &mut self,
+        no_cache: bool,
+    ) -> (Option<Arc<ProjectState>>, Option<RequestUpdate>) {
         match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state) => Some(state),
-            GetOrFetch::Scheduled(_) => None,
+            GetOrFetch::Cached(state) => (Some(state), None),
+            GetOrFetch::Schedule(_, request_update) => (None, request_update),
         }
     }
 
@@ -614,10 +615,17 @@ impl Project {
     ///
     /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
     /// are in the [grace period](Config::project_grace_period).
-    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
+    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) -> Option<RequestUpdate> {
         match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state) => sender.send(state),
-            GetOrFetch::Scheduled(channel) => channel.inner.attach(sender),
+            GetOrFetch::Cached(state) => {
+                sender.send(state);
+                None
+            }
+
+            GetOrFetch::Schedule(channel, request_update) => {
+                channel.inner.attach(sender);
+                request_update
+            }
         }
     }
 
@@ -691,7 +699,7 @@ impl Project {
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
-        return None;
+        None
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -778,7 +786,7 @@ impl Project {
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        let Some(project_state) = self.get_cached_state(false) else {
+        let (Some(project_state), _) = self.get_cached_state(false) else {
             relay_log::trace!("project expired: merging back {} buckets", buckets.len());
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
@@ -837,38 +845,12 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
-    use relay_system::Service;
     use serde_json::json;
-
-    use crate::actors::project_cache::ProjectCache;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
-    macro_rules! empty_service {
-        ($service_name:ident, $interface:ident) => {
-            struct $service_name;
-
-            impl Service for $service_name {
-                type Interface = $interface;
-
-                fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-                    tokio::spawn(async move {
-                        loop {
-                            tokio::select! {
-                                Some(_) = rx.recv() => (),
-                                else => break,
-                            }
-                        }
-                    });
-                }
-            }
-        };
-    }
-
-    empty_service!(TestProjectCacheService, ProjectCache);
-
-    #[tokio::test]
-    async fn get_state_expired() {
+    #[test]
+    fn get_state_expired() {
         for expiry in [9999, 0] {
             let config = Arc::new(
                 Config::from_json_value(json!(
@@ -887,11 +869,7 @@ mod tests {
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
-            let mut project = Project::new(
-                project_key,
-                config.clone(),
-                TestProjectCacheService {}.start(),
-            );
+            let mut project = Project::new(project_key, config.clone());
             project.state = Some(Arc::new(project_state));
 
             // Direct access should always yield a state:
@@ -907,8 +885,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_stale_cache() {
+    #[test]
+    fn test_stale_cache() {
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -928,7 +906,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let mut project = Project::new(project_key, config, TestProjectCacheService {}.start());
+        let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
@@ -956,13 +934,9 @@ mod tests {
         project.fetch_state(false);
     }
 
-    async fn create_project(config: Option<serde_json::Value>) -> Project {
+    fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project = Project::new(
-            project_key,
-            Arc::new(Config::default()),
-            TestProjectCacheService {}.start(),
-        );
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {
@@ -981,16 +955,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics() {
-        let project = create_project(None).await;
+    #[test]
+    fn test_rate_limit_incoming_metrics() {
+        let project = create_project(None);
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
 
         assert!(metrics.len() == 1);
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics_no_quota() {
+    #[test]
+    fn test_rate_limit_incoming_metrics_no_quota() {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -999,8 +973,7 @@ mod tests {
                "limit": 0,
                "reasonCode": "foo",
            }]
-        })))
-        .await;
+        })));
 
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
 
@@ -1017,16 +990,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_buckets() {
-        let project = create_project(None).await;
+    #[test]
+    fn test_rate_limit_incoming_buckets() {
+        let project = create_project(None);
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
 
         assert!(metrics.len() == 1);
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_buckets_no_quota() {
+    #[test]
+    fn test_rate_limit_incoming_buckets_no_quota() {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1035,8 +1008,7 @@ mod tests {
                "limit": 0,
                "reasonCode": "foo",
            }]
-        })))
-        .await;
+        })));
 
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
 

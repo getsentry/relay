@@ -389,7 +389,6 @@ struct ProjectCacheBroker {
     config: Arc<Config>,
     envelope_processor: Addr<EnvelopeProcessor>,
     envelope_manager: Addr<EnvelopeManager>,
-    project_cache: Addr<ProjectCache>,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -488,7 +487,6 @@ impl ProjectCacheBroker {
 
         let config = self.config.clone();
 
-        let project_cache = self.project_cache.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -496,7 +494,7 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config, project_cache)
+                Project::new(project_key, config)
             })
     }
 
@@ -564,8 +562,15 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
-        self.get_or_create_project(message.project_key)
-            .get_cached_state(false)
+        let (state, request_update) = self
+            .get_or_create_project(message.project_key)
+            .get_cached_state(false);
+
+        if let Some(request_update) = request_update {
+            self.handle_request_update(request_update);
+        }
+
+        state
     }
 
     fn handle_check_envelope(
@@ -654,23 +659,32 @@ impl ProjectCacheBroker {
 
         // Fetch the project state for our key and make sure it's not invalid.
         let own_key = envelope.meta().public_key();
-        let project_state = self
+        let (mut project_state, project_request_update) = self
             .get_or_create_project(own_key)
-            .get_cached_state(envelope.meta().no_cache())
-            .filter(|st| !st.invalid());
+            .get_cached_state(envelope.meta().no_cache());
+        project_state = project_state.filter(|st| !st.invalid());
+
+        if let Some(request_update) = project_request_update {
+            self.handle_request_update(request_update);
+        }
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
         let sampling_key = utils::get_sampling_key(&envelope);
-        let sampling_state = sampling_key.and_then(|key| {
-            self.get_or_create_project(key)
-                .get_cached_state(envelope.meta().no_cache())
-                .filter(|st| !st.invalid())
+        let sampling_state = sampling_key.map(|key| {
+            let (sampling_state, request_update) = self
+                .get_or_create_project(key)
+                .get_cached_state(envelope.meta().no_cache());
+            (sampling_state.filter(|st| !st.invalid()), request_update)
         });
 
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
             return self.handle_processing(envelope, context);
+        }
+
+        if let Some((_, Some(request_update))) = sampling_state {
+            self.handle_request_update(request_update)
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
@@ -785,7 +799,6 @@ impl Service for ProjectCacheService {
                 config: config.clone(),
                 envelope_processor,
                 envelope_manager,
-                project_cache: rx.service_address(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, upstream_relay, redis),
