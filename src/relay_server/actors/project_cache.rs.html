@@ -782,6 +782,31 @@
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -805,6 +830,7 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
@@ -1078,9 +1104,14 @@
 
 <span class="kw">impl </span>ProjectSource {
     <span class="doccomment">/// Starts all project source services in the current runtime.
-    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>start(
+        config: Arc&lt;Config&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+        _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = LocalProjectSourceService::new(config.clone()).start();
-        <span class="kw">let </span>upstream_source = UpstreamProjectSourceService::new(config.clone()).start();
+        <span class="kw">let </span>upstream_source =
+            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
@@ -1164,6 +1195,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
+    envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="comment">// Need hashbrown because drain_filter is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
@@ -1400,7 +1432,7 @@
                 }
             }
 
-            EnvelopeProcessor::from_registry().send(process);
+            <span class="self">self</span>.envelope_processor.send(process);
         }
     }
 
@@ -1490,13 +1522,25 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProjectCacheService {
     config: Arc&lt;Config&gt;,
+    envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+    upstream_relay: Addr&lt;UpstreamRelay&gt;,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
 }
 
 <span class="kw">impl </span>ProjectCacheService {
     <span class="doccomment">/// Creates a new `ProjectCacheService`.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ config, redis }
+    </span><span class="kw">pub fn </span>new(
+        config: Arc&lt;Config&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+        redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            config,
+            envelope_processor,
+            upstream_relay,
+            redis,
+        }
     }
 }
 
@@ -1504,7 +1548,12 @@
     <span class="kw">type </span>Interface = ProjectCache;
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span><span class="self">Self </span>{ config, redis } = <span class="self">self</span>;
+        <span class="kw">let </span><span class="self">Self </span>{
+            config,
+            redis,
+            envelope_processor,
+            upstream_relay,
+        } = <span class="self">self</span>;
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -1520,9 +1569,10 @@
             // fetches via the project source.
             </span><span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
                 config: config.clone(),
+                envelope_processor,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
-                source: ProjectSource::start(config, redis),
+                source: ProjectSource::start(config, upstream_relay, redis),
                 state_tx,
                 buffer_tx,
                 index: Default::default(),

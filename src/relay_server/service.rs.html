@@ -198,6 +198,11 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -340,8 +345,13 @@
         <span class="kw">let </span>envelope_manager = envelope_manager.start();
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let </span>project_cache =
-            ProjectCacheService::new(config.clone(), redis_pool).start_in(<span class="kw-2">&amp;</span>project_runtime);
+        <span class="kw">let </span>project_cache = ProjectCacheService::new(
+            config.clone(),
+            processor.clone(),
+            upstream_relay.clone(),
+            redis_pool,
+        )
+        .start_in(<span class="kw-2">&amp;</span>project_runtime);
 
         <span class="kw">let </span>health_check = HealthCheckService::new(config.clone()).start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone()).start();

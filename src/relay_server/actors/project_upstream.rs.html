@@ -477,6 +477,11 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -491,7 +496,7 @@
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{
-    BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tokio::sync::mpsc;
@@ -636,6 +641,7 @@
 </span><span class="kw">pub struct </span>UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc&lt;Config&gt;,
+    upstream_relay: Addr&lt;UpstreamRelay&gt;,
     state_channels: ProjectStateChannels,
     inner_tx: mpsc::UnboundedSender&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt;&gt;,
     inner_rx: mpsc::UnboundedReceiver&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt;&gt;,
@@ -644,13 +650,14 @@
 
 <span class="kw">impl </span>UpstreamProjectSourceService {
     <span class="doccomment">/// Creates a new [`UpstreamProjectSourceService`] instance.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, upstream_relay: Addr&lt;UpstreamRelay&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>(inner_tx, inner_rx) = mpsc::unbounded_channel();
 
         <span class="self">Self </span>{
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
+            upstream_relay,
             config,
             inner_tx,
             inner_rx,
@@ -726,6 +733,7 @@
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     </span><span class="kw">async fn </span>fetch_states(
         config: Arc&lt;Config&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
         channels: ChannelsBatch,
     ) -&gt; Vec&lt;<span class="prelude-ty">Option</span>&lt;UpstreamResponse&gt;&gt; {
         <span class="kw">let </span>request_start = Instant::now();
@@ -754,8 +762,9 @@
             <span class="comment">// count number of http requests for project states
             </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRequest) += <span class="number">1</span>);
 
+            <span class="kw">let </span>upstream_relay = upstream_relay.clone();
             requests.push(<span class="kw">async move </span>{
-                <span class="kw">match </span>UpstreamRelay::from_registry().send(SendQuery(query)).<span class="kw">await </span>{
+                <span class="kw">match </span>upstream_relay.send(SendQuery(query)).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(response) =&gt; <span class="prelude-val">Some</span>(UpstreamResponse {
                         channels_batch,
                         response,
@@ -886,9 +895,10 @@
         <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
         <span class="kw">let </span>inner_tx = <span class="self">self</span>.inner_tx.clone();
         <span class="kw">let </span>channels = <span class="self">self</span>.prepare_batches();
+        <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>responses = <span class="self">Self</span>::fetch_states(config, channels).<span class="kw">await</span>;
+            <span class="kw">let </span>responses = <span class="self">Self</span>::fetch_states(config, upstream_relay, channels).<span class="kw">await</span>;
             <span class="comment">// Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
             </span><span class="kw">if let </span><span class="prelude-val">Err</span>(err) = inner_tx.send(responses) {
