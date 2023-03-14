@@ -3328,6 +3328,21 @@
 <a href="#3327" id="3327">3327</a>
 <a href="#3328" id="3328">3328</a>
 <a href="#3329" id="3329">3329</a>
+<a href="#3330" id="3330">3330</a>
+<a href="#3331" id="3331">3331</a>
+<a href="#3332" id="3332">3332</a>
+<a href="#3333" id="3333">3333</a>
+<a href="#3334" id="3334">3334</a>
+<a href="#3335" id="3335">3335</a>
+<a href="#3336" id="3336">3336</a>
+<a href="#3337" id="3337">3337</a>
+<a href="#3338" id="3338">3338</a>
+<a href="#3339" id="3339">3339</a>
+<a href="#3340" id="3340">3340</a>
+<a href="#3341" id="3341">3341</a>
+<a href="#3342" id="3342">3342</a>
+<a href="#3343" id="3343">3343</a>
+<a href="#3344" id="3344">3344</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3386,6 +3401,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
@@ -4701,7 +4717,11 @@
         <span class="prelude-val">Ok</span>((event, item.len()))
     }
 
-    <span class="kw">fn </span>event_from_security_report(<span class="kw-2">&amp;</span><span class="self">self</span>, item: Item) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractedEvent, ProcessingError&gt; {
+    <span class="kw">fn </span>event_from_security_report(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        item: Item,
+        meta: <span class="kw-2">&amp;</span>RequestMeta,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractedEvent, ProcessingError&gt; {
         <span class="kw">let </span>len = item.len();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
 
@@ -4735,6 +4755,15 @@
             .and_then(Value::as_str)
         {
             event.environment = Annotated::from(env.to_owned());
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(origin) = meta.origin() {
+            event
+                .request
+                .get_or_insert_with(Default::default)
+                .headers
+                .get_or_insert_with(Default::default)
+                .insert(<span class="string">&quot;Origin&quot;</span>.into(), Annotated::new(origin.to_string().into()));
         }
 
         <span class="comment">// Explicitly set the event type. This is required so that a `Security` item can be created
@@ -4974,10 +5003,11 @@
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = raw_security_item {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing security report&quot;</span>);
             state.sample_rates = item.take_sample_rates();
-            <span class="self">self</span>.event_from_security_report(item).map_err(|error| {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract security report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
-                error
-            })<span class="question-mark">?
+            <span class="self">self</span>.event_from_security_report(item, envelope.meta())
+                .map_err(|error| {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract security report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    error
+                })<span class="question-mark">?
         </span>} <span class="kw">else if </span>attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;extracting attached event data&quot;</span>);
             <span class="self">Self</span>::event_from_attachments(<span class="kw-2">&amp;</span><span class="self">self</span>.config, attachment_item, breadcrumbs1, breadcrumbs2)<span class="question-mark">?
