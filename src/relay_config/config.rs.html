@@ -1917,6 +1917,14 @@
 <a href="#1916" id="1916">1916</a>
 <a href="#1917" id="1917">1917</a>
 <a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -1942,6 +1950,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
+
+<span class="kw">static </span>CONFIG_YAML_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">r###&quot;# Please see the relevant documentation.
+# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/
+# All config options: https://docs.sentry.io/product/relay/options/
+&quot;###</span>;
 
 <span class="doccomment">/// Indicates config related errors.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -2112,8 +2125,11 @@
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
 
         <span class="kw">match </span><span class="self">Self</span>::format() {
-            ConfigFormat::Yaml =&gt; serde_yaml::to_writer(<span class="kw-2">&amp;mut </span>f, <span class="self">self</span>)
-                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>,
+            ConfigFormat::Yaml =&gt; {
+                f.write_all(CONFIG_YAML_HEADER.as_bytes())<span class="question-mark">?</span>;
+                serde_yaml::to_writer(<span class="kw-2">&amp;mut </span>f, <span class="self">self</span>)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?
+            </span>}
             ConfigFormat::Json =&gt; serde_json::to_writer_pretty(<span class="kw-2">&amp;mut </span>f, <span class="self">self</span>)
                 .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>,
         }
