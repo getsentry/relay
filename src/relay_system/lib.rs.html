@@ -21,14 +21,30 @@
 <a href="#20" id="20">20</a>
 <a href="#21" id="21">21</a>
 <a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Foundational system components for Relay&#39;s services.
 //!
-//! Services require a tokio system to run. The system can be started using the [`Controller`]
-//! service, which will also listen for shutdown signals and trigger a graceful shutdown. Note that
-//! actors must implement a handler for the [`Shutdown`] message and register with the controller to
-//! receive this signal. See the struct level documentation for more information.
+//! Relay&#39;s system is based on [`tokio`]. To use any of these components, ensure a tokio runtime is
+//! available.
 //!
-//! See the [`Controller`] struct for more information.
+//! # Services
+//!
+//! The basic building block in Relay are asynchronous [`Service`]s. Each service implements an
+//! [`Interface`], which consists of one or many messages that can be sent to the service using its
+//! [`Addr`]. See the docs of these types for more information on how to implement and use them.
+//!
+//! # Shutdown
+//!
+//! The static [`Controller`] service can listen for process signals and initiate a graceful
+//! shutdown. Note that services must check a [`ShutdownHandle`] to receive these signals. See the
+//! struct level documentation for more information.
 
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(

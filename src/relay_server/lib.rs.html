@@ -307,6 +307,8 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
 </pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -579,6 +581,7 @@
 </span><span class="kw">mod </span>testutils;
 
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::Controller;
@@ -595,22 +598,23 @@
     <span class="kw">let </span>config = Arc::new(config);
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
 
-    <span class="comment">// Spawn the main tokio runtime here since the controller cannot access the config.
+    <span class="comment">// Create the main tokio runtime that all services run in.
     </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
-    <span class="kw">let </span>_guard = main_runtime.enter();
 
-    <span class="comment">// Run the controller and block until a shutdown signal is sent to this process. This will
-    // create an actix system, start a web server and run all relevant actors inside. See the
-    // `actors` module documentation for more information on all actors.
-    </span>Controller::run(config.shutdown_timeout(), || {
-        <span class="kw">let </span>service = ServiceState::start(config.clone())<span class="question-mark">?</span>;
-        HttpServer::start(<span class="kw-2">&amp;</span>config, service)
+    <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
+    // web server and run all relevant services. See the `actors` module documentation for more
+    // information on all services.
+    </span>main_runtime.block_on(<span class="kw">async </span>{
+        Controller::start(config.shutdown_timeout());
+        HttpServer::start(config.clone(), ServiceState::start(config)<span class="question-mark">?</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        Controller::shutdown_handle().finished().<span class="kw">await</span>;
+        anyhow::Ok(())
     })<span class="question-mark">?</span>;
 
-    <span class="comment">// Shut down the tokio runtime immediately without waiting for tasks. Our services do not exit
-    // by themselves, and the shutdown timeout should have given them enough time to complete their
-    // tasks.
-    </span>main_runtime.shutdown_background();
+    <span class="comment">// Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
+    // not exit by themselves, and the shutdown timeout should have given them enough time to
+    // complete their tasks. The additional 100ms allow services to run their error handlers.
+    </span>main_runtime.shutdown_timeout(Duration::from_millis(<span class="number">100</span>));
 
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
     <span class="prelude-val">Ok</span>(())

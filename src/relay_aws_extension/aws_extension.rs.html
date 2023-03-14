@@ -249,7 +249,7 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::ControlFlow;
 
-<span class="kw">use </span>relay_system::{Controller, Service, Signal, SignalType};
+<span class="kw">use </span>relay_system::{Controller, Service, ShutdownMode};
 <span class="kw">use </span>reqwest::{Client, ClientBuilder, StatusCode, Url};
 <span class="kw">use </span>serde::Deserialize;
 
@@ -456,7 +456,7 @@
             }
             NextEventResponse::Shutdown(response) =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received SHUTDOWN: reason {}&quot;</span>, response.shutdown_reason);
-                Controller::from_registry().do_send(Signal(SignalType::Term));
+                Controller::shutdown(ShutdownMode::Graceful);
                 <span class="prelude-val">Ok</span>(ControlFlow::Break(()))
             }
         }
