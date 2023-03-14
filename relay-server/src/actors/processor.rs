@@ -810,7 +810,7 @@ impl EnvelopeProcessorService {
         let received = state.envelope_context.received_at();
         let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
-        let envelope = &mut state.envelope_mut();
+        let envelope = state.envelope_mut();
         let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
 
@@ -1054,8 +1054,8 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let envelope_context = &mut state.envelope_context;
-        envelope_context
+        state
+            .envelope_context
             .envelope_mut()
             .retain_items(|item| match item.ty() {
                 ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
@@ -1126,7 +1126,6 @@ impl EnvelopeProcessorService {
         let replays_enabled = project_state.has_feature(Feature::SessionReplay);
         let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
-        let context = &state.envelope_context;
         let meta = state.envelope().meta().clone();
         let client_addr = meta.client_addr();
         let event_id = state.envelope().event_id();
@@ -1178,7 +1177,7 @@ impl EnvelopeProcessorService {
                             match e {
                                 ReplayError::NoContent => {
                                     relay_log::warn!("replay-event: no data found");
-                                    context.track_outcome(
+                                    state.envelope_context.track_outcome(
                                         Outcome::Invalid(
                                             DiscardReason::InvalidReplayEventNoPayload,
                                         ),
@@ -1188,7 +1187,7 @@ impl EnvelopeProcessorService {
                                 }
                                 ReplayError::CouldNotScrub(e) => {
                                     relay_log::warn!("replay-event: PII scrub failure {}", e);
-                                    context.track_outcome(
+                                    state.envelope_context.track_outcome(
                                         Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
                                         DataCategory::Replay,
                                         1,
@@ -1196,7 +1195,7 @@ impl EnvelopeProcessorService {
                                 }
                                 ReplayError::CouldNotParse(e) => {
                                     relay_log::warn!("replay-event: {}", e.to_string());
-                                    context.track_outcome(
+                                    state.envelope_context.track_outcome(
                                         Outcome::Invalid(DiscardReason::InvalidReplayEvent),
                                         DataCategory::Replay,
                                         1,
@@ -1204,7 +1203,7 @@ impl EnvelopeProcessorService {
                                 }
                                 ReplayError::InvalidPayload(e) => {
                                     relay_log::warn!("replay-event: {}", e);
-                                    context.track_outcome(
+                                    state.envelope_context.track_outcome(
                                         Outcome::Invalid(DiscardReason::InvalidReplayEvent),
                                         DataCategory::Replay,
                                         1,
@@ -1242,7 +1241,7 @@ impl EnvelopeProcessorService {
                         }
                         Err(e) => {
                             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            context.track_outcome(
+                            state.envelope_context.track_outcome(
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
                                 1,
@@ -1696,7 +1695,7 @@ impl EnvelopeProcessorService {
     /// If there was no event payload prior to this function, it is created.
     #[cfg(feature = "processing")]
     fn process_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        utils::process_unreal_envelope(&mut state.event, &mut state.envelope_mut())
+        utils::process_unreal_envelope(&mut state.event, state.envelope_context.envelope_mut())
             .map_err(ProcessingError::InvalidUnrealReport)
     }
 
@@ -1708,11 +1707,13 @@ impl EnvelopeProcessorService {
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
     fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = &mut state.envelope();
-
-        let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-        let apple_crash_report_attachment = envelope
+        let minidump_attachment = state
+            .envelope_context
+            .envelope()
+            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
+        let apple_crash_report_attachment = state
+            .envelope_context
+            .envelope()
             .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
@@ -1728,7 +1729,7 @@ impl EnvelopeProcessorService {
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let is_transaction = state.event_type() == Some(EventType::Transaction);
-        let envelope = &mut state.envelope_mut();
+        let envelope = state.envelope_context.envelope_mut();
 
         let event = match state.event.value_mut() {
             Some(event) => event,
@@ -1868,7 +1869,7 @@ impl EnvelopeProcessorService {
             .get_public_key_config()
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
-        let envelope = state.envelope();
+        let envelope = state.envelope_context.envelope();
 
         if key_id.is_none() {
             relay_log::error!(
@@ -1942,7 +1943,7 @@ impl EnvelopeProcessorService {
         let Some(key_config) = state.project_state.get_public_key_config() else { return };
 
         if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
-            state.envelope().set_dsc(dsc);
+            state.envelope_mut().set_dsc(dsc);
             state.sampling_project_state = Some(state.project_state.clone());
         }
     }
@@ -1955,7 +1956,7 @@ impl EnvelopeProcessorService {
             None => return Ok(()),
         };
 
-        let client_ip = state.envelope().meta().client_addr();
+        let client_ip = state.envelope_context.envelope().meta().client_addr();
         let filter_settings = &state.project_state.config.filter_settings;
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
@@ -1996,7 +1997,7 @@ impl EnvelopeProcessorService {
 
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.envelope_mut(), &scoping)?
+            envelope_limiter.enforce(state.envelope_context.envelope_mut(), &scoping)?
         });
 
         if limits.is_limited() {
@@ -2033,6 +2034,7 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
         let transaction_from_dsc = state
+            .envelope_context
             .envelope()
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
@@ -2097,7 +2099,7 @@ impl EnvelopeProcessorService {
     /// attachment types. When special attachments are detected, these are scrubbed with custom
     /// logic; otherwise the entire attachment is treated as a single binary blob.
     fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.envelope_mut();
+        let envelope = state.envelope_context.envelope_mut();
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
                 .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -2162,7 +2164,7 @@ impl EnvelopeProcessorService {
             event_item.set_sample_rates(sample_rates);
         }
 
-        state.envelope().add_item(event_item);
+        state.envelope_mut().add_item(event_item);
 
         Ok(())
     }
@@ -2197,7 +2199,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let request_meta = state.envelope().meta();
+        let request_meta = state.envelope_context.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let config = LightNormalizationConfig {
@@ -2323,9 +2325,11 @@ impl EnvelopeProcessorService {
 
                         let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
-                        state.extracted_metrics.send_metrics(state.envelope());
+                        state
+                            .extracted_metrics
+                            .send_metrics(state.envelope_context.envelope());
 
-                        let envelope_response = if state.envelope().is_empty() {
+                        let envelope_response = if state.envelope_context.envelope().is_empty() {
                             if !has_metrics {
                                 // Individual rate limits have already been issued
                                 state.envelope_context.reject(Outcome::RateLimited(None));
@@ -2347,7 +2351,9 @@ impl EnvelopeProcessorService {
                         }
 
                         if err.should_keep_metrics() {
-                            state.extracted_metrics.send_metrics(state.envelope());
+                            state
+                                .extracted_metrics
+                                .send_metrics(state.envelope_context.envelope());
                         }
 
                         Err(err)
@@ -2737,7 +2743,6 @@ mod tests {
         ServiceState::start(arconfig).unwrap();
 
         let service = create_test_processor(config);
-        let envelope = new_envelope(false, "foo");
 
         let event = Event {
             id: Annotated::new(EventId::new()),
@@ -3017,7 +3022,8 @@ mod tests {
         };
 
         let envelope_response = processor.process(message).unwrap();
-        let new_envelope = envelope_response.envelope.unwrap().envelope();
+        let new_envelope = envelope_response.envelope.unwrap();
+        let new_envelope = new_envelope.envelope();
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -3136,7 +3142,7 @@ mod tests {
 
         let envelope_response = processor.process(message).unwrap();
         let ctx = envelope_response.envelope.unwrap();
-        let item = envelope.items().next().unwrap();
+        let item = ctx.envelope().items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
 
         ctx.accept(); // do not try to capture or emit outcomes

@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use relay_common::{Dsn, ProjectKey};
+use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
