@@ -3,42 +3,42 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
-mod attachments;
-mod common;
-mod envelope;
+// mod attachments;
+// mod common;
+// mod envelope;
 mod events;
-mod forward;
+// mod forward;
 mod health_check;
-mod minidump;
-mod outcomes;
-mod project_configs;
-mod public_keys;
-mod security_report;
+// mod minidump;
+// mod outcomes;
+// mod project_configs;
+// mod public_keys;
+// mod security_report;
 mod statics;
-mod store;
-mod unreal;
+// mod store;
+// mod unreal;
 
-use actix_web::App;
+use axum::Router;
 
 use crate::service::ServiceState;
 
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    app
+pub fn routes() -> Router<ServiceState> {
+    Router::new()
         // Internal routes pointing to /api/relay
-        .configure(health_check::configure_app)
-        .configure(events::configure_app)
-        .handler("/api/relay", statics::not_found)
-        // Web API routes pointing to /api/0
-        .configure(project_configs::configure_app)
-        .configure(public_keys::configure_app)
-        .configure(outcomes::configure_app)
-        // Ingestion routes pointing to /api/<project_id>/
-        .configure(store::configure_app)
-        .configure(envelope::configure_app)
-        .configure(security_report::configure_app)
-        .configure(minidump::configure_app)
-        .configure(attachments::configure_app)
-        .configure(unreal::configure_app)
-        // `forward` must be last as it creates a wildcard proxy
-        .configure(forward::configure_app)
+        .merge(health_check::routes())
+        .merge(events::routes())
+        .route("/api/relay", statics::not_found)
+    // Web API routes pointing to /api/0
+    // .merge(project_configs::configure_app)
+    // .merge(public_keys::configure_app)
+    // .merge(outcomes::configure_app)
+    // // Ingestion routes pointing to /api/<project_id>/
+    // .merge(store::configure_app)
+    // .merge(envelope::configure_app)
+    // .merge(security_report::configure_app)
+    // .merge(minidump::configure_app)
+    // .merge(attachments::configure_app)
+    // .merge(unreal::configure_app)
+    // // `forward` must be last as it creates a wildcard proxy
+    // .merge(forward::configure_app)
 }

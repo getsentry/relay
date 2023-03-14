@@ -1,6 +1,6 @@
 use actix_web::error::PayloadError;
 use actix_web::HttpRequest;
-use bytes::Bytes;
+use axum::body::Bytes;
 use smallvec::SmallVec;
 
 use crate::extractors::{Decoder, SharedPayload};

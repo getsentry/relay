@@ -3,7 +3,7 @@ use std::io::{self, ErrorKind, Read};
 
 use actix_web::error::PayloadError;
 use actix_web::HttpRequest;
-use bytes::Bytes;
+use axum::body::Bytes;
 use data_encoding::BASE64;
 use flate2::read::ZlibDecoder;
 use relay_statsd::metric;

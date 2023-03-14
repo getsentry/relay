@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use actix::System;
-use actix_web::{server, App};
 use anyhow::{Context, Result};
+use axum::{Router, Server};
 use listenfd::ListenFd;
 use relay_config::Config;
-use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
 use crate::middlewares::{
@@ -36,14 +34,16 @@ pub enum ServerError {
     TlsNotSupported,
 }
 
-fn make_app(state: ServiceState) -> App<ServiceState> {
-    App::with_state(state)
-        .middleware(SentryMiddleware::new())
-        .middleware(Metrics)
-        .middleware(AddCommonHeaders)
-        .middleware(ErrorHandlers)
-        .middleware(ReadRequestMiddleware)
-        .configure(crate::endpoints::configure_app)
+fn make_app(service: ServiceState) -> Router {
+    crate::endpoints::routes().with_state(service)
+
+    // App::with_state(state)
+    //     .middleware(SentryMiddleware::new())
+    //     .middleware(Metrics)
+    //     .middleware(AddCommonHeaders)
+    //     .middleware(ErrorHandlers)
+    //     .middleware(ReadRequestMiddleware)
+    //     .configure(crate::endpoints::routes)
 }
 
 fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)
@@ -78,42 +78,43 @@ where
     )
 }
 
-#[cfg(feature = "ssl")]
-fn listen_ssl<H, F>(
-    mut server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    if let (Some(addr), Some(path), Some(password)) = (
-        config.tls_listen_addr(),
-        config.tls_identity_path(),
-        config.tls_identity_password(),
-    ) {
-        use std::fs::File;
-        use std::io::Read;
+// TODO(ja): SSL support
+// #[cfg(feature = "ssl")]
+// fn listen_ssl<H, F>(
+//     mut server: server::HttpServer<H, F>,
+//     config: &Config,
+// ) -> Result<server::HttpServer<H, F>>
+// where
+//     H: server::IntoHttpHandler + 'static,
+//     F: Fn() -> H + Send + Clone + 'static,
+// {
+//     if let (Some(addr), Some(path), Some(password)) = (
+//         config.tls_listen_addr(),
+//         config.tls_identity_path(),
+//         config.tls_identity_password(),
+//     ) {
+//         use std::fs::File;
+//         use std::io::Read;
 
-        use native_tls::{Identity, TlsAcceptor};
+//         use native_tls::{Identity, TlsAcceptor};
 
-        let mut file = File::open(path).unwrap();
-        let mut data = vec![];
-        file.read_to_end(&mut data).unwrap();
-        let identity =
-            Identity::from_pkcs12(&data, password).context(ServerError::TlsInitFailed)?;
+//         let mut file = File::open(path).unwrap();
+//         let mut data = vec![];
+//         file.read_to_end(&mut data).unwrap();
+//         let identity =
+//             Identity::from_pkcs12(&data, password).context(ServerError::TlsInitFailed)?;
 
-        let acceptor = TlsAcceptor::builder(identity)
-            .build()
-            .context(ServerError::TlsInitFailed)?;
+//         let acceptor = TlsAcceptor::builder(identity)
+//             .build()
+//             .context(ServerError::TlsInitFailed)?;
 
-        server = server
-            .bind_tls(addr, acceptor)
-            .context(ServerError::BindFailed)?;
-    }
+//         server = server
+//             .bind_tls(addr, acceptor)
+//             .context(ServerError::BindFailed)?;
+//     }
 
-    Ok(server)
-}
+//     Ok(server)
+// }
 
 #[cfg(not(feature = "ssl"))]
 fn listen_ssl<H, F>(
@@ -139,39 +140,14 @@ where
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
-    system: actix::System,
     http_server: actix::Recipient<server::StopServer>,
 }
 
 impl HttpServer {
-    pub async fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
-        let (server_tx, server_rx) = tokio::sync::oneshot::channel();
+    pub fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
+        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
-        std::thread::spawn(move || {
-            // Create a legacy actix system and spawn the actix-web server into it.
-            let runner = actix::System::new("relay");
-            let result = Self::spawn(&config, service).map(|addr| (System::current(), addr));
-            server_tx.send(result).ok();
-
-            // Block this thread until the actix system shuts down. The shutdown is emitted from the
-            // HttpService after a shutdown signal has been received and the timeout has passed.
-            runner.run();
-        });
-
-        let (system, http_server) = server_rx.await??;
-        let service = Self {
-            system,
-            http_server,
-        };
-
-        Ok(service.start())
-    }
-
-    fn spawn(
-        config: &Config,
-        service: ServiceState,
-    ) -> anyhow::Result<actix::Recipient<server::StopServer>> {
-        metric!(counter(RelayCounters::ServerStarting) += 1);
+        Server::bind(todo!()).serve(make_app(service).into_make_service());
 
         let mut server = server::new(move || make_app(service.clone()));
         server = server
@@ -187,7 +163,8 @@ impl HttpServer {
         server = listen_ssl(server, config)?;
         dump_listen_infos(&server);
 
-        Ok(server.start().recipient())
+        let http_server = server.start().recipient();
+        Ok(Self { http_server }.start())
     }
 }
 

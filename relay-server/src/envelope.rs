@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 
-use bytes::Bytes;
+use axum::body::Bytes;
 use chrono::{DateTime, Utc};
 use relay_common::UnixTimestamp;
 use relay_dynamic_config::ErrorBoundary;
@@ -1127,7 +1127,7 @@ impl Envelope {
             },
         };
 
-        let payload = bytes.slice(payload_start, payload_end);
+        let payload = bytes.slice(payload_start..payload_end);
         let item = Item { headers, payload };
 
         Ok((item, payload_end + 1))

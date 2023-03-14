@@ -4,7 +4,7 @@ use std::io;
 use actix::prelude::*;
 use actix_web::error::PayloadError;
 use actix_web::{multipart, HttpMessage, HttpRequest};
-use bytes::Bytes;
+use axum::body::Bytes;
 use futures::compat::Future01CompatExt;
 use futures01::{Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};

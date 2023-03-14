@@ -2,10 +2,10 @@ use actix_web::{App, HttpResponse};
 use relay_config::EmitOutcomes;
 
 use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
-use crate::extractors::{CurrentServiceState, SignedJson};
+use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 
-fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> HttpResponse {
+fn send_outcomes(state: State<ServiceState>, body: SignedJson<SendOutcomes>) -> HttpResponse {
     if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
         return HttpResponse::Forbidden().finish();
     }

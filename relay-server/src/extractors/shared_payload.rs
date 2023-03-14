@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use actix_web::dev::Payload;
 use actix_web::error::PayloadError;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
-use bytes::Bytes;
+use axum::body::Bytes;
 use futures::compat::Stream01CompatExt;
 use futures::TryStreamExt;
 use futures01::{Async, Poll, Stream};

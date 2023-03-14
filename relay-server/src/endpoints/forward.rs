@@ -14,7 +14,7 @@ use actix_web::http::header::{self, HeaderName, HeaderValue};
 use actix_web::http::uri::PathAndQuery;
 use actix_web::http::{HeaderMap, StatusCode};
 use actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
-use bytes::Bytes;
+use axum::body::Bytes;
 use futures::TryFutureExt;
 use once_cell::sync::Lazy;
 use relay_config::Config;

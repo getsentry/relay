@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use axum::body::Bytes;
 use relay_general::protocol::EventId;
 use relay_sampling::{
     DynamicSamplingContext, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,

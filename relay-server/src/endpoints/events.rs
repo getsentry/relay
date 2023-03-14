@@ -1,42 +1,34 @@
 //! Returns captured events.
 
-use actix_web::actix::MailboxError;
-use actix_web::http::Method;
-use actix_web::{App, HttpResponse, Path};
-use futures::TryFutureExt;
+use axum::extract::Path;
+use axum::http::{header, StatusCode};
+use axum::response::{Response, Result};
+use axum::routing::get;
+use axum::Router;
 use relay_general::protocol::EventId;
 
 use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
 use crate::envelope;
-use crate::service::ServiceState;
 
-async fn get_captured_event(event_id: Path<EventId>) -> Result<HttpResponse, MailboxError> {
-    let request = GetCapturedEnvelope {
-        event_id: *event_id,
-    };
-
+async fn get_captured_event(Path(event_id): Path<EventId>) -> Result<Response> {
     let envelope_opt = TestStore::from_registry()
-        .send(request)
-        .await
-        .map_err(|_| MailboxError::Closed)?;
+        .send(GetCapturedEnvelope { event_id })
+        .await?;
 
     let response = match envelope_opt {
-        Some(Ok(envelope)) => HttpResponse::Ok()
-            .content_type(envelope::CONTENT_TYPE)
-            .body(envelope.to_vec().unwrap()),
-        Some(Err(error)) => HttpResponse::BadRequest()
-            .content_type("text/plain")
-            .body(error),
-        None => HttpResponse::NotFound().finish(),
+        Some(Ok(envelope)) => Response::builder()
+            .header(header::CONTENT_TYPE, envelope::CONTENT_TYPE)
+            .body(envelope.to_vec().unwrap())?,
+        Some(Err(error)) => Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(error)?,
+        None => Response::builder().status(StatusCode::NOT_FOUND).body(())?,
     };
 
     Ok(response)
 }
 
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    app.resource("/api/relay/events/{event_id}/", |r| {
-        r.name("internal-events");
-        r.method(Method::GET)
-            .with_async(|e| Box::pin(get_captured_event(e)).compat());
-    })
+pub fn routes() -> Router {
+    // r.name("internal-events");
+    Router::new().route("/api/relay/events/:event_id/", get(get_captured_event))
 }

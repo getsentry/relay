@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use actix::MailboxError;
-use actix_web::{App, Error, FromRequest, Json};
+use axum::response::{IntoResponse, Result};
+use axum::routing::post;
+use axum::{Json, Router};
 use futures::{future, TryFutureExt};
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
@@ -28,24 +29,25 @@ const ENDPOINT_V3: u16 = 3;
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
+    #[serde(default)]
     version: u16,
 }
 
-impl VersionQuery {
-    fn from_request(req: &actix_web::Request) -> Self {
-        let query = req.uri().query().unwrap_or("");
-        serde_urlencoded::from_str::<VersionQuery>(query).unwrap_or(VersionQuery { version: 0 })
-    }
-}
+// impl VersionQuery {
+//     fn from_request(req: &actix_web::Request) -> Self {
+//         let query = req.uri().query().unwrap_or("");
+//         serde_urlencoded::from_str::<VersionQuery>(query).unwrap_or(VersionQuery { version: 0 })
+//     }
+// }
 
-impl<S> FromRequest<S> for VersionQuery {
-    type Config = ();
-    type Result = Self;
+// impl<S> FromRequest<S> for VersionQuery {
+//     type Config = ();
+//     type Result = Self;
 
-    fn from_request(req: &actix_web::HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        Self::from_request(req)
-    }
-}
+//     fn from_request(req: &actix_web::HttpRequest<S>, _: &Self::Config) -> Self::Result {
+//         Self::from_request(req)
+//     }
+// }
 
 /// Checks for a specific `version` query parameter.
 struct VersionPredicate;
@@ -115,15 +117,14 @@ struct GetProjectStatesRequest {
 async fn get_project_configs(
     body: SignedJson<GetProjectStatesRequest>,
     version: VersionQuery,
-) -> Result<Json<GetProjectStatesResponseWrapper>, Error> {
-    let relay = body.relay;
-    let request = body.inner;
+) -> Result<impl IntoResponse> {
+    let SignedJson { inner, relay } = body;
 
-    let no_cache = request.no_cache;
-    let keys_len = request.public_keys.len();
+    let no_cache = inner.no_cache;
+    let keys_len = inner.public_keys.len();
 
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    let valid_keys = request.public_keys.into_iter().filter_map(|e| e.ok());
+    let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
         let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
             ProjectCache::from_registry()
@@ -143,7 +144,7 @@ async fn get_project_configs(
     let mut pending = Vec::with_capacity(keys_len);
 
     for (project_key, state_result) in future::join_all(futures).await {
-        let Some(project_state) = state_result.map_err(|_| MailboxError::Closed)? else {
+        let Some(project_state) = state_result? else {
             pending.push(project_key);
             continue;
         };
@@ -157,7 +158,7 @@ async fn get_project_configs(
                 .contains(&relay.public_key);
 
         if has_access {
-            let full = relay.internal && request.full_config;
+            let full = relay.internal && inner.full_config;
             let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
             configs.insert(project_key, Some(wrapper));
         } else {
@@ -172,14 +173,21 @@ async fn get_project_configs(
     Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    app.resource("/api/0/relays/projectconfigs/", |r| {
-        r.name("relay-projectconfigs");
-        r.post()
-            .filter(VersionPredicate)
-            .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
+// pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
+//     app.resource("/api/0/relays/projectconfigs/", |r| {
+//         r.name("relay-projectconfigs");
+//         r.post()
+//             .filter(VersionPredicate)
+//             .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
 
-        // Forward all unsupported versions to the upstream.
-        r.post().f(crate::endpoints::forward::forward_compat);
-    })
+//         // Forward all unsupported versions to the upstream.
+//         r.post().f(crate::endpoints::forward::forward_compat);
+//     })
+// }
+
+pub fn routes() -> Router {
+    // TODO(ja): Check version predicate.
+    // TODO(ja): forward if version is incompatible.
+    // r.name("relay-projectconfigs");
+    Router::new().route("/api/0/relays/projectconfigs/", post(get_project_configs))
 }
