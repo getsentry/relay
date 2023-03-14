@@ -123,21 +123,6 @@
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
 </pre><pre class="rust"><code><span class="doccomment">/// Helper macro to implement string based serialization.
 ///
 /// If a type implements `Display` then this automatically
@@ -216,21 +201,6 @@
 }
 
 <span class="kw">pub use </span>impl_str_serde;
-
-<span class="doccomment">/// Same as `try` but to be used in functions that return `Box&lt;Future&gt;` instead of `Result`.
-///
-/// Useful when calling synchronous (but cheap enough) functions in async code.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>tryf {
-    (<span class="macro-nonterminal">$e</span>:expr) =&gt; {
-        <span class="kw">match </span><span class="macro-nonterminal">$e </span>{
-            <span class="prelude-val">Ok</span>(value) =&gt; value,
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span>Box::new(::futures01::future::err(::std::convert::From::from(e))),
-        }
-    };
-}
-
-<span class="kw">pub use </span>tryf;
 
 <span class="doccomment">/// A cloning alternative to a `move` closure.
 ///
