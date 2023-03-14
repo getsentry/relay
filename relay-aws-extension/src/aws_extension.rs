@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::ControlFlow;
 
-use relay_system::{Controller, Service, ShutdownKind};
+use relay_system::{Controller, Service, ShutdownMode};
 use reqwest::{Client, ClientBuilder, StatusCode, Url};
 use serde::Deserialize;
 
@@ -209,7 +209,7 @@ impl AwsExtension {
             }
             NextEventResponse::Shutdown(response) => {
                 relay_log::debug!("Received SHUTDOWN: reason {}", response.shutdown_reason);
-                Controller::trigger_shutdown(ShutdownKind::Graceful);
+                Controller::trigger_shutdown(ShutdownMode::Graceful);
                 Ok(ControlFlow::Break(()))
             }
         }

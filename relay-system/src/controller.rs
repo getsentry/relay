@@ -1,15 +1,22 @@
 use std::io;
 use std::time::Duration;
 
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use tokio::sync::watch;
 
-/// TODO(ja): Doc
+/// Determines how to shut down the Relay system.
+///
+/// To initiate a shutdown, use [`Controller::trigger_shutdown`].
 #[derive(Clone, Copy, Debug)]
-pub enum ShutdownKind {
-    /// TODO(ja): Doc
+pub enum ShutdownMode {
+    /// Shut down gracefully within the configured timeout.
+    ///
+    /// This will signal all components to finish their work and leaves time to submit pending data
+    /// to the upstream or preserve it for restart.
     Graceful,
-    /// TODO(ja): Doc
+    /// Shut down immediately without finishing pending work.
+    ///
+    /// Pending data may be lost.
     Immediate,
 }
 
@@ -30,13 +37,13 @@ pub struct Shutdown {
     pub timeout: Option<Duration>,
 }
 
-type ShutdownChannel = (
-    watch::Sender<Option<Shutdown>>,
-    watch::Receiver<Option<Shutdown>>,
-);
+type Channel<T> = (watch::Sender<Option<T>>, watch::Receiver<Option<T>>);
 
-/// Global [`ShutdownChannel`] for all services.
-static SHUTDOWN: OnceCell<ShutdownChannel> = OnceCell::new();
+/// Global channel to notify all services of a shutdown.
+static SHUTDOWN: Lazy<Channel<Shutdown>> = Lazy::new(|| watch::channel(None));
+
+/// Internal channel to trigger a manual shutdown via [`Controller::trigger_shutdown`].
+static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channel(None));
 
 /// Notifies a service about an upcoming shutdown.
 // TODO: The receiver of this message can not yet signal they have completed
@@ -64,47 +71,70 @@ impl ShutdownHandle {
     }
 }
 
-/// Service to start and gracefully stop an the system runtime.
+/// Service to start and gracefully stop the system runtime.
 ///
-/// This service contains a static `run` method which will run a tokio system and block the current
-/// thread until the system shuts down again.
+/// This service offers a static API to wait for a shutdown signal or manually initiate the Relay
+/// shutdown. To use this functionality, it first needs to be started with `Controller::start`.
 ///
-/// To shut down more gracefully, other actors can register with [`Controller::shutdown_handle`].
-/// When a shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
-/// optional timeout. They can respond with a future, after which they will be stopped. Once all
-/// registered actors have stopped successfully, the entire system will stop.
+/// To shut down gracefully, other services can register with [`Controller::shutdown_handle`]. When
+/// a shutdown signal is sent to the process, every service will receive a [`Shutdown`] message with
+/// an optional timeout.
+///
+/// To wait for the entire shutdown sequence including the shutdown timeout instead, use
+/// [`Controller::shutdown`]. It resolves when the shutdown has finished.
 ///
 /// ### Example
 ///
-/// ```ignore
-/// // TODO: This example is outdated and needs to be updated when the Controller is rewritten.
-/// use actix::prelude::*;
-/// use relay_system::{Controller, Shutdown};
+/// ```
+/// use relay_system::{Controller, Service, Shutdown, ShutdownMode};
+/// use std::time::Duration;
 ///
-/// struct MyActor;
+/// struct MyService;
 ///
-/// impl Actor for MyActor {
-///     type Context = Context<Self>;
+/// impl Service for MyService {
+///     type Interface = ();
 ///
-///     fn started(&mut self, context: &mut Self::Context) {
-///         Controller::subscribe(context.address());
+///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+///         tokio::spawn(async move {
+///             let mut shutdown = Controller::shutdown_handle();
+///
+///             loop {
+///                 tokio::select! {
+///                     biased;
+///
+///                     shutdown = shutdown.notified() => {
+///                         // Handle shutdown here, considering timeout.
+///                         break;
+///                     }
+///
+///                     Some(message) = rx.recv() => {
+///                         // Process incoming message.
+///                     }
+///                 }
+///             }
+///
+///             println!("service has shut down");
+///         });
 ///     }
 /// }
 ///
-/// impl Handler<Shutdown> for MyActor {
-///     type Result = Result<(), ()>;
+/// #[tokio::main(flavor = "current_thread")]
+/// async fn main() {
+///     // Start the controller near the beginning of application bootstrap. This allows other
+///     // services to register for shutdown messages.
+///     Controller::start(Duration::from_millis(10));
 ///
-///     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-///         // Implement custom logic here
-///         Ok(())
-///     }
+///     // Start all other services. Controller::shutdown_handle will use the same controller
+///     // instance and receives the configured shutdown timeout.
+///     let addr = MyService.start();
+///
+///     // By triggering a shutdown, all attached services will be notified. This happens
+///     // automatically when a signal is sent to the process (e.g. SIGINT or SIGTERM).
+///     Controller::trigger_shutdown(ShutdownMode::Graceful);
+///
+///     // Wait for the system to shut down before winding down the application.
+///     Controller::shutdown().await;
 /// }
-///
-/// Controller::run(|| -> Result<(), ()> {
-///     MyActor.start();
-///     # System::current().stop();
-///     Ok(())
-/// }).unwrap();
 /// ```
 #[derive(Debug)]
 pub struct Controller;
@@ -116,13 +146,14 @@ impl Controller {
     }
 
     /// Initiates the shutdown process of the system.
-    pub fn trigger_shutdown(kind: ShutdownKind) {
-        todo!("trigger shutdown in the monitor with {kind:?}");
+    pub fn trigger_shutdown(mode: ShutdownMode) {
+        let (ref tx, _) = *MANUAL_SHUTDOWN;
+        tx.send(Some(mode)).ok();
     }
 
     /// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
     pub fn shutdown_handle() -> ShutdownHandle {
-        let (_, ref rx) = SHUTDOWN.get_or_init(|| watch::channel(None));
+        let (_, ref rx) = *SHUTDOWN;
         ShutdownHandle(rx.clone())
     }
 
@@ -155,7 +186,8 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
     let mut sig_quit = signal(SignalKind::quit())?;
     let mut sig_term = signal(SignalKind::terminate())?;
 
-    let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
+    let (ref tx, _) = *SHUTDOWN;
+    let mut manual = MANUAL_SHUTDOWN.1.clone();
 
     loop {
         let timeout = tokio::select! {
@@ -173,6 +205,17 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
                 relay_log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
                 Some(timeout)
             }
+            Ok(()) = manual.changed() => match *manual.borrow() {
+                Some(ShutdownMode::Graceful) => {
+                    relay_log::info!("Graceful shutdown initiated, stopping in {}s", timeout.as_secs());
+                    Some(timeout)
+                }
+                Some(ShutdownMode::Immediate) => {
+                    relay_log::info!("Immediate shutdown initiated");
+                    None
+                },
+                None => continue,
+            },
 
             else => break,
         };
@@ -184,27 +227,48 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
 }
 
 #[cfg(windows)]
-async fn monitor_shutdown(_timeout: Duration) -> io::Result<()> {
+async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
     use tokio::signal::windows::{ctrl_break, ctrl_c, ctrl_close};
 
     let mut ctrl_c = ctrl_c()?;
     let mut ctrl_break = ctrl_break()?;
     let mut ctrl_close = ctrl_close()?;
 
-    let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
+    let (ref tx, _) = *SHUTDOWN;
+    let mut manual = MANUAL_SHUTDOWN.1.clone();
 
     loop {
-        tokio::select! {
+        let timeout = tokio::select! {
             biased;
 
-            Some(()) = ctrl_c.recv() => relay_log::info!("CTRL-C received, exiting"),
-            Some(()) = ctrl_break.recv() => relay_log::info!("CTRL-BREAK received, exiting"),
-            Some(()) = ctrl_close.recv() => relay_log::info!("CTRL-CLOSE received, exiting"),
+            Some(()) = ctrl_c.recv() => {
+                relay_log::info!("CTRL-C received, exiting")
+                None
+            }
+            Some(()) = ctrl_break.recv() => {
+                relay_log::info!("CTRL-BREAK received, exiting")
+                None
+            }
+            Some(()) = ctrl_close.recv() => {
+                relay_log::info!("CTRL-CLOSE received, exiting")
+                None
+            }
+            Ok(()) = manual.changed() => match *manual.borrow() {
+                Some(ShutdownMode::Graceful) => {
+                    relay_log::info!("Graceful shutdown initiated, stopping in {}s", timeout.as_secs());
+                    Some(timeout)
+                }
+                Some(ShutdownMode::Immediate) => {
+                    relay_log::info!("Immediate shutdown initiated");
+                    None
+                },
+                None => continue,
+            },
 
             else => break,
         };
 
-        tx.send(Some(Shutdown { timeout: None })).ok();
+        tx.send(Some(Shutdown { timeout })).ok();
     }
 
     Ok(())
