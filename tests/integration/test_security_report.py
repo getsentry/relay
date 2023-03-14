@@ -212,3 +212,25 @@ def test_security_report_cors(mini_sentry, relay):
     should_expose_headers = ["x-sentry-error", "x-sentry-rate-limits", "retry-after"]
     ok, err = should_contain(expose_headers, should_expose_headers)
     assert ok, err
+
+
+def test_adds_origin_header(mini_sentry, relay, json_fixture_provider):
+    fixture_provider = json_fixture_provider(__file__)
+    proj_id = 42
+    relay = relay(mini_sentry)
+    report = fixture_provider.load("csp", ".input")
+    mini_sentry.add_full_project_config(proj_id)
+
+    relay.send_security_report(
+        project_id=proj_id,
+        content_type="application/json; charset=utf-8",
+        payload=report,
+        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+        environment="production",
+        origin="http://valid.com",
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=10)
+    event = get_security_report(envelope)
+
+    assert ["Origin", "http://valid.com/"] in event["request"]["headers"]

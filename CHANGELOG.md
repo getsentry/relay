@@ -16,6 +16,7 @@
 - Optionally mark scrubbed URL transactions as sanitized. ([#1917](https://github.com/getsentry/relay/pull/1917))
 - Perform PII scrubbing on meta's original_value field. ([#1892](https://github.com/getsentry/relay/pull/1892))
 - Add links to docs in YAML config file. ([#1923](https://github.com/getsentry/relay/pull/1923))
+- For security reports, add the request's `origin` header to sentry events. ([#1934](https://github.com/getsentry/relay/pull/1934))
 
 **Bug Fixes**:
 
