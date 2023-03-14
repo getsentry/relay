@@ -46,8 +46,9 @@ static SHUTDOWN: Lazy<Channel<Shutdown>> = Lazy::new(|| watch::channel(None));
 static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channel(None));
 
 /// Notifies a service about an upcoming shutdown.
-// TODO: The receiver of this message can not yet signal they have completed
-// shutdown.
+///
+/// This handle is returned by [`Controller::shutdown_handle`].
+// TODO: The receiver of this message can not yet signal they have completed shutdown.
 pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 
 impl ShutdownHandle {
@@ -96,13 +97,21 @@ impl ShutdownHandle {
 /// Service to start and gracefully stop the system runtime.
 ///
 /// This service offers a static API to wait for a shutdown signal or manually initiate the Relay
-/// shutdown. To use this functionality, it first needs to be started with `Controller::start`.
+/// shutdown. To use this functionality, it first needs to be started with [`Controller::start`].
 ///
 /// To shut down gracefully, other services can register with [`Controller::shutdown_handle`]. When
 /// a shutdown signal is sent to the process, every service will receive a [`Shutdown`] message with
 /// an optional timeout. To wait for the entire shutdown sequence including the shutdown timeout
 /// instead, use [`finished`](ShutdownHandle::finished). It resolves when the shutdown has
 /// completed.
+///
+/// ## Signals
+///
+/// By default, the controller watches for process signals and converts them into graceful or
+/// immediate shutdown messages. These signals are platform-dependent:
+///
+///  - Unix: `SIGINT` and `SIGQUIT` trigger an immediate shutdown, `SIGTERM` a graceful one.
+///  - Windows: `CTRL-C`, `CTRL-BREAK`, `CTRL-CLOSE` all trigger an immediate shutdown.
 ///
 /// ### Example
 ///
@@ -121,20 +130,10 @@ impl ShutdownHandle {
 ///
 ///             loop {
 ///                 tokio::select! {
-///                     biased;
-///
-///                     shutdown = shutdown.notified() => {
-///                         // Handle shutdown here, considering timeout.
-///                         break;
-///                     }
-///
-///                     Some(message) = rx.recv() => {
-///                         // Process incoming message.
-///                     }
+///                     shutdown = shutdown.notified() => break, // Handle shutdown here
+///                     Some(message) = rx.recv() => (),         // Process incoming message
 ///                 }
 ///             }
-///
-///             println!("service has shut down");
 ///         });
 ///     }
 /// }
