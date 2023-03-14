@@ -3628,10 +3628,8 @@ dependencies = [
 name = "relay-test"
 version = "23.2.0"
 dependencies = [
- "futures 0.1.31",
  "relay-log",
  "relay-system",
- "tokio 1.25.0",
 ]
 
 [[package]]
