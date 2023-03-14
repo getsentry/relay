@@ -203,6 +203,10 @@
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -317,11 +321,6 @@
 
         <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start_in(<span class="kw-2">&amp;</span>upstream_runtime);
 
-        <span class="kw">let </span>outcome_producer =
-            OutcomeProducerService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>outcome_runtime);
-        <span class="kw">let </span>outcome_aggregator =
-            OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>outcome_runtime);
-
         <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
             <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
                 <span class="prelude-val">Some</span>(RedisPool::new(redis_config).context(ServiceError::Redis)<span class="question-mark">?</span>)
@@ -367,6 +366,15 @@
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
         .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
+
+        <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(
+            config.clone(),
+            upstream_relay.clone(),
+            envelope_manager.clone(),
+        )<span class="question-mark">?
+        </span>.start_in(<span class="kw-2">&amp;</span>outcome_runtime);
+        <span class="kw">let </span>outcome_aggregator =
+            OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>outcome_runtime);
 
         REGISTRY
             .set(Box::new(Registry {

@@ -954,6 +954,18 @@
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1482,17 +1494,19 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>HttpOutcomeProducer {
     config: Arc&lt;Config&gt;,
+    upstream_relay: Addr&lt;UpstreamRelay&gt;,
     unsent_outcomes: Vec&lt;TrackRawOutcome&gt;,
     flush_handle: SleepHandle,
 }
 
 <span class="kw">impl </span>HttpOutcomeProducer {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, upstream_relay: Addr&lt;UpstreamRelay&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
             config,
+            upstream_relay,
             unsent_outcomes: Vec::new(),
             flush_handle: SleepHandle::idle(),
-        })
+        }
     }
 
     <span class="kw">fn </span>send_batch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
@@ -1512,11 +1526,10 @@
             outcomes: mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_outcomes),
         };
 
+        <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
+
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">match </span>UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .<span class="kw">await
-            </span>{
+            <span class="kw">match </span>upstream_relay.send(SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>),
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, error)
@@ -1562,15 +1575,17 @@
     flush_interval: Duration,
     unsent_reports: BTreeMap&lt;Scoping, Vec&lt;ClientReport&gt;&gt;,
     flush_handle: SleepHandle,
+    envelope_manager: Addr&lt;EnvelopeManager&gt;,
 }
 
 <span class="kw">impl </span>ClientReportOutcomeProducer {
-    <span class="kw">fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(config: <span class="kw-2">&amp;</span>Config, envelope_manager: Addr&lt;EnvelopeManager&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             <span class="comment">// Use same batch interval as outcome aggregator
             </span>flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
+            envelope_manager,
         }
     }
 
@@ -1579,9 +1594,8 @@
         <span class="self">self</span>.flush_handle.reset();
 
         <span class="kw">let </span>unsent_reports = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_reports);
-        <span class="kw">let </span>envelope_manager = EnvelopeManager::from_registry();
         <span class="kw">for </span>(scoping, client_reports) <span class="kw">in </span>unsent_reports.into_iter() {
-            envelope_manager.send(SendClientReports {
+            <span class="self">self</span>.envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
@@ -1865,7 +1879,11 @@
 }
 
 <span class="kw">impl </span>OutcomeProducerService {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">pub fn </span>create(
+        config: Arc&lt;Config&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+        envelope_manager: Addr&lt;EnvelopeManager&gt;,
+    ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>inner = <span class="kw">match </span>config.emit_outcomes() {
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>EmitOutcomes::AsOutcomes <span class="kw">if </span>config.processing_enabled() =&gt; {
@@ -1875,12 +1893,18 @@
             }
             EmitOutcomes::AsOutcomes =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes via http&quot;</span>);
-                ProducerInner::Http(HttpOutcomeProducer::create(Arc::clone(<span class="kw-2">&amp;</span>config))<span class="question-mark">?</span>)
+                ProducerInner::Http(HttpOutcomeProducer::new(
+                    Arc::clone(<span class="kw-2">&amp;</span>config),
+                    upstream_relay,
+                ))
             }
             EmitOutcomes::AsClientReports =&gt; {
                 <span class="comment">// We emit client reports, and we do NOT accept raw outcomes
                 </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
-                ProducerInner::ClientReport(ClientReportOutcomeProducer::create(<span class="kw-2">&amp;</span>config))
+                ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
+                    <span class="kw-2">&amp;</span>config,
+                    envelope_manager,
+                ))
             }
             EmitOutcomes::None =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to drop all outcomes&quot;</span>);
