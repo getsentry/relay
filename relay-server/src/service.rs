@@ -143,8 +143,8 @@ impl ServiceState {
         let project_cache = ProjectCacheService::new(
             config.clone(),
             processor.clone(),
-            upstream_relay.clone(),
             envelope_manager.clone(),
+            upstream_relay.clone(),
             redis_pool,
         )
         .start_in(&project_runtime);

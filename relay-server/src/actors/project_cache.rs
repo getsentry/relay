@@ -733,8 +733,8 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     envelope_processor: Addr<EnvelopeProcessor>,
-    upstream_relay: Addr<UpstreamRelay>,
     envelope_manager: Addr<EnvelopeManager>,
+    upstream_relay: Addr<UpstreamRelay>,
     redis: Option<RedisPool>,
 }
 
@@ -743,15 +743,15 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         envelope_processor: Addr<EnvelopeProcessor>,
-        upstream_relay: Addr<UpstreamRelay>,
         envelope_manager: Addr<EnvelopeManager>,
+        upstream_relay: Addr<UpstreamRelay>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             envelope_processor,
-            upstream_relay,
             envelope_manager,
+            upstream_relay,
             redis,
         }
     }
@@ -765,8 +765,8 @@ impl Service for ProjectCacheService {
             config,
             redis,
             envelope_processor,
-            upstream_relay,
             envelope_manager,
+            upstream_relay,
         } = self;
 
         tokio::spawn(async move {

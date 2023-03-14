@@ -1,31 +1,7 @@
-use serde::{Deserialize, Serialize};
-
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
-
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Deserialize,
-    Eq,
-    PartialEq,
-    Serialize,
-    Empty,
-    FromValue,
-    IntoValue,
-    ProcessValue,
-)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct DeviceClass(pub u64);
-
-impl DeviceClass {
-    pub const LOW: Self = Self(1);
-    pub const MEDIUM: Self = Self(2);
-    pub const HIGH: Self = Self(3);
-}
 
 /// Device information.
 ///
@@ -184,10 +160,6 @@ pub struct DeviceContext {
     /// Whether location support is available on the device.
     pub supports_location_service: Annotated<bool>,
 
-    // The performance class of the device, stored as a number.
-    // This value is synthesized from the device's specs in normalize_device_context.
-    pub class: Annotated<DeviceClass>,
-
     /// Additional arbitrary fields for forwards compatibility
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -232,7 +204,6 @@ impl FromUserAgentInfo for DeviceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::contexts::device::DeviceClass;
     use crate::protocol::{DeviceContext, FromUserAgentInfo, Headers, PairList};
     use crate::types::{Annotated, Object, Value};
     use crate::user_agent::RawUserAgentInfo;
@@ -344,7 +315,6 @@ mod tests {
   "supports_gyroscope": true,
   "supports_audio": true,
   "supports_location_service": true,
-  "class": 1,
   "other": "value",
   "type": "device"
 }"#;
@@ -388,7 +358,6 @@ mod tests {
             supports_gyroscope: Annotated::new(true),
             supports_audio: Annotated::new(true),
             supports_location_service: Annotated::new(true),
-            class: Annotated::new(DeviceClass::LOW),
             other: {
                 let mut map = Object::new();
                 map.insert(
