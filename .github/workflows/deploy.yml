@@ -26,24 +26,17 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rust-docs
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component rust-docs --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Build Docs
-        uses: actions-rs/cargo@v1
+        run: cargo doc --workspace --all-features --no-deps
         env:
           RUSTDOCFLAGS: -Dwarnings
-        with:
-          command: doc
-          args: --workspace --all-features --no-deps
 
       - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
@@ -63,21 +56,15 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Generate Schema
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -p generate-schema -- -o event.schema.json
+        run: cargo run -p generate-schema -- -o event.schema.json
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
@@ -117,25 +104,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Document Metrics
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -p document-metrics -- -o relay_metrics.json
-            relay-kafka/src/statsd.rs
-            relay-metrics/src/statsd.rs
-            relay-server/src/statsd.rs
-            relay-system/src/statsd.rs
+        run: cargo run -p document-metrics -- -o relay_metrics.json
+          relay-kafka/src/statsd.rs
+          relay-metrics/src/statsd.rs
+          relay-server/src/statsd.rs
+          relay-system/src/statsd.rs
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
