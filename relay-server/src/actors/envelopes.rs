@@ -128,7 +128,6 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
 }
 
@@ -290,12 +289,14 @@ impl EnvelopeManagerService {
 
     async fn handle_submit(&self, message: SubmitEnvelope) {
         let SubmitEnvelope {
-            envelope,
             mut envelope_context,
         } = message;
 
         let scoping = envelope_context.scoping();
-        match self.submit_envelope(envelope, scoping, None).await {
+        match self
+            .submit_envelope(envelope_context.envelope(), scoping, None)
+            .await
+        {
             Ok(_) => {
                 envelope_context.accept();
             }

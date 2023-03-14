@@ -273,13 +273,13 @@ pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
-    mut envelope: Box<Envelope>,
     mut envelope_context: EnvelopeContext,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
     let mut metric_items = Vec::new();
     let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
+    let envelope = envelope_context.envelope_mut();
     while let Some(item) = envelope.take_item_by(is_metric) {
         metric_items.push(item);
     }

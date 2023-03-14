@@ -31,11 +31,11 @@ impl QueueKey {
 #[derive(Debug)]
 pub struct Enqueue {
     key: QueueKey,
-    value: (Box<Envelope>, EnvelopeContext),
+    value: EnvelopeContext,
 }
 
 impl Enqueue {
-    pub fn new(key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) -> Self {
+    pub fn new(key: QueueKey, value: EnvelopeContext) -> Self {
         Self { key, value }
     }
 }
@@ -44,14 +44,11 @@ impl Enqueue {
 #[derive(Debug)]
 pub struct DequeueMany {
     keys: Vec<QueueKey>,
-    sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
+    sender: mpsc::UnboundedSender<EnvelopeContext>,
 }
 
 impl DequeueMany {
-    pub fn new(
-        keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
-    ) -> Self {
+    pub fn new(keys: Vec<QueueKey>, sender: mpsc::UnboundedSender<EnvelopeContext>) -> Self {
         Self { keys, sender }
     }
 }
@@ -121,7 +118,7 @@ impl FromMessage<RemoveMany> for Buffer {
 #[derive(Debug)]
 pub struct BufferService {
     /// Contains the cache of the incoming envelopes.
-    buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    buffer: BTreeMap<QueueKey, Vec<EnvelopeContext>>,
 }
 
 impl BufferService {

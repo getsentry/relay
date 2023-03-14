@@ -102,7 +102,7 @@ impl GetCachedProjectState {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
+    pub envelope: Option<EnvelopeContext>,
     pub rate_limits: RateLimits,
 }
 
@@ -117,14 +117,13 @@ pub struct CheckedEnvelope {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
-        Self { envelope, context }
+    pub fn new(context: EnvelopeContext) -> Self {
+        Self { context }
     }
 }
 
@@ -141,13 +140,12 @@ impl CheckEnvelope {
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
-    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl ValidateEnvelope {
-    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
-        Self { envelope, context }
+    pub fn new(context: EnvelopeContext) -> Self {
+        Self { context }
     }
 }
 
@@ -393,14 +391,14 @@ struct ProjectCacheBroker {
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
     /// Index of the buffered project keys.
-    buffer_tx: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
+    buffer_tx: mpsc::UnboundedSender<EnvelopeContext>,
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
     buffer: Addr<Buffer>,
 }
 
 impl ProjectCacheBroker {
     /// Adds the value to the queue for the provided key.
-    pub fn enqueue(&mut self, key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) {
+    pub fn enqueue(&mut self, key: QueueKey, value: EnvelopeContext) {
         self.index.entry(key.own_key).or_default().insert(key);
         self.index.entry(key.sampling_key).or_default().insert(key);
         self.buffer.send(Enqueue::new(key, value));
@@ -563,13 +561,13 @@ impl ProjectCacheBroker {
         &mut self,
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let CheckEnvelope { envelope, context } = message;
-        let project = self.get_or_create_project(envelope.meta().public_key());
+        let CheckEnvelope { context } = message;
+        let project = self.get_or_create_project(context.envelope().meta().public_key());
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(false);
-        project.check_envelope(envelope, context)
+        project.check_envelope(context)
     }
 
     /// Handles the processing of the provided envelope.
@@ -580,7 +578,8 @@ impl ProjectCacheBroker {
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
-    fn handle_processing(&mut self, envelope: Box<Envelope>, envelope_context: EnvelopeContext) {
+    fn handle_processing(&mut self, envelope_context: EnvelopeContext) {
+        let envelope = envelope_context.envelope();
         let project_key = envelope.meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
@@ -602,16 +601,15 @@ impl ProjectCacheBroker {
         // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
         // function returns any error, which will also be ignored here.
         if let Ok(CheckedEnvelope {
-            envelope: Some((envelope, envelope_context)),
+            envelope: Some(envelope_context),
             ..
-        }) = project.check_envelope(envelope, envelope_context)
+        }) = project.check_envelope(envelope_context)
         {
             let sampling_state = utils::get_sampling_key(&envelope)
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 
             let mut process = ProcessEnvelope {
-                envelope,
                 envelope_context,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
@@ -641,7 +639,8 @@ impl ProjectCacheBroker {
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        let ValidateEnvelope { envelope, context } = message;
+        let ValidateEnvelope { context } = message;
+        let envelope = context.envelope();
 
         // Fetch the project state for our key and make sure it's not invalid.
         let own_key = envelope.meta().public_key();
@@ -661,11 +660,11 @@ impl ProjectCacheBroker {
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
-            return self.handle_processing(envelope, context);
+            return self.handle_processing(context);
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
-        self.enqueue(key, (envelope, context));
+        self.enqueue(key, context);
     }
 
     fn handle_rate_limits(&mut self, message: UpdateRateLimits) {
@@ -775,7 +774,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = state_rx.recv() => broker.merge_state(message),
-                    Some((envelope, context)) = buffer_rx.recv() => broker.handle_processing(envelope, context),
+                    Some(context) = buffer_rx.recv() => broker.handle_processing(context),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,

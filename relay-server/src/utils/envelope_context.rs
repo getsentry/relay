@@ -60,6 +60,7 @@ impl Handling {
 /// management. It is automatically reclaimed when the context is dropped along with the envelope.
 #[derive(Debug)]
 pub struct EnvelopeContext {
+    envelope: Box<Envelope>,
     summary: EnvelopeSummary,
     start_time: Instant,
     received_at: DateTime<Utc>,
@@ -72,10 +73,12 @@ pub struct EnvelopeContext {
 
 impl EnvelopeContext {
     /// Computes an envelope context from the given envelope.
-    fn new_internal(envelope: &Envelope, slot: Option<SemaphorePermit>) -> Self {
+    fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
+        let summary = EnvelopeSummary::compute(envelope.as_ref());
         Self {
-            summary: EnvelopeSummary::compute(envelope),
+            envelope,
+            summary,
             start_time: meta.start_time(),
             received_at: relay_common::instant_to_date_time(meta.start_time()),
             event_id: envelope.event_id(),
@@ -91,23 +94,33 @@ impl EnvelopeContext {
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
     #[cfg(test)]
-    pub fn standalone(envelope: &Envelope) -> Self {
+    pub fn standalone(envelope: Box<Envelope>) -> Self {
         Self::new_internal(envelope, None)
     }
 
     /// Computes an envelope context from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`EnvelopeContext::scope`].
-    pub fn new(envelope: &Envelope, slot: SemaphorePermit) -> Self {
+    pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
         Self::new_internal(envelope, Some(slot))
+    }
+
+    /// Returns a reference to the contained [`Envelope`].
+    pub fn envelope(&self) -> &Envelope {
+        self.envelope.as_ref()
+    }
+
+    /// Returns a mutable reference to the contained [`Envelope`].
+    pub fn envelope_mut(&mut self) -> &mut Envelope {
+        self.envelope.as_mut()
     }
 
     /// Update the context with new envelope information.
     ///
     /// This updates the item summary as well as the event id.
-    pub fn update(&mut self, envelope: &Envelope) -> &mut Self {
-        self.event_id = envelope.event_id();
-        self.summary = EnvelopeSummary::compute(envelope);
+    pub fn update(&mut self) -> &mut Self {
+        self.event_id = self.envelope().event_id();
+        self.summary = EnvelopeSummary::compute(self.envelope());
         self
     }
 

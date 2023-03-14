@@ -717,11 +717,11 @@ impl Project {
     /// pipeline.
     pub fn check_envelope(
         &mut self,
-        mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope_context.scoping();
+        let envelope = envelope_context.envelope_mut();
 
         if let Some(ref state) = state {
             scoping = state.scope_request(envelope.meta());
@@ -743,7 +743,7 @@ impl Project {
 
         let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
         enforcement.track_outcomes(&envelope, &scoping);
-        envelope_context.update(&envelope);
+        envelope_context.update();
 
         let envelope = if envelope.is_empty() {
             // Individual rate limits have already been issued above
