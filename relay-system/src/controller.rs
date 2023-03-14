@@ -243,15 +243,15 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
             biased;
 
             Some(()) = ctrl_c.recv() => {
-                relay_log::info!("CTRL-C received, exiting")
+                relay_log::info!("CTRL-C received, exiting");
                 None
             }
             Some(()) = ctrl_break.recv() => {
-                relay_log::info!("CTRL-BREAK received, exiting")
+                relay_log::info!("CTRL-BREAK received, exiting");
                 None
             }
             Some(()) = ctrl_close.recv() => {
-                relay_log::info!("CTRL-CLOSE received, exiting")
+                relay_log::info!("CTRL-CLOSE received, exiting");
                 None
             }
             Ok(()) = manual.changed() => match *manual.borrow() {
