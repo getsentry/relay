@@ -376,7 +376,7 @@ impl StateChannel {
 }
 
 enum GetOrFetch<'a> {
-    Cached(Arc<ProjectState>),
+    Cached(Arc<ProjectState>, Option<RequestUpdate>),
     Schedule(&'a mut StateChannel, Option<RequestUpdate>),
 }
 
@@ -579,13 +579,13 @@ impl Project {
             // The project is semi-outdated, fetch new state but return old one.
             ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
+            ExpiryState::Updated(state) => return GetOrFetch::Cached(state, None),
         };
 
         let (channel, request_update) = self.fetch_state(no_cache);
 
         match cached_state {
-            Some(state) => GetOrFetch::Cached(state),
+            Some(state) => GetOrFetch::Cached(state, request_update),
             None => GetOrFetch::Schedule(channel, request_update),
         }
     }
@@ -610,7 +610,7 @@ impl Project {
         no_cache: bool,
     ) -> (Option<Arc<ProjectState>>, Option<RequestUpdate>) {
         match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state) => (Some(state), None),
+            GetOrFetch::Cached(state, request_update) => (Some(state), request_update),
             GetOrFetch::Schedule(_, request_update) => (None, request_update),
         }
     }
@@ -625,9 +625,9 @@ impl Project {
     /// are in the [grace period](Config::project_grace_period).
     pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) -> Option<RequestUpdate> {
         match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state) => {
+            GetOrFetch::Cached(state, request_update) => {
                 sender.send(state);
-                None
+                request_update
             }
 
             GetOrFetch::Schedule(channel, request_update) => {
