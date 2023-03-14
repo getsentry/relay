@@ -4,6 +4,7 @@ use std::fmt;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use relay_common::{ProjectKey, UnixTimestamp};
 use relay_metrics::{AggregatorConfig, AggregatorService, Metric, MetricValue};
+use tokio::sync::mpsc;
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
@@ -119,8 +120,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
+                        let (_, rx) = mpsc::unbounded_channel();
                         (
-                            AggregatorService::new(config.clone(), None),
+                            AggregatorService::new(config.clone(), None, rx),
                             input.get_metrics(),
                         )
                     },
@@ -140,7 +142,8 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
-                        let mut aggregator = AggregatorService::new(config.clone(), None);
+                        let (_, rx) = mpsc::unbounded_channel();
+                        let mut aggregator = AggregatorService::new(config.clone(), None, rx);
                         for (project_key, metric) in input.get_metrics() {
                             aggregator.insert(project_key, metric).unwrap();
                         }

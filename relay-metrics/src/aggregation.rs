@@ -15,6 +15,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
@@ -1502,6 +1503,7 @@ pub struct AggregatorService {
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     state: AggregatorState,
     cost_tracker: CostTracker,
+    projects: mpsc::UnboundedReceiver<Aggregator>,
 }
 
 impl AggregatorService {
@@ -1512,6 +1514,7 @@ impl AggregatorService {
     pub fn new(
         config: AggregatorConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        projects: mpsc::UnboundedReceiver<Aggregator>,
     ) -> Self {
         Self {
             config,
@@ -1519,6 +1522,7 @@ impl AggregatorService {
             receiver,
             state: AggregatorState::Running,
             cost_tracker: CostTracker::default(),
+            projects,
         }
     }
 
@@ -1988,6 +1992,7 @@ impl Service for AggregatorService {
 
                     _ = ticker.tick() => self.try_flush(),
                     Some(message) = rx.recv() => self.handle_message(message),
+                    Some(message) = self.projects.recv() => self.handle_message(message),
                     shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
                     else => break,
@@ -2435,8 +2440,9 @@ mod tests {
     #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
+        let (_, rx) = mpsc::unbounded_channel();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = AggregatorService::new(test_config(), None);
+        let mut aggregator = AggregatorService::new(test_config(), None, rx);
 
         let metric1 = some_metric();
 
@@ -2476,7 +2482,8 @@ mod tests {
             ..test_config()
         };
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = AggregatorService::new(config, None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(config, None, rx);
 
         let metric1 = some_metric();
 
@@ -2536,7 +2543,8 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(config, None, rx);
 
         // It's OK to have same metric with different projects:
         aggregator.insert(project_key1, some_metric()).unwrap();
@@ -2618,7 +2626,8 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = AggregatorService::new(test_config(), None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(test_config(), None, rx);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let metric = Metric {
@@ -2766,7 +2775,8 @@ mod tests {
             debounce_delay: 0,
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
+        let (_, rx) = mpsc::unbounded_channel();
+        let aggregator = AggregatorService::new(config, Some(recipient), rx).start();
 
         let mut metric = some_metric();
         metric.timestamp = UnixTimestamp::now();
@@ -2806,7 +2816,8 @@ mod tests {
             debounce_delay: 0,
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
+        let (_, rx) = mpsc::unbounded_channel();
+        let aggregator = AggregatorService::new(config, Some(recipient), rx).start();
 
         let mut metric = some_metric();
         metric.timestamp = UnixTimestamp::now();
@@ -3011,7 +3022,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(config, None, rx);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.insert(project_key, metric.clone()).unwrap();
@@ -3036,7 +3048,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(config, None, rx);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.insert(project_key, metric.clone()).unwrap();
@@ -3068,7 +3081,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let (_, rx) = mpsc::unbounded_channel();
+        let mut aggregator = AggregatorService::new(config, None, rx);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1).ok();

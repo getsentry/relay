@@ -6,12 +6,13 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 use url::Url;
 
@@ -24,7 +25,6 @@ use crate::actors::processor::RateLimitFlushBuckets;
 use crate::actors::project_cache::{CheckedEnvelope, RequestUpdate};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
 
@@ -386,6 +386,7 @@ enum GetOrFetch<'a> {
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 #[derive(Debug)]
 pub struct Project {
+    aggregator: mpsc::UnboundedSender<Aggregator>,
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
@@ -399,8 +400,13 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
+    pub fn new(
+        key: ProjectKey,
+        config: Arc<Config>,
+        aggregator: mpsc::UnboundedSender<Aggregator>,
+    ) -> Self {
         Project {
+            aggregator,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
@@ -498,7 +504,8 @@ impl Project {
         if self.metrics_allowed() {
             let buckets = self.rate_limit_metrics(buckets);
             if !buckets.is_empty() {
-                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+                let merge = MergeBuckets::new(self.project_key, buckets);
+                self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
             }
         }
     }
@@ -510,7 +517,8 @@ impl Project {
         if self.metrics_allowed() {
             let metrics = self.rate_limit_metrics(metrics);
             if !metrics.is_empty() {
-                Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+                let insert = InsertMetrics::new(self.project_key, metrics);
+                self.aggregator.send(Aggregator::InsertMetrics(insert)).ok();
             }
         }
     }
@@ -639,8 +647,9 @@ impl Project {
     /// point. Therefore, this method is useful to trigger an update early if it is already clear
     /// that the project state will be needed soon. To retrieve an updated state, use
     /// [`Project::get_state`] instead.
-    pub fn prefetch(&mut self, no_cache: bool) {
-        self.get_cached_state(no_cache);
+    pub fn prefetch(&mut self, no_cache: bool) -> Option<RequestUpdate> {
+        let (_, request_update) = self.get_cached_state(no_cache);
+        request_update
     }
 
     /// Replaces the internal project state with a new one and triggers pending actions.
@@ -790,13 +799,15 @@ impl Project {
             relay_log::trace!("project expired: merging back {} buckets", buckets.len());
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            let merge = MergeBuckets::new(self.project_key, buckets);
+            self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
             return;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            let merge = MergeBuckets::new(self.project_key, buckets);
+            self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
             return;
         };
 
@@ -846,11 +857,13 @@ mod tests {
     use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
     use serde_json::json;
+    use tokio::sync::mpsc;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
     #[test]
     fn get_state_expired() {
+        let (tx, _) = mpsc::unbounded_channel();
         for expiry in [9999, 0] {
             let config = Arc::new(
                 Config::from_json_value(json!(
@@ -869,7 +882,7 @@ mod tests {
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
-            let mut project = Project::new(project_key, config.clone());
+            let mut project = Project::new(project_key, config.clone(), tx.clone());
             project.state = Some(Arc::new(project_state));
 
             // Direct access should always yield a state:
@@ -906,7 +919,8 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let mut project = Project::new(project_key, config);
+        let (tx, _) = mpsc::unbounded_channel();
+        let mut project = Project::new(project_key, config, tx);
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
@@ -936,7 +950,8 @@ mod tests {
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let (tx, _) = mpsc::unbounded_channel();
+        let mut project = Project::new(project_key, Arc::new(Config::default()), tx);
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {

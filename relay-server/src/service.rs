@@ -9,6 +9,7 @@ use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
 use relay_system::{Addr, Service};
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
@@ -140,12 +141,14 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
+        let (aggregator_sender, aggregator_receiver) = mpsc::unbounded_channel();
         let project_cache = ProjectCacheService::new(
             config.clone(),
             processor.clone(),
             envelope_manager.clone(),
             upstream_relay.clone(),
             redis_pool,
+            aggregator_sender,
         )
         .start_in(&project_runtime);
 
@@ -161,6 +164,7 @@ impl ServiceState {
         let aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             Some(project_cache.clone().recipient()),
+            aggregator_receiver,
         )
         .start_in(&aggregator_runtime);
 

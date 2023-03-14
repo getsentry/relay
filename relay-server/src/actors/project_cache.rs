@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
+use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -38,7 +38,7 @@ use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 ///
 /// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
 /// individual requests.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestUpdate {
     /// The public key to fetch the project by.
     project_key: ProjectKey,
@@ -182,7 +182,6 @@ impl UpdateRateLimits {
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
-    RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
     CheckEnvelope(
@@ -203,14 +202,6 @@ impl ProjectCache {
 }
 
 impl Interface for ProjectCache {}
-
-impl FromMessage<RequestUpdate> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: RequestUpdate, _: ()) -> Self {
-        Self::RequestUpdate(message)
-    }
-}
 
 impl FromMessage<GetProjectState> for ProjectCache {
     type Response = relay_system::BroadcastResponse<Arc<ProjectState>>;
@@ -387,6 +378,7 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    aggregator: mpsc::UnboundedSender<Aggregator>,
     envelope_processor: Addr<EnvelopeProcessor>,
     envelope_manager: Addr<EnvelopeManager>,
     // Need hashbrown because drain_filter is not stable in std yet.
@@ -487,6 +479,7 @@ impl ProjectCacheBroker {
 
         let config = self.config.clone();
 
+        let aggregator = self.aggregator.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -494,7 +487,7 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config)
+                Project::new(project_key, config, aggregator)
             })
     }
 
@@ -513,12 +506,12 @@ impl ProjectCacheBroker {
             .get_or_create_project(project_key)
             .update_state(state.clone(), no_cache);
 
-        if !state.invalid() {
-            self.dequeue(project_key);
+        if let Some(reqeust_update) = request_update {
+            self.handle_request_update(reqeust_update)
         }
 
-        if let Some(update_request) = request_update {
-            self.handle_request_update(update_request)
+        if !state.invalid() {
+            self.dequeue(project_key);
         }
     }
 
@@ -557,8 +550,13 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get(&mut self, message: GetProjectState, sender: ProjectSender) {
-        self.get_or_create_project(message.project_key)
+        let request_update = self
+            .get_or_create_project(message.project_key)
             .get_state(sender, message.no_cache);
+
+        if let Some(request_update) = request_update {
+            self.handle_request_update(request_update)
+        }
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
@@ -578,12 +576,19 @@ impl ProjectCacheBroker {
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope, context } = message;
-        let project = self.get_or_create_project(envelope.meta().public_key());
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        project.prefetch(false);
-        project.check_envelope(envelope, context)
+        let request_update = self
+            .get_or_create_project(envelope.meta().public_key())
+            .prefetch(false);
+
+        if let Some(request_update) = request_update {
+            self.handle_request_update(request_update)
+        }
+
+        self.get_or_create_project(envelope.meta().public_key())
+            .check_envelope(envelope, context)
     }
 
     /// Handles the processing of the provided envelope.
@@ -670,21 +675,22 @@ impl ProjectCacheBroker {
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
         let sampling_key = utils::get_sampling_key(&envelope);
-        let sampling_state = sampling_key.map(|key| {
+        let sampling_state = sampling_key.and_then(|key| {
             let (sampling_state, request_update) = self
                 .get_or_create_project(key)
                 .get_cached_state(envelope.meta().no_cache());
-            (sampling_state.filter(|st| !st.invalid()), request_update)
+
+            if let Some(request_update) = request_update {
+                self.handle_request_update(request_update)
+            }
+
+            sampling_state.filter(|st| !st.invalid())
         });
 
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
             return self.handle_processing(envelope, context);
-        }
-
-        if let Some((_, Some(request_update))) = sampling_state {
-            self.handle_request_update(request_update)
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
@@ -725,7 +731,6 @@ impl ProjectCacheBroker {
 
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
-            ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {
                 sender.send(self.handle_get_cached(message))
@@ -750,6 +755,7 @@ pub struct ProjectCacheService {
     envelope_manager: Addr<EnvelopeManager>,
     upstream_relay: Addr<UpstreamRelay>,
     redis: Option<RedisPool>,
+    aggregator: mpsc::UnboundedSender<Aggregator>,
 }
 
 impl ProjectCacheService {
@@ -760,6 +766,7 @@ impl ProjectCacheService {
         envelope_manager: Addr<EnvelopeManager>,
         upstream_relay: Addr<UpstreamRelay>,
         redis: Option<RedisPool>,
+        aggregator: mpsc::UnboundedSender<Aggregator>,
     ) -> Self {
         Self {
             config,
@@ -767,6 +774,7 @@ impl ProjectCacheService {
             envelope_manager,
             upstream_relay,
             redis,
+            aggregator,
         }
     }
 }
@@ -781,6 +789,7 @@ impl Service for ProjectCacheService {
             envelope_processor,
             envelope_manager,
             upstream_relay,
+            aggregator,
         } = self;
 
         tokio::spawn(async move {
@@ -797,6 +806,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                aggregator,
                 envelope_processor,
                 envelope_manager,
                 projects: hashbrown::HashMap::new(),

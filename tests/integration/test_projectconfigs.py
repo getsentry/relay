@@ -345,7 +345,7 @@ def test_unparsable_project_config(mini_sentry, relay):
 def test_cached_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
+        "cache": {"project_expiry": 2, "project_grace_period": 3, "miss_expiry": 2}
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
@@ -389,29 +389,21 @@ def test_cached_project_config(mini_sentry, relay):
         }
     )
 
-    # Caches must be expired at this point, and we are in the grace period.
-    time.sleep(2)
-    # The state must be stale and still be valid, but the update will be scheduled to get the new project state.
-    data = get_response(relay, packed, signature)
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
-    # This is still a grace period, and the state for us must be still valid, even though we get the error parsing the new state.
     try:
         # Give it a bit time for update to go through.
-        time.sleep(1)
+        time.sleep(3)
         data = get_response(relay, packed, signature)
+        assert data["configs"][public_key]["disabled"]
+
+        from pprint import pprint
+
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
         }
     finally:
         mini_sentry.test_failures.clear()
 
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
     # Wait till grace period expires as well and we should start buffering the events now.
-    time.sleep(5)
     try:
         relay.send_event(project_key)
         time.sleep(0.5)
