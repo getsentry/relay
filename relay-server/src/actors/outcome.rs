@@ -526,17 +526,19 @@ pub enum OutcomeError {
 #[derive(Debug)]
 struct HttpOutcomeProducer {
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
     unsent_outcomes: Vec<TrackRawOutcome>,
     flush_handle: SleepHandle,
 }
 
 impl HttpOutcomeProducer {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
-        Ok(Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+        Self {
             config,
+            upstream_relay,
             unsent_outcomes: Vec::new(),
             flush_handle: SleepHandle::idle(),
-        })
+        }
     }
 
     fn send_batch(&mut self) {
@@ -556,11 +558,10 @@ impl HttpOutcomeProducer {
             outcomes: mem::take(&mut self.unsent_outcomes),
         };
 
+        let upstream_relay = self.upstream_relay.clone();
+
         tokio::spawn(async move {
-            match UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .await
-            {
+            match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
                     relay_log::error!("outcome batch sending failed with: {}", error)
@@ -606,15 +607,17 @@ struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
     flush_handle: SleepHandle,
+    envelope_manager: Addr<EnvelopeManager>,
 }
 
 impl ClientReportOutcomeProducer {
-    fn create(config: &Config) -> Self {
+    fn new(config: &Config, envelope_manager: Addr<EnvelopeManager>) -> Self {
         Self {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
+            envelope_manager,
         }
     }
 
@@ -623,9 +626,8 @@ impl ClientReportOutcomeProducer {
         self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
-        let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            envelope_manager.send(SendClientReports {
+            self.envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
@@ -909,7 +911,11 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream_relay: Addr<UpstreamRelay>,
+        envelope_manager: Addr<EnvelopeManager>,
+    ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
             EmitOutcomes::AsOutcomes if config.processing_enabled() => {
@@ -919,12 +925,18 @@ impl OutcomeProducerService {
             }
             EmitOutcomes::AsOutcomes => {
                 relay_log::info!("Configured to emit outcomes via http");
-                ProducerInner::Http(HttpOutcomeProducer::create(Arc::clone(&config))?)
+                ProducerInner::Http(HttpOutcomeProducer::new(
+                    Arc::clone(&config),
+                    upstream_relay,
+                ))
             }
             EmitOutcomes::AsClientReports => {
                 // We emit client reports, and we do NOT accept raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
-                ProducerInner::ClientReport(ClientReportOutcomeProducer::create(&config))
+                ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
+                    &config,
+                    envelope_manager,
+                ))
             }
             EmitOutcomes::None => {
                 relay_log::info!("Configured to drop all outcomes");

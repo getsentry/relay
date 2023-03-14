@@ -112,11 +112,6 @@ impl ServiceState {
 
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
 
-        let outcome_producer =
-            OutcomeProducerService::create(config.clone())?.start_in(&outcome_runtime);
-        let outcome_aggregator =
-            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
-
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
                 Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
@@ -162,6 +157,15 @@ impl ServiceState {
             Some(project_cache.clone().recipient()),
         )
         .start_in(&aggregator_runtime);
+
+        let outcome_producer = OutcomeProducerService::create(
+            config.clone(),
+            upstream_relay.clone(),
+            envelope_manager.clone(),
+        )?
+        .start_in(&outcome_runtime);
+        let outcome_aggregator =
+            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         REGISTRY
             .set(Box::new(Registry {
