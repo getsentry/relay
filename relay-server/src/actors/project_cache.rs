@@ -489,9 +489,6 @@ impl ProjectCacheBroker {
         let config = self.config.clone();
 
         let project_cache = self.project_cache.clone();
-        let envelope_manager = self.envelope_manager.clone();
-        #[cfg(feature = "processing")]
-        let envelope_processor = self.envelope_processor.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -499,14 +496,7 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(
-                    project_key,
-                    config,
-                    project_cache,
-                    envelope_manager,
-                    #[cfg(feature = "processing")]
-                    envelope_processor,
-                )
+                Project::new(project_key, config, project_cache)
             })
     }
 
@@ -521,11 +511,16 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
 
-        self.get_or_create_project(project_key)
+        let request_update = self
+            .get_or_create_project(project_key)
             .update_state(state.clone(), no_cache);
 
         if !state.invalid() {
             self.dequeue(project_key);
+        }
+
+        if let Some(update_request) = request_update {
+            self.handle_request_update(update_request)
         }
     }
 
@@ -700,8 +695,18 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
+        let envelope_manager = self.envelope_manager.clone();
+        #[cfg(feature = "processing")]
+        let envelope_processor = self.envelope_processor.clone();
+
         self.get_or_create_project(message.project_key)
-            .flush_buckets(message.partition_key, message.buckets);
+            .flush_buckets(
+                message.partition_key,
+                message.buckets,
+                envelope_manager,
+                #[cfg(feature = "processing")]
+                envelope_processor,
+            );
     }
 
     fn handle_message(&mut self, message: ProjectCache) {

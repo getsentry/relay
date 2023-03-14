@@ -390,9 +390,6 @@ pub struct Project {
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
-    #[cfg(feature = "processing")]
-    envelope_processor: Addr<EnvelopeProcessor>,
-    envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
@@ -403,22 +400,13 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(
-        key: ProjectKey,
-        config: Arc<Config>,
-        project_cache: Addr<ProjectCache>,
-        envelope_manager: Addr<EnvelopeManager>,
-        #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
-    ) -> Self {
+    pub fn new(key: ProjectKey, config: Arc<Config>, project_cache: Addr<ProjectCache>) -> Self {
         Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
             project_cache,
-            #[cfg(feature = "processing")]
-            envelope_processor,
-            envelope_manager,
             config,
             state: None,
             state_channel: None,
@@ -656,7 +644,11 @@ impl Project {
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
-    pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
+    pub fn update_state(
+        &mut self,
+        mut state: Arc<ProjectState>,
+        no_cache: bool,
+    ) -> Option<RequestUpdate> {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
         if state.invalid() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
@@ -667,14 +659,14 @@ impl Project {
 
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
-            None => return,
+            None => return None,
         };
 
         // If the channel has `no_cache` set but we are not a `no_cache` request, we have
         // been superseeded. Put it back and let the other request take precedence.
         if channel.no_cache && !no_cache {
             self.state_channel = Some(channel);
-            return;
+            return None;
         }
 
         match self.expiry_state() {
@@ -692,14 +684,14 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            self.project_cache
-                .send(RequestUpdate::new(self.project_key, no_cache));
-            return;
+
+            return Some(RequestUpdate::new(self.project_key, no_cache));
         }
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
+        return None;
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -775,7 +767,13 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(&mut self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
+    pub fn flush_buckets(
+        &mut self,
+        partition_key: Option<u64>,
+        buckets: Vec<Bucket>,
+        envelope_manager: Addr<EnvelopeManager>,
+        #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
+    ) {
         let config = self.config.clone();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
@@ -810,7 +808,7 @@ impl Project {
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
-                    self.envelope_processor.send(RateLimitFlushBuckets {
+                    envelope_processor.send(RateLimitFlushBuckets {
                         bucket_limiter,
                         partition_key,
                     });
@@ -824,7 +822,7 @@ impl Project {
         };
 
         if !buckets.is_empty() {
-            self.envelope_manager.send(SendMetrics {
+            envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
@@ -842,9 +840,6 @@ mod tests {
     use relay_system::Service;
     use serde_json::json;
 
-    use crate::actors::envelopes::EnvelopeManager;
-    #[cfg(feature = "processing")]
-    use crate::actors::processor::EnvelopeProcessor;
     use crate::actors::project_cache::ProjectCache;
 
     use super::{Config, Project, ProjectState, StateChannel};
@@ -871,9 +866,6 @@ mod tests {
     }
 
     empty_service!(TestProjectCacheService, ProjectCache);
-    empty_service!(TestEnvelopeManagerService, EnvelopeManager);
-    #[cfg(feature = "processing")]
-    empty_service!(TestEnvelopeProcessorService, EnvelopeProcessor);
 
     #[tokio::test]
     async fn get_state_expired() {
@@ -899,9 +891,6 @@ mod tests {
                 project_key,
                 config.clone(),
                 TestProjectCacheService {}.start(),
-                TestEnvelopeManagerService {}.start(),
-                #[cfg(feature = "processing")]
-                TestEnvelopeProcessorService {}.start(),
             );
             project.state = Some(Arc::new(project_state));
 
@@ -939,14 +928,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let mut project = Project::new(
-            project_key,
-            config,
-            TestProjectCacheService {}.start(),
-            TestEnvelopeManagerService {}.start(),
-            #[cfg(feature = "processing")]
-            TestEnvelopeProcessorService {}.start(),
-        );
+        let mut project = Project::new(project_key, config, TestProjectCacheService {}.start());
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
@@ -980,9 +962,6 @@ mod tests {
             project_key,
             Arc::new(Config::default()),
             TestProjectCacheService {}.start(),
-            TestEnvelopeManagerService {}.start(),
-            #[cfg(feature = "processing")]
-            TestEnvelopeProcessorService {}.start(),
         );
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
