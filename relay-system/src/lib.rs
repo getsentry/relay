@@ -6,7 +6,7 @@
 //! # Services
 //!
 //! The basic building block in Relay are asynchronous [`Service`]s. Each service implements an
-//! [`Interface`], which consists of one or messages that can be sent to the service using its
+//! [`Interface`], which consists of one or many messages that can be sent to the service using its
 //! [`Addr`]. See the docs of these types for more information on how to implement and use them.
 //!
 //! # Shutdown

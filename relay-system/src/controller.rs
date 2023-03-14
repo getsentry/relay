@@ -273,3 +273,81 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
 
     Ok(())
 }
+
+/*
+TODO: Tests disabled since there is no isloation. Should be re-enabled once Controller-instances are
+passed into services.
+
+#[cfg(test)]
+mod tests {
+    use tokio::time::Instant;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn handle_receives_immediate_shutdown() {
+        tokio::time::pause();
+
+        Controller::start(Duration::from_secs(1));
+        let mut handle = Controller::shutdown_handle();
+
+        Controller::shutdown(ShutdownMode::Immediate);
+        let shutdown = handle.notified().await;
+        assert_eq!(shutdown.timeout, None);
+    }
+
+    #[tokio::test]
+    async fn receives_graceful_shutdown() {
+        tokio::time::pause();
+
+        let timeout = Duration::from_secs(1);
+        Controller::start(timeout);
+        let mut handle = Controller::shutdown_handle();
+
+        Controller::shutdown(ShutdownMode::Immediate);
+        let shutdown = handle.notified().await;
+        assert_eq!(shutdown.timeout, Some(timeout));
+    }
+
+    #[tokio::test]
+    async fn handle_receives_past_shutdown() {
+        tokio::time::pause();
+
+        Controller::start(Duration::from_secs(1));
+        Controller::shutdown(ShutdownMode::Immediate);
+
+        Controller::shutdown_handle().notified().await;
+        // should not block
+    }
+
+    #[tokio::test]
+    async fn handle_waits_for_timeout() {
+        tokio::time::pause();
+
+        let timeout = Duration::from_secs(1);
+        Controller::start(timeout);
+        let shutdown = Controller::shutdown_handle();
+
+        let start = Instant::now();
+        Controller::shutdown(ShutdownMode::Graceful);
+        shutdown.finished().await;
+
+        assert_eq!(Instant::now() - start, timeout);
+    }
+
+    #[tokio::test]
+    async fn finish_exits_early() {
+        tokio::time::pause();
+
+        Controller::start(Duration::from_secs(1));
+        let shutdown = Controller::shutdown_handle();
+
+        let start = Instant::now();
+        Controller::shutdown(ShutdownMode::Graceful);
+        Controller::shutdown(ShutdownMode::Immediate);
+
+        shutdown.finished().await;
+        assert_eq!(Instant::now(), start);
+    }
+}
+*/
