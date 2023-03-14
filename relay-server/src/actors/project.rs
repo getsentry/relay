@@ -849,58 +849,31 @@ mod tests {
 
     use super::{Config, Project, ProjectState, StateChannel};
 
-    struct TestProjectCacheService;
+    macro_rules! empty_service {
+        ($service_name:ident, $interface:ident) => {
+            struct $service_name;
 
-    impl Service for TestProjectCacheService {
-        type Interface = ProjectCache;
+            impl Service for $service_name {
+                type Interface = $interface;
 
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        Some(_) = rx.recv() => (),
-                        else => break,
-                    }
+                fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+                    tokio::spawn(async move {
+                        loop {
+                            tokio::select! {
+                                Some(_) = rx.recv() => (),
+                                else => break,
+                            }
+                        }
+                    });
                 }
-            });
-        }
+            }
+        };
     }
 
-    struct TestEnvelopeManagerService;
-
-    impl Service for TestEnvelopeManagerService {
-        type Interface = EnvelopeManager;
-
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        Some(_) = rx.recv() => (),
-                        else => break,
-                    }
-                }
-            });
-        }
-    }
-
+    empty_service!(TestProjectCacheService, ProjectCache);
+    empty_service!(TestEnvelopeManagerService, EnvelopeManager);
     #[cfg(feature = "processing")]
-    struct TestEnvelopeProcessorService;
-
-    #[cfg(feature = "processing")]
-    impl Service for TestEnvelopeProcessorService {
-        type Interface = EnvelopeProcessor;
-
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        Some(_) = rx.recv() => (),
-                        else => break,
-                    }
-                }
-            });
-        }
-    }
+    empty_service!(TestEnvelopeProcessorService, EnvelopeProcessor);
 
     #[tokio::test]
     async fn get_state_expired() {
