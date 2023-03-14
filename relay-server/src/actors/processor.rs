@@ -2922,18 +2922,15 @@ mod tests {
             item
         });
 
-        let new_envelope = relay_test::with_system(move || {
-            let envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap();
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
-            envelope_response.envelope.unwrap().0
-        });
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap().0;
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
@@ -2971,43 +2968,41 @@ mod tests {
             item
         });
 
-        let new_envelope = relay_test::with_system(move || {
-            let mut datascrubbing_settings = DataScrubbingConfig::default();
-            // enable all the default scrubbing
-            datascrubbing_settings.scrub_data = true;
-            datascrubbing_settings.scrub_defaults = true;
-            datascrubbing_settings.scrub_ip_addresses = true;
+        let mut datascrubbing_settings = DataScrubbingConfig::default();
+        // enable all the default scrubbing
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
 
-            // Make sure to mask any IP-like looking data
-            let pii_config = PiiConfig::from_json(
-                r##"
+        // Make sure to mask any IP-like looking data
+        let pii_config = PiiConfig::from_json(
+            r##"
                 {
                     "applications": {
                         "**": ["@ip:mask"]
                     }
                 }
                 "##,
-            )
-            .unwrap();
+        )
+        .unwrap();
 
-            let config = ProjectConfig {
-                datascrubbing_settings,
-                pii_config: Some(pii_config),
-                ..Default::default()
-            };
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
+        };
 
-            let mut project_state = ProjectState::allowed();
-            project_state.config = config;
-            let envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(project_state),
-                    sampling_project_state: None,
-                })
-                .unwrap();
-            envelope_response.envelope.unwrap().0
-        });
+        let mut project_state = ProjectState::allowed();
+        project_state.config = config;
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap().0;
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -3071,17 +3066,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 
@@ -3122,17 +3114,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         let (envelope, ctx) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
@@ -3182,17 +3171,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 

@@ -77,21 +77,6 @@ macro_rules! impl_str_serde {
 
 pub use impl_str_serde;
 
-/// Same as `try` but to be used in functions that return `Box<Future>` instead of `Result`.
-///
-/// Useful when calling synchronous (but cheap enough) functions in async code.
-#[macro_export]
-macro_rules! tryf {
-    ($e:expr) => {
-        match $e {
-            Ok(value) => value,
-            Err(e) => return Box::new(::futures01::future::err(::std::convert::From::from(e))),
-        }
-    };
-}
-
-pub use tryf;
-
 /// A cloning alternative to a `move` closure.
 ///
 /// When one needs to use a closure with move semantics one often needs to clone and move some of
