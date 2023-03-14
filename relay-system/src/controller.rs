@@ -6,7 +6,7 @@ use tokio::sync::watch;
 
 /// Determines how to shut down the Relay system.
 ///
-/// To initiate a shutdown, use [`Controller::trigger_shutdown`].
+/// To initiate a shutdown, use [`Controller::shutdown`].
 #[derive(Clone, Copy, Debug)]
 pub enum ShutdownMode {
     /// Shut down gracefully within the configured timeout.
@@ -42,7 +42,7 @@ type Channel<T> = (watch::Sender<Option<T>>, watch::Receiver<Option<T>>);
 /// Global channel to notify all services of a shutdown.
 static SHUTDOWN: Lazy<Channel<Shutdown>> = Lazy::new(|| watch::channel(None));
 
-/// Internal channel to trigger a manual shutdown via [`Controller::trigger_shutdown`].
+/// Internal channel to trigger a manual shutdown via [`Controller::shutdown`].
 static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channel(None));
 
 /// Notifies a service about an upcoming shutdown.
@@ -151,7 +151,7 @@ impl ShutdownHandle {
 ///
 ///     // By triggering a shutdown, all attached services will be notified. This happens
 ///     // automatically when a signal is sent to the process (e.g. SIGINT or SIGTERM).
-///     Controller::trigger_shutdown(ShutdownMode::Graceful);
+///     Controller::shutdown(ShutdownMode::Graceful);
 ///
 ///     // Wait for the system to shut down before winding down the application.
 ///     Controller::shutdown_handle().finished().await;
