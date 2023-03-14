@@ -9,7 +9,6 @@ use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
-use crate::Platform;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
@@ -80,10 +79,10 @@ struct Profile {
 }
 
 impl Profile {
-    fn strip_pointer_authentication_code(&mut self, platform: &Platform, architecture: &str) {
+    fn strip_pointer_authentication_code(&mut self, platform: &str, architecture: &str) {
         let addr = match (platform, architecture) {
             // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-            (Platform::Cocoa, "arm64") | (Platform::Cocoa, "arm64e") => 0x0000000FFFFFFFFF,
+            ("cocoa", "arm64") | ("cocoa", "arm64e") => 0x0000000FFFFFFFFF,
             _ => return,
         };
         for frame in &mut self.frames {
@@ -150,7 +149,7 @@ struct SampleProfile {
     environment: String,
     #[serde(alias = "profile_id")]
     event_id: EventId,
-    platform: Platform,
+    platform: String,
     profile: Profile,
     release: String,
     timestamp: DateTime<Utc>,
@@ -166,19 +165,14 @@ struct SampleProfile {
 
 impl SampleProfile {
     fn valid(&self) -> bool {
-        match self.platform {
-            Platform::Cocoa => {
+        match self.platform.as_str() {
+            "cocoa" => {
                 self.os.build_number.is_some()
                     && self.device.is_emulator.is_some()
                     && self.device.locale.is_some()
                     && self.device.manufacturer.is_some()
                     && self.device.model.is_some()
             }
-            Platform::Dotnet
-            | Platform::Javascript
-            | Platform::Node
-            | Platform::Php
-            | Platform::Python => self.runtime.is_some(),
             _ => true,
         }
     }
@@ -365,7 +359,7 @@ mod tests {
                 version: "16.0".to_string(),
             },
             environment: "testing".to_string(),
-            platform: Platform::Cocoa,
+            platform: "cocoa".to_string(),
             event_id: EventId::new(),
             profile: Profile {
                 queue_metadata: Some(HashMap::new()),
