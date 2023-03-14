@@ -302,7 +302,7 @@ fn queue_envelope(
         relay_log::trace!("queueing separate envelope for non-event items");
 
         // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard.enter(&event_envelope)?;
+        let event_context = buffer_guard.enter(event_envelope)?;
 
         // Update the old context after successful forking.
         envelope_context.update();
@@ -340,11 +340,11 @@ pub async fn handle_envelope(
 
     let buffer_guard = state.buffer_guard();
     let mut envelope_context = buffer_guard
-        .enter(&envelope)
+        .enter(envelope)
         .map_err(BadStoreRequest::QueueFailed)?;
 
-    let event_id = envelope.event_id();
-    if envelope.is_empty() {
+    let event_id = envelope_context.envelope().event_id();
+    if envelope_context.envelope().is_empty() {
         envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
         return Ok(event_id);
     }
@@ -359,7 +359,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
-    if !utils::check_envelope_size_limits(state.config(), &envelope) {
+    if !utils::check_envelope_size_limits(state.config(), envelope_context.envelope()) {
         envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
         return Err(PayloadError::Overflow.into());
     }
