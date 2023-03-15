@@ -1,6 +1,5 @@
 //! Envelope context type and helpers to ensure outcomes.
 
-use bytes::Bytes;
 use std::net;
 use std::time::Instant;
 
@@ -124,8 +123,7 @@ impl EnvelopeContext {
     ///
     /// Note that after taking out the envelope, the envelope summary is incorrect.
     pub(crate) fn take_envelope(&mut self) -> Box<Envelope> {
-        let dummy_envelope = Envelope::parse_bytes(Bytes::from("{}")).unwrap();
-        std::mem::replace(&mut self.envelope, dummy_envelope)
+        Box::new(self.envelope.take_items())
     }
 
     /// Update the context with new envelope information.
@@ -271,27 +269,5 @@ impl EnvelopeContext {
 impl Drop for EnvelopeContext {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::extractors::RequestMeta;
-
-    use super::*;
-
-    fn request_meta() -> RequestMeta {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        RequestMeta::new(dsn)
-    }
-
-    #[test]
-    fn take_envelope_works() {
-        let envelope = Envelope::from_request(None, request_meta());
-        let mut context = EnvelopeContext::standalone(envelope);
-        context.take_envelope();
     }
 }
