@@ -188,7 +188,7 @@ impl EnvelopeContext {
     ///
     /// This envelope context should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         let outcome_aggregator = TrackOutcome::from_registry();
         outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
