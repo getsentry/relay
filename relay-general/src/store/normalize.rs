@@ -804,6 +804,19 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             event.client_sdk.set_value(self.get_sdk_info());
         }
 
+        if event.platform.as_str() == Some("java") {
+            if let Some(event_logger) = event.logger.value_mut() {
+                let trimmed_logger = event_logger.as_str().trim();
+                let logger_len = bytecount::num_chars(trimmed_logger.as_bytes());
+
+                if logger_len > MaxChars::Logger.limit() {
+                    *event_logger = shorten_logger(trimmed_logger);
+                } else if trimmed_logger != event_logger.as_str() {
+                    *event_logger = trimmed_logger.to_owned();
+                }
+            }
+        }
+
         // Normalize connected attributes and interfaces
         self.normalize_spans(event);
         self.normalize_trace_context(event);
@@ -1003,6 +1016,61 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     }
 }
 
+const LOGGER_DELIMITER_CHAR: char = '.'; // It's assumed it's a byte long.
+const LOGGER_TRIMMED_PREFIX: &str = "*";
+
+fn shorten_logger(logger: &str) -> String {
+    let mut word_tokens = logger.split(LOGGER_DELIMITER_CHAR).collect_vec();
+    word_tokens.reverse();
+    let trimmed_tokens = trim_logger_tokens(word_tokens, true);
+    if let Ok(mut tokens) = trimmed_tokens {
+        tokens.push(""); // Ensure leading delimiter
+        let short_logger = tokens.iter().rev().join(&LOGGER_DELIMITER_CHAR.to_string());
+        return LOGGER_TRIMMED_PREFIX.to_owned() + &short_logger;
+    }
+
+    let mut char_tokens = logger.split("").collect_vec();
+    char_tokens.reverse();
+    let logger_trimmed = trim_logger_tokens(char_tokens, false);
+    if let Ok(tokens) = logger_trimmed {
+        let short_logger = tokens.iter().rev().join("");
+        return LOGGER_TRIMMED_PREFIX.to_owned() + &short_logger;
+    }
+
+    // Fallback, although this should not happen.
+    String::from("*")
+}
+
+fn trim_logger_tokens(tokens: Vec<&str>, include_delimiter: bool) -> Result<Vec<&str>, ()> {
+    let logger_prefix_len = bytecount::num_chars(LOGGER_TRIMMED_PREFIX.as_bytes());
+    if MaxChars::Logger.limit() < logger_prefix_len {
+        return Ok(Vec::new());
+    }
+
+    let max = MaxChars::Logger.limit() - logger_prefix_len;
+    let mut cummulative = 0;
+    let mut target_tokens: Vec<&str> = Vec::new();
+
+    for token in tokens {
+        let current =
+            bytecount::num_chars(token.as_bytes()) + if include_delimiter { 1 } else { 0 };
+        if cummulative + current > max {
+            break;
+        }
+        cummulative += current;
+        target_tokens.push(token);
+    }
+
+    // If we couldn't "smart" trim by current tokens, it's still better to proceed with
+    // the naive trimming (just stripping) than leaving the prefix.
+    if cummulative == 0 {
+        // return max;
+        return Err(());
+    }
+
+    Ok(target_tokens)
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
@@ -1016,7 +1084,7 @@ mod tests {
         ContextInner, Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
         RawStacktrace, Span, SpanId, TagEntry, TraceId, Values,
     };
-    use crate::testutils::{get_path, get_value};
+    use crate::testutils::{assert_annotated_snapshot, get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
     use crate::user_agent::ClientHints;
 
@@ -2098,6 +2166,104 @@ mod tests {
         let mut dist = Annotated::new(" ".to_owned());
         normalize_dist(&mut dist).unwrap();
         assert_eq!(dist.value(), None);
+    }
+
+    #[test]
+    fn test_normalize_logger_empty() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_short_no_trimming() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "my.short-logger.isnt_trimmed",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_exact_length() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "this_is-exactly-the_max_len.012345678901234567890123456789012345",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_too_long_single_word() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "this_is-way_too_long-and_we_only_have_one_word-so_we_cant_smart_trim",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_word_trimmed_at_max() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "already_out.out.in.this_part-is-kept.this_right_here-is_an-extremely_long_word",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_word_trimmed_before_max() {
+        // This test verifies the "smart" trimming on words -- the logger name
+        // should be cut before the max limit, removing entire words.
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "super_out.this_is_already_out_too.this_part-is-kept.this_right_here-is_a-very_long_word",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
     }
 
     #[test]

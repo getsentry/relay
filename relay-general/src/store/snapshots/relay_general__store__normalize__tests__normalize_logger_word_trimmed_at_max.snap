@@ -1,0 +1,11 @@
+---
+source: relay-general/src/store/normalize.rs
+expression: event
+---
+{
+  "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+  "level": "error",
+  "type": "default",
+  "logger": "*.in.this_part-is-kept.this_right_here-is_an-extremely_long_word",
+  "platform": "java"
+}

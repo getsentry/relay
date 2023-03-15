@@ -1,0 +1,11 @@
+---
+source: relay-general/src/store/normalize.rs
+expression: event
+---
+{
+  "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+  "level": "error",
+  "type": "default",
+  "logger": "*is-way_too_long-and_we_only_have_one_word-so_we_cant_smart_trim",
+  "platform": "java"
+}
