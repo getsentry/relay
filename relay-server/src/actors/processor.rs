@@ -56,6 +56,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
@@ -1394,7 +1395,11 @@ impl EnvelopeProcessorService {
         Ok((event, item.len()))
     }
 
-    fn event_from_security_report(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
+    fn event_from_security_report(
+        &self,
+        item: Item,
+        meta: &RequestMeta,
+    ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
         let mut event = Event::default();
 
@@ -1428,6 +1433,15 @@ impl EnvelopeProcessorService {
             .and_then(Value::as_str)
         {
             event.environment = Annotated::from(env.to_owned());
+        }
+
+        if let Some(origin) = meta.origin() {
+            event
+                .request
+                .get_or_insert_with(Default::default)
+                .headers
+                .get_or_insert_with(Default::default)
+                .insert("Origin".into(), Annotated::new(origin.to_string().into()));
         }
 
         // Explicitly set the event type. This is required so that a `Security` item can be created
@@ -1667,10 +1681,11 @@ impl EnvelopeProcessorService {
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
-            self.event_from_security_report(item).map_err(|error| {
-                relay_log::error!("failed to extract security report: {}", LogError(&error));
-                error
-            })?
+            self.event_from_security_report(item, envelope.meta())
+                .map_err(|error| {
+                    relay_log::error!("failed to extract security report: {}", LogError(&error));
+                    error
+                })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
