@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
+use std::str::FromStr;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -163,6 +164,79 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
+pub enum SessionsKind {
+    Session,
+    User,
+    Error,
+    Other(String),
+}
+
+impl Display for SessionsKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Session => write!(f, "session"),
+            Self::User => write!(f, "user"),
+            Self::Error => write!(f, "error"),
+            Self::Other(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl From<&str> for SessionsKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "session" => Self::Session,
+            "user" => Self::User,
+            "error" => Self::Error,
+            s => Self::Other(s.to_owned()),
+        }
+    }
+}
+
+pub enum TransactionsKind {
+    Duration,
+    MeasurementsFramesFrozen,
+    MeasurementsFramesFrozen_rate,
+    MeasurementsFramesSlow,
+    MeasurementsFramesSlowRate,
+    MeasurementsFramesTotal,
+    MeasurementsStallPercentage,
+    MeasurementsStallTotal_time,
+    Other(String),
+}
+
+impl From<&str> for TransactionsKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "duration" => Self::Duration,
+            "measurements.frames_frozen" => Self::MeasurementsFramesFrozen,
+            "measurements.frames_frozen_rate" => Self::MeasurementsFramesFrozen_rate,
+            "measurements.frames_slow" => Self::MeasurementsFramesSlow,
+            "measurements.frames_slow_rate" => Self::MeasurementsFramesSlowRate,
+            "measurements.frames_total" => Self::MeasurementsFramesTotal,
+            "measurements.stall_percentage" => Self::MeasurementsStallPercentage,
+            "measurements.stall_total_time" => Self::MeasurementsStallTotal_time,
+            s => Self::Other(s.to_owned()),
+        }
+    }
+}
+
+impl Display for TransactionsKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Duration => write!(f, "duration"),
+            Self::MeasurementsFramesFrozen => write!(f, "measurements.frames_frozen"),
+            Self::MeasurementsFramesFrozen_rate => write!(f, "measurements.frames_frozen_rate"),
+            Self::MeasurementsFramesSlow => write!(f, "measurements.frames_slow"),
+            Self::MeasurementsFramesSlowRate => write!(f, "measurements.frames_slow_rate"),
+            Self::MeasurementsFramesTotal => write!(f, "measurements.frames_total"),
+            Self::MeasurementsStallPercentage => write!(f, "measurements.stall_percentage"),
+            Self::MeasurementsStallTotal_time => write!(f, "measurements.stall_total_time"),
+            Self::Other(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -173,12 +247,12 @@ fn is_valid_name(name: &str) -> bool {
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
-    Sessions,
+    Sessions(SessionsKind),
     /// Metrics extracted from transaction events.
-    Transactions,
+    Transactions(TransactionsKind),
     /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
@@ -189,9 +263,20 @@ pub enum MetricNamespace {
     Unsupported,
 }
 
+impl MetricNamespace {
+    fn parse(namespace: &str, name: &str) -> Self {
+        match namespace {
+            "sessions" => Self::Sessions(name.into()),
+            "transactions" => Self::Transactions(name.into()),
+            _ => Self::Unsupported,
+        }
+    }
+}
+
 impl std::str::FromStr for MetricNamespace {
     type Err = ParseMetricError;
 
+    // <ns>/<name>
     fn from_str(ns: &str) -> Result<Self, Self::Err> {
         match ns {
             "sessions" => Ok(MetricNamespace::Sessions),
@@ -206,8 +291,8 @@ relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
 impl fmt::Display for MetricNamespace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MetricNamespace::Sessions => write!(f, "sessions"),
-            MetricNamespace::Transactions => write!(f, "transactions"),
+            MetricNamespace::Sessions(_) => write!(f, "sessions"),
+            MetricNamespace::Transactions(_) => write!(f, "transactions"),
             MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
     }
@@ -224,8 +309,6 @@ pub struct MetricResourceIdentifier<'a> {
     /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
     /// the value `"custom"`.
     pub namespace: MetricNamespace,
-    /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: &'a str,
     /// The metric unit.
     pub unit: MetricUnit,
 }
@@ -236,14 +319,16 @@ impl<'a> MetricResourceIdentifier<'a> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
-        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+        let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
+
+        let (raw_namespace, raw_name) = rest.split_once('@').ok_or(ParseMetricError(()))?;
+
+        //let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name,
-            unit,
+            unit: raw_unit.parse().unwrap_or_default(),
         })
     }
 }
