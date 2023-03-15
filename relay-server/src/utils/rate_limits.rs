@@ -9,6 +9,7 @@ use relay_quotas::{
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::utils::{EnvelopeContext, RetainItem};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -322,7 +323,7 @@ impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+    fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
         for outcome in self.get_outcomes(envelope, scoping) {
             TrackOutcome::from_registry().send(outcome);
         }
@@ -414,17 +415,16 @@ where
     /// 3. Rate limits are empty.
     pub fn enforce(
         mut self,
-        envelope: &mut Envelope,
-        scoping: &Scoping,
+        envelope_context: &mut EnvelopeContext,
     ) -> Result<(Enforcement, RateLimits), E> {
-        let mut summary = EnvelopeSummary::compute(envelope);
+        let mut summary = EnvelopeSummary::compute(envelope_context.envelope());
         if let Some((event_category, metrics_extracted)) = self.event_category {
             summary.event_category = Some(event_category);
             summary.event_metrics_extracted = metrics_extracted;
         }
 
-        let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
-        envelope.retain_items(|item| self.retain_item(item, &enforcement));
+        let (enforcement, rate_limits) = self.execute(&summary, &envelope_context.scoping())?;
+        envelope_context.retain_items(|item| self.retain_item(item, &enforcement));
         Ok((enforcement, rate_limits))
     }
 
@@ -565,44 +565,64 @@ where
         Ok((enforcement, rate_limits))
     }
 
-    fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
+    fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> RetainItem {
         // Remove event items and all items that depend on this event
+        let limit = &enforcement.event;
         if enforcement.event.is_active() && item.requires_event() {
-            return false;
+            return RetainItem::Drop(
+                Outcome::RateLimited(limit.reason_code.clone()),
+                limit.category,
+                limit.quantity,
+            );
         }
 
         // Remove attachments, except those required for processing
-        if enforcement.attachments.is_active() && item.ty() == &ItemType::Attachment {
+        let limit = &enforcement.attachments;
+        if limit.is_active() && item.ty() == &ItemType::Attachment {
             if item.creates_event() {
                 item.set_rate_limited(true);
-                return true;
+                return RetainItem::Keep;
             }
 
-            return false;
+            return RetainItem::Drop(
+                Outcome::RateLimited(limit.reason_code.clone()),
+                limit.category,
+                limit.quantity,
+            );
         }
 
         // Remove sessions independently of events
         if enforcement.sessions.is_active() && item.ty() == &ItemType::Session {
-            return false;
+            return RetainItem::DropSilently; // Do not report outcomes for sessions.
         }
 
         // Remove profiles even if the transaction is not rate limited
-        if enforcement.profiles.is_active() && item.ty() == &ItemType::Profile {
-            return false;
+        let limit = &enforcement.profiles;
+        if limit.is_active() && item.ty() == &ItemType::Profile {
+            return RetainItem::Drop(
+                Outcome::RateLimited(limit.reason_code.clone()),
+                limit.category,
+                limit.quantity,
+            );
         }
 
         // Remove replays independently of events.
+        let limit = &enforcement.replays;
         if enforcement.replays.is_active()
             && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
         {
-            return false;
+            return RetainItem::Drop(
+                Outcome::RateLimited(limit.reason_code.clone()),
+                limit.category,
+                limit.quantity,
+            );
         }
 
         if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
-            return false;
+            return RetainItem::DropSilently; // Do not report outcomes for check ins (for now).
         }
 
-        true
+        RetainItem::Keep
     }
 }
 

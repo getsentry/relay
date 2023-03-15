@@ -1982,7 +1982,7 @@ impl EnvelopeProcessorService {
 
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.envelope_context.envelope_mut(), &scoping)?
+            envelope_limiter.enforce(&mut state.envelope_context)?
         });
 
         if limits.is_limited() {
@@ -1994,7 +1994,7 @@ impl EnvelopeProcessorService {
             debug_assert!(state.envelope().is_empty());
         }
 
-        enforcement.track_outcomes(state.envelope(), &state.envelope_context.scoping());
+        // enforcement.track_outcomes(state.envelope(), &state.envelope_context.scoping());
 
         Ok(())
     }
