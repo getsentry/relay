@@ -470,7 +470,7 @@ jobs:
     needs: build
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') or !github.event.pull_request.head.repo.fork"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') || !github.event.pull_request.head.repo.fork"
 
     steps:
       - name: Checkout repo
