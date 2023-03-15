@@ -273,3 +273,25 @@ impl Drop for EnvelopeContext {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::extractors::RequestMeta;
+
+    use super::*;
+
+    fn request_meta() -> RequestMeta {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        RequestMeta::new(dsn)
+    }
+
+    #[test]
+    fn take_envelope_works() {
+        let envelope = Envelope::from_request(None, request_meta());
+        let mut context = EnvelopeContext::standalone(envelope);
+        context.take_envelope();
+    }
+}
