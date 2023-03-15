@@ -304,7 +304,7 @@ jobs:
 
     # Skip redundant checks for library releases
     # Skip if run on a fork
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') || !github.event.pull_request.head.repo.fork"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork"
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
@@ -473,7 +473,7 @@ jobs:
 
     # Skip redundant checks for library releases
     # Skip if a fork as they cannot upload to docker which is needed to pull the image
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') || !github.event.pull_request.head.repo.fork"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork"
 
     steps:
       - name: Checkout repo
