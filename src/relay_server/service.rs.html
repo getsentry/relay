@@ -353,7 +353,7 @@
         .start_in(<span class="kw-2">&amp;</span>project_runtime);
 
         <span class="kw">let </span>health_check = HealthCheckService::new(config.clone()).start();
-        <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone()).start();
+        <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_api) = config.aws_runtime_api() {
             <span class="kw">if let </span><span class="prelude-val">Ok</span>(aws_extension) = AwsExtension::new(aws_api) {

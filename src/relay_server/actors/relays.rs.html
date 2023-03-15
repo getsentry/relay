@@ -560,11 +560,12 @@
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc&lt;Config&gt;,
+    upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
 
 <span class="kw">impl </span>RelayCacheService {
     <span class="doccomment">/// Creates a new [`RelayCache`] service.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, upstream_relay: Addr&lt;UpstreamRelay&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
@@ -573,6 +574,7 @@
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
+            upstream_relay,
         }
     }
 
@@ -609,15 +611,13 @@
         );
 
         <span class="kw">let </span>fetch_tx = <span class="self">self</span>.fetch_tx();
+        <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            <span class="kw">let </span>query_result = <span class="kw">match </span>UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .<span class="kw">await
-            </span>{
+            <span class="kw">let </span>query_result = <span class="kw">match </span>upstream_relay.send(SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(inner) =&gt; inner,
                 <span class="comment">// Drop the channels to propagate the `SendError` up.
                 </span><span class="prelude-val">Err</span>(_send_error) =&gt; <span class="kw">return</span>,
