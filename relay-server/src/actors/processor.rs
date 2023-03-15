@@ -1661,9 +1661,10 @@ impl EnvelopeProcessorService {
             return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
         }
 
+        let mut sample_rates = None;
         let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
             relay_log::trace!("processing json event");
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
@@ -1671,7 +1672,7 @@ impl EnvelopeProcessorService {
             })
         } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
@@ -1680,7 +1681,7 @@ impl EnvelopeProcessorService {
             })
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             self.event_from_security_report(item, envelope.meta())
                 .map_err(|error| {
                     relay_log::error!("failed to extract security report: {}", LogError(&error));
@@ -1704,6 +1705,7 @@ impl EnvelopeProcessorService {
         };
 
         state.event = event;
+        state.sample_rates = sample_rates;
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
         Ok(())
