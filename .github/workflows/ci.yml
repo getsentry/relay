@@ -303,7 +303,8 @@ jobs:
       id-token: "write"
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # Skip if run on a fork
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') || !github.event.pull_request.head.repo.fork"
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
@@ -330,8 +331,6 @@ jobs:
           gcloud auth configure-docker us.gcr.io
 
       - name: Push to us.gcr.io
-        # Do not run this on forks as they do not have access to secrets
-        if: "!github.event.pull_request.head.repo.fork"
         run: |
           set -euxo pipefail
           docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
