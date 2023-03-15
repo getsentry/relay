@@ -836,12 +836,6 @@
 <a href="#836" id="836">836</a>
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{HashMap, HashSet};
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -853,7 +847,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::native_debug_image::NativeDebugImage;
 <span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
 <span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
-<span class="kw">use </span><span class="kw">crate</span>::Platform;
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>Frame {
@@ -924,10 +917,10 @@
 }
 
 <span class="kw">impl </span>Profile {
-    <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>Platform, architecture: <span class="kw-2">&amp;</span>str) {
+    <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>str, architecture: <span class="kw-2">&amp;</span>str) {
         <span class="kw">let </span>addr = <span class="kw">match </span>(platform, architecture) {
             <span class="comment">// https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-            </span>(Platform::Cocoa, <span class="string">&quot;arm64&quot;</span>) | (Platform::Cocoa, <span class="string">&quot;arm64e&quot;</span>) =&gt; <span class="number">0x0000000FFFFFFFFF</span>,
+            </span>(<span class="string">&quot;cocoa&quot;</span>, <span class="string">&quot;arm64&quot;</span>) | (<span class="string">&quot;cocoa&quot;</span>, <span class="string">&quot;arm64e&quot;</span>) =&gt; <span class="number">0x0000000FFFFFFFFF</span>,
             <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
         };
         <span class="kw">for </span>frame <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.frames {
@@ -994,7 +987,7 @@
     </span>environment: String,
     <span class="attr">#[serde(alias = <span class="string">&quot;profile_id&quot;</span>)]
     </span>event_id: EventId,
-    platform: Platform,
+    platform: String,
     profile: Profile,
     release: String,
     timestamp: DateTime&lt;Utc&gt;,
@@ -1010,19 +1003,14 @@
 
 <span class="kw">impl </span>SampleProfile {
     <span class="kw">fn </span>valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.platform {
-            Platform::Cocoa =&gt; {
+        <span class="kw">match </span><span class="self">self</span>.platform.as_str() {
+            <span class="string">&quot;cocoa&quot; </span>=&gt; {
                 <span class="self">self</span>.os.build_number.is_some()
                     &amp;&amp; <span class="self">self</span>.device.is_emulator.is_some()
                     &amp;&amp; <span class="self">self</span>.device.locale.is_some()
                     &amp;&amp; <span class="self">self</span>.device.manufacturer.is_some()
                     &amp;&amp; <span class="self">self</span>.device.model.is_some()
             }
-            Platform::Dotnet
-            | Platform::Javascript
-            | Platform::Node
-            | Platform::Php
-            | Platform::Python =&gt; <span class="self">self</span>.runtime.is_some(),
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         }
     }
@@ -1209,7 +1197,7 @@
                 version: <span class="string">&quot;16.0&quot;</span>.to_string(),
             },
             environment: <span class="string">&quot;testing&quot;</span>.to_string(),
-            platform: Platform::Cocoa,
+            platform: <span class="string">&quot;cocoa&quot;</span>.to_string(),
             event_id: EventId::new(),
             profile: Profile {
                 queue_metadata: <span class="prelude-val">Some</span>(HashMap::new()),
