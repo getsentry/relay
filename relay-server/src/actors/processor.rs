@@ -810,14 +810,19 @@ impl EnvelopeProcessorService {
         let received = state.envelope_context.received_at();
         let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
-        let envelope = state.envelope_mut();
-        let client = envelope.meta().client().map(|x| x.to_owned());
-        let client_addr = envelope.meta().client_addr();
+        let client = state
+            .envelope_context
+            .envelope()
+            .meta()
+            .client()
+            .map(|x| x.to_owned());
+        let client_addr = state.envelope_context.envelope().meta().client_addr();
 
         let clock_drift_processor =
-            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
+            ClockDriftProcessor::new(state.envelope_context.envelope().sent_at(), received)
+                .at_least(MINIMUM_CLOCK_DRIFT);
 
-        envelope.retain_items(|item| {
+        state.envelope_context.envelope_mut().retain_items(|item| {
             match item.ty() {
                 ItemType::Session => self.process_session(
                     item,
@@ -1054,6 +1059,7 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let mut outcomes = vec![];
         state
             .envelope_context
             .envelope_mut()
@@ -1080,7 +1086,7 @@ impl EnvelopeProcessorService {
                                     contexts.remove(ProfileContext::default_key());
                                 }
                             }
-                            state.envelope_context.track_outcome(
+                            outcomes.push((
                                 Outcome::Invalid(DiscardReason::Profiling(
                                     relay_profiling::discard_reason(
                                         relay_profiling::ProfileError::ExceedSizeLimit,
@@ -1088,7 +1094,7 @@ impl EnvelopeProcessorService {
                                 )),
                                 DataCategory::Profile,
                                 1,
-                            );
+                            ));
                             false
                         }
                     }
@@ -1106,18 +1112,23 @@ impl EnvelopeProcessorService {
                             }
                             _ => relay_log::debug!("invalid profile: {}", err),
                         };
-                        state.envelope_context.track_outcome(
+                        outcomes.push((
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(err),
                             )),
                             DataCategory::Profile,
                             1,
-                        );
+                        ));
                         false
                     }
                 },
                 _ => true,
             });
+        for (outcome, category, quantity) in outcomes {
+            state
+                .envelope_context
+                .track_outcome(outcome, category, quantity);
+        }
     }
 
     /// Remove replays if the feature flag is not enabled.
@@ -1145,10 +1156,11 @@ impl EnvelopeProcessorService {
             client_hints: meta.client_hints().as_deref(),
         };
 
+        let mut outcomes = vec![];
         state
             .envelope_context
             .envelope_mut()
-            .retain_items(move |item| match item.ty() {
+            .retain_items(|item| match item.ty() {
                 ItemType::ReplayEvent => {
                     if !replays_enabled {
                         return false;
@@ -1174,42 +1186,29 @@ impl EnvelopeProcessorService {
                             }
                         },
                         Err(e) => {
-                            match e {
+                            let discard_reason = match e {
                                 ReplayError::NoContent => {
                                     relay_log::warn!("replay-event: no data found");
-                                    state.envelope_context.track_outcome(
-                                        Outcome::Invalid(
-                                            DiscardReason::InvalidReplayEventNoPayload,
-                                        ),
-                                        DataCategory::Replay,
-                                        1,
-                                    );
+                                    DiscardReason::InvalidReplayEventNoPayload
                                 }
                                 ReplayError::CouldNotScrub(e) => {
                                     relay_log::warn!("replay-event: PII scrub failure {}", e);
-                                    state.envelope_context.track_outcome(
-                                        Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
-                                        DataCategory::Replay,
-                                        1,
-                                    );
+                                    DiscardReason::InvalidReplayEventPii
                                 }
                                 ReplayError::CouldNotParse(e) => {
                                     relay_log::warn!("replay-event: {}", e.to_string());
-                                    state.envelope_context.track_outcome(
-                                        Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                                        DataCategory::Replay,
-                                        1,
-                                    );
+                                    DiscardReason::InvalidReplayEvent
                                 }
                                 ReplayError::InvalidPayload(e) => {
                                     relay_log::warn!("replay-event: {}", e);
-                                    state.envelope_context.track_outcome(
-                                        Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                                        DataCategory::Replay,
-                                        1,
-                                    );
+                                    DiscardReason::InvalidReplayEvent
                                 }
-                            }
+                            };
+                            outcomes.push((
+                                Outcome::Invalid(discard_reason),
+                                DataCategory::Replay,
+                                1,
+                            ));
                             false
                         }
                     }
@@ -1241,17 +1240,23 @@ impl EnvelopeProcessorService {
                         }
                         Err(e) => {
                             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            state.envelope_context.track_outcome(
+                            outcomes.push((
                                 Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                                 DataCategory::Replay,
                                 1,
-                            );
+                            ));
                             false
                         }
                     }
                 }
                 _ => true,
             });
+
+        for (outcome, category, quantity) in outcomes {
+            state
+                .envelope_context
+                .track_outcome(outcome, category, quantity);
+        }
 
         Ok(())
     }
