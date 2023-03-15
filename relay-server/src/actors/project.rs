@@ -720,10 +720,9 @@ impl Project {
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
-        let mut scoping = envelope_context.scoping();
 
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope_context.envelope().meta());
+            let scoping = state.scope_request(envelope_context.envelope().meta());
             envelope_context.scope(scoping);
 
             if let Err(reason) =
@@ -742,8 +741,7 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope_context)?;
-        // enforcement.track_outcomes(envelope_context.envelope(), &scoping);
+        let (_, rate_limits) = envelope_limiter.enforce(&mut envelope_context)?;
         envelope_context.update();
 
         let envelope = if envelope_context.envelope().is_empty() {
