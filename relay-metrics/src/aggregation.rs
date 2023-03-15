@@ -1681,11 +1681,14 @@ impl AggregatorService {
         // items before they are parsed, as we can be sure that the new metric bucket will be
         // rejected in the aggregator regardless of whether it is merged into existing buckets,
         // whether it is just a counter, etc.
+        dbg!("RRRRR");
         self.cost_tracker.check_limits_exceeded(
             project_key,
             self.config.max_total_bucket_bytes,
             self.config.max_project_key_bucket_bytes,
         )?;
+
+        dbg!("hhhhh");
 
         let added_cost;
         match self.buckets.entry(key) {
@@ -1716,6 +1719,8 @@ impl AggregatorService {
                 entry.insert(QueuedBucket::new(flush_at, bucket));
             }
         }
+
+        dbg!("GGGGG");
 
         self.cost_tracker.add_cost(project_key, added_cost);
 

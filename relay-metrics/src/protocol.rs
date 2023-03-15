@@ -344,20 +344,24 @@ pub struct MetricResourceIdentifier<'a> {
 impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
+        dbg!(name);
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
+        dbg!("1");
 
         //let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
         let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+        dbg!("2");
 
         let (raw_namespace, raw_name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+        dbg!("3");
 
         //let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         Ok(Self {
             ty,
             namespace: MetricNamespace::parse(raw_namespace, raw_name),
-            unit: raw_unit.parse().unwrap_or_default(),
+            unit,
         })
     }
 }
@@ -405,6 +409,7 @@ fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !is_valid_name(name) {
+        dbg!("oh fug");
         return None;
     }
 
