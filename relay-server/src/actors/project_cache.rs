@@ -649,7 +649,7 @@ impl ProjectCacheBroker {
             .filter(|st| !st.invalid());
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
-        let sampling_key = utils::get_sampling_key(&envelope);
+        let sampling_key = utils::get_sampling_key(envelope);
         let sampling_state = sampling_key.and_then(|key| {
             self.get_or_create_project(key)
                 .get_cached_state(envelope.meta().no_cache())
