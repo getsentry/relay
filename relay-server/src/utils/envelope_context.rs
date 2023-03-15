@@ -10,7 +10,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, Item};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -41,6 +41,16 @@ impl Handling {
             Handling::Failure => "failure",
         }
     }
+}
+
+/// Represents the decision on whether or not to keep an envelope item.
+pub enum RetainItem {
+    /// Keep the item.
+    Keep,
+    /// Drop the item and log an outcome for it.
+    Drop(Outcome, DataCategory, usize), // TODO: derive DataCategory and usize from Item
+    /// Drop the item without logging an outcome.
+    DropSilently,
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -133,6 +143,29 @@ impl EnvelopeContext {
         self.event_id = self.envelope().event_id();
         self.summary = EnvelopeSummary::compute(self.envelope());
         self
+    }
+
+    /// Retains only the items specified by the predicate.
+    ///
+    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
+    /// in place and preserves the order of the retained items.
+    pub fn retain_items<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut Item) -> RetainItem,
+    {
+        let mut outcomes = vec![];
+        self.envelope.retain_items(|item| match f(item) {
+            RetainItem::Keep => true,
+            RetainItem::Drop(outcome, category, quantity) => {
+                outcomes.push((outcome, category, quantity));
+                false
+            }
+            RetainItem::DropSilently => false,
+        });
+        for (outcome, category, quantity) in outcomes {
+            self.track_outcome(outcome, category, quantity);
+        }
+        // TODO: once `update` is private, it should be called here.
     }
 
     /// Record that event metrics have been extracted.
