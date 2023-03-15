@@ -4,12 +4,9 @@ use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue, SessionsKind};
 
 use super::utils::with_tag;
-
-/// Namespace of session metrics for the MRI.
-const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 /// Convert contained nil UUIDs to None
 fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
@@ -51,8 +48,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
         target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
+            MetricNamespace::Sessions(SessionsKind::Session),
             MetricUnit::None,
             MetricValue::Counter(session.total_count() as f64),
             timestamp,
@@ -64,16 +60,14 @@ pub fn extract_session_metrics<T: SessionLike>(
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new_mri(
-                METRIC_NAMESPACE,
-                "error",
+                MetricNamespace::Sessions(SessionsKind::Error),
                 MetricUnit::None,
                 MetricValue::set_from_display(session_id),
                 timestamp,
                 tags.clone(),
             ),
             SessionErrored::Aggregated(count) => Metric::new_mri(
-                METRIC_NAMESPACE,
-                "session",
+                MetricNamespace::Sessions(SessionsKind::Session),
                 MetricUnit::None,
                 MetricValue::Counter(count as f64),
                 timestamp,
@@ -83,8 +77,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
+                MetricNamespace::Sessions(SessionsKind::User),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
@@ -96,8 +89,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
         target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "user",
+            MetricNamespace::Sessions(SessionsKind::User),
             MetricUnit::None,
             MetricValue::set_from_str(distinct_id),
             timestamp,
@@ -109,8 +101,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // sessions above.
     if session.abnormal_count() > 0 {
         target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
+            MetricNamespace::Sessions(SessionsKind::Session),
             MetricUnit::None,
             MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
@@ -128,8 +119,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 );
             }
             target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
+                MetricNamespace::Sessions(SessionsKind::User),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
@@ -140,8 +130,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
     if session.crashed_count() > 0 {
         target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
+            MetricNamespace::Sessions(SessionsKind::Session),
             MetricUnit::None,
             MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
@@ -150,8 +139,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
+                MetricNamespace::Sessions(SessionsKind::User),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,

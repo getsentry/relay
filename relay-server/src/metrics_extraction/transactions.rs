@@ -9,6 +9,7 @@ use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
     AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
+    TransactionsKind,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -29,8 +30,6 @@ pub enum ExtractMetricsError {
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
 }
-
-const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     let contexts = event.contexts.value()?;
@@ -302,8 +301,7 @@ fn extract_transaction_metrics_inner(
             }
 
             metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                format!("measurements.{name}"),
+                MetricNamespace::parse("transactions", &format!("measurements.{name}")),
                 measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
                 timestamp,
@@ -336,8 +334,9 @@ fn extract_transaction_metrics_inner(
                     let unit = measurement.unit.value();
 
                     metrics.push(Metric::new_mri(
-                        METRIC_NAMESPACE,
-                        format!("breakdowns.{breakdown}.{measurement_name}"),
+                        MetricNamespace::Transactions(TransactionsKind::Other(&format!(
+                            "breakdowns.{breakdown}.{measurement_name}"
+                        ))),
                         unit.copied().unwrap_or(MetricUnit::None),
                         MetricValue::Distribution(value),
                         timestamp,
@@ -350,8 +349,7 @@ fn extract_transaction_metrics_inner(
 
     // Duration
     metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        "duration",
+        MetricNamespace::Transactions(TransactionsKind::Duration),
         MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
@@ -370,8 +368,7 @@ fn extract_transaction_metrics_inner(
 
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        "count_per_root_project",
+        MetricNamespace::Transactions(TransactionsKind::CountPerRootProject),
         MetricUnit::None,
         MetricValue::Counter(1.0),
         timestamp,
@@ -382,8 +379,7 @@ fn extract_transaction_metrics_inner(
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
             metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
+                MetricNamespace::Transactions(TransactionsKind::User),
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 timestamp,
@@ -1173,8 +1169,7 @@ mod tests {
         assert_eq!(
             metrics,
             &[Metric::new_mri(
-                METRIC_NAMESPACE,
-                "measurements.lcp",
+                MetricNamespace::Transactions(TransactionsKind::MeasurementsLcp),
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),

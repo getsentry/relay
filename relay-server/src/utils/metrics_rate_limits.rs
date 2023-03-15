@@ -42,11 +42,11 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 };
 
                 // Keep all metrics that are not transaction related:
-                if mri.namespace != MetricNamespace::Transactions {
+                if let MetricNamespace::Transactions(_) = mri.namespace {
                     return None;
                 }
 
-                if mri.name == "duration" {
+                if mri.namespace.name_to_string() == "duration" {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
                     let count = metric.len();

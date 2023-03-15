@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
-use std::str::FromStr;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -164,14 +163,15 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
-pub enum SessionsKind {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SessionsKind<'a> {
     Session,
     User,
     Error,
-    Other(String),
+    Other(&'a str),
 }
 
-impl Display for SessionsKind {
+impl<'a> Display for SessionsKind<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Session => write!(f, "session"),
@@ -182,56 +182,66 @@ impl Display for SessionsKind {
     }
 }
 
-impl From<&str> for SessionsKind {
-    fn from(value: &str) -> Self {
+impl<'a> From<&'a str> for SessionsKind<'a> {
+    fn from(value: &'a str) -> Self {
         match value {
             "session" => Self::Session,
             "user" => Self::User,
             "error" => Self::Error,
-            s => Self::Other(s.to_owned()),
+            s => Self::Other(s),
         }
     }
 }
 
-pub enum TransactionsKind {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TransactionsKind<'a> {
     Duration,
+    User,
+    CountPerRootProject,
     MeasurementsFramesFrozen,
-    MeasurementsFramesFrozen_rate,
+    MeasurementsFramesFrozenRate,
     MeasurementsFramesSlow,
     MeasurementsFramesSlowRate,
     MeasurementsFramesTotal,
     MeasurementsStallPercentage,
-    MeasurementsStallTotal_time,
-    Other(String),
+    MeasurementsStallTotalTime,
+    MeasurementsLcp,
+    Other(&'a str),
 }
 
-impl From<&str> for TransactionsKind {
-    fn from(value: &str) -> Self {
+impl<'a> From<&'a str> for TransactionsKind<'a> {
+    fn from(value: &'a str) -> Self {
         match value {
             "duration" => Self::Duration,
+            "user" => Self::User,
+            "count_per_root_project" => Self::CountPerRootProject,
             "measurements.frames_frozen" => Self::MeasurementsFramesFrozen,
-            "measurements.frames_frozen_rate" => Self::MeasurementsFramesFrozen_rate,
+            "measurements.frames_frozen_rate" => Self::MeasurementsFramesFrozenRate,
             "measurements.frames_slow" => Self::MeasurementsFramesSlow,
             "measurements.frames_slow_rate" => Self::MeasurementsFramesSlowRate,
             "measurements.frames_total" => Self::MeasurementsFramesTotal,
             "measurements.stall_percentage" => Self::MeasurementsStallPercentage,
-            "measurements.stall_total_time" => Self::MeasurementsStallTotal_time,
-            s => Self::Other(s.to_owned()),
+            "measurements.stall_total_time" => Self::MeasurementsStallTotalTime,
+            "measurements.lcp" => Self::MeasurementsLcp,
+            s => Self::Other(s),
         }
     }
 }
 
-impl Display for TransactionsKind {
+impl<'a> Display for TransactionsKind<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Duration => write!(f, "duration"),
+            Self::User => write!(f, "user"),
+            Self::MeasurementsLcp => write!(f, "measurements.lcp"),
+            Self::CountPerRootProject => write!(f, "count_per_root_project"),
             Self::MeasurementsFramesFrozen => write!(f, "measurements.frames_frozen"),
-            Self::MeasurementsFramesFrozen_rate => write!(f, "measurements.frames_frozen_rate"),
+            Self::MeasurementsFramesFrozenRate => write!(f, "measurements.frames_frozen_rate"),
             Self::MeasurementsFramesSlow => write!(f, "measurements.frames_slow"),
             Self::MeasurementsFramesSlowRate => write!(f, "measurements.frames_slow_rate"),
             Self::MeasurementsFramesTotal => write!(f, "measurements.frames_total"),
             Self::MeasurementsStallPercentage => write!(f, "measurements.stall_percentage"),
-            Self::MeasurementsStallTotal_time => write!(f, "measurements.stall_total_time"),
+            Self::MeasurementsStallTotalTime => write!(f, "measurements.stall_total_time"),
             Self::Other(s) => write!(f, "{}", s),
         }
     }
@@ -248,11 +258,11 @@ impl Display for TransactionsKind {
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MetricNamespace {
+pub enum MetricNamespace<'a> {
     /// Metrics extracted from sessions.
-    Sessions(SessionsKind),
+    Sessions(SessionsKind<'a>),
     /// Metrics extracted from transaction events.
-    Transactions(TransactionsKind),
+    Transactions(TransactionsKind<'a>),
     /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
@@ -263,19 +273,34 @@ pub enum MetricNamespace {
     Unsupported,
 }
 
-impl MetricNamespace {
-    fn parse(namespace: &str, name: &str) -> Self {
+impl<'a> MetricNamespace<'a> {
+    pub fn parse(namespace: &'a str, name: &'a str) -> Self {
         match namespace {
             "sessions" => Self::Sessions(name.into()),
             "transactions" => Self::Transactions(name.into()),
             _ => Self::Unsupported,
         }
     }
-}
 
+    pub fn name_to_string(&self) -> String {
+        match self {
+            Self::Sessions(session) => session.to_string(),
+            Self::Transactions(transaction) => transaction.to_string(),
+            Self::Unsupported => "unsupported".to_owned(),
+        }
+    }
+
+    pub fn namespace_to_string(&self) -> String {
+        match self {
+            Self::Sessions(_) => "sessions".to_owned(),
+            Self::Transactions(_) => "transactions".to_owned(),
+            Self::Unsupported => "unsupported".to_owned(),
+        }
+    }
+}
+/*
 impl std::str::FromStr for MetricNamespace {
     type Err = ParseMetricError;
-
     // <ns>/<name>
     fn from_str(ns: &str) -> Result<Self, Self::Err> {
         match ns {
@@ -285,10 +310,11 @@ impl std::str::FromStr for MetricNamespace {
         }
     }
 }
+*/
 
-relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
+//relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
 
-impl fmt::Display for MetricNamespace {
+impl<'a> fmt::Display for MetricNamespace<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MetricNamespace::Sessions(_) => write!(f, "sessions"),
@@ -308,7 +334,7 @@ pub struct MetricResourceIdentifier<'a> {
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
     /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
     /// the value `"custom"`.
-    pub namespace: MetricNamespace,
+    pub namespace: MetricNamespace<'a>,
     /// The metric unit.
     pub unit: MetricUnit,
 }
@@ -321,13 +347,13 @@ impl<'a> MetricResourceIdentifier<'a> {
 
         let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
 
-        let (raw_namespace, raw_name) = rest.split_once('@').ok_or(ParseMetricError(()))?;
+        let (raw_namespace, raw_name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
 
         //let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         Ok(Self {
             ty,
-            namespace: raw_namespace.parse()?,
+            namespace: MetricNamespace::parse(raw_namespace, raw_name),
             unit: raw_unit.parse().unwrap_or_default(),
         })
     }
@@ -336,11 +362,7 @@ impl<'a> MetricResourceIdentifier<'a> {
 impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
-        write!(
-            f,
-            "{}:{}/{}@{}",
-            self.ty, self.namespace, self.name, self.unit
-        )
+        write!(f, "{}:{}/{}@{}", self.ty, "todo", "todo", self.unit)
     }
 }
 
@@ -572,7 +594,6 @@ impl Metric {
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new_mri(
         namespace: MetricNamespace,
-        name: impl AsRef<str>,
         unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
@@ -581,7 +602,6 @@ impl Metric {
         Self {
             name: MetricResourceIdentifier {
                 ty: value.ty(),
-                name: name.as_ref(),
                 namespace,
                 unit,
             }
@@ -607,8 +627,7 @@ impl Metric {
             .unwrap_or(("custom", string));
 
         let mut metric = Self::new_mri(
-            raw_namespace.parse().ok()?,
-            name,
+            MetricNamespace::parse(raw_namespace, name),
             unit,
             value,
             timestamp,
