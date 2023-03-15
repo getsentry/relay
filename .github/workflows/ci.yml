@@ -432,7 +432,7 @@ jobs:
 
     # Skip redundant checks for library releases
     # Skip if a fork as they cannot upload to docker which is needed to pull the image
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
       - name: Checkout repo
@@ -447,6 +447,7 @@ jobs:
         run: docker load -i relay-docker-image.tgz
 
       - name: Run Sentry self-hosted e2e CI
+        if: "!github.event.pull_request.head.repo.fork"
         uses: getsentry/action-self-hosted-e2e-tests@77805295ebff8a603def5970e18743ded72cb304
         with:
           project_name: relay
