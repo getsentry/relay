@@ -811,17 +811,12 @@ impl EnvelopeProcessorService {
         let received = state.envelope_context.received_at();
         let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
-        let client = state
-            .envelope_context
-            .envelope()
-            .meta()
-            .client()
-            .map(|x| x.to_owned());
-        let client_addr = state.envelope_context.envelope().meta().client_addr();
+        let envelope = state.envelope_context.envelope();
+        let client = envelope.meta().client().map(|x| x.to_owned());
+        let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
-            ClockDriftProcessor::new(state.envelope_context.envelope().sent_at(), received)
-                .at_least(MINIMUM_CLOCK_DRIFT);
+            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
         state.envelope_context.envelope_mut().retain_items(|item| {
             match item.ty() {
@@ -1061,70 +1056,66 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let mut outcomes = vec![];
-        state
-            .envelope_context
-            .envelope_mut()
-            .retain_items(|item| match item.ty() {
-                ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                    Ok((profile_id, payload)) => {
-                        if payload.len() <= self.config.max_profile_size() {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(SentryContext::Profile(Box::new(
-                                        ProfileContext {
-                                            profile_id: Annotated::new(profile_id),
-                                        },
-                                    )));
-                                }
+        let envelope = state.envelope_context.envelope_mut();
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
+                Ok((profile_id, payload)) => {
+                    if payload.len() <= self.config.max_profile_size() {
+                        if let Some(event) = state.event.value_mut() {
+                            if event.ty.value() == Some(&EventType::Transaction) {
+                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
+                                    profile_id: Annotated::new(profile_id),
+                                })));
                             }
-                            item.set_payload(ContentType::Json, payload);
-                            true
-                        } else {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.remove(ProfileContext::default_key());
-                                }
-                            }
-                            outcomes.push((
-                                Outcome::Invalid(DiscardReason::Profiling(
-                                    relay_profiling::discard_reason(
-                                        relay_profiling::ProfileError::ExceedSizeLimit,
-                                    ),
-                                )),
-                                DataCategory::Profile,
-                                1,
-                            ));
-                            false
                         }
-                    }
-                    Err(err) => {
+                        item.set_payload(ContentType::Json, payload);
+                        true
+                    } else {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
                                 let contexts = event.contexts.get_or_insert_with(Contexts::new);
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-
-                        match err {
-                            relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!("invalid profile: {}", LogError(&err));
-                            }
-                            _ => relay_log::debug!("invalid profile: {}", err),
-                        };
                         outcomes.push((
                             Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(err),
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
                             )),
                             DataCategory::Profile,
                             1,
                         ));
                         false
                     }
-                },
-                _ => true,
-            });
+                }
+                Err(err) => {
+                    if let Some(event) = state.event.value_mut() {
+                        if event.ty.value() == Some(&EventType::Transaction) {
+                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                            contexts.remove(ProfileContext::default_key());
+                        }
+                    }
+
+                    match err {
+                        relay_profiling::ProfileError::InvalidJson(_) => {
+                            relay_log::warn!("invalid profile: {}", LogError(&err));
+                        }
+                        _ => relay_log::debug!("invalid profile: {}", err),
+                    };
+                    outcomes.push((
+                        Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )),
+                        DataCategory::Profile,
+                        1,
+                    ));
+                    false
+                }
+            },
+            _ => true,
+        });
         for (outcome, category, quantity) in outcomes {
             state
                 .envelope_context
@@ -1158,100 +1149,88 @@ impl EnvelopeProcessorService {
         };
 
         let mut outcomes = vec![];
-        state
-            .envelope_context
-            .envelope_mut()
-            .retain_items(|item| match item.ty() {
-                ItemType::ReplayEvent => {
-                    if !replays_enabled {
-                        return false;
-                    }
-
-                    match self.process_replay_event(
-                        &item.payload(),
-                        config,
-                        client_addr,
-                        user_agent,
-                    ) {
-                        Ok(replay) => match replay.to_json() {
-                            Ok(json) => {
-                                item.set_payload(ContentType::Json, json.as_bytes());
-                                true
-                            }
-                            Err(e) => {
-                                relay_log::error!(
-                                    "replay-event: failed to serialize replay with message {}",
-                                    e
-                                );
-                                false
-                            }
-                        },
-                        Err(e) => {
-                            let discard_reason = match e {
-                                ReplayError::NoContent => {
-                                    relay_log::warn!("replay-event: no data found");
-                                    DiscardReason::InvalidReplayEventNoPayload
-                                }
-                                ReplayError::CouldNotScrub(e) => {
-                                    relay_log::warn!("replay-event: PII scrub failure {}", e);
-                                    DiscardReason::InvalidReplayEventPii
-                                }
-                                ReplayError::CouldNotParse(e) => {
-                                    relay_log::warn!("replay-event: {}", e.to_string());
-                                    DiscardReason::InvalidReplayEvent
-                                }
-                                ReplayError::InvalidPayload(e) => {
-                                    relay_log::warn!("replay-event: {}", e);
-                                    DiscardReason::InvalidReplayEvent
-                                }
-                            };
-                            outcomes.push((
-                                Outcome::Invalid(discard_reason),
-                                DataCategory::Replay,
-                                1,
-                            ));
-                            false
-                        }
-                    }
+        let envelope = state.envelope_context.envelope_mut();
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::ReplayEvent => {
+                if !replays_enabled {
+                    return false;
                 }
-                ItemType::ReplayRecording => {
-                    if !replays_enabled {
-                        return false;
-                    }
 
-                    // XXX: Processing is there just for data scrubbing. Skip the entire expensive
-                    // processing step if we do not need to scrub.
-                    if !scrubbing_enabled || scrubber.is_empty() {
-                        return true;
-                    }
-
-                    // Limit expansion of recordings to the max replay size. The payload is
-                    // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the replay limit as a good overall limit for
-                    // allocations.
-                    let parsed_recording =
-                        metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                            scrubber.process_recording(&item.payload())
-                        });
-
-                    match parsed_recording {
-                        Ok(recording) => {
-                            item.set_payload(ContentType::OctetStream, recording.as_slice());
+                match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
+                    Ok(replay) => match replay.to_json() {
+                        Ok(json) => {
+                            item.set_payload(ContentType::Json, json.as_bytes());
                             true
                         }
                         Err(e) => {
-                            relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                            outcomes.push((
-                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                                DataCategory::Replay,
-                                1,
-                            ));
+                            relay_log::error!(
+                                "replay-event: failed to serialize replay with message {}",
+                                e
+                            );
                             false
                         }
+                    },
+                    Err(e) => {
+                        let discard_reason = match e {
+                            ReplayError::NoContent => {
+                                relay_log::warn!("replay-event: no data found");
+                                DiscardReason::InvalidReplayEventNoPayload
+                            }
+                            ReplayError::CouldNotScrub(e) => {
+                                relay_log::warn!("replay-event: PII scrub failure {}", e);
+                                DiscardReason::InvalidReplayEventPii
+                            }
+                            ReplayError::CouldNotParse(e) => {
+                                relay_log::warn!("replay-event: {}", e.to_string());
+                                DiscardReason::InvalidReplayEvent
+                            }
+                            ReplayError::InvalidPayload(e) => {
+                                relay_log::warn!("replay-event: {}", e);
+                                DiscardReason::InvalidReplayEvent
+                            }
+                        };
+                        outcomes.push((Outcome::Invalid(discard_reason), DataCategory::Replay, 1));
+                        false
                     }
                 }
-                _ => true,
-            });
+            }
+            ItemType::ReplayRecording => {
+                if !replays_enabled {
+                    return false;
+                }
+
+                // XXX: Processing is there just for data scrubbing. Skip the entire expensive
+                // processing step if we do not need to scrub.
+                if !scrubbing_enabled || scrubber.is_empty() {
+                    return true;
+                }
+
+                // Limit expansion of recordings to the max replay size. The payload is
+                // decompressed temporarily and then immediately re-compressed. However, to
+                // limit memory pressure, we use the replay limit as a good overall limit for
+                // allocations.
+                let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                    scrubber.process_recording(&item.payload())
+                });
+
+                match parsed_recording {
+                    Ok(recording) => {
+                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        true
+                    }
+                    Err(e) => {
+                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
+                        outcomes.push((
+                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                            DataCategory::Replay,
+                            1,
+                        ));
+                        false
+                    }
+                }
+            }
+            _ => true,
+        });
 
         for (outcome, category, quantity) in outcomes {
             state
@@ -1729,13 +1708,10 @@ impl EnvelopeProcessorService {
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
     fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let minidump_attachment = state
-            .envelope_context
-            .envelope()
-            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-        let apple_crash_report_attachment = state
-            .envelope_context
-            .envelope()
+        let envelope = state.envelope_context.envelope();
+        let minidump_attachment =
+            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
+        let apple_crash_report_attachment = envelope
             .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
