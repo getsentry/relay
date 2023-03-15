@@ -4,16 +4,15 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::time::Instant;
 
-use axum::extract::{ConnectInfo, FromRequestParts};
-use axum::http::header::{self, AsHeaderName, HeaderMap};
+use axum::extract::rejection::PathRejection;
+use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
-use futures::TryFutureExt;
+use axum::{Json, RequestPartsExt};
 use relay_common::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
-    ProjectKey, Scheme,
+    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
 };
 use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
@@ -41,7 +40,7 @@ pub enum BadEventMeta {
     BadEnvelopeAuth(#[source] serde_json::Error),
 
     #[error("bad project path parameter")]
-    BadProject(#[from] ParseProjectIdError),
+    BadProject(#[from] PathRejection),
 
     #[error("bad x-sentry-auth header")]
     BadAuth(#[from] ParseAuthError),
@@ -50,9 +49,15 @@ pub enum BadEventMeta {
     BadPublicKey(#[from] ParseProjectKeyError),
 }
 
+impl From<Infallible> for BadEventMeta {
+    fn from(infallible: Infallible) -> Self {
+        match infallible {}
+    }
+}
+
 impl IntoResponse for BadEventMeta {
     fn into_response(self) -> Response {
-        let mut code = match *self {
+        let mut code = match self {
             Self::MissingAuth
             | Self::MultipleAuth
             | Self::BadAuth(_)
@@ -62,7 +67,7 @@ impl IntoResponse for BadEventMeta {
             }
         };
 
-        (code, Json(ApiErrorResponse::from_error(&self))).into_response()
+        (code, ApiErrorResponse::from_error(&self)).into_response()
     }
 }
 
@@ -423,11 +428,11 @@ where
             dsn: None,
             version: default_version(),
             client: None,
-            origin: parse_header_url(&parts.headers, header::ORIGIN)
-                .or_else(|| parse_header_url(&parts.headers, header::REFERER)),
+            origin: parse_header_url(parts, header::ORIGIN)
+                .or_else(|| parse_header_url(parts, header::REFERER)),
             remote_addr: ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
                 .await
-                .map(|peer| peer.ip())
+                .map(|ConnectInfo(peer)| peer.ip())
                 .ok(),
             forwarded_for: ForwardedFor::from_request_parts(parts, state)
                 .await?
@@ -442,17 +447,14 @@ where
     }
 }
 
-fn get_auth_header<'a, S>(
-    headers: &'a HeaderMap,
-    header_name: impl AsHeaderName,
-) -> Option<&'a str> {
-    headers
+fn get_auth_header(req: &Parts, header_name: impl AsHeaderName) -> Option<&str> {
+    req.headers
         .get(header_name)
         .and_then(|x| x.to_str().ok())
         .filter(|h| h.len() >= 7 && h[..7].eq_ignore_ascii_case("sentry "))
 }
 
-fn auth_from_parts(req: &Parts) -> Result<Auth, BadEventMeta> {
+fn auth_from_parts(req: &Parts, path_key: Option<String>) -> Result<Auth, BadEventMeta> {
     let mut auth = None;
 
     // try to extract authentication info from http header "x-sentry-auth"
@@ -470,7 +472,7 @@ fn auth_from_parts(req: &Parts) -> Result<Auth, BadEventMeta> {
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
-    let query = req.query_string();
+    let query = req.uri.query().unwrap_or_default();
     if query.contains("sentry_") {
         if auth.is_some() {
             return Err(BadEventMeta::MultipleAuth);
@@ -480,23 +482,22 @@ fn auth_from_parts(req: &Parts) -> Result<Auth, BadEventMeta> {
     }
 
     // try to extract authentication info from URL path segment .../{sentry_key}/...
-    // if let Some(sentry_key) = req.match_info().get("sentry_key") {
-    //     if auth.is_some() {
-    //         return Err(BadEventMeta::MultipleAuth);
-    //     }
+    if let Some(sentry_key) = path_key {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
 
-    //     auth = Some(
-    //         Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
-    //             .map_err(|_| BadEventMeta::MissingAuth)?,
-    //     );
-    // }
-    todo!("match info");
+        auth = Some(
+            Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
+                .map_err(|_| BadEventMeta::MissingAuth)?,
+        );
+    }
 
     auth.ok_or(BadEventMeta::MissingAuth)
 }
 
-fn parse_header_url<T>(headers: &HeaderMap, header: impl AsHeaderName) -> Option<Url> {
-    headers
+fn parse_header_url(req: &Parts, header: impl AsHeaderName) -> Option<Url> {
+    req.headers
         .get(header)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.parse::<Url>().ok())
@@ -504,6 +505,21 @@ fn parse_header_url<T>(headers: &HeaderMap, header: impl AsHeaderName) -> Option
             "http" | "https" => Some(u),
             _ => None,
         })
+}
+
+/// TODO(ja): Doc
+#[derive(Debug, serde::Deserialize)]
+struct StorePath {
+    /// TODO(ja): Doc
+    // The project_id was declared in the URL. Use it directly.
+    // --
+    // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
+    // id from the key lookup. Since this is the uncommon case, block the request until the
+    // project id is here.
+    project_id: Option<ProjectId>,
+
+    /// TODO(ja): Doc
+    sentry_key: Option<String>,
 }
 
 #[axum::async_trait]
@@ -514,24 +530,15 @@ impl FromRequestParts<ServiceState> for RequestMeta {
         parts: &mut Parts,
         state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
-        let auth = auth_from_parts(parts)?;
-        let partial_meta = PartialMeta::from_request_parts(parts, state).await?;
+        let Path(store_path): Path<StorePath> =
+            parts.extract().await.map_err(BadEventMeta::BadProject)?;
 
-        let project_id = todo!();
-        // let project_id = match request.match_info().get("project") {
-        //     // The project_id was declared in the URL. Use it directly.
-        //     Some(s) => Some(s.parse()?),
-
-        //     // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
-        //     // id from the key lookup. Since this is the uncommon case, block the request until the
-        //     // project id is here.
-        //     None => None,
-        // };
+        let auth = auth_from_parts(parts, store_path.sentry_key)?;
+        let partial_meta = parts.extract::<PartialMeta>().await?;
+        let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let config = state.config();
         let upstream = config.upstream_descriptor();
-
-        let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
@@ -539,7 +546,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             host: upstream.host().to_owned(),
             port: upstream.port(),
             path: String::new(),
-            project_id,
+            project_id: store_path.project_id,
         };
 
         // For now, we only handle <= v8 and drop everything else

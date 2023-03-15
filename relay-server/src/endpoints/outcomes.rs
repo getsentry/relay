@@ -1,13 +1,16 @@
-use actix_web::{App, HttpResponse};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::routing::post;
+use axum::{Json, Router};
 use relay_config::EmitOutcomes;
 
 use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 
-fn send_outcomes(state: State<ServiceState>, body: SignedJson<SendOutcomes>) -> HttpResponse {
+async fn send_outcomes(state: ServiceState, body: SignedJson<SendOutcomes>) -> impl IntoResponse {
     if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
-        return HttpResponse::Forbidden().finish();
+        return StatusCode::FORBIDDEN.into_response();
     }
 
     let producer = OutcomeProducer::from_registry();
@@ -15,12 +18,10 @@ fn send_outcomes(state: State<ServiceState>, body: SignedJson<SendOutcomes>) -> 
         producer.send(outcome);
     }
 
-    HttpResponse::Accepted().json(SendOutcomesResponse {})
+    (StatusCode::ACCEPTED, Json(SendOutcomesResponse {})).into_response()
 }
 
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    app.resource("/api/0/relays/outcomes/", |r| {
-        r.name("relay-outcomes");
-        r.post().with(send_outcomes);
-    })
+pub fn routes() -> Router<ServiceState> {
+    // r.name("relay-outcomes");
+    Router::new().route("/api/0/relays/outcomes/", post(send_outcomes))
 }

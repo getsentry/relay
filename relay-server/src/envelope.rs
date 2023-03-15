@@ -1084,7 +1084,7 @@ impl Envelope {
         let mut items = Items::new();
 
         while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            let (item, item_size) = Self::parse_item(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
         }

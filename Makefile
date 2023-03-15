@@ -147,10 +147,6 @@ setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured
 setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
 .PHONY: setup-venv
 
-devserver: ## run an auto-reloading development server
-	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
-.PHONY: devserver
-
 clean-target-dir:
 	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \
 		rm -rf target/; \

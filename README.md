@@ -195,16 +195,6 @@ make test-python
 .venv/bin/pytest py/tests -k <test_name>
 ```
 
-### Development Server
-
-If you have `systemfd` and `cargo-watch` installed, the `make devserver` command
-can auto-reload Relay:
-
-```bash
-cargo install systemfd cargo-watch
-make devserver
-```
-
 ### SSL
 
 The repository contains a SSL-certificate + private key for development

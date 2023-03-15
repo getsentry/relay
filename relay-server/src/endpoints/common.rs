@@ -1,17 +1,20 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::fmt::Write;
-use std::future::Future;
+use std::time::Duration;
 
-use actix_web::error::PayloadError;
-use actix_web::http::{header, StatusCode};
-use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{App, HttpResponse};
+use axum::http::{header, HeaderName, Method, StatusCode};
+use axum::response::IntoResponse;
+// use actix_web::error::PayloadError;
+// use actix_web::http::{header, StatusCode};
+// use actix_web::middleware::cors::{Cors, CorsBuilder};
+// use actix_web::{App, HttpResponse};
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
+use tower_http::cors::CorsLayer;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};
@@ -19,9 +22,7 @@ use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
-};
+use crate::utils::{self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext};
 
 /// Error type for all store-like requests.
 ///
@@ -43,9 +44,8 @@ pub enum BadStoreRequest {
     #[error("invalid event envelope")]
     InvalidEnvelope(#[source] EnvelopeError),
 
-    #[error("invalid multipart data")]
-    InvalidMultipart(#[source] MultipartError),
-
+    // #[error("invalid multipart data")]
+    // InvalidMultipart(#[source] MultipartError),
     #[error("invalid minidump")]
     InvalidMinidump,
 
@@ -58,9 +58,8 @@ pub enum BadStoreRequest {
     #[error("failed to queue envelope")]
     QueueFailed(#[from] BufferError),
 
-    #[error("failed to read request body")]
-    PayloadError(#[source] failure::Compat<PayloadError>),
-
+    // #[error("failed to read request body")]
+    // PayloadError(#[source] failure::Compat<PayloadError>),
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
@@ -70,8 +69,8 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 }
 
-impl BadStoreRequest {
-    fn into_response(self) -> HttpResponse {
+impl IntoResponse for BadStoreRequest {
+    fn into_response(self) -> axum::response::Response {
         let body = ApiErrorResponse::from_error(&self);
 
         let response = match &self {
@@ -86,30 +85,32 @@ impl BadStoreRequest {
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
-                HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-                    .header(header::RETRY_AFTER, retry_after_header)
-                    .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
-                    .json(&body)
+                let headers = [
+                    (header::RETRY_AFTER.as_str(), retry_after_header),
+                    (utils::RATE_LIMITS_HEADER, rate_limits_header),
+                ];
+
+                (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
-                HttpResponse::ServiceUnavailable().json(&body)
+                (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
             }
             BadStoreRequest::EventRejected(_) => {
                 // The event has been discarded, which is generally indicated with a 403 error.
                 // Originally, Sentry also used this status code for event filters, but these are
                 // now executed asynchronously in `EnvelopeProcessor`.
-                HttpResponse::Forbidden().json(&body)
+                (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
-                HttpResponse::PayloadTooLarge().json(&body)
-            }
+            // BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
+            //     HttpResponse::PayloadTooLarge().json(&body)
+            // }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
-                HttpResponse::BadRequest().json(&body)
+                (StatusCode::BAD_REQUEST, body).into_response()
             }
         };
 
@@ -122,11 +123,63 @@ impl BadStoreRequest {
     }
 }
 
-impl From<PayloadError> for BadStoreRequest {
-    fn from(error: PayloadError) -> Self {
-        Self::PayloadError(failure::Fail::compat(error))
-    }
-}
+// impl BadStoreRequest {
+//     fn into_response(self) -> HttpResponse {
+//         let body = ApiErrorResponse::from_error(&self);
+
+//         let response = match &self {
+//             BadStoreRequest::RateLimited(rate_limits) => {
+//                 let retry_after_header = rate_limits
+//                     .longest()
+//                     .map(|limit| limit.retry_after.remaining_seconds().to_string())
+//                     .unwrap_or_default();
+
+//                 let rate_limits_header = utils::format_rate_limits(rate_limits);
+
+//                 // For rate limits, we return a special status code and indicate the client to hold
+//                 // off until the rate limit period has expired. Currently, we only support the
+//                 // delay-seconds variant of the Rate-Limit header.
+//                 HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
+//                     .header(header::RETRY_AFTER, retry_after_header)
+//                     .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
+//                     .json(&body)
+//             }
+//             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
+//                 // These errors indicate that something's wrong with our service system, most likely
+//                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
+//                 // client. It might retry event submission at a later time.
+//                 HttpResponse::ServiceUnavailable().json(&body)
+//             }
+//             BadStoreRequest::EventRejected(_) => {
+//                 // The event has been discarded, which is generally indicated with a 403 error.
+//                 // Originally, Sentry also used this status code for event filters, but these are
+//                 // now executed asynchronously in `EnvelopeProcessor`.
+//                 HttpResponse::Forbidden().json(&body)
+//             }
+//             BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
+//                 HttpResponse::PayloadTooLarge().json(&body)
+//             }
+//             _ => {
+//                 // In all other cases, we indicate a generic bad request to the client and render
+//                 // the cause. This was likely the client's fault.
+//                 HttpResponse::BadRequest().json(&body)
+//             }
+//         };
+
+//         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
+//         if response.status().is_server_error() {
+//             relay_log::error!("error handling request: {}", LogError(&self));
+//         }
+
+//         response
+//     }
+// }
+
+// impl From<PayloadError> for BadStoreRequest {
+//     fn from(error: PayloadError) -> Self {
+//         Self::PayloadError(failure::Fail::compat(error))
+//     }
+// }
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct MinimalEvent {
@@ -164,98 +217,95 @@ pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreReq
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
 
-/// Extracts the event id from `sentry` JSON payload or the `sentry[event_id]` formdata key.
-///
-/// If the event id itself is malformed, an `Err` is returned. If there is a `sentry` key containing
-/// malformed JSON, an error is returned.
-pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    for entry in FormDataIter::new(data) {
-        if entry.key() == "sentry" {
-            return event_id_from_json(entry.value().as_bytes());
-        } else if entry.key() == "sentry[event_id]" {
-            return entry
-                .value()
-                .parse()
-                .map(Some)
-                .map_err(|_| BadStoreRequest::InvalidEventId);
-        }
-    }
+// /// Extracts the event id from `sentry` JSON payload or the `sentry[event_id]` formdata key.
+// ///
+// /// If the event id itself is malformed, an `Err` is returned. If there is a `sentry` key containing
+// /// malformed JSON, an error is returned.
+// pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
+//     for entry in FormDataIter::new(data) {
+//         if entry.key() == "sentry" {
+//             return event_id_from_json(entry.value().as_bytes());
+//         } else if entry.key() == "sentry[event_id]" {
+//             return entry
+//                 .value()
+//                 .parse()
+//                 .map(Some)
+//                 .map_err(|_| BadStoreRequest::InvalidEventId);
+//         }
+//     }
 
-    Ok(None)
-}
+//     Ok(None)
+// }
 
-/// Extracts the event id from multiple items.
-///
-/// Submitting multiple event payloads is undefined behavior. This function will check for an event
-/// id in the following precedence:
-///
-///  1. The `Event` item.
-///  2. The `__sentry-event` event attachment.
-///  3. The `sentry` JSON payload.
-///  4. The `sentry[event_id]` formdata key.
-///
-/// # Limitations
-///
-/// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
-/// `sentry__2`, ...) is not supported. In this case, `None` is returned.
-pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
-    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event) {
-        if let Some(event_id) = event_id_from_json(&item.payload())? {
-            return Ok(Some(event_id));
-        }
-    }
+// /// Extracts the event id from multiple items.
+// ///
+// /// Submitting multiple event payloads is undefined behavior. This function will check for an event
+// /// id in the following precedence:
+// ///
+// ///  1. The `Event` item.
+// ///  2. The `__sentry-event` event attachment.
+// ///  3. The `sentry` JSON payload.
+// ///  4. The `sentry[event_id]` formdata key.
+// ///
+// /// # Limitations
+// ///
+// /// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
+// /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
+// pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
+//     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event) {
+//         if let Some(event_id) = event_id_from_json(&item.payload())? {
+//             return Ok(Some(event_id));
+//         }
+//     }
 
-    if let Some(item) = items
-        .iter()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
-    {
-        if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
-            return Ok(Some(event_id));
-        }
-    }
+//     if let Some(item) = items
+//         .iter()
+//         .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
+//     {
+//         if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
+//             return Ok(Some(event_id));
+//         }
+//     }
 
-    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::FormData) {
-        // Swallow all other errors here since it is quite common to receive invalid secondary
-        // payloads. `EnvelopeProcessor` also retains events in such cases.
-        if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
-            return Ok(Some(event_id));
-        }
-    }
+//     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::FormData) {
+//         // Swallow all other errors here since it is quite common to receive invalid secondary
+//         // payloads. `EnvelopeProcessor` also retains events in such cases.
+//         if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
+//             return Ok(Some(event_id));
+//         }
+//     }
 
-    Ok(None)
-}
+//     Ok(None)
+// }
 
 /// Creates a preconfigured CORS middleware builder for store requests.
 ///
 /// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
 /// returns an App. This configures POST as allowed method, allows default sentry headers, and
 /// exposes the return headers.
-pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
-    let mut builder = Cors::for_app(app);
-
-    builder
-        .allowed_methods(vec!["POST"])
-        .allowed_headers(vec![
-            "x-sentry-auth",
-            "x-requested-with",
-            "x-forwarded-for",
-            "origin",
-            "referer",
-            "accept",
-            "content-type",
-            "authentication",
-            "authorization",
-            "content-encoding",
-            "transfer-encoding",
+pub fn cors() -> CorsLayer {
+    CorsLayer::new()
+        .allow_methods(Method::POST)
+        .allow_headers([
+            HeaderName::from_static("x-sentry-auth"),
+            HeaderName::from_static("x-requested-with"),
+            HeaderName::from_static("x-forwarded-for"),
+            HeaderName::from_static("origin"),
+            HeaderName::from_static("referer"),
+            HeaderName::from_static("accept"),
+            HeaderName::from_static("content-type"),
+            HeaderName::from_static("authentication"),
+            HeaderName::from_static("authorization"),
+            HeaderName::from_static("content-encoding"),
+            HeaderName::from_static("transfer-encoding"),
         ])
-        .expose_headers(vec![
-            "x-sentry-error",
-            "x-sentry-rate-limits",
-            "retry-after",
+        .allow_origin(tower_http::cors::Any)
+        .expose_headers([
+            HeaderName::from_static("x-sentry-error"),
+            HeaderName::from_static("x-sentry-rate-limits"),
+            HeaderName::from_static("retry-after"),
         ])
-        .max_age(3600);
-
-    builder
+        .max_age(Duration::from_secs(3600))
 }
 
 /// Queues an envelope for processing.
@@ -361,7 +411,8 @@ pub async fn handle_envelope(
 
     if !utils::check_envelope_size_limits(state.config(), &envelope) {
         envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        return Err(PayloadError::Overflow.into());
+        // return Err(PayloadError::Overflow.into());
+        todo!();
     }
 
     queue_envelope(envelope, envelope_context, buffer_guard)?;
@@ -373,17 +424,21 @@ pub async fn handle_envelope(
     }
 }
 
-/// Creates a HttpResponse containing the textual representation of the given EventId
-pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
-    // Event id is set statically in the ingest path.
-    let id = id.unwrap_or_default();
-    debug_assert!(!id.is_nil());
+#[derive(Debug)]
+struct TextResponse(pub Option<EventId>);
 
-    // the minidump client expects the response to contain an event id as a hyphenated UUID
-    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(id.0.as_hyphenated().to_string())
+impl IntoResponse for TextResponse {
+    fn into_response(self) -> axum::response::Response {
+        // Event id is set statically in the ingest path.
+        let EventId(id) = self.0.unwrap_or_default();
+        debug_assert!(!id.is_nil());
+
+        // the minidump client expects the response to contain an event id as a hyphenated UUID
+        // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        let text = id.as_hyphenated().to_string();
+
+        ([(header::CONTENT_TYPE, "text/plain")], text).into_response()
+    }
 }
 
 /// A helper for creating Actix routes that are resilient against double-slashes
@@ -405,19 +460,19 @@ pub fn normpath(route: &str) -> String {
     pattern
 }
 
-/// Creates an actix-web async handler for a store endpoint.
-///
-/// This function is intended to be used in `with_async` on store-like endpoints. It takes an
-/// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
-/// resolve with an HTTP response.
-pub fn handler<F>(f: F) -> impl futures01::Future<Item = HttpResponse, Error = actix_web::Error>
-where
-    F: Future<Output = Result<HttpResponse, BadStoreRequest>>,
-{
-    futures::compat::Compat::new(Box::pin(async move {
-        Ok(f.await.unwrap_or_else(|e| e.into_response()))
-    }))
-}
+// /// Creates an actix-web async handler for a store endpoint.
+// ///
+// /// This function is intended to be used in `with_async` on store-like endpoints. It takes an
+// /// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
+// /// resolve with an HTTP response.
+// pub fn handler<F>(f: F) -> impl futures01::Future<Item = HttpResponse, Error = actix_web::Error>
+// where
+//     F: Future<Output = Result<HttpResponse, BadStoreRequest>>,
+// {
+//     futures::compat::Compat::new(Box::pin(async move {
+//         Ok(f.await.unwrap_or_else(|e| e.into_response()))
+//     }))
+// }
 
 #[cfg(test)]
 mod tests {

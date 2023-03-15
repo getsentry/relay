@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use axum::response::{IntoResponse, Result};
+use axum::extract::Query;
+use axum::response::Result;
 use axum::routing::post;
 use axum::{Json, Router};
-use futures::{future, TryFutureExt};
+use futures::future;
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::extractors::SignedJson;
-use crate::service::ServiceState;
 
 /// V2 version of this endpoint.
 ///
@@ -49,15 +49,15 @@ struct VersionQuery {
 //     }
 // }
 
-/// Checks for a specific `version` query parameter.
-struct VersionPredicate;
+// /// Checks for a specific `version` query parameter.
+// struct VersionPredicate;
 
-impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
-    fn check(&self, req: &actix_web::Request, _: &S) -> bool {
-        let query = VersionQuery::from_request(req);
-        query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
-    }
-}
+// impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
+//     fn check(&self, req: &actix_web::Request, _: &S) -> bool {
+//         let query = VersionQuery::from_request(req);
+//         query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+//     }
+// }
 
 /// The type returned for each requested project config.
 ///
@@ -115,9 +115,9 @@ struct GetProjectStatesRequest {
 }
 
 async fn get_project_configs(
+    Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
-    version: VersionQuery,
-) -> Result<impl IntoResponse> {
+) -> Result<Json<GetProjectStatesResponseWrapper>> {
     let SignedJson { inner, relay } = body;
 
     let no_cache = inner.no_cache;
@@ -144,7 +144,7 @@ async fn get_project_configs(
     let mut pending = Vec::with_capacity(keys_len);
 
     for (project_key, state_result) in future::join_all(futures).await {
-        let Some(project_state) = state_result? else {
+        let Some(project_state) = state_result.map_err(|_| ())? else { // TODO(ja): Error handling
             pending.push(project_key);
             continue;
         };
@@ -185,9 +185,11 @@ async fn get_project_configs(
 //     })
 // }
 
-pub fn routes() -> Router {
+pub fn routes<S>() -> Router<S> {
     // TODO(ja): Check version predicate.
     // TODO(ja): forward if version is incompatible.
     // r.name("relay-projectconfigs");
-    Router::new().route("/api/0/relays/projectconfigs/", post(get_project_configs))
+    Router::new()
+        .route("/api/0/relays/projectconfigs/", post(get_project_configs))
+        .with_state(())
 }

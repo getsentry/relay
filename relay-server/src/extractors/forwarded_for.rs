@@ -35,8 +35,8 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let peer_addr = ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
             .await
-            .map(|v| v.ip().to_string())
-            .unwrap_or_else(String::new);
+            .map(|ConnectInfo(peer)| peer.ip().to_string())
+            .unwrap_or_default();
 
         let forwarded = parts
             .headers

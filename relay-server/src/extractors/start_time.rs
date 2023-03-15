@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::time::Instant;
 
 use axum::extract::FromRequestParts;
@@ -21,10 +22,13 @@ impl<S> FromRequestParts<S> for StartTime
 where
     S: Send + Sync,
 {
-    type Rejection = <Extension<Self> as FromRequestParts<S>>::Rejection;
+    type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Extension(start_time) = Extension::from_request_parts(parts, state).await?;
+        let Extension(start_time) = Extension::from_request_parts(parts, state)
+            .await
+            .expect("StartTime middleware is not configured");
+
         Ok(start_time)
     }
 }

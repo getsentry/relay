@@ -2,7 +2,7 @@
 
 use axum::extract::Path;
 use axum::http::{header, StatusCode};
-use axum::response::{Response, Result};
+use axum::response::{IntoResponse, Result};
 use axum::routing::get;
 use axum::Router;
 use relay_general::protocol::EventId;
@@ -10,25 +10,25 @@ use relay_general::protocol::EventId;
 use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
 use crate::envelope;
 
-async fn get_captured_event(Path(event_id): Path<EventId>) -> Result<Response> {
+async fn get_captured_event(Path(event_id): Path<EventId>) -> Result<impl IntoResponse> {
     let envelope_opt = TestStore::from_registry()
         .send(GetCapturedEnvelope { event_id })
-        .await?;
+        .await
+        .map_err(|_| ())?; // TODO(ja): Proper error handler
 
-    let response = match envelope_opt {
-        Some(Ok(envelope)) => Response::builder()
-            .header(header::CONTENT_TYPE, envelope::CONTENT_TYPE)
-            .body(envelope.to_vec().unwrap())?,
-        Some(Err(error)) => Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(error)?,
-        None => Response::builder().status(StatusCode::NOT_FOUND).body(())?,
-    };
-
-    Ok(response)
+    Ok(match envelope_opt {
+        Some(Ok(envelope)) => {
+            let headers = [(header::CONTENT_TYPE, envelope::CONTENT_TYPE)];
+            (StatusCode::OK, headers, envelope.to_vec().unwrap()).into_response()
+        }
+        Some(Err(error)) => (StatusCode::BAD_REQUEST, error).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    })
 }
 
-pub fn routes() -> Router {
+pub fn routes<S>() -> Router<S> {
     // r.name("internal-events");
-    Router::new().route("/api/relay/events/:event_id/", get(get_captured_event))
+    Router::new()
+        .route("/api/relay/events/:event_id/", get(get_captured_event))
+        .with_state(())
 }

@@ -24,10 +24,11 @@ async fn health_check(Path(kind): Path<IsHealthy>) -> impl IntoResponse {
     }
 }
 
-pub fn routes() -> Router {
+pub fn routes<S>() -> Router<S> {
     Router::new()
         // r.name("internal-healthcheck-ready");
         .route("/api/relay/healthcheck/:kind/", get(health_check))
         // r.name("internal-healthcheck-live");
         .route("/api/0/relays/:kind/", get(health_check))
+        .with_state(())
 }

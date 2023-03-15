@@ -1147,13 +1147,13 @@ impl EnvelopeProcessorService {
                 match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
-                            item.set_payload(ContentType::Json, json.as_bytes());
+                            item.set_payload(ContentType::Json, json);
                             true
                         }
                         Err(e) => {
                             relay_log::error!(
                                 "replay-event: failed to serialize replay with message {}",
-                                e
+                                LogError(&e)
                             );
                             false
                         }
@@ -1218,7 +1218,7 @@ impl EnvelopeProcessorService {
 
                 match parsed_recording {
                     Ok(recording) => {
-                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        item.set_payload(ContentType::OctetStream, recording);
                         true
                     }
                     Err(e) => {

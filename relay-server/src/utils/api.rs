@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
+use axum::response::IntoResponse;
+use axum::Json;
 use serde::{Deserialize, Serialize};
 
 /// Represents an action requested by the Upstream sent in an error message.
@@ -73,3 +75,9 @@ impl fmt::Display for ApiErrorResponse {
 }
 
 impl Error for ApiErrorResponse {}
+
+impl IntoResponse for ApiErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        Json(self).into_response()
+    }
+}
