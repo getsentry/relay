@@ -275,7 +275,8 @@ jobs:
           path: relay-docker-image.tgz
 
       - name: Push to ghcr.io
-        if: github.ref == 'refs/heads/master'
+        # Do not run this on forks as they do not have access to secrets
+        if: "!github.event.pull_request.head.repo.fork"
         run: |
           set -euxo pipefail
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
@@ -329,6 +330,8 @@ jobs:
           gcloud auth configure-docker us.gcr.io
 
       - name: Push to us.gcr.io
+        # Do not run this on forks as they do not have access to secrets
+        if: "!github.event.pull_request.head.repo.fork"
         run: |
           set -euxo pipefail
           docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
@@ -470,6 +473,7 @@ jobs:
     needs: build
 
     # Skip redundant checks for library releases
+    # Skip if a fork as they cannot upload to docker which is needed to pull the image
     if: "!startsWith(github.ref, 'refs/heads/release-library/') || !github.event.pull_request.head.repo.fork"
 
     steps:
