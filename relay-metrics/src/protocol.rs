@@ -163,6 +163,7 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
+/// Enumerates the most common session-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionsKind<'a> {
     Session,
@@ -193,10 +194,11 @@ impl<'a> From<&'a str> for SessionsKind<'a> {
     }
 }
 
+/// Enumerates the most common transaction-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TransactionsKind<'a> {
-    Duration,
     User,
+    Duration,
     CountPerRootProject,
     MeasurementsFramesFrozen,
     MeasurementsFramesFrozenRate,
@@ -345,7 +347,8 @@ impl<'a> MetricResourceIdentifier<'a> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
-        let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
+        //let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
+        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         let (raw_namespace, raw_name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
 
@@ -362,7 +365,14 @@ impl<'a> MetricResourceIdentifier<'a> {
 impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
-        write!(f, "{}:{}/{}@{}", self.ty, "todo", "todo", self.unit)
+        write!(
+            f,
+            "{}:{}/{}@{}",
+            self.ty,
+            self.namespace.namespace_to_string(),
+            self.namespace.name_to_string(),
+            self.unit
+        )
     }
 }
 

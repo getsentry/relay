@@ -1,1 +1,21 @@
 {"run_id":"1678893282-537881000","line":3094,"new":{"module_name":"relay_metrics__aggregation__tests","snapshot_name":"bucket_partitioning_dummy","metadata":{"source":"relay-metrics/src/aggregation.rs","assertion_line":3094,"expression":"output"},"snapshot":"[]"},"old":{"module_name":"relay_metrics__aggregation__tests","metadata":{},"snapshot":"[\n    \"metrics.buckets.per_batch:2|h\",\n    \"metrics.buckets.batches_per_partition:1|h\",\n]"}}
+{"run_id":"1678893444-218661000","line":2554,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2221,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2186,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2561,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2570,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2581,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2592,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2601,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":2610,"new":null,"old":null}
+{"run_id":"1678893444-218661000","line":3094,"new":{"module_name":"relay_metrics__aggregation__tests","snapshot_name":"bucket_partitioning_dummy","metadata":{"source":"relay-metrics/src/aggregation.rs","assertion_line":3094,"expression":"output"},"snapshot":"[]"},"old":{"module_name":"relay_metrics__aggregation__tests","metadata":{},"snapshot":"[\n    \"metrics.buckets.per_batch:2|h\",\n    \"metrics.buckets.batches_per_partition:1|h\",\n]"}}
+{"run_id":"1678894543-845006000","line":2186,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2221,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2554,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2561,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2570,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2581,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2592,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2601,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":2610,"new":null,"old":null}
+{"run_id":"1678894543-845006000","line":3094,"new":{"module_name":"relay_metrics__aggregation__tests","snapshot_name":"bucket_partitioning_dummy","metadata":{"source":"relay-metrics/src/aggregation.rs","assertion_line":3094,"expression":"output"},"snapshot":"[]"},"old":{"module_name":"relay_metrics__aggregation__tests","metadata":{},"snapshot":"[\n    \"metrics.buckets.per_batch:2|h\",\n    \"metrics.buckets.batches_per_partition:1|h\",\n]"}}

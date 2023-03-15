@@ -1529,7 +1529,7 @@ impl AggregatorService {
         mut key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
-        key = Self::validate_metric_name(key, aggregator_config)?;
+        key = dbg!(Self::validate_metric_name(key, aggregator_config))?;
         key = Self::validate_metric_tags(key, aggregator_config);
         Ok(key)
     }
@@ -1576,6 +1576,7 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
+        dbg!(&key);
         key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
             Ok(mri) => {
                 if matches!(mri.namespace, MetricNamespace::Unsupported) {
@@ -1652,7 +1653,7 @@ impl AggregatorService {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
 
-        let key = Self::validate_bucket_key(key, &self.config)?;
+        let key = dbg!(Self::validate_bucket_key(key, &self.config))?;
 
         // XXX: This is not a great implementation of cost enforcement.
         //
@@ -1739,7 +1740,7 @@ impl AggregatorService {
             metric_name: metric.name,
             tags: metric.tags,
         };
-        self.merge_in(key, metric.value)
+        dbg!(self.merge_in(key, metric.value))
     }
 
     /// Merge a preaggregated bucket into this aggregator.
@@ -3039,7 +3040,7 @@ mod tests {
         let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.insert(project_key, metric.clone()).unwrap();
+        dbg!(aggregator.insert(project_key, metric.clone())).unwrap();
         assert_eq!(
             aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
