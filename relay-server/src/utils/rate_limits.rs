@@ -580,7 +580,7 @@ where
             return RetainItem::Drop(
                 Outcome::RateLimited(limit.reason_code.clone()),
                 limit.category,
-                limit.quantity,
+                1,
             );
         }
 
@@ -592,7 +592,7 @@ where
             return RetainItem::Drop(
                 Outcome::RateLimited(limit.reason_code.clone()),
                 limit.category,
-                limit.quantity,
+                1,
             );
         }
 
