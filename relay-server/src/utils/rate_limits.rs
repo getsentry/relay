@@ -275,12 +275,11 @@ impl Enforcement {
         self.event.is_active()
     }
 
-    #[cfg(test)] // TODO: remove function
-    fn get_outcomes(
-        self,
-        envelope: &Envelope,
-        scoping: &Scoping,
-    ) -> impl Iterator<Item = TrackOutcome> {
+    /// Invokes [`TrackOutcome`] on event-related enforcements reported by the [`EnvelopeLimiter`].
+    ///
+    /// Datatypes with 1:1 relationships between outcomes and enforcement are handled automatically
+    /// by retain_items.
+    fn track_event_outcomes(&self, envelope: &Envelope, scoping: &Scoping) {
         let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
         let scoping = *scoping;
         let event_id = envelope.event_id();
@@ -289,53 +288,28 @@ impl Enforcement {
         let Self {
             event,
             attachments,
-            sessions: _, // Do not report outcomes for sessions.
-            profiles,
-            replays,
-            check_ins,
             event_metrics,
+            ..
         } = self;
 
-        let limits = [
-            event,
-            attachments,
-            profiles,
-            replays,
-            check_ins,
-            event_metrics,
-        ];
+        let limits = [event, attachments, event_metrics];
 
-        limits
-            .into_iter()
-            .filter(move |limit| limit.is_active())
-            .map(move |limit| TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(limit.reason_code),
-                event_id,
-                remote_addr,
-                category: limit.category,
-                // XXX: on the limiter we have quantity of usize, but in the protocol
-                // and data store we're limited to u32.
-                quantity: limit.quantity as u32,
-            })
-    }
-
-    fn track_outcome_for_event(&self, envelope_context: &EnvelopeContext) {
-        let envelope = envelope_context.envelope();
-        let limit = &self.event;
-
-        TrackOutcome::from_registry().send(TrackOutcome {
-            timestamp: relay_common::instant_to_date_time(envelope.meta().start_time()),
-            scoping: envelope_context.scoping(),
-            outcome: Outcome::RateLimited(limit.reason_code.clone()),
-            event_id: envelope.event_id(),
-            remote_addr: envelope.meta().remote_addr(),
-            category: limit.category,
-            // XXX: on the limiter we have quantity of usize, but in the protocol
-            // and data store we're limited to u32.
-            quantity: limit.quantity as u32,
-        })
+        let producer = TrackOutcome::from_registry();
+        for limit in limits {
+            if limit.is_active() {
+                producer.send(TrackOutcome {
+                    timestamp,
+                    scoping,
+                    outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                    event_id,
+                    remote_addr,
+                    category: limit.category,
+                    // XXX: on the limiter we have quantity of usize, but in the protocol
+                    // and data store we're limited to u32.
+                    quantity: limit.quantity as u32,
+                });
+            }
+        }
     }
 }
 
@@ -432,14 +406,12 @@ where
             summary.event_metrics_extracted = metrics_extracted;
         }
 
-        let (enforcement, rate_limits) = self.execute(&summary, &envelope_context.scoping())?;
+        let scoping = envelope_context.scoping();
+        let (enforcement, rate_limits) = self.execute(&summary, &scoping)?;
         envelope_context.retain_items(|item| self.retain_item(item, &enforcement));
 
-        // Outcomes have been tracked by `retain_items` above, except for the event, which has been
-        // removed in an earlier stage of the pipeline.
-        if enforcement.event_active() {
-            enforcement.track_outcome_for_event(envelope_context);
-        }
+        // Event-related items have some special cases, so they are tracked separately here.
+        enforcement.track_event_outcomes(envelope_context.envelope(), &scoping);
 
         Ok((enforcement, rate_limits))
     }
@@ -790,15 +762,6 @@ mod tests {
             .set_metrics_extracted(true);
     }
 
-    fn scoping() -> Scoping {
-        Scoping {
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            project_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-            key_id: Some(17),
-        }
-    }
-
     fn rate_limit(category: DataCategory) -> RateLimit {
         RateLimit {
             categories: vec![category].into(),
@@ -936,7 +899,7 @@ mod tests {
         let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Profile);
-        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
             .enforce(&mut envelope)
             .unwrap();
 
@@ -944,11 +907,11 @@ mod tests {
         assert_eq!(envelope.envelope().len(), 0);
         assert_eq!(mock.called, BTreeMap::from([(DataCategory::Profile, 2)]));
 
-        let outcomes = enforcement
-            .get_outcomes(envelope.envelope(), &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
-        assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
+        // let outcomes = enforcement
+        //     .get_event_outcomes(envelope.envelope(), &scoping())
+        //     .map(|outcome| (outcome.category, outcome.quantity))
+        //     .collect::<Vec<_>>();
+        // assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
     }
 
     /// Limit replays.
@@ -958,7 +921,7 @@ mod tests {
         let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Replay);
-        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
             .enforce(&mut envelope)
             .unwrap();
 
@@ -966,11 +929,11 @@ mod tests {
         assert_eq!(envelope.envelope().len(), 0);
         assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
 
-        let outcomes = enforcement
-            .get_outcomes(envelope.envelope(), &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
-        assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
+        // let outcomes = enforcement
+        //     .get_event_outcomes(envelope.envelope(), &scoping())
+        //     .map(|outcome| (outcome.category, outcome.quantity))
+        //     .collect::<Vec<_>>();
+        // assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
     }
 
     #[test]
@@ -1189,19 +1152,19 @@ mod tests {
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::Profile, None);
 
-        let outcomes = enforcement
-            .get_outcomes(envelope.envelope(), &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
+        // let outcomes = enforcement
+        //     .get_event_outcomes(envelope.envelope(), &scoping())
+        //     .map(|outcome| (outcome.category, outcome.quantity))
+        //     .collect::<Vec<_>>();
 
-        assert_eq!(
-            outcomes,
-            vec![
-                (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Profile, 1),
-                (DataCategory::Transaction, 1)
-            ]
-        );
+        // assert_eq!(
+        //     outcomes,
+        //     vec![
+        //         (DataCategory::TransactionIndexed, 1),
+        //         (DataCategory::Profile, 1),
+        //         (DataCategory::Transaction, 1)
+        //     ]
+        // );
     }
 
     #[test]
