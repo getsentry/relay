@@ -76,15 +76,16 @@ impl EnvelopeContext {
     fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
-        let event_id = envelope.event_id();
         let start_time = meta.start_time();
+        let received_at = relay_common::instant_to_date_time(start_time);
+        let event_id = envelope.event_id();
         let remote_addr = meta.client_addr();
         let scoping = meta.get_partial_scoping();
         Self {
             envelope,
             summary,
             start_time,
-            received_at: relay_common::instant_to_date_time(start_time),
+            received_at,
             event_id,
             remote_addr,
             scoping,
@@ -126,7 +127,7 @@ impl EnvelopeContext {
         Box::new(self.envelope.take_items())
     }
 
-    /// Update the context with new envelope information.
+    /// Update the context with envelope information.
     ///
     /// This updates the item summary as well as the event id.
     pub fn update(&mut self) -> &mut Self {

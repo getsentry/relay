@@ -811,14 +811,14 @@ impl EnvelopeProcessorService {
         let received = state.envelope_context.received_at();
         let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
-        let envelope = state.envelope_context.envelope();
+        let envelope = state.envelope_context.envelope_mut();
         let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        state.envelope_context.envelope_mut().retain_items(|item| {
+        envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Session => self.process_session(
                     item,
