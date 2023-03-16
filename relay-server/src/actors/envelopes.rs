@@ -292,8 +292,8 @@ impl EnvelopeManagerService {
 
         let scoping = envelope.scoping();
 
-        let envelope = envelope.take_envelope();
-        match self.submit_envelope(envelope, scoping, None).await {
+        let inner_envelope = envelope.take_envelope();
+        match self.submit_envelope(inner_envelope, scoping, None).await {
             Ok(_) => {
                 envelope.accept();
             }

@@ -273,13 +273,13 @@ pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
-    mut envelope: ManagedEnvelope,
+    mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
     let mut metric_items = Vec::new();
     let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
-    let envelope = envelope.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
     while let Some(item) = envelope.take_item_by(is_metric) {
         metric_items.push(item);
     }
@@ -305,17 +305,17 @@ fn queue_envelope(
         let event_context = buffer_guard.enter(event_envelope)?;
 
         // Update the old context after successful forking.
-        envelope.update();
+        managed_envelope.update();
         ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
     }
 
-    if envelope.envelope().is_empty() {
+    if managed_envelope.envelope().is_empty() {
         // The envelope can be empty here if it contained only metrics items which were removed
         // above. In this case, the envelope was accepted and needs no further queueing.
-        envelope.accept();
+        managed_envelope.accept();
     } else {
         relay_log::trace!("queueing envelope");
-        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(managed_envelope));
     }
 
     Ok(())

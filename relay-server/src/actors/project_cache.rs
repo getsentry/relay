@@ -117,13 +117,13 @@ pub struct CheckedEnvelope {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    context: ManagedEnvelope,
+    envelope: ManagedEnvelope,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(context: ManagedEnvelope) -> Self {
-        Self { context }
+    pub fn new(envelope: ManagedEnvelope) -> Self {
+        Self { envelope }
     }
 }
 
@@ -140,12 +140,12 @@ impl CheckEnvelope {
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
-    context: ManagedEnvelope,
+    envelope: ManagedEnvelope,
 }
 
 impl ValidateEnvelope {
-    pub fn new(context: ManagedEnvelope) -> Self {
-        Self { context }
+    pub fn new(envelope: ManagedEnvelope) -> Self {
+        Self { envelope }
     }
 }
 
@@ -561,7 +561,7 @@ impl ProjectCacheBroker {
         &mut self,
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let CheckEnvelope { context } = message;
+        let CheckEnvelope { envelope: context } = message;
         let project = self.get_or_create_project(context.envelope().meta().public_key());
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
@@ -638,7 +638,7 @@ impl ProjectCacheBroker {
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        let ValidateEnvelope { context } = message;
+        let ValidateEnvelope { envelope: context } = message;
         let envelope = context.envelope();
 
         // Fetch the project state for our key and make sure it's not invalid.
