@@ -2716,6 +2716,8 @@
 <a href="#2715" id="2715">2715</a>
 <a href="#2716" id="2716">2716</a>
 <a href="#2717" id="2717">2717</a>
+<a href="#2718" id="2718">2718</a>
+<a href="#2719" id="2719">2719</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -3037,6 +3039,8 @@
         <span class="string">&quot;frames_slow_rate&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
         <span class="string">&quot;frames_frozen&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
         <span class="string">&quot;frames_frozen_rate&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
+        <span class="string">&quot;time_to_initial_display&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">&quot;time_to_first_display&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         <span class="comment">// React-Native
         </span><span class="string">&quot;stall_count&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
