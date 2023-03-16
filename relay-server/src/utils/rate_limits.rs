@@ -6,9 +6,9 @@ use relay_quotas::{
     DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use relay_system::Addr;
 
 use crate::actors::outcome::Outcome;
-#[cfg(test)] // TODO: remove
 use crate::actors::outcome::TrackOutcome;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::utils::{EnvelopeContext, RetainItem};
@@ -408,8 +408,16 @@ where
     /// 2. Enforcements are empty. Rate limiting has occurred at an earlier stage in the pipeline.
     /// 3. Rate limits are empty.
     pub fn enforce(
+        self,
+        envelope_context: &mut EnvelopeContext,
+    ) -> Result<(Enforcement, RateLimits), E> {
+        self.enforce_inner(envelope_context, TrackOutcome::from_registry())
+    }
+
+    pub fn enforce_inner(
         mut self,
         envelope_context: &mut EnvelopeContext,
+        outcome_recipient: Addr<TrackOutcome>,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope_context.envelope());
         if let Some((event_category, metrics_extracted)) = self.event_category {
@@ -418,7 +426,10 @@ where
         }
 
         let (enforcement, rate_limits) = self.execute(&summary, &envelope_context.scoping())?;
-        envelope_context.retain_items(|item| self.retain_item(item, &enforcement));
+        envelope_context.retain_items_custom(
+            |item| self.retain_item(item, &enforcement),
+            outcome_recipient,
+        );
         Ok((enforcement, rate_limits))
     }
 
@@ -633,6 +644,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 mod tests {
     use std::collections::BTreeMap;
 
+    use insta::assert_debug_snapshot;
     use relay_common::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
@@ -859,8 +871,9 @@ mod tests {
         let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (addr, mut rx) = Addr::custom();
         let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
-            .enforce(&mut envelope)
+            .enforce_inner(&mut envelope, addr)
             .unwrap();
 
         assert!(limits.is_limited());
@@ -869,6 +882,12 @@ mod tests {
         // Error is limited, so no need to call the attachment quota
         mock.assert_call(DataCategory::Attachment, None);
         mock.assert_call(DataCategory::Session, None);
+
+        let outcomes = (0..)
+            .map(|_| rx.blocking_recv())
+            .take_while(|x| x.is_some());
+            .collect<Vec<_>>();
+        assert_debug_snapshot!(outcomes, @r#""#);
     }
 
     #[test]
