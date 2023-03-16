@@ -17,45 +17,63 @@
 // use relay_log::protocol::{ClientSdkPackage, Event, Exception, Request};
 // use relay_statsd::metric;
 
-// use crate::constants::SERVER;
 // use crate::extractors::SharedPayload;
 // use crate::statsd::{RelayCounters, RelayTimers};
 // use crate::utils::ApiErrorResponse;
 
-// /// Basic metrics
-// pub struct Metrics;
+use axum::http::{header, Request};
+use axum::middleware::Next;
+use axum::response::Response;
 
-// impl<S> Middleware<S> for Metrics {
-//     fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {
-//         req.extensions_mut().insert(StartTime(Instant::now()));
-//         metric!(
-//             counter(RelayCounters::Requests) += 1,
-//             route = req.resource().name(),
-//             method = req.method().as_str()
-//         );
-//         Ok(Started::Done)
-//     }
+use crate::constants::SERVER;
+use crate::extractors::StartTime;
+use crate::statsd::{RelayCounters, RelayTimers};
 
-//     fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
-//         let start_time = req.extensions().get::<StartTime>().unwrap().0;
+/// A middleware that logs web request timings as statsd metrics.
+///
+/// Use this with [`axum::middleware::from_fn`].
+pub async fn metrics<B>(mut request: Request<B>, next: Next<B>) -> Response {
+    let start_time = StartTime::now();
+    request.extensions_mut().insert(start_time);
 
-//         metric!(
-//             timer(RelayTimers::RequestsDuration) = start_time.elapsed(),
-//             route = req.resource().name(),
-//             method = req.method().as_str()
-//         );
-//         metric!(
-//             counter(RelayCounters::ResponsesStatusCodes) += 1,
-//             status_code = resp.status().as_str(),
-//             route = req.resource().name(),
-//             method = req.method().as_str()
-//         );
+    // TODO(ja): Resource name
+    let route = "";
+    let method = request.method().clone();
 
-//         Finished::Done
-//     }
-// }
+    relay_statsd::metric!(
+        counter(RelayCounters::Requests) += 1,
+        route = route,
+        method = method.as_str(),
+    );
 
-// /// Adds the common relay headers.
+    let response = next.run(request).await;
+
+    relay_statsd::metric!(
+        timer(RelayTimers::RequestsDuration) = start_time.into_inner().elapsed(),
+        route = route,
+        method = method.as_str(),
+    );
+    relay_statsd::metric!(
+        counter(RelayCounters::ResponsesStatusCodes) += 1,
+        status_code = response.status().as_str(),
+        route = route,
+        method = method.as_str(),
+    );
+
+    response
+}
+
+/// Middleware function that adds common response headers.
+///
+/// Use this with [`axum::middleware::from_fn`].
+pub async fn common_headers<B>(request: Request<B>, next: Next<B>) -> Response {
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert(header::SERVER, header::HeaderValue::from_static(SERVER));
+    response
+}
+
 // pub struct AddCommonHeaders;
 
 // impl<S> Middleware<S> for AddCommonHeaders {
@@ -91,6 +109,7 @@
 //     }
 // }
 
+// TODO(ja): Check this. Is there a test?
 // /// Read request before returning response. This is not required for RFC compliance, however:
 // ///
 // /// * a lot of clients are not able to deal with unread request payloads
@@ -110,230 +129,8 @@
 //     }
 // }
 
-// /// Reports certain failures to sentry.
-// pub struct SentryMiddleware {
-//     emit_header: bool,
-//     capture_server_errors: bool,
-// }
-
-// struct HubWrapper {
-//     hub: Arc<Hub>,
-//     root_scope: RefCell<Option<ScopeGuard>>,
-// }
-
-// impl SentryMiddleware {
-//     /// Creates a new sentry middleware.
-//     pub fn new() -> SentryMiddleware {
-//         SentryMiddleware {
-//             emit_header: false,
-//             capture_server_errors: true,
-//         }
-//     }
-
-//     fn new_hub(&self) -> Arc<Hub> {
-//         Arc::new(Hub::new_from_top(Hub::main()))
-//     }
-// }
-
-// impl Default for SentryMiddleware {
-//     fn default() -> Self {
-//         SentryMiddleware::new()
-//     }
-// }
-
-// fn extract_request<S: 'static>(req: &HttpRequest<S>, with_pii: bool) -> (Option<String>, Request) {
-//     let resource = req.resource();
-//     let transaction = if let Some(rdef) = resource.rdef() {
-//         Some(rdef.pattern().to_string())
-//     } else if resource.name() != "" {
-//         Some(resource.name().to_string())
-//     } else {
-//         None
-//     };
-//     let mut sentry_req = Request {
-//         url: format!(
-//             "{}://{}{}",
-//             req.connection_info().scheme(),
-//             req.connection_info().host(),
-//             req.uri()
-//         )
-//         .parse()
-//         .ok(),
-//         method: Some(req.method().to_string()),
-//         headers: req
-//             .headers()
-//             .iter()
-//             .map(|(k, v)| (k.as_str().into(), v.to_str().unwrap_or("").into()))
-//             .collect(),
-//         ..Default::default()
-//     };
-
-//     if with_pii {
-//         if let Some(remote) = req.connection_info().remote() {
-//             sentry_req.env.insert("REMOTE_ADDR".into(), remote.into());
-//         }
-//     };
-
-//     (transaction, sentry_req)
-// }
-
-// impl<S: 'static> Middleware<S> for SentryMiddleware {
-//     fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {
-//         let hub = self.new_hub();
-//         let outer_req = req;
-//         let req = outer_req.clone();
-//         let client = hub.client();
-
-//         let req = fragile::SemiSticky::new(req);
-//         let cached_data = Arc::new(Mutex::new(None));
-
-//         let root_scope = hub.push_scope();
-//         hub.configure_scope(move |scope| {
-//             scope.add_event_processor(move |mut event| {
-//                 fragile::stack_token!(tok);
-
-//                 let mut cached_data = cached_data.lock().unwrap();
-//                 if cached_data.is_none() && req.is_valid() {
-//                     let with_pii = client
-//                         .as_ref()
-//                         .map_or(false, |x| x.options().send_default_pii);
-//                     *cached_data = Some(extract_request(req.get(tok), with_pii));
-//                 }
-
-//                 if let Some((ref transaction, ref req)) = *cached_data {
-//                     if event.transaction.is_none() {
-//                         event.transaction = transaction.clone();
-//                     }
-//                     if event.request.is_none() {
-//                         event.request = Some(req.clone());
-//                     }
-//                 }
-
-//                 if let Some(sdk) = event.sdk.take() {
-//                     let mut sdk = sdk.into_owned();
-//                     sdk.packages.push(ClientSdkPackage {
-//                         name: "sentry-actix".into(),
-//                         version: env!("CARGO_PKG_VERSION").into(),
-//                     });
-//                     event.sdk = Some(Cow::Owned(sdk));
-//                 }
-
-//                 Some(event)
-//             });
-//         });
-
-//         outer_req.extensions_mut().insert(HubWrapper {
-//             hub,
-//             root_scope: RefCell::new(Some(root_scope)),
-//         });
-//         Ok(Started::Done)
-//     }
-
-//     fn response(&self, req: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response, Error> {
-//         if self.capture_server_errors && resp.status().is_server_error() {
-//             let event_id = resp
-//                 .error()
-//                 .map(|error| Hub::from_request(req).capture_actix_error(error));
-
-//             match event_id {
-//                 Some(event_id) if self.emit_header => {
-//                     resp.headers_mut().insert(
-//                         "x-sentry-event",
-//                         event_id.as_simple().to_string().parse().unwrap(),
-//                     );
-//                 }
-//                 _ => {}
-//             }
-//         }
-//         Ok(Response::Done(resp))
-//     }
-
-//     fn finish(&self, req: &HttpRequest<S>, _resp: &HttpResponse) -> Finished {
-//         // if we make it to the end of the request we want to first drop the root
-//         // scope before we drop the entire hub.  This will first drop the closures
-//         // on the scope which in turn will release the circular dependency we have
-//         // with the hub via the request.
-//         if let Some(hub_wrapper) = req.extensions().get::<HubWrapper>() {
-//             if let Ok(mut guard) = hub_wrapper.root_scope.try_borrow_mut() {
-//                 guard.take();
-//             }
-//         }
-//         Finished::Done
-//     }
-// }
-
-// /// Converts a single fail instance into an exception.
-// ///
-// /// This is typically not very useful as the `event_from_error` and
-// /// `event_from_fail` methods will assemble an entire event with all the
-// /// causes of a failure, however for certain more complex situations where
-// /// fails are contained within a non fail error type that might also carry
-// /// useful information it can be useful to call this method instead.
-// fn exception_from_single_fail<F: Fail + ?Sized>(
-//     f: &F,
-//     bt: Option<&failure::Backtrace>,
-// ) -> Exception {
-//     let dbg = format!("{f:?}");
-//     Exception {
-//         ty: parse_type_from_debug(&dbg).to_owned(),
-//         value: Some(f.to_string()),
-//         stacktrace: bt
-//             // format the stack trace with alternate debug to get addresses
-//             .map(|bt| format!("{bt:#?}"))
-//             .and_then(|x| parse_stacktrace(&x)),
-//         ..Default::default()
-//     }
-// }
-
-// /// Hub extensions for actix.
-// pub trait ActixWebHubExt {
-//     /// Returns the hub from a given http request.
-//     ///
-//     /// This requires that the `SentryMiddleware` middleware has been enabled or the
-//     /// call will panic.
-//     fn from_request<S>(req: &HttpRequest<S>) -> Arc<Hub>;
-//     /// Captures an actix error on the given hub.
-//     fn capture_actix_error(&self, err: &Error) -> Uuid;
-// }
-
-// impl ActixWebHubExt for Hub {
-//     fn from_request<S>(req: &HttpRequest<S>) -> Arc<Hub> {
-//         req.extensions()
-//             .get::<HubWrapper>()
-//             .expect("SentryMiddleware middleware was not registered")
-//             .hub
-//             .clone()
-//     }
-
-//     fn capture_actix_error(&self, err: &Error) -> Uuid {
-//         let mut exceptions = vec![];
-//         let mut ptr: Option<&dyn Fail> = Some(err.as_fail());
-//         let mut idx = 0;
-//         while let Some(fail) = ptr {
-//             // Check whether the failure::Fail held by err is a failure::Error wrapped in Compat
-//             // If that's the case, we should be logging that error and its fail instead of the wrapper's construction in actix_web
-//             // This wouldn't be necessary if failure::Compat<failure::Error>'s Fail::backtrace() impl was not "|| None",
-//             // that is however impossible to do as of now because it conflicts with the generic implementation of Fail also provided in failure.
-//             // Waiting for update that allows overlap, (https://github.com/rust-lang/rfcs/issues/1053), but chances are by then failure/std::error will be refactored anyway
-//             let compat: Option<&failure::Compat<failure::Error>> = fail.downcast_ref();
-//             let failure_err = compat.map(failure::Compat::get_ref);
-//             let fail = failure_err.map_or(fail, |x| x.as_fail());
-//             exceptions.push(exception_from_single_fail(
-//                 fail,
-//                 if idx == 0 {
-//                     Some(failure_err.map_or_else(|| err.backtrace(), |err| err.backtrace()))
-//                 } else {
-//                     fail.backtrace()
-//                 },
-//             ));
-//             ptr = fail.cause();
-//             idx += 1;
-//         }
-//         exceptions.reverse();
-//         self.capture_event(Event {
-//             exception: exceptions.into(),
-//             level: Level::Error,
-//             ..Default::default()
-//         })
-//     }
-// }
+pub async fn normalize_uri<B>(request: Request<B>, next: Next<B>) -> Response {
+    // TODO(ja): Normalize the URI. See common module.
+    // https://docs.rs/tower-http/latest/tower_http/normalize_path/index.html
+    todo!()
+}

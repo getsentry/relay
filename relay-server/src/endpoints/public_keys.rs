@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 
-use axum::response::Result;
-use axum::routing::post;
-use axum::{Json, Router};
+use axum::response::{IntoResponse, Result};
+use axum::Json;
 use futures::future;
 
 use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
 use crate::extractors::SignedJson;
 
-async fn get_public_keys(body: SignedJson<GetRelays>) -> Result<Json<GetRelaysResponse>> {
+/// Handles the Relay public keys endpoint.
+///
+/// Note that this has nothing to do with Sentry public keys, which refer to the public key portion
+/// of a DSN used for authenticating event submission. This endpoint is for Relay's public keys,
+/// which authenticate entire Relays.
+pub async fn handle(body: SignedJson<GetRelays>) -> Result<impl IntoResponse> {
     let relay_cache = RelayCache::from_registry();
 
     let relay_ids = body.inner.relay_ids.into_iter();
@@ -24,16 +28,4 @@ async fn get_public_keys(body: SignedJson<GetRelays>) -> Result<Json<GetRelaysRe
     }
 
     Ok(Json(GetRelaysResponse { relays }))
-}
-
-/// Registers the Relay public keys endpoint.
-///
-/// Note that this has nothing to do with Sentry public keys, which refer to the public key portion
-/// of a DSN used for authenticating event submission. This endpoint is for Relay's public keys,
-/// which authenticate entire Relays.
-pub fn routes<S>() -> Router<S> {
-    // r.name("relay-publickeys");
-    Router::new()
-        .route("/api/0/relays/publickeys/", post(get_public_keys))
-        .with_state(())
 }

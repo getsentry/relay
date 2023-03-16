@@ -10,7 +10,7 @@ use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::{Json, RequestPartsExt};
+use axum::RequestPartsExt;
 use relay_common::{
     Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
 };
@@ -19,7 +19,6 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::body;
 use crate::extractors::{ForwardedFor, StartTime};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
@@ -603,24 +602,41 @@ impl EnvelopeMeta {
 //         return result.map_err(|e| e.into());
 //     }
 
-//     let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
-//         return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
-//     };
+//     // TODO(ja): Peek body
+//     // let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
+//     //     return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
+//     // };
 
 //     let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
 //     let partial_meta = PartialMeta::from_headers(&request);
 //     Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
 // }
 
-// impl FromRequest<ServiceState> for EnvelopeMeta {
-//     type Config = ();
-//     type Result = AsyncResult<Self, actix_web::Error>;
+#[axum::async_trait]
+impl FromRequestParts<ServiceState> for EnvelopeMeta {
+    type Rejection = BadEventMeta;
 
-//     fn from_request(request: &HttpRequest<ServiceState>, _config: &Self::Config) -> Self::Result {
-//         let future = extract_envelope_meta(request.clone());
-//         AsyncResult::future(Box::new(Box::pin(future).compat()))
-//     }
-// }
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        let result = parts.extract_with_state(state).await;
+        if !matches!(result, Err(BadEventMeta::MissingAuth)) {
+            return result.map(EnvelopeMeta::new);
+        }
+
+        // TODO(ja): Peek body
+        // let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
+        //     return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
+        // };
+
+        let json = "".as_bytes();
+
+        let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
+        let partial_meta = parts.extract::<PartialMeta>().await?;
+        Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
+    }
+}
 
 #[cfg(test)]
 mod tests {

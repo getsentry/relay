@@ -3,13 +3,11 @@
 use axum::extract::FromRequest;
 use axum::http::{header, Method};
 use axum::response::IntoResponse;
-use axum::routing::post;
-use axum::{headers, Json, Router, TypedHeader};
-use bytes::{Bytes, BytesMut};
+use axum::{headers, Json, TypedHeader};
+use bytes::Bytes;
 use relay_general::protocol::EventId;
 use serde::Serialize;
 
-use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -21,14 +19,15 @@ static PIXEL: &[u8] =
     b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
 
 #[derive(Debug, FromRequest)]
-struct EnvelopeParams {
-    state: ServiceState,
+#[from_request(state(ServiceState))]
+pub struct StoreParams {
     meta: RequestMeta,
-    content_type: TypedHeader<headers::ContentType>,
+    #[from_request(via(TypedHeader))]
+    content_type: headers::ContentType, // TODO(ja): This may be too strict. Check past PRs, I think we need to use String here.
     body: Bytes,
 }
 
-impl EnvelopeParams {
+impl StoreParams {
     /// Parses a full `Envelope` request body.
     fn parse_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         // Use `parse_request` here to ensure that we're merging available request headers into the
@@ -37,8 +36,8 @@ impl EnvelopeParams {
     }
 
     /// Parses a JSON event body into an `Envelope`.
-    fn parse_event(mut self, content_type: ContentType) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { body, meta, .. } = self;
+    fn parse_event(self, content_type: ContentType) -> Result<Box<Envelope>, BadStoreRequest> {
+        let Self { mut body, meta, .. } = self;
 
         // Python clients are well known to send crappy JSON in the Sentry world.  The reason
         // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
@@ -51,9 +50,9 @@ impl EnvelopeParams {
         });
 
         if is_legacy_python_json {
-            let mut data_mut = BytesMut::from(body);
+            let mut data_mut = body.to_vec();
             json_forensics::translate_slice(&mut data_mut[..]);
-            body = data_mut.freeze();
+            body = data_mut.into();
         }
 
         // Ensure that the event has a UUID. It will be returned from this message and from the
@@ -75,7 +74,7 @@ impl EnvelopeParams {
         Ok(envelope)
     }
 
-    async fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         // TODO(ja): Limit content size
         // let max_payload_size = state.config().max_event_size();
         // let data = body::store_body(request, max_payload_size).await?;
@@ -85,7 +84,7 @@ impl EnvelopeParams {
         }
 
         // If the content type is missing, assume "application/json".
-        let content_type = match self.content_type {
+        let content_type = match self.content_type.to_string() {
             content_type if content_type.is_empty() => ContentType::Json,
             content_type => ContentType::from(content_type),
         };
@@ -109,12 +108,12 @@ struct StoreResponse {
 /// `handle_store_event` is an adaptor for `store_event` which cannot
 /// be used directly as a request handler since not all of its arguments
 /// implement the FromRequest trait.
-async fn store_event(
+pub async fn handle(
+    state: ServiceState,
     method: Method,
-    envelope: EnvelopeParams,
+    params: StoreParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    let state = envelope.state.clone();
-    let envelope = envelope.extract_envelope().await?;
+    let envelope = params.extract_envelope()?;
     let id = common::handle_envelope(&state, envelope).await?;
 
     Ok(match method {
@@ -147,21 +146,3 @@ async fn store_event(
 //         })
 //         .register()
 // }
-
-pub fn routes() -> Router<ServiceState> {
-    Router::new()
-        // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
-        // in their URL handling. Since actix does not normalize such paths, allow any number of
-        // slashes. The trailing slash can also be omitted, optionally.
-        // r.name("store-default");
-        .route(
-            "/api/:project_id/store/",
-            post(store_event).get(store_event),
-        )
-        // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
-        // will use `ProjectKeyLookup` to map the public key to a project id before handling the
-        // request.
-        // r.name("store-legacy");
-        .route("/api/store/", post(store_event).get(store_event))
-        .route_layer(common::cors())
-}

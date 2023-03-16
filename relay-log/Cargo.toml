@@ -16,7 +16,7 @@ console = { version = "0.15.5", optional = true }
 env_logger = { version = "0.10.0", optional = true }
 log = { version = "0.4.11", features = ["serde"] }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.30.0", features = ["debug-images", "log"], optional = true }
+sentry = { version = "0.30.0", features = ["debug-images", "log", "tower"], optional = true }
 sentry-core = { version = "0.30.0" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }

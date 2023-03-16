@@ -93,7 +93,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 }
 
 /// Server state.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
@@ -214,7 +214,7 @@ impl ServiceState {
 impl FromRequestParts<Self> for ServiceState {
     type Rejection = Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, state: &Self) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(_: &mut Parts, state: &Self) -> Result<Self, Self::Rejection> {
         Ok(state.clone())
     }
 }

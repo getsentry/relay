@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use axum::extract::Query;
-use axum::response::Result;
-use axum::routing::post;
-use axum::{Json, Router};
+use axum::response::{IntoResponse, Result};
+use axum::Json;
 use futures::future;
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
@@ -28,7 +27,7 @@ const ENDPOINT_V3: u16 = 3;
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
-struct VersionQuery {
+pub struct VersionQuery {
     #[serde(default)]
     version: u16,
 }
@@ -106,7 +105,7 @@ struct GetProjectStatesResponseWrapper {
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetProjectStatesRequest {
+pub struct GetProjectStatesRequest {
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
     #[serde(default)]
     full_config: bool,
@@ -114,10 +113,10 @@ struct GetProjectStatesRequest {
     no_cache: bool,
 }
 
-async fn get_project_configs(
+pub async fn handle(
     Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
-) -> Result<Json<GetProjectStatesResponseWrapper>> {
+) -> Result<impl IntoResponse> {
     let SignedJson { inner, relay } = body;
 
     let no_cache = inner.no_cache;
@@ -185,11 +184,5 @@ async fn get_project_configs(
 //     })
 // }
 
-pub fn routes<S>() -> Router<S> {
-    // TODO(ja): Check version predicate.
-    // TODO(ja): forward if version is incompatible.
-    // r.name("relay-projectconfigs");
-    Router::new()
-        .route("/api/0/relays/projectconfigs/", post(get_project_configs))
-        .with_state(())
-}
+// TODO(ja): Check version predicate.
+// TODO(ja): forward if version is incompatible.

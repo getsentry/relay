@@ -1,21 +1,13 @@
 use axum::extract::rejection::BytesRejection;
 use axum::extract::FromRequest;
-use axum::http::header::AsHeaderName;
 use axum::http::{Request, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::{BoxError, RequestExt};
 use bytes::Bytes;
-use futures::{FutureExt, TryFutureExt};
 use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
-use relay_log::Hub;
-use relay_system::SendError;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
 
 use crate::actors::relays::{GetRelay, RelayCache};
-use crate::body;
-use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
 /// Maximum size of a JSON request body.
@@ -97,11 +89,8 @@ where
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
 
-        // TODO(ja): Integrate with Sentry hub.
-        // Hub::from_request(&request).configure_scope(|scope| {
-        //     // Dump out header value even if not string
-        //     scope.set_tag("relay_id", relay_id.to_string());
-        // });
+        // Dump out header value even if not string
+        relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id.to_string()));
 
         let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 

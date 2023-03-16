@@ -164,6 +164,7 @@ dependencies = [
  "matchit",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "rustversion",
@@ -2027,6 +2028,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "multer"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ed4198ce7a4cbd2a57af78d28c6fbb57d81ac5f1d6ad79ac6c5587419cbdf22"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http",
+ "httparse",
+ "log",
+ "memchr",
+ "mime",
+ "spin",
+ "version_check",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3104,6 +3123,7 @@ dependencies = [
  "json-forensics",
  "libc",
  "minidump",
+ "multer",
  "once_cell",
  "parking_lot",
  "regex",
@@ -3139,6 +3159,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-native-tls",
+ "tower",
  "tower-http",
  "url",
  "zstd",
@@ -3451,6 +3472,7 @@ dependencies = [
  "sentry-debug-images",
  "sentry-log",
  "sentry-panic",
+ "sentry-tower",
  "tokio",
  "ureq",
 ]
@@ -3534,6 +3556,17 @@ dependencies = [
  "lazy_static",
  "regex",
  "serde",
+]
+
+[[package]]
+name = "sentry-tower"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cc8fbfebf7c3bec6dc4bdac677028ae8663fc720a7e1ffa5a3969a0928aed36"
+dependencies = [
+ "sentry-core",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
@@ -3784,6 +3817,12 @@ dependencies = [
  "libc",
  "winapi",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5d6e0250b93c8427a177b849d144a96d5acc57006149479403d7861ab721e34"
 
 [[package]]
 name = "stable_deref_trait"

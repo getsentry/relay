@@ -11,7 +11,7 @@
 use std::io;
 
 use relay_config::HttpEncoding;
-#[doc(inline)]
+use reqwest::header::{HeaderMap, HeaderValue};
 pub use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 
@@ -130,12 +130,8 @@ impl Response {
             .collect()
     }
 
-    pub fn clone_headers(&self) -> Vec<(String, Vec<u8>)> {
-        self.0
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
-            .collect()
+    pub fn headers(&self) -> &HeaderMap<HeaderValue> {
+        self.0.headers()
     }
 
     pub async fn bytes(self, limit: usize) -> Result<Vec<u8>, HttpError> {

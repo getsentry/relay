@@ -10,6 +10,10 @@ use axum::Extension;
 pub struct StartTime(Instant);
 
 impl StartTime {
+    pub fn now() -> Self {
+        Self(Instant::now())
+    }
+
     /// Returns the `Instant` of this start time.
     #[inline]
     pub fn into_inner(self) -> Instant {
@@ -17,6 +21,7 @@ impl StartTime {
     }
 }
 
+// TODO(ja): Derive instead, but that requires to handle errors.
 #[axum::async_trait]
 impl<S> FromRequestParts<S> for StartTime
 where

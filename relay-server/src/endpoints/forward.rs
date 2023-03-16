@@ -8,25 +8,19 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use actix::ResponseFuture;
-use actix_web::error::{ParseError, ResponseError};
-use actix_web::http::header::{self, HeaderName, HeaderValue};
-use actix_web::http::uri::PathAndQuery;
-use actix_web::http::{HeaderMap, StatusCode};
-use actix_web::{App, Error, HttpMessage, HttpRequest, HttpResponse};
 use axum::body::Bytes;
-use futures::TryFutureExt;
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
+use axum::response::IntoResponse;
 use once_cell::sync::Lazy;
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;
 use relay_log::LogError;
 use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::RecvError;
 
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-use crate::body;
-use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::ServiceState;
@@ -60,29 +54,35 @@ enum SpecialRoute {
 /// conversion logic is really only acceptable for blindly forwarded requests.
 #[derive(Debug, thiserror::Error)]
 #[error("error while forwarding request: {0}")]
-struct ForwardedUpstreamRequestError(#[from] UpstreamRequestError);
+pub struct ForwardError(#[from] UpstreamRequestError);
 
-impl ResponseError for ForwardedUpstreamRequestError {
-    fn error_response(&self) -> HttpResponse {
+impl From<RecvError> for ForwardError {
+    fn from(_: RecvError) -> Self {
+        Self(UpstreamRequestError::ChannelClosed)
+    }
+}
+
+impl IntoResponse for ForwardError {
+    fn into_response(self) -> axum::response::Response {
         match &self.0 {
             UpstreamRequestError::Http(e) => match e {
-                HttpError::Overflow => HttpResponse::PayloadTooLarge().finish(),
+                HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
                 HttpError::Reqwest(error) => {
                     relay_log::error!("{}", LogError(error));
-                    HttpResponse::new(
-                        StatusCode::from_u16(error.status().map(|x| x.as_u16()).unwrap_or(500))
-                            .unwrap(),
-                    )
+                    error
+                        .status()
+                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+                        .into_response()
                 }
-                HttpError::Io(_) => HttpResponse::BadGateway().finish(),
-                HttpError::Json(e) => e.error_response(),
-                HttpError::NoCredentials => HttpResponse::InternalServerError().finish(),
+                HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
+                HttpError::Json(e) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::NoCredentials => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
-                    HttpResponse::GatewayTimeout().finish()
+                    StatusCode::GATEWAY_TIMEOUT.into_response()
                 } else {
-                    HttpResponse::BadGateway().finish()
+                    StatusCode::BAD_GATEWAY.into_response()
                 }
             }
             e => {
@@ -91,7 +91,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
                     "supposedly unreachable codepath for forward endpoint: {}",
                     LogError(e)
                 );
-                HttpResponse::InternalServerError().finish()
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
         }
     }
@@ -126,8 +126,7 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
     }
 }
 
-type Headers = Vec<(String, Vec<u8>)>;
-type ForwardResponse = (StatusCode, Headers, Vec<u8>);
+type ForwardResponse = (StatusCode, HeaderMap<HeaderValue>, Vec<u8>);
 
 struct ForwardRequest {
     method: Method,
@@ -202,8 +201,13 @@ impl UpstreamRequest for ForwardRequest {
         Box::pin(async move {
             let result = match result {
                 Ok(response) => {
-                    let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
-                    let headers = response.clone_headers();
+                    let status = response.status();
+                    let headers = response
+                        .headers()
+                        .iter()
+                        .filter(|(name, _)| !HOP_BY_HOP_HEADERS.contains(name))
+                        .map(|(name, value)| (name.clone(), value.clone()))
+                        .collect();
 
                     match response.bytes(self.max_response_size).await {
                         Ok(body) => Ok((status, headers, body)),
@@ -223,82 +227,33 @@ impl UpstreamRequest for ForwardRequest {
 /// This endpoint will create a proxy request to the upstream for every incoming request and stream
 /// the request body back to the origin. Regardless of the incoming connection, the connection to
 /// the upstream uses its own HTTP version and transfer encoding.
-async fn forward_upstream(request: HttpRequest<ServiceState>) -> Result<HttpResponse, Error> {
-    let path_and_query = request
-        .uri()
-        .path_and_query()
-        .map(PathAndQuery::as_str)
-        .unwrap_or("")
-        .to_owned();
+#[axum::debug_handler(state = ServiceState)]
+pub async fn handle(
+    state: ServiceState,
+    forwarded_for: ForwardedFor,
+    method: Method,
+    uri: Uri,
+    headers: HeaderMap<HeaderValue>,
+    data: Bytes,
+) -> Result<impl IntoResponse, ForwardError> {
+    let (tx, rx) = oneshot::channel();
 
-    let Ok(method) = Method::from_bytes(request.method().as_ref().as_bytes()) else {
-        return Err(ParseError::Method.into());
+    let request = ForwardRequest {
+        method,
+        path: uri.to_string(), // TODO(ja): check that Uri is relative
+        headers,
+        forwarded_for,
+        data,
+        max_response_size: state.config().max_api_payload_size(),
+        sender: tx,
     };
 
-    let config = request.state().config();
-    let limit = get_limit_for_path(request.path(), config);
-    let data = body::request_body(&request, limit).await?;
+    UpstreamRelay::from_registry().send(SendRequest(request));
+    let (status, headers, body) = rx.await??;
 
-    let (tx, rx) = oneshot::channel();
-    UpstreamRelay::from_registry().send(SendRequest(ForwardRequest {
-        method,
-        path: path_and_query,
-        headers: request.headers().clone(),
-        forwarded_for: ForwardedFor::from(&request),
-        data,
-        max_response_size: config.max_api_payload_size(),
-        sender: tx,
-    }));
-
-    let (status, headers, body) = rx
-        .await
-        .map_err(|_| ForwardedUpstreamRequestError(UpstreamRequestError::ChannelClosed))?
-        .map_err(ForwardedUpstreamRequestError)?;
-
-    let mut forwarded_response = HttpResponse::build(status);
-    let mut has_content_type = false;
-
-    for (key, value) in headers {
-        if key == "content-type" {
-            has_content_type = true;
-        }
-
-        // 2. Just pass content-length, content-encoding etc through
-        if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
-            continue;
-        }
-
-        forwarded_response.header(&key, &*value);
-    }
-
-    // For reqwest the option to disable automatic response decompression can only be
-    // set per-client. For non-forwarded upstream requests that is desirable, so we
-    // keep it enabled.
-    //
-    // Essentially this means that content negotiation is done twice, and the response
-    // body is first decompressed by reqwest, then re-compressed by actix-web.
-
-    Ok(if has_content_type {
-        forwarded_response.body(body)
+    Ok(if headers.iter().any(|(name, _)| name == "content-type") {
+        (status, headers, body)
     } else {
-        forwarded_response.finish()
+        (status, headers, Vec::new())
     })
-}
-
-pub fn forward_compat(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
-    Box::new(Box::pin(forward_upstream(request.clone())).compat())
-}
-
-/// Registers this endpoint in the actix-web app.
-///
-/// NOTE: This endpoint registers a catch-all handler on `/api`. Register this endpoint last, since
-/// no routes can be registered afterwards!
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    // We only forward API requests so that relays cannot be used to surf sentry's frontend. The
-    // "/api/" path is special as it is actually a web UI endpoint.
-    app.resource("/api/", |r| {
-        r.name("api-root");
-        r.f(statics::not_found)
-    })
-    .handler("/api", forward_compat)
 }
