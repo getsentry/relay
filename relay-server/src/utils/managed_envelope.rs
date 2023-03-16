@@ -55,7 +55,7 @@ pub enum RetainItem {
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
 ///
-/// The envelope context accompanies envelopes through the processing pipeline in Relay and ensures
+/// The managed envelope accompanies envelopes through the processing pipeline in Relay and ensures
 /// that outcomes are recorded when the Envelope is dropped. They can be dropped in one of three
 /// ways:
 ///
@@ -63,13 +63,13 @@ pub enum RetainItem {
 ///    another service, and no further outcomes need to be recorded.
 ///  - By calling [`reject`](Self::reject). The entire envelope was dropped, and the outcome
 ///    specifies the reason.
-///  - By dropping the envelope context. This indicates an issue or a bug and raises the
+///  - By dropping the managed envelope. This indicates an issue or a bug and raises the
 ///    `"internal"` outcome. There should be additional error handling to report an error to Sentry.
 ///
-/// The envelope context also holds a processing queue permit which is used for backpressure
+/// The managed envelope also holds a processing queue permit which is used for backpressure
 /// management. It is automatically reclaimed when the context is dropped along with the envelope.
 #[derive(Debug)]
-pub struct EnvelopeContext {
+pub struct ManagedEnvelope {
     envelope: Box<Envelope>,
     summary: EnvelopeSummary,
     start_time: Instant,
@@ -81,8 +81,8 @@ pub struct EnvelopeContext {
     done: bool,
 }
 
-impl EnvelopeContext {
-    /// Computes an envelope context from the given envelope.
+impl ManagedEnvelope {
+    /// Computes an managed envelope from the given envelope.
     fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -113,9 +113,9 @@ impl EnvelopeContext {
         Self::new_internal(envelope, None)
     }
 
-    /// Computes an envelope context from the given envelope and binds it to the processing queue.
+    /// Computes an managed envelope from the given envelope and binds it to the processing queue.
     ///
-    /// To provide additional scoping, use [`EnvelopeContext::scope`].
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
         Self::new_internal(envelope, Some(slot))
     }
@@ -187,7 +187,7 @@ impl EnvelopeContext {
 
     /// Records an outcome scoped to this envelope's context.
     ///
-    /// This envelope context should be updated using [`update`](Self::update) soon after this
+    /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         let outcome_aggregator = TrackOutcome::from_registry();
@@ -300,7 +300,7 @@ impl EnvelopeContext {
     }
 }
 
-impl Drop for EnvelopeContext {
+impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
     }
