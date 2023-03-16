@@ -253,6 +253,7 @@ OsContext {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
+        // Checks that the '>=' prefix is added.
         assert_eq!(os.version.value().unwrap(), ">=10.15.7");
     }
 
