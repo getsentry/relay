@@ -25,7 +25,7 @@ use crate::actors::upstream::UpstreamRelay;
 
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, EnvelopeContext, GarbageDisposal};
+use crate::utils::{self, GarbageDisposal, ManagedEnvelope};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -102,7 +102,7 @@ impl GetCachedProjectState {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<EnvelopeContext>,
+    pub envelope: Option<ManagedEnvelope>,
     pub rate_limits: RateLimits,
 }
 
@@ -117,12 +117,12 @@ pub struct CheckedEnvelope {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    context: EnvelopeContext,
+    context: ManagedEnvelope,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(context: EnvelopeContext) -> Self {
+    pub fn new(context: ManagedEnvelope) -> Self {
         Self { context }
     }
 }
@@ -140,11 +140,11 @@ impl CheckEnvelope {
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
-    context: EnvelopeContext,
+    context: ManagedEnvelope,
 }
 
 impl ValidateEnvelope {
-    pub fn new(context: EnvelopeContext) -> Self {
+    pub fn new(context: ManagedEnvelope) -> Self {
         Self { context }
     }
 }
@@ -391,14 +391,14 @@ struct ProjectCacheBroker {
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
     /// Index of the buffered project keys.
-    buffer_tx: mpsc::UnboundedSender<EnvelopeContext>,
+    buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
     buffer: Addr<Buffer>,
 }
 
 impl ProjectCacheBroker {
     /// Adds the value to the queue for the provided key.
-    pub fn enqueue(&mut self, key: QueueKey, value: EnvelopeContext) {
+    pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
         self.index.entry(key.sampling_key).or_default().insert(key);
         self.buffer.send(Enqueue::new(key, value));
@@ -578,8 +578,8 @@ impl ProjectCacheBroker {
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
-    fn handle_processing(&mut self, envelope_context: EnvelopeContext) {
-        let project_key = envelope_context.envelope().meta().public_key();
+    fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
+        let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::with_scope(
@@ -600,16 +600,16 @@ impl ProjectCacheBroker {
         // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
         // function returns any error, which will also be ignored here.
         if let Ok(CheckedEnvelope {
-            envelope: Some(envelope_context),
+            envelope: Some(managed_envelope),
             ..
-        }) = project.check_envelope(envelope_context)
+        }) = project.check_envelope(managed_envelope)
         {
-            let sampling_state = utils::get_sampling_key(envelope_context.envelope())
+            let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 
             let mut process = ProcessEnvelope {
-                envelope_context,
+                envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
             };

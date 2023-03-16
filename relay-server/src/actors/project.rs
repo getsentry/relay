@@ -26,7 +26,7 @@ use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate}
 use crate::extractors::RequestMeta;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
+use crate::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -717,19 +717,17 @@ impl Project {
     /// pipeline.
     pub fn check_envelope(
         &mut self,
-        mut envelope_context: EnvelopeContext,
+        mut envelope: ManagedEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
-        let mut scoping = envelope_context.scoping();
+        let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope_context.envelope().meta());
-            envelope_context.scope(scoping);
+            scoping = state.scope_request(envelope.envelope().meta());
+            envelope.scope(scoping);
 
-            if let Err(reason) =
-                state.check_request(envelope_context.envelope().meta(), &self.config)
-            {
-                envelope_context.reject(Outcome::Invalid(reason));
+            if let Err(reason) = state.check_request(envelope.envelope().meta(), &self.config) {
+                envelope.reject(Outcome::Invalid(reason));
                 return Err(reason);
             }
         }
@@ -743,16 +741,16 @@ impl Project {
         });
 
         let (enforcement, rate_limits) =
-            envelope_limiter.enforce(envelope_context.envelope_mut(), &scoping)?;
-        enforcement.track_outcomes(envelope_context.envelope(), &scoping);
-        envelope_context.update();
+            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
+        enforcement.track_outcomes(envelope.envelope(), &scoping);
+        envelope.update();
 
-        let envelope = if envelope_context.envelope().is_empty() {
+        let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above
-            envelope_context.reject(Outcome::RateLimited(None));
+            envelope.reject(Outcome::RateLimited(None));
             None
         } else {
-            Some(envelope_context)
+            Some(envelope)
         };
 
         Ok(CheckedEnvelope {

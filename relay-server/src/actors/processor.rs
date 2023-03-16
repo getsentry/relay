@@ -62,7 +62,7 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ManagedEnvelope,
     SamplingResult,
 };
 
@@ -302,19 +302,19 @@ struct ProcessEnvelopeState {
     /// ID.
     project_id: ProjectId,
 
-    /// The envelope context before processing.
-    envelope_context: EnvelopeContext,
+    /// The managed envelope before processing.
+    managed_envelope: ManagedEnvelope,
 }
 
 impl ProcessEnvelopeState {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
-        self.envelope_context.envelope()
+        self.managed_envelope.envelope()
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].
     fn envelope_mut(&mut self) -> &mut Envelope {
-        self.envelope_context.envelope_mut()
+        self.managed_envelope.envelope_mut()
     }
 
     /// Returns whether any item in the envelope creates an event in any relay.
@@ -405,7 +405,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<EnvelopeContext>,
+    pub envelope: Option<ManagedEnvelope>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -419,7 +419,7 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
-    pub envelope_context: EnvelopeContext,
+    pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
 }
@@ -808,10 +808,10 @@ impl EnvelopeProcessorService {
     /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.envelope_context.received_at();
+        let received = state.managed_envelope.received_at();
         let extracted_metrics = &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
-        let envelope = state.envelope_context.envelope_mut();
+        let envelope = state.managed_envelope.envelope_mut();
         let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
 
@@ -895,7 +895,7 @@ impl EnvelopeProcessorService {
 
         let mut timestamp = None;
         let mut output_events = BTreeMap::new();
-        let received = state.envelope_context.received_at();
+        let received = state.managed_envelope.received_at();
 
         let clock_drift_processor = ClockDriftProcessor::new(state.envelope().sent_at(), received)
             .at_least(MINIMUM_CLOCK_DRIFT);
@@ -1011,7 +1011,7 @@ impl EnvelopeProcessorService {
                 // now that the timestamp can be parsed, but just incase we fallback to UTC current
                 // `DateTime`.
                 timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
-                scoping: state.envelope_context.scoping(),
+                scoping: state.managed_envelope.scoping(),
                 outcome,
                 event_id: None,
                 remote_addr: None, // omitting the client address allows for better aggregation
@@ -1056,7 +1056,7 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let mut outcomes = vec![];
-        let envelope = state.envelope_context.envelope_mut();
+        let envelope = state.managed_envelope.envelope_mut();
         envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
                 Ok((profile_id, payload)) => {
@@ -1118,7 +1118,7 @@ impl EnvelopeProcessorService {
         });
         for (outcome, category, quantity) in outcomes {
             state
-                .envelope_context
+                .managed_envelope
                 .track_outcome(outcome, category, quantity);
         }
     }
@@ -1149,7 +1149,7 @@ impl EnvelopeProcessorService {
         };
 
         let mut outcomes = vec![];
-        let envelope = state.envelope_context.envelope_mut();
+        let envelope = state.managed_envelope.envelope_mut();
         envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
@@ -1234,7 +1234,7 @@ impl EnvelopeProcessorService {
 
         for (outcome, category, quantity) in outcomes {
             state
-                .envelope_context
+                .managed_envelope
                 .track_outcome(outcome, category, quantity);
         }
 
@@ -1286,12 +1286,12 @@ impl EnvelopeProcessorService {
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeState, ProcessingError> {
         let ProcessEnvelope {
-            mut envelope_context,
+            envelope: mut managed_envelope,
             project_state,
             sampling_project_state,
         } = message;
 
-        let envelope = envelope_context.envelope_mut();
+        let envelope = managed_envelope.envelope_mut();
 
         // Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
@@ -1311,7 +1311,7 @@ impl EnvelopeProcessorService {
         {
             Some(project_id) => project_id,
             None => {
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal));
                 return Err(ProcessingError::MissingProjectId);
             }
         };
@@ -1332,7 +1332,7 @@ impl EnvelopeProcessorService {
             project_state,
             sampling_project_state,
             project_id,
-            envelope_context,
+            managed_envelope,
         })
     }
 
@@ -1696,7 +1696,7 @@ impl EnvelopeProcessorService {
     /// If there was no event payload prior to this function, it is created.
     #[cfg(feature = "processing")]
     fn process_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        utils::process_unreal_envelope(&mut state.event, state.envelope_context.envelope_mut())
+        utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
             .map_err(ProcessingError::InvalidUnrealReport)
     }
 
@@ -1708,7 +1708,7 @@ impl EnvelopeProcessorService {
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
     fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.envelope_context.envelope();
+        let envelope = state.managed_envelope.envelope();
         let minidump_attachment =
             envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
         let apple_crash_report_attachment = envelope
@@ -1727,7 +1727,7 @@ impl EnvelopeProcessorService {
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let is_transaction = state.event_type() == Some(EventType::Transaction);
-        let envelope = state.envelope_context.envelope_mut();
+        let envelope = state.managed_envelope.envelope_mut();
 
         let event = match state.event.value_mut() {
             Some(event) => event,
@@ -1832,7 +1832,7 @@ impl EnvelopeProcessorService {
             None => None,
         };
 
-        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.received_at())
+        let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -1841,7 +1841,7 @@ impl EnvelopeProcessorService {
         // store processing, which could modify the timestamp if it exceeds a threshold. We are
         // interested in the actual delay before this correction.
         if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            let event_delay = state.envelope_context.received_at() - timestamp.into_inner();
+            let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
             if event_delay > SignedDuration::minutes(1) {
                 let category = state.event_category().unwrap_or(DataCategory::Unknown);
                 metric!(
@@ -1859,7 +1859,7 @@ impl EnvelopeProcessorService {
         let ProcessEnvelopeState {
             ref mut event,
             ref project_state,
-            ref envelope_context,
+            ref managed_envelope,
             ..
         } = *state;
 
@@ -1867,7 +1867,7 @@ impl EnvelopeProcessorService {
             .get_public_key_config()
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
-        let envelope = state.envelope_context.envelope();
+        let envelope = state.managed_envelope.envelope();
 
         if key_id.is_none() {
             relay_log::error!(
@@ -1891,7 +1891,7 @@ impl EnvelopeProcessorService {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(envelope_context.received_at()),
+            received_at: Some(managed_envelope.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
@@ -1954,12 +1954,12 @@ impl EnvelopeProcessorService {
             None => return Ok(()),
         };
 
-        let client_ip = state.envelope_context.envelope().meta().client_addr();
+        let client_ip = state.managed_envelope.envelope().meta().client_addr();
         let filter_settings = &state.project_state.config.filter_settings;
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.envelope_context.reject(Outcome::Filtered(err));
+                state.managed_envelope.reject(Outcome::Filtered(err));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -1993,9 +1993,9 @@ impl EnvelopeProcessorService {
             envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
         }
 
-        let scoping = state.envelope_context.scoping();
+        let scoping = state.managed_envelope.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.envelope_context.envelope_mut(), &scoping)?
+            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
         });
 
         if limits.is_limited() {
@@ -2007,7 +2007,7 @@ impl EnvelopeProcessorService {
             debug_assert!(state.envelope().is_empty());
         }
 
-        enforcement.track_outcomes(state.envelope(), &state.envelope_context.scoping());
+        enforcement.track_outcomes(state.envelope(), &state.managed_envelope.scoping());
 
         Ok(())
     }
@@ -2032,7 +2032,7 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
         let transaction_from_dsc = state
-            .envelope_context
+            .managed_envelope
             .envelope()
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
@@ -2060,7 +2060,7 @@ impl EnvelopeProcessorService {
             result?;
 
             state.transaction_metrics_extracted = true;
-            state.envelope_context.set_event_metrics_extracted();
+            state.managed_envelope.set_event_metrics_extracted();
         }
 
         Ok(())
@@ -2097,7 +2097,7 @@ impl EnvelopeProcessorService {
     /// attachment types. When special attachments are detected, these are scrubbed with custom
     /// logic; otherwise the entire attachment is treated as a single binary blob.
     fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.envelope_context.envelope_mut();
+        let envelope = state.managed_envelope.envelope_mut();
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
                 .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -2184,7 +2184,7 @@ impl EnvelopeProcessorService {
         match std::mem::take(&mut state.sampling_result) {
             SamplingResult::Drop(rule_ids) => {
                 state
-                    .envelope_context
+                    .managed_envelope
                     .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
                 Err(ProcessingError::Sampled(rule_ids))
@@ -2197,7 +2197,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let request_meta = state.envelope_context.envelope().meta();
+        let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let config = LightNormalizationConfig {
@@ -2206,7 +2206,7 @@ impl EnvelopeProcessorService {
                 user_agent: request_meta.user_agent(),
                 client_hints: request_meta.client_hints().as_deref(),
             },
-            received_at: Some(state.envelope_context.received_at()),
+            received_at: Some(state.managed_envelope.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             measurements_config: state.project_state.config.measurements.as_ref(),
@@ -2319,24 +2319,24 @@ impl EnvelopeProcessorService {
                     Ok(()) => {
                         // The envelope could be modified or even emptied during processing, which
                         // requires recomputation of the context.
-                        state.envelope_context.update();
+                        state.managed_envelope.update();
 
                         let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
                         state
                             .extracted_metrics
-                            .send_metrics(state.envelope_context.envelope());
+                            .send_metrics(state.managed_envelope.envelope());
 
-                        let envelope_response = if state.envelope_context.envelope().is_empty() {
+                        let envelope_response = if state.managed_envelope.envelope().is_empty() {
                             if !has_metrics {
                                 // Individual rate limits have already been issued
-                                state.envelope_context.reject(Outcome::RateLimited(None));
+                                state.managed_envelope.reject(Outcome::RateLimited(None));
                             } else {
-                                state.envelope_context.accept();
+                                state.managed_envelope.accept();
                             }
                             None
                         } else {
-                            Some(state.envelope_context)
+                            Some(state.managed_envelope)
                         };
 
                         Ok(ProcessEnvelopeResponse {
@@ -2345,13 +2345,13 @@ impl EnvelopeProcessorService {
                     }
                     Err(err) => {
                         if let Some(outcome) = err.to_outcome() {
-                            state.envelope_context.reject(outcome);
+                            state.managed_envelope.reject(outcome);
                         }
 
                         if err.should_keep_metrics() {
                             state
                                 .extracted_metrics
-                                .send_metrics(state.envelope_context.envelope());
+                                .send_metrics(state.managed_envelope.envelope());
                         }
 
                         Err(err)
@@ -2362,8 +2362,8 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_process_envelope(&self, message: ProcessEnvelope) {
-        let project_key = message.envelope_context.envelope().meta().public_key();
-        let wait_time = message.envelope_context.start_time().elapsed();
+        let project_key = message.envelope.envelope().meta().public_key();
+        let wait_time = message.envelope.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
@@ -2372,8 +2372,10 @@ impl EnvelopeProcessorService {
 
         match result {
             Ok(response) => {
-                if let Some(envelope_context) = response.envelope {
-                    EnvelopeManager::from_registry().send(SubmitEnvelope { envelope_context })
+                if let Some(managed_envelope) = response.envelope {
+                    EnvelopeManager::from_registry().send(SubmitEnvelope {
+                        envelope: managed_envelope,
+                    })
                 };
             }
             Err(error) => {
@@ -2770,7 +2772,7 @@ mod tests {
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
-                envelope_context: EnvelopeContext::new(
+                managed_envelope: ManagedEnvelope::new(
                     new_envelope(false, "foo"),
                     TestSemaphore::new(42).try_acquire().unwrap(),
                 ),
@@ -2942,7 +2944,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3014,7 +3016,7 @@ mod tests {
         let mut project_state = ProjectState::allowed();
         project_state.config = config;
         let message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
         };
@@ -3086,7 +3088,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3133,7 +3135,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3189,7 +3191,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
