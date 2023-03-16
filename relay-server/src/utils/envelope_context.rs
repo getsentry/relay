@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use relay_common::DataCategory;
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
-use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
@@ -150,15 +149,7 @@ impl EnvelopeContext {
     ///
     /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
     /// in place and preserves the order of the retained items.
-    pub fn retain_items<F>(&mut self, f: F)
-    where
-        F: FnMut(&mut Item) -> RetainItem,
-    {
-        self.retain_items_custom(f, TrackOutcome::from_registry());
-    }
-
-    /// Like `Self::retain_items`, but with a custom outcome recipient.
-    pub fn retain_items_custom<F>(&mut self, mut f: F, outcome_recipient: Addr<TrackOutcome>)
+    pub fn retain_items<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Item) -> RetainItem,
     {
@@ -172,7 +163,7 @@ impl EnvelopeContext {
             RetainItem::DropSilently => false,
         });
         for (outcome, category, quantity) in outcomes {
-            self.track_outcome(outcome, category, quantity, outcome_recipient.clone());
+            self.track_outcome(outcome, category, quantity);
         }
         // TODO: once `update` is private, it should be called here.
     }
@@ -197,14 +188,9 @@ impl EnvelopeContext {
     ///
     /// This envelope context should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    fn track_outcome(
-        &self,
-        outcome: Outcome,
-        category: DataCategory,
-        quantity: usize,
-        outcome_recipient: Addr<TrackOutcome>,
-    ) {
-        outcome_recipient.send(TrackOutcome {
+    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+        let outcome_aggregator = TrackOutcome::from_registry();
+        outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
             scoping: self.scoping,
             outcome,
@@ -261,7 +247,7 @@ impl EnvelopeContext {
         TestStore::from_registry().send(Capture::rejected(self.event_id, &outcome));
 
         if let Some(category) = self.event_category() {
-            self.track_outcome(outcome.clone(), category, 1, TrackOutcome::from_registry());
+            self.track_outcome(outcome.clone(), category, 1);
         }
 
         if self.summary.attachment_quantity > 0 {
@@ -269,7 +255,6 @@ impl EnvelopeContext {
                 outcome.clone(),
                 DataCategory::Attachment,
                 self.summary.attachment_quantity,
-                TrackOutcome::from_registry(),
             );
         }
 
@@ -278,7 +263,6 @@ impl EnvelopeContext {
                 outcome,
                 DataCategory::Profile,
                 self.summary.profile_quantity,
-                TrackOutcome::from_registry(),
             );
         }
 

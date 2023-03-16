@@ -717,20 +717,6 @@ pub struct Addr<I: Interface> {
 }
 
 impl<I: Interface> Addr<I> {
-    /// Create an [`Addr`] with an exposed receiver.
-    ///
-    /// Useful for tests.
-    pub fn custom() -> (Self, mpsc::UnboundedReceiver<I>) {
-        let (tx, rx) = mpsc::unbounded_channel();
-        (
-            Self {
-                tx,
-                queue_size: Default::default(),
-            },
-            rx,
-        )
-    }
-
     /// Sends a message to the service and returns the response.
     ///
     /// Depending on the message's response behavior, this either returns a future resolving to the
