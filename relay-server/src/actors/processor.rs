@@ -1994,8 +1994,6 @@ impl EnvelopeProcessorService {
             debug_assert!(state.envelope().is_empty());
         }
 
-        // enforcement.track_outcomes(state.envelope(), &state.envelope_context.scoping());
-
         Ok(())
     }
 

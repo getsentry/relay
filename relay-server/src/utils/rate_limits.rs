@@ -555,29 +555,18 @@ where
 
     fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> RetainItem {
         // Remove event items and all items that depend on this event
-        let limit = &enforcement.event;
         if enforcement.event.is_active() && item.requires_event() {
-            // FIXME: This is a bug, we don't want to log an outcome for every item dropped.
-            return RetainItem::Drop(
-                Outcome::RateLimited(limit.reason_code.clone()),
-                limit.category,
-                limit.quantity,
-            );
+            return RetainItem::DropSilently; // Handled by track_event_outcomes.
         }
 
         // Remove attachments, except those required for processing
-        let limit = &enforcement.attachments;
-        if limit.is_active() && item.ty() == &ItemType::Attachment {
+        if enforcement.attachments.is_active() && item.ty() == &ItemType::Attachment {
             if item.creates_event() {
                 item.set_rate_limited(true);
                 return RetainItem::Keep;
             }
 
-            return RetainItem::Drop(
-                Outcome::RateLimited(limit.reason_code.clone()),
-                limit.category,
-                limit.quantity,
-            );
+            return RetainItem::DropSilently; // Handled by track_event_outcomes.
         }
 
         // Remove sessions independently of events
@@ -597,7 +586,7 @@ where
 
         // Remove replays independently of events.
         let limit = &enforcement.replays;
-        if enforcement.replays.is_active()
+        if limit.is_active()
             && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
         {
             return RetainItem::Drop(
