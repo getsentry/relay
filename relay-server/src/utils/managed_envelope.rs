@@ -105,7 +105,7 @@ impl ManagedEnvelope {
 
     /// Computes an managed envelope from the given envelope and binds it to the processing queue.
     ///
-    /// To provide additional scoping, use [`EnvelopeContext::scope`].
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
         Self::new_internal(envelope, Some(slot))
     }
