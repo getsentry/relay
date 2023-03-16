@@ -8,7 +8,6 @@ use relay_quotas::{
 };
 
 use crate::actors::outcome::Outcome;
-#[cfg(test)] // TODO: remove
 use crate::actors::outcome::TrackOutcome;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::utils::{EnvelopeContext, RetainItem};
@@ -276,7 +275,6 @@ impl Enforcement {
         self.event.is_active()
     }
 
-    /// Helper for `track_outcomes`.
     #[cfg(test)] // TODO: remove function
     fn get_outcomes(
         self,
@@ -321,6 +319,23 @@ impl Enforcement {
                 // and data store we're limited to u32.
                 quantity: limit.quantity as u32,
             })
+    }
+
+    fn track_outcome_for_event(&self, envelope_context: &EnvelopeContext) {
+        let envelope = envelope_context.envelope();
+        let limit = &self.event;
+
+        TrackOutcome::from_registry().send(TrackOutcome {
+            timestamp: relay_common::instant_to_date_time(envelope.meta().start_time()),
+            scoping: envelope_context.scoping(),
+            outcome: Outcome::RateLimited(limit.reason_code.clone()),
+            event_id: envelope.event_id(),
+            remote_addr: envelope.meta().remote_addr(),
+            category: limit.category,
+            // XXX: on the limiter we have quantity of usize, but in the protocol
+            // and data store we're limited to u32.
+            quantity: limit.quantity as u32,
+        })
     }
 }
 
@@ -419,6 +434,13 @@ where
 
         let (enforcement, rate_limits) = self.execute(&summary, &envelope_context.scoping())?;
         envelope_context.retain_items(|item| self.retain_item(item, &enforcement));
+
+        // Outcomes have been tracked by `retain_items` above, except for the event, which has been
+        // removed in an earlier stage of the pipeline.
+        if enforcement.event_active() {
+            enforcement.track_outcome_for_event(envelope_context);
+        }
+
         Ok((enforcement, rate_limits))
     }
 
