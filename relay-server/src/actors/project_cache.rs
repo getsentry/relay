@@ -182,6 +182,7 @@ impl UpdateRateLimits {
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
+    RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
     CheckEnvelope(
@@ -202,6 +203,14 @@ impl ProjectCache {
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<RequestUpdate> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: RequestUpdate, _: ()) -> Self {
+        Self::RequestUpdate(message)
+    }
+}
 
 impl FromMessage<GetProjectState> for ProjectCache {
     type Response = relay_system::BroadcastResponse<Arc<ProjectState>>;
@@ -381,6 +390,7 @@ struct ProjectCacheBroker {
     aggregator: mpsc::UnboundedSender<Aggregator>,
     envelope_processor: Addr<EnvelopeProcessor>,
     envelope_manager: Addr<EnvelopeManager>,
+    project_cache: Addr<ProjectCache>,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -550,25 +560,18 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get(&mut self, message: GetProjectState, sender: ProjectSender) {
-        let request_update = self
-            .get_or_create_project(message.project_key)
-            .get_state(sender, message.no_cache);
-
-        if let Some(request_update) = request_update {
-            self.handle_request_update(request_update)
-        }
+        let project_cache = self.project_cache.clone();
+        self.get_or_create_project(message.project_key).get_state(
+            project_cache,
+            sender,
+            message.no_cache,
+        );
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
-        let (state, request_update) = self
-            .get_or_create_project(message.project_key)
-            .get_cached_state(false);
-
-        if let Some(request_update) = request_update {
-            self.handle_request_update(request_update);
-        }
-
-        state
+        let project_cache = self.project_cache.clone();
+        self.get_or_create_project(message.project_key)
+            .get_cached_state(project_cache, false)
     }
 
     fn handle_check_envelope(
@@ -576,19 +579,14 @@ impl ProjectCacheBroker {
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope, context } = message;
+        let project_cache = self.project_cache.clone();
+        let project = self.get_or_create_project(envelope.meta().public_key());
+
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        let request_update = self
-            .get_or_create_project(envelope.meta().public_key())
-            .prefetch(false);
-
-        if let Some(request_update) = request_update {
-            self.handle_request_update(request_update)
-        }
-
-        self.get_or_create_project(envelope.meta().public_key())
-            .check_envelope(envelope, context)
+        project.prefetch(project_cache, false);
+        project.check_envelope(envelope, context)
     }
 
     /// Handles the processing of the provided envelope.
@@ -661,30 +659,21 @@ impl ProjectCacheBroker {
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
         let ValidateEnvelope { envelope, context } = message;
+        let project_cache = self.project_cache.clone();
 
         // Fetch the project state for our key and make sure it's not invalid.
         let own_key = envelope.meta().public_key();
-        let (mut project_state, project_request_update) = self
+        let project_state = self
             .get_or_create_project(own_key)
-            .get_cached_state(envelope.meta().no_cache());
-        project_state = project_state.filter(|st| !st.invalid());
-
-        if let Some(request_update) = project_request_update {
-            self.handle_request_update(request_update);
-        }
+            .get_cached_state(project_cache.clone(), envelope.meta().no_cache())
+            .filter(|st| !st.invalid());
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
         let sampling_key = utils::get_sampling_key(&envelope);
         let sampling_state = sampling_key.and_then(|key| {
-            let (sampling_state, request_update) = self
-                .get_or_create_project(key)
-                .get_cached_state(envelope.meta().no_cache());
-
-            if let Some(request_update) = request_update {
-                self.handle_request_update(request_update)
-            }
-
-            sampling_state.filter(|st| !st.invalid())
+            self.get_or_create_project(key)
+                .get_cached_state(project_cache, envelope.meta().no_cache())
+                .filter(|st| !st.invalid())
         });
 
         // Trigger processing once we have a project state and we either have a sampling project
@@ -718,11 +707,13 @@ impl ProjectCacheBroker {
         let envelope_manager = self.envelope_manager.clone();
         #[cfg(feature = "processing")]
         let envelope_processor = self.envelope_processor.clone();
+        let project_cache = self.project_cache.clone();
 
         self.get_or_create_project(message.project_key)
             .flush_buckets(
                 message.partition_key,
                 message.buckets,
+                project_cache,
                 envelope_manager,
                 #[cfg(feature = "processing")]
                 envelope_processor,
@@ -731,6 +722,7 @@ impl ProjectCacheBroker {
 
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
+            ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {
                 sender.send(self.handle_get_cached(message))
@@ -809,6 +801,7 @@ impl Service for ProjectCacheService {
                 aggregator,
                 envelope_processor,
                 envelope_manager,
+                project_cache: rx.addr(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, upstream_relay, redis),

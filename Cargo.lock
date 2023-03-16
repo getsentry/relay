@@ -3630,6 +3630,7 @@ version = "23.2.0"
 dependencies = [
  "relay-log",
  "relay-system",
+ "tokio 1.25.0",
 ]
 
 [[package]]

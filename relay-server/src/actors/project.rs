@@ -22,7 +22,7 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
-use crate::actors::project_cache::{CheckedEnvelope, RequestUpdate};
+use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -376,8 +376,8 @@ impl StateChannel {
 }
 
 enum GetOrFetch<'a> {
-    Cached(Arc<ProjectState>, Option<RequestUpdate>),
-    Schedule(&'a mut StateChannel, Option<RequestUpdate>),
+    Cached(Arc<ProjectState>),
+    Scheduled(&'a mut StateChannel),
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -534,7 +534,11 @@ impl Project {
     ///
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
-    fn fetch_state(&mut self, no_cache: bool) -> (&mut StateChannel, Option<RequestUpdate>) {
+    fn fetch_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        no_cache: bool,
+    ) -> &mut StateChannel {
         // If there is a running request and we do not need to upgrade it to no_cache, or if the
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
@@ -542,7 +546,6 @@ impl Project {
             && self.can_fetch();
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
-        let mut request_update = None;
 
         if should_fetch {
             channel.no_cache(no_cache);
@@ -551,13 +554,17 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            request_update = Some(RequestUpdate::new(self.project_key, no_cache));
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
         }
 
-        (channel, request_update)
+        channel
     }
 
-    fn get_or_fetch_state(&mut self, mut no_cache: bool) -> GetOrFetch<'_> {
+    fn get_or_fetch_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        mut no_cache: bool,
+    ) -> GetOrFetch<'_> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -579,14 +586,14 @@ impl Project {
             // The project is semi-outdated, fetch new state but return old one.
             ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return GetOrFetch::Cached(state, None),
+            ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
         };
 
-        let (channel, request_update) = self.fetch_state(no_cache);
+        let channel = self.fetch_state(project_cache, no_cache);
 
         match cached_state {
-            Some(state) => GetOrFetch::Cached(state, request_update),
-            None => GetOrFetch::Schedule(channel, request_update),
+            Some(state) => GetOrFetch::Cached(state),
+            None => GetOrFetch::Scheduled(channel),
         }
     }
 
@@ -607,11 +614,12 @@ impl Project {
     /// To wait for a valid state instead, use [`get_state`](Self::get_state).
     pub fn get_cached_state(
         &mut self,
+        project_cache: Addr<ProjectCache>,
         no_cache: bool,
-    ) -> (Option<Arc<ProjectState>>, Option<RequestUpdate>) {
-        match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state, request_update) => (Some(state), request_update),
-            GetOrFetch::Schedule(_, request_update) => (None, request_update),
+    ) -> Option<Arc<ProjectState>> {
+        match self.get_or_fetch_state(project_cache, no_cache) {
+            GetOrFetch::Cached(state) => Some(state),
+            GetOrFetch::Scheduled(_) => None,
         }
     }
 
@@ -623,16 +631,19 @@ impl Project {
     ///
     /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
     /// are in the [grace period](Config::project_grace_period).
-    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) -> Option<RequestUpdate> {
-        match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state, request_update) => {
+    pub fn get_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        sender: ProjectSender,
+        no_cache: bool,
+    ) {
+        match self.get_or_fetch_state(project_cache, no_cache) {
+            GetOrFetch::Cached(state) => {
                 sender.send(state);
-                request_update
             }
 
-            GetOrFetch::Schedule(channel, request_update) => {
+            GetOrFetch::Scheduled(channel) => {
                 channel.inner.attach(sender);
-                request_update
             }
         }
     }
@@ -647,9 +658,8 @@ impl Project {
     /// point. Therefore, this method is useful to trigger an update early if it is already clear
     /// that the project state will be needed soon. To retrieve an updated state, use
     /// [`Project::get_state`] instead.
-    pub fn prefetch(&mut self, no_cache: bool) -> Option<RequestUpdate> {
-        let (_, request_update) = self.get_cached_state(no_cache);
-        request_update
+    pub fn prefetch(&mut self, project_cache: Addr<ProjectCache>, no_cache: bool) {
+        self.get_cached_state(project_cache, no_cache);
     }
 
     /// Replaces the internal project state with a new one and triggers pending actions.
@@ -788,6 +798,7 @@ impl Project {
         &mut self,
         partition_key: Option<u64>,
         buckets: Vec<Bucket>,
+        project_cache: Addr<ProjectCache>,
         envelope_manager: Addr<EnvelopeManager>,
         #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
     ) {
@@ -795,7 +806,7 @@ impl Project {
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        let (Some(project_state), _) = self.get_cached_state(false) else {
+        let Some(project_state) = self.get_cached_state(project_cache, false) else {
             relay_log::trace!("project expired: merging back {} buckets", buckets.len());
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
@@ -856,6 +867,7 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_test::mock_service;
     use serde_json::json;
     use tokio::sync::mpsc;
 
@@ -898,8 +910,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_stale_cache() {
+    #[tokio::test]
+    async fn test_stale_cache() {
+        let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -945,7 +958,7 @@ mod tests {
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
         project.update_state(Arc::new(ProjectState::err()), false);
-        project.fetch_state(false);
+        project.fetch_state(addr, false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
