@@ -955,7 +955,7 @@ impl EnvelopeProcessorService {
                 }
                 Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
             }
-            RetainItem::Keep
+            RetainItem::DropSilently
         });
 
         if output_events.is_empty() {
