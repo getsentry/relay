@@ -10,7 +10,7 @@ use relay_quotas::{
 use crate::actors::outcome::Outcome;
 use crate::actors::outcome::TrackOutcome;
 use crate::envelope::{Envelope, Item, ItemType};
-use crate::utils::{EnvelopeContext, RetainItem};
+use crate::utils::{ManagedEnvelope, RetainItem};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -398,20 +398,20 @@ where
     /// 3. Rate limits are empty.
     pub fn enforce(
         mut self,
-        envelope_context: &mut EnvelopeContext,
+        envelope: &mut ManagedEnvelope,
     ) -> Result<(Enforcement, RateLimits), E> {
-        let mut summary = EnvelopeSummary::compute(envelope_context.envelope());
+        let mut summary = EnvelopeSummary::compute(envelope.envelope());
         if let Some((event_category, metrics_extracted)) = self.event_category {
             summary.event_category = Some(event_category);
             summary.event_metrics_extracted = metrics_extracted;
         }
 
-        let scoping = envelope_context.scoping();
+        let scoping = envelope.scoping();
         let (enforcement, rate_limits) = self.execute(&summary, &scoping)?;
-        envelope_context.retain_items(|item| self.retain_item(item, &enforcement));
+        envelope.retain_items(|item| self.retain_item(item, &enforcement));
 
         // Event-related items have some special cases, so they are tracked separately here.
-        enforcement.track_event_outcomes(envelope_context.envelope(), &scoping);
+        enforcement.track_event_outcomes(envelope.envelope(), &scoping);
 
         Ok((enforcement, rate_limits))
     }
@@ -740,7 +740,7 @@ mod tests {
                 $( item.set_attachment_type(AttachmentType::$attachment_type); )?
                 envelope.add_item(item);
             )*
-            EnvelopeContext::standalone(envelope)
+            ManagedEnvelope::standalone(envelope)
         }}
     }
 

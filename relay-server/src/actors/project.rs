@@ -722,7 +722,7 @@ impl Project {
         let state = self.valid_state().filter(|state| !state.invalid());
 
         if let Some(ref state) = state {
-            let scoping = state.scope_request(envelope_context.envelope().meta());
+            let scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
 
             if let Err(reason) = state.check_request(envelope.envelope().meta(), &self.config) {
@@ -739,7 +739,7 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (_, rate_limits) = envelope_limiter.enforce(&mut envelope_context)?;
+        let (_, rate_limits) = envelope_limiter.enforce(&mut envelope)?;
         envelope.update();
 
         let envelope = if envelope.envelope().is_empty() {
