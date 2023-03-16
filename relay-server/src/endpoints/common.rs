@@ -20,7 +20,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
+    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
 
 /// Error type for all store-like requests.
@@ -273,13 +273,13 @@ pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
-    mut envelope_context: EnvelopeContext,
+    mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
     let mut metric_items = Vec::new();
     let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
-    let envelope = envelope_context.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
     while let Some(item) = envelope.take_item_by(is_metric) {
         metric_items.push(item);
     }
@@ -305,17 +305,17 @@ fn queue_envelope(
         let event_context = buffer_guard.enter(event_envelope)?;
 
         // Update the old context after successful forking.
-        envelope_context.update();
+        managed_envelope.update();
         ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
     }
 
-    if envelope_context.envelope().is_empty() {
+    if managed_envelope.envelope().is_empty() {
         // The envelope can be empty here if it contained only metrics items which were removed
         // above. In this case, the envelope was accepted and needs no further queueing.
-        envelope_context.accept();
+        managed_envelope.accept();
     } else {
         relay_log::trace!("queueing envelope");
-        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(managed_envelope));
     }
 
     Ok(())
@@ -334,37 +334,37 @@ pub async fn handle_envelope(
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
     let buffer_guard = state.buffer_guard();
-    let mut envelope_context = buffer_guard
+    let mut managed_envelope = buffer_guard
         .enter(envelope)
         .map_err(BadStoreRequest::QueueFailed)?;
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
-    utils::remove_unknown_items(state.config(), &mut envelope_context);
+    utils::remove_unknown_items(state.config(), &mut managed_envelope);
 
-    let event_id = envelope_context.envelope().event_id();
-    if envelope_context.envelope().is_empty() {
-        envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
+    let event_id = managed_envelope.envelope().event_id();
+    if managed_envelope.envelope().is_empty() {
+        managed_envelope.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
         return Ok(event_id);
     }
 
     let checked = ProjectCache::from_registry()
-        .send(CheckEnvelope::new(envelope_context))
+        .send(CheckEnvelope::new(managed_envelope))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?
         .map_err(BadStoreRequest::EventRejected)?;
 
-    let Some(mut envelope_context) = checked.envelope else {
+    let Some(mut managed_envelope) = checked.envelope else {
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
-    if !utils::check_envelope_size_limits(state.config(), envelope_context.envelope()) {
-        envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
+    if !utils::check_envelope_size_limits(state.config(), managed_envelope.envelope()) {
+        managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
         return Err(PayloadError::Overflow.into());
     }
 
-    queue_envelope(envelope_context, buffer_guard)?;
+    queue_envelope(managed_envelope, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
         Err(BadStoreRequest::RateLimited(checked.rate_limits))
