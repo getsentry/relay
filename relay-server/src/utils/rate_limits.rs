@@ -171,18 +171,23 @@ impl EnvelopeSummary {
                 continue;
             }
 
-            match item.ty() {
-                ItemType::Attachment => summary.attachment_quantity += item.len().max(1),
-                ItemType::Session => summary.session_quantity += 1,
-                ItemType::Profile => summary.profile_quantity += 1,
-                ItemType::ReplayEvent => summary.replay_quantity += 1,
-                ItemType::ReplayRecording => summary.replay_quantity += 1,
-                ItemType::CheckIn => summary.checkin_quantity += 1,
-                _ => (),
-            }
+            summary.set_quantity(item);
         }
 
         summary
+    }
+
+    fn set_quantity(&mut self, item: &Item) {
+        let target_quantity = &mut match item.ty() {
+            ItemType::Attachment => self.attachment_quantity,
+            ItemType::Session => self.session_quantity,
+            ItemType::Profile => self.profile_quantity,
+            ItemType::ReplayEvent => self.replay_quantity,
+            ItemType::ReplayRecording => self.replay_quantity,
+            ItemType::CheckIn => self.checkin_quantity,
+            _ => return,
+        };
+        *target_quantity += item.quantity()
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].

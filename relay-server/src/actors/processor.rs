@@ -1082,15 +1082,11 @@ impl EnvelopeProcessorService {
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-                        RetainItem::Drop(
-                            Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(
-                                    relay_profiling::ProfileError::ExceedSizeLimit,
-                                ),
-                            )),
-                            DataCategory::Profile,
-                            1,
-                        )
+                        RetainItem::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(
+                                relay_profiling::ProfileError::ExceedSizeLimit,
+                            ),
+                        )))
                     }
                 }
                 Err(err) => {
@@ -1107,13 +1103,9 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    RetainItem::Drop(
-                        Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )),
-                        DataCategory::Profile,
-                        1,
-                    )
+                    RetainItem::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    )))
                 }
             },
             _ => RetainItem::Keep,
@@ -1184,7 +1176,7 @@ impl EnvelopeProcessorService {
                                 DiscardReason::InvalidReplayEvent
                             }
                         };
-                        RetainItem::Drop(Outcome::Invalid(discard_reason), DataCategory::Replay, 1)
+                        RetainItem::Drop(Outcome::Invalid(discard_reason))
                     }
                 }
             }
@@ -1214,11 +1206,9 @@ impl EnvelopeProcessorService {
                     }
                     Err(e) => {
                         relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                        RetainItem::Drop(
-                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                            DataCategory::Replay,
-                            1,
-                        )
+                        RetainItem::Drop(Outcome::Invalid(
+                            DiscardReason::InvalidReplayRecordingEvent,
+                        ))
                     }
                 }
             }

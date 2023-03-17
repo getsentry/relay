@@ -47,7 +47,7 @@ pub enum RetainItem {
     /// Keep the item.
     Keep,
     /// Drop the item and log an outcome for it.
-    Drop(Outcome, DataCategory, usize), // TODO: derive DataCategory and usize from Item
+    Drop(Outcome),
     /// Drop the item without logging an outcome.
     DropSilently,
 }
@@ -148,10 +148,14 @@ impl ManagedEnvelope {
         F: FnMut(&mut Item) -> RetainItem,
     {
         let mut outcomes = vec![];
+        let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             RetainItem::Keep => true,
-            RetainItem::Drop(outcome, category, quantity) => {
-                outcomes.push((outcome, category, quantity));
+            RetainItem::Drop(outcome) => {
+                if let Some(category) = item.outcome_category(use_indexed) {
+                    outcomes.push((outcome, category, item.quantity()));
+                }
+
                 false
             }
             RetainItem::DropSilently => false,
@@ -208,6 +212,16 @@ impl ManagedEnvelope {
         }
     }
 
+    /// Returns `true` if the indexed data category should be used for reporting.
+    ///
+    /// If metrics have been extracted from the event item, we use the indexed category
+    /// (for example, [TransactionIndexed](`DataCategory::TransactionIndexed`)) for reporting
+    /// rate limits and outcomes, because reporting of the main category will be handled by
+    /// the metrics aggregator.
+    fn use_index_category(&self) -> bool {
+        self.context.summary.event_metrics_extracted
+    }
+
     /// Returns the data category of the event item in the envelope.
     ///
     /// If metrics have been extracted from the event item, this will return the indexing category.
@@ -216,9 +230,7 @@ impl ManagedEnvelope {
         let category = self.context.summary.event_category?;
 
         match category.index_category() {
-            Some(index_category) if self.context.summary.event_metrics_extracted => {
-                Some(index_category)
-            }
+            Some(index_category) if self.use_index_category() => Some(index_category),
             _ => Some(category),
         }
     }
