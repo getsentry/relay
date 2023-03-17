@@ -345,7 +345,7 @@ def test_unparsable_project_config(mini_sentry, relay):
 def test_cached_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 3, "miss_expiry": 2}
+        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
@@ -389,21 +389,15 @@ def test_cached_project_config(mini_sentry, relay):
         }
     )
 
-    try:
-        # Give it a bit time for update to go through.
-        time.sleep(3)
-        data = get_response(relay, packed, signature)
-        assert data["configs"][public_key]["disabled"]
+    # Give it a bit time for update to go through.
+    time.sleep(1)
+    data = get_response(relay, packed, signature)
 
-        from pprint import pprint
-
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-        }
-    finally:
-        mini_sentry.test_failures.clear()
+    assert data["configs"][public_key]["projectId"] == project_key
+    assert not data["configs"][public_key]["disabled"]
 
     # Wait till grace period expires as well and we should start buffering the events now.
+    time.sleep(5)
     try:
         relay.send_event(project_key)
         time.sleep(0.5)

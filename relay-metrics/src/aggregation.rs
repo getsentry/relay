@@ -1503,7 +1503,7 @@ pub struct AggregatorService {
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     state: AggregatorState,
     cost_tracker: CostTracker,
-    projects: mpsc::UnboundedReceiver<Aggregator>,
+    projects_rx: mpsc::UnboundedReceiver<Aggregator>,
 }
 
 impl AggregatorService {
@@ -1514,7 +1514,7 @@ impl AggregatorService {
     pub fn new(
         config: AggregatorConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-        projects: mpsc::UnboundedReceiver<Aggregator>,
+        projects_rx: mpsc::UnboundedReceiver<Aggregator>,
     ) -> Self {
         Self {
             config,
@@ -1522,7 +1522,7 @@ impl AggregatorService {
             receiver,
             state: AggregatorState::Running,
             cost_tracker: CostTracker::default(),
-            projects,
+            projects_rx,
         }
     }
 
@@ -1992,7 +1992,7 @@ impl Service for AggregatorService {
 
                     _ = ticker.tick() => self.try_flush(),
                     Some(message) = rx.recv() => self.handle_message(message),
-                    Some(message) = self.projects.recv() => self.handle_message(message),
+                    Some(message) = self.projects_rx.recv() => self.handle_message(message),
                     shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
                     else => break,

@@ -387,7 +387,7 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    aggregator: mpsc::UnboundedSender<Aggregator>,
+    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
     envelope_processor: Addr<EnvelopeProcessor>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
@@ -489,7 +489,7 @@ impl ProjectCacheBroker {
 
         let config = self.config.clone();
 
-        let aggregator = self.aggregator.clone();
+        let aggregator = self.aggregator_tx.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -747,7 +747,7 @@ pub struct ProjectCacheService {
     envelope_manager: Addr<EnvelopeManager>,
     upstream_relay: Addr<UpstreamRelay>,
     redis: Option<RedisPool>,
-    aggregator: mpsc::UnboundedSender<Aggregator>,
+    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
 }
 
 impl ProjectCacheService {
@@ -758,7 +758,7 @@ impl ProjectCacheService {
         envelope_manager: Addr<EnvelopeManager>,
         upstream_relay: Addr<UpstreamRelay>,
         redis: Option<RedisPool>,
-        aggregator: mpsc::UnboundedSender<Aggregator>,
+        aggregator_tx: mpsc::UnboundedSender<Aggregator>,
     ) -> Self {
         Self {
             config,
@@ -766,7 +766,7 @@ impl ProjectCacheService {
             envelope_manager,
             upstream_relay,
             redis,
-            aggregator,
+            aggregator_tx,
         }
     }
 }
@@ -781,7 +781,7 @@ impl Service for ProjectCacheService {
             envelope_processor,
             envelope_manager,
             upstream_relay,
-            aggregator,
+            aggregator_tx,
         } = self;
 
         tokio::spawn(async move {
@@ -798,7 +798,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
-                aggregator,
+                aggregator_tx,
                 envelope_processor,
                 envelope_manager,
                 project_cache: rx.addr(),

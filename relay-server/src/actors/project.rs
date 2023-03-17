@@ -386,7 +386,7 @@ enum GetOrFetch<'a> {
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 #[derive(Debug)]
 pub struct Project {
-    aggregator: mpsc::UnboundedSender<Aggregator>,
+    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
@@ -403,10 +403,10 @@ impl Project {
     pub fn new(
         key: ProjectKey,
         config: Arc<Config>,
-        aggregator: mpsc::UnboundedSender<Aggregator>,
+        aggregator_tx: mpsc::UnboundedSender<Aggregator>,
     ) -> Self {
         Project {
-            aggregator,
+            aggregator_tx,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
@@ -505,7 +505,9 @@ impl Project {
             let buckets = self.rate_limit_metrics(buckets);
             if !buckets.is_empty() {
                 let merge = MergeBuckets::new(self.project_key, buckets);
-                self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
+                self.aggregator_tx
+                    .send(Aggregator::MergeBuckets(merge))
+                    .ok();
             }
         }
     }
@@ -518,7 +520,9 @@ impl Project {
             let metrics = self.rate_limit_metrics(metrics);
             if !metrics.is_empty() {
                 let insert = InsertMetrics::new(self.project_key, metrics);
-                self.aggregator.send(Aggregator::InsertMetrics(insert)).ok();
+                self.aggregator_tx
+                    .send(Aggregator::InsertMetrics(insert))
+                    .ok();
             }
         }
     }
@@ -811,14 +815,14 @@ impl Project {
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
             let merge = MergeBuckets::new(self.project_key, buckets);
-            self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
+            self.aggregator_tx.send(Aggregator::MergeBuckets(merge)).ok();
             return;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
             let merge = MergeBuckets::new(self.project_key, buckets);
-            self.aggregator.send(Aggregator::MergeBuckets(merge)).ok();
+            self.aggregator_tx.send(Aggregator::MergeBuckets(merge)).ok();
             return;
         };
 
