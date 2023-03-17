@@ -9,6 +9,10 @@ on:
 
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -225,7 +229,19 @@ jobs:
       - name: Build
         run: ./scripts/build-docker-image.sh "$ARCH"
 
+      - name: Export Docker Image
+        run: docker save -o relay-docker-image.tgz $IMG_VERSIONED
+
+      - name: Upload Docker Image to Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          retention-days: 1
+          name: relay-docker-image
+          path: relay-docker-image.tgz
+
       - name: Push to ghcr.io
+        # Do not run this on forks as they do not have access to secrets
+        if: "!github.event.pull_request.head.repo.fork"
         run: |
           set -euxo pipefail
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
@@ -252,13 +268,22 @@ jobs:
       id-token: "write"
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # Skip if run on a fork
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork"
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
+      - name: Download Docker Image
+        uses: actions/download-artifact@v3
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        run: docker load -i relay-docker-image.tgz
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v1
@@ -273,7 +298,6 @@ jobs:
       - name: Push to us.gcr.io
         run: |
           set -euxo pipefail
-          docker pull -q "$IMG_VERSIONED"
           docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
           docker push "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -385,19 +409,13 @@ jobs:
           snuba: true
           kafka: true
 
-      - name: Pull the image
-        env:
-          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
-        run: |
-          echo "We poll for the Relay Docker image that the GCB build produces until it succeeds or this job times out."
-          if [[ -z "$RELAY_TEST_IMAGE" ]]; then
-              echo "The RELAY_TEST_IMAGE needs to be set" 1>&2
-              exit 1
-          fi
-          echo "Polling for $RELAY_TEST_IMAGE"
-          until docker pull "$RELAY_TEST_IMAGE" 2>/dev/null; do
-              sleep 10
-          done
+      - name: Download Docker Image
+        uses: actions/download-artifact@v3
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        run: docker load -i relay-docker-image.tgz
 
       - name: Run Sentry integration tests
         working-directory: sentry
@@ -419,7 +437,18 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Download Docker Image
+        uses: actions/download-artifact@v3
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        run: docker load -i relay-docker-image.tgz
+
       - name: Run Sentry self-hosted e2e CI
+        # Skip if a fork as they cannot upload to ghcr and this test attempts to pull
+        # the image from ghcr
+        if: "!github.event.pull_request.head.repo.fork"
         uses: getsentry/action-self-hosted-e2e-tests@77805295ebff8a603def5970e18743ded72cb304
         with:
           project_name: relay
