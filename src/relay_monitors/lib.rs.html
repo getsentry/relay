@@ -103,6 +103,79 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -121,8 +194,13 @@
 </span>)]
 #![warn(missing_docs)]
 
-</span><span class="kw">use </span>relay_common::Uuid;
+</span><span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>relay_common::Uuid;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="doccomment">/// Maximum length of monitor slugs.
+</span><span class="kw">const </span>SLUG_LENGTH: usize = <span class="number">50</span>;
 
 <span class="doccomment">/// Error returned from [`process_check_in`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -130,6 +208,10 @@
     <span class="doccomment">/// Failed to deserialize the payload.
     </span><span class="attr">#[error(<span class="string">&quot;failed to deserialize check in&quot;</span>)]
     </span>Json(<span class="attr">#[from] </span>serde_json::Error),
+
+    <span class="doccomment">/// Monitor slug was empty after slugification.
+    </span><span class="attr">#[error(<span class="string">&quot;the monitor slug is empty or invalid&quot;</span>)]
+    </span>EmptySlug,
 }
 
 <span class="doccomment">///
@@ -183,7 +265,33 @@
         check_in.status = CheckInStatus::Unknown;
     }
 
+    check_in.monitor_slug = slugify(<span class="kw-2">&amp;</span>check_in.monitor_slug);
+    <span class="kw">if </span>check_in.monitor_slug.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessCheckInError::EmptySlug);
+    }
+
     <span class="prelude-val">Ok</span>(serde_json::to_vec(<span class="kw-2">&amp;</span>check_in)<span class="question-mark">?</span>)
+}
+
+<span class="kw">fn </span>slugify(input: <span class="kw-2">&amp;</span>str) -&gt; String {
+    <span class="kw">static </span>SLUG_CLEANER: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;[^a-zA-Z0-9\s_-]&quot;</span>).unwrap());
+    <span class="kw">static </span>SLUGIFIER: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;[\s_\-]+&quot;</span>).unwrap());
+
+    <span class="kw">let </span>cleaned = SLUG_CLEANER.replace_all(input, <span class="string">&quot;&quot;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>slug = SLUGIFIER
+        .replace_all(<span class="kw-2">&amp;</span>cleaned, <span class="string">&quot;-&quot;</span>)
+        .trim_matches(<span class="string">&#39;-&#39;</span>)
+        .to_owned();
+
+    slug.truncate(SLUG_LENGTH);
+
+    <span class="comment">// Truncate may leave a trailing &#39;-&#39;, so we may need to truncate again.
+    </span><span class="kw">if </span>slug.ends_with(<span class="string">&#39;-&#39;</span>) {
+        slug.truncate(slug.len() - <span class="number">1</span>);
+    }
+
+    slug.make_ascii_lowercase();
+    slug
 }
 
 <span class="attr">#[cfg(test)]
@@ -193,7 +301,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_json_roundtrip() {
+    </span><span class="kw">fn </span>process_json_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
@@ -205,6 +313,44 @@
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
 
         <span class="macro">assert_eq!</span>(json, serialized);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>process_empty_slug() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+          &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
+          &quot;monitor_slug&quot;: &quot;🚀🚀🚀&quot;,
+          &quot;status&quot;: &quot;in_progress&quot;
+        }&quot;#</span>;
+
+        <span class="kw">let </span>result = process_check_in(json.as_bytes());
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(ProcessCheckInError::EmptySlug)));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>slugify_empty_string() {
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;&quot;</span>, slugify(<span class="string">&quot;&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>slugify_truncate_honors_trim() {
+        <span class="kw">let </span>input = <span class="string">&quot;-&quot;</span>.repeat(SLUG_LENGTH + <span class="number">10</span>) + <span class="string">&quot;hello&quot;</span>;
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;hello&quot;</span>, slugify(<span class="kw-2">&amp;</span>input));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>slugify_trim_at_truncate() {
+        <span class="kw">let </span>expected = <span class="string">&quot;a&quot;</span>.repeat(SLUG_LENGTH - <span class="number">1</span>);
+        <span class="kw">let </span>input = expected.clone() + <span class="string">&quot;-stripped&quot;</span>;
+        <span class="macro">assert_eq!</span>(expected, slugify(<span class="kw-2">&amp;</span>input));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>slugify_unicode() {
+        <span class="kw">let </span>input = <span class="string">&quot;🚀🚀🚀\tmyComplicated_slug\u{200A}name is here...&quot;</span>;
+
+        <span class="kw">let </span>expected = <span class="string">&quot;mycomplicated-slug-name-is-here&quot;</span>;
+        <span class="macro">assert_eq!</span>(expected, slugify(input));
     }
 }
 </code></pre></div>
