@@ -47,6 +47,7 @@ pub enum RetainItem {
     /// Keep the item.
     Keep,
     /// Drop the item and log an outcome for it.
+    /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
     Drop(Outcome),
     /// Drop the item without logging an outcome.
     DropSilently,
@@ -82,7 +83,7 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
-    /// Computes an managed envelope from the given envelope.
+    /// Computes a managed envelope from the given envelope.
     fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -107,7 +108,7 @@ impl ManagedEnvelope {
         Self::new_internal(envelope, None)
     }
 
-    /// Computes an managed envelope from the given envelope and binds it to the processing queue.
+    /// Computes a managed envelope from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
