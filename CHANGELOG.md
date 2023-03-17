@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.3.0
 
 **Features**:
 
@@ -16,6 +16,7 @@
 - Optionally mark scrubbed URL transactions as sanitized. ([#1917](https://github.com/getsentry/relay/pull/1917))
 - Perform PII scrubbing on meta's original_value field. ([#1892](https://github.com/getsentry/relay/pull/1892))
 - Add links to docs in YAML config file. ([#1923](https://github.com/getsentry/relay/pull/1923))
+- For security reports, add the request's `origin` header to sentry events. ([#1934](https://github.com/getsentry/relay/pull/1934))
 
 **Bug Fixes**:
 
@@ -28,6 +29,7 @@
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
 - Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
 - Move the pending envelopes buffering into the project cache. ([#1907](https://github.com/getsentry/relay/pull/1907))
+- Remove platform validation for profiles. ([#1933](https://github.com/getsentry/relay/pull/1933))
 
 ## 23.2.0
 

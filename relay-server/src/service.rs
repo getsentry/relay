@@ -148,7 +148,7 @@ impl ServiceState {
         .start_in(&project_runtime);
 
         let health_check = HealthCheckService::new(config.clone()).start();
-        let relay_cache = RelayCacheService::new(config.clone()).start();
+        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
