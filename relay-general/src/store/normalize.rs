@@ -1016,59 +1016,66 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     }
 }
 
-const LOGGER_DELIMITER_CHAR: char = '.'; // It's assumed it's a byte long.
-const LOGGER_TRIMMED_PREFIX: &str = "*";
-
+/// If the logger is longer than [`MaxChars::Logger`], it returns a String with
+/// a shortened version of the logger. If not, the same logger is returned as a
+/// String.
+///
+/// To shorten the logger, all extra chars that don't fit into the maximum limit
+/// are removed, from the beginning of the logger.  Then, if the remaining
+/// substring contains a `.` somewhere but in the end, all chars until `.`
+/// (exclusive) are removed.
+///
+/// Additionally, the new logger is prefixed with `*`, to indicate it was
+/// shortened.
 fn shorten_logger(logger: &str) -> String {
-    let mut word_tokens = logger.split(LOGGER_DELIMITER_CHAR).collect_vec();
-    word_tokens.reverse();
-    let trimmed_tokens = trim_logger_tokens(word_tokens, true);
-    if let Ok(mut tokens) = trimmed_tokens {
-        tokens.push(""); // Ensure leading delimiter
-        let short_logger = tokens.iter().rev().join(&LOGGER_DELIMITER_CHAR.to_string());
-        return LOGGER_TRIMMED_PREFIX.to_owned() + &short_logger;
+    let logger_len = bytecount::num_chars(logger.as_bytes());
+    if logger_len <= MaxChars::Logger.limit() {
+        return logger.to_owned();
     }
 
-    let mut char_tokens = logger.split("").collect_vec();
-    char_tokens.reverse();
-    let logger_trimmed = trim_logger_tokens(char_tokens, false);
-    if let Ok(tokens) = logger_trimmed {
-        let short_logger = tokens.iter().rev().join("");
-        return LOGGER_TRIMMED_PREFIX.to_owned() + &short_logger;
-    }
+    let mut tokens = logger.split("").collect_vec();
+    // Remove empty str tokens from the beginning and end.
+    tokens.pop();
+    tokens.reverse(); // Prioritize chars from the end of the string.
+    tokens.pop();
 
-    // Fallback, although this should not happen.
-    String::from("*")
+    remove_logger_extra_chars(&mut tokens);
+    remove_logger_word(&mut tokens);
+
+    tokens.reverse();
+    "*".to_owned() + &tokens.iter().join("")
 }
 
-fn trim_logger_tokens(tokens: Vec<&str>, include_delimiter: bool) -> Result<Vec<&str>, ()> {
-    let logger_prefix_len = bytecount::num_chars(LOGGER_TRIMMED_PREFIX.as_bytes());
-    if MaxChars::Logger.limit() < logger_prefix_len {
-        return Ok(Vec::new());
+/// Remove as many tokens as needed to match the maximum char limit defined in
+/// [`MaxChars::Logger`], and an extra token for the logger prefix.
+fn remove_logger_extra_chars(tokens: &mut Vec<&str>) {
+    // Leave one slot of space for the prefix
+    let mut remove_chars = tokens.len() - MaxChars::Logger.limit() + 1;
+    while remove_chars > 0 {
+        tokens.pop();
+        remove_chars -= 1;
     }
+}
 
-    let max = MaxChars::Logger.limit() - logger_prefix_len;
-    let mut cummulative = 0;
-    let mut target_tokens: Vec<&str> = Vec::new();
-
-    for token in tokens {
-        let current =
-            bytecount::num_chars(token.as_bytes()) + if include_delimiter { 1 } else { 0 };
-        if cummulative + current > max {
+/// If the `.` token is present, removes all tokens from the end of the vector
+/// until `.`. If it isn't present, nothing is removed.
+fn remove_logger_word(tokens: &mut Vec<&str>) {
+    let mut delimiter_found = false;
+    for token in tokens.iter() {
+        if *token == "." {
+            delimiter_found = true;
             break;
         }
-        cummulative += current;
-        target_tokens.push(token);
     }
-
-    // If we couldn't "smart" trim by current tokens, it's still better to proceed with
-    // the naive trimming (just stripping) than leaving the prefix.
-    if cummulative == 0 {
-        // return max;
-        return Err(());
+    if !delimiter_found {
+        return;
     }
-
-    Ok(target_tokens)
+    while let Some(i) = tokens.last() {
+        if *i == "." {
+            break;
+        }
+        tokens.pop();
+    }
 }
 
 #[cfg(test)]
@@ -2175,6 +2182,22 @@ mod tests {
                 "event_id": "7637af36578e4e4592692e28a1d6e2ca",
                 "platform": "java",
                 "logger": "",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_trimmed() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": " \t  \t   ",
             })
             .into(),
         );
