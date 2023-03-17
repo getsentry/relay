@@ -1042,22 +1042,35 @@ fn shorten_logger(logger: String) -> String {
     tokens.reverse(); // Prioritize chars from the end of the string.
     tokens.pop();
 
-    remove_logger_extra_chars(&mut tokens);
-    remove_logger_word(&mut tokens);
+    let word_cut = remove_logger_extra_chars(&mut tokens);
+    if word_cut {
+        remove_logger_word(&mut tokens);
+    }
 
     tokens.reverse();
     "*".to_owned() + &tokens.iter().join("")
 }
 
 /// Remove as many tokens as needed to match the maximum char limit defined in
-/// [`MaxChars::Logger`], and an extra token for the logger prefix.
-fn remove_logger_extra_chars(tokens: &mut Vec<&str>) {
+/// [`MaxChars::Logger`], and an extra token for the logger prefix. Returns
+/// whether a word has been cut.
+///
+/// A word is considered any non-empty substring that doesn't contain a `.`.
+fn remove_logger_extra_chars(tokens: &mut Vec<&str>) -> bool {
     // Leave one slot of space for the prefix
     let mut remove_chars = tokens.len() - MaxChars::Logger.limit() + 1;
+    let mut word_cut = false;
     while remove_chars > 0 {
-        tokens.pop();
+        if let Some(c) = tokens.pop() {
+            if !word_cut && c != "." {
+                word_cut = true;
+            } else if word_cut && c == "." {
+                word_cut = false;
+            }
+        }
         remove_chars -= 1;
     }
+    word_cut
 }
 
 /// If the `.` token is present, removes all tokens from the end of the vector
@@ -2283,6 +2296,22 @@ mod tests {
                 "event_id": "7637af36578e4e4592692e28a1d6e2ca",
                 "platform": "java",
                 "logger": "super_out.this_is_already_out_too.this_part-is-kept.this_right_here-is_a-very_long_word",
+            })
+            .into(),
+        );
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_normalize_logger_word_leading_dots() {
+        let mut event = Event::from_value(
+            serde_json::json!({
+                "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+                "platform": "java",
+                "logger": "io.this-tests-the-smart-trimming-and-word-removal-around-dot.words",
             })
             .into(),
         );
