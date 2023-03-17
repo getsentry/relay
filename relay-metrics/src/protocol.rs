@@ -165,14 +165,13 @@ fn is_valid_name(name: &str) -> bool {
 
 /// Enumerates the most common session-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SessionsKind<'a> {
+pub enum SessionsKind {
     Session,
     User,
     Error,
-    Other(&'a str),
 }
 
-impl<'a> Display for SessionsKind<'a> {
+impl Display for SessionsKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Session => write!(f, "session"),
@@ -183,13 +182,12 @@ impl<'a> Display for SessionsKind<'a> {
     }
 }
 
-impl<'a> From<&'a str> for SessionsKind<'a> {
-    fn from(value: &'a str) -> Self {
+impl From<&str> for SessionsKind {
+    fn from(value: &str) -> Self {
         match value {
             "session" => Self::Session,
             "user" => Self::User,
             "error" => Self::Error,
-            s => Self::Other(s),
         }
     }
 }
@@ -200,15 +198,25 @@ pub enum TransactionsKind<'a> {
     User,
     Duration,
     CountPerRootProject,
-    MeasurementsFramesFrozen,
-    MeasurementsFramesFrozenRate,
-    MeasurementsFramesSlow,
-    MeasurementsFramesSlowRate,
-    MeasurementsFramesTotal,
-    MeasurementsStallPercentage,
-    MeasurementsStallTotalTime,
-    MeasurementsLcp,
-    Other(&'a str),
+    Measurements(Measurements),
+    Custom {
+        name: &'a str,
+        ty: MetricType,
+        unit: MetricUnit,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Measurements {
+    FramesFrozen,
+    FramesFrozenRate,
+    FramesSlow,
+    FramesSlowRate,
+    FramesTotal,
+    StallPercentage,
+    StallTotalTime,
+    Lcp,
+    Other(String),
 }
 
 impl<'a> From<&'a str> for TransactionsKind<'a> {
@@ -265,14 +273,13 @@ pub enum MetricNamespace<'a> {
     Sessions(SessionsKind<'a>),
     /// Metrics extracted from transaction events.
     Transactions(TransactionsKind<'a>),
-    /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
-    /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
-    /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
-    /// this variant.
-    ///
-    /// Relay currently drops all metrics whose namespace ends up being deserialized as
-    /// `unsupported`. We may revise that in the future.
-    Unsupported,
+    // Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
+    // aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
+    // `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
+    // this variant.
+    //
+    // Relay currently drops all metrics whose namespace ends up being deserialized as
+    // `unsupported`. We may revise that in the future.
 }
 
 impl<'a> MetricNamespace<'a> {
@@ -323,6 +330,21 @@ impl<'a> fmt::Display for MetricNamespace<'a> {
             MetricNamespace::Transactions(_) => write!(f, "transactions"),
             MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
+    }
+}
+
+enum MRI {
+    Transaction(TransactionsKind),
+    Session(SessionsKind),
+}
+
+impl MRI {
+    fn unit(&self) -> MetricUnit {
+        todo!()
+    }
+
+    pub fn namespace(&self) -> MetricNamespace {
+        todo!()
     }
 }
 
