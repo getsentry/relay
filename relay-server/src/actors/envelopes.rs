@@ -11,7 +11,9 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, NoResponse};
+#[cfg(feature = "processing")]
+use relay_system::Addr;
+use relay_system::{FromMessage, NoResponse};
 use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
@@ -26,7 +28,7 @@ use crate::actors::upstream::{
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::{Registry, REGISTRY};
+use crate::service::Registry;
 use crate::statsd::RelayHistograms;
 use crate::utils::ManagedEnvelope;
 
@@ -160,12 +162,6 @@ pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
     SendMetrics(SendMetrics),
-}
-
-impl EnvelopeManager {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().envelope_manager.clone()
-    }
 }
 
 impl relay_system::Interface for EnvelopeManager {}
