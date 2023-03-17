@@ -387,7 +387,7 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
+    aggregator: Addr<Aggregator>,
     envelope_processor: Addr<EnvelopeProcessor>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
@@ -489,7 +489,6 @@ impl ProjectCacheBroker {
 
         let config = self.config.clone();
 
-        let aggregator = self.aggregator_tx.clone();
         self.projects
             .entry(project_key)
             .and_modify(|_| {
@@ -497,7 +496,7 @@ impl ProjectCacheBroker {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config, aggregator)
+                Project::new(project_key, config)
             })
     }
 
@@ -692,18 +691,21 @@ impl ProjectCacheBroker {
     }
 
     fn handle_insert_metrics(&mut self, message: InsertMetrics) {
+        let aggregator = self.aggregator.clone();
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         self.get_or_create_project(message.project_key())
-            .insert_metrics(message.metrics());
+            .insert_metrics(aggregator, message.metrics());
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+        let aggregator = self.aggregator.clone();
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         self.get_or_create_project(message.project_key())
-            .merge_buckets(message.buckets());
+            .merge_buckets(aggregator, message.buckets());
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
+        let aggregator = self.aggregator.clone();
         let envelope_manager = self.envelope_manager.clone();
         #[cfg(feature = "processing")]
         let envelope_processor = self.envelope_processor.clone();
@@ -713,6 +715,7 @@ impl ProjectCacheBroker {
             .flush_buckets(
                 message.partition_key,
                 message.buckets,
+                aggregator,
                 project_cache,
                 envelope_manager,
                 #[cfg(feature = "processing")]
@@ -747,7 +750,7 @@ pub struct ProjectCacheService {
     envelope_manager: Addr<EnvelopeManager>,
     upstream_relay: Addr<UpstreamRelay>,
     redis: Option<RedisPool>,
-    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
+    aggregator: Addr<Aggregator>,
 }
 
 impl ProjectCacheService {
@@ -758,7 +761,7 @@ impl ProjectCacheService {
         envelope_manager: Addr<EnvelopeManager>,
         upstream_relay: Addr<UpstreamRelay>,
         redis: Option<RedisPool>,
-        aggregator_tx: mpsc::UnboundedSender<Aggregator>,
+        aggregator: Addr<Aggregator>,
     ) -> Self {
         Self {
             config,
@@ -766,7 +769,7 @@ impl ProjectCacheService {
             envelope_manager,
             upstream_relay,
             redis,
-            aggregator_tx,
+            aggregator,
         }
     }
 }
@@ -781,7 +784,7 @@ impl Service for ProjectCacheService {
             envelope_processor,
             envelope_manager,
             upstream_relay,
-            aggregator_tx,
+            aggregator,
         } = self;
 
         tokio::spawn(async move {
@@ -798,7 +801,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
-                aggregator_tx,
+                aggregator,
                 envelope_processor,
                 envelope_manager,
                 project_cache: rx.addr(),

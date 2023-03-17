@@ -12,7 +12,6 @@ use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tokio::sync::mpsc;
 use tokio::time::Instant;
 use url::Url;
 
@@ -386,7 +385,6 @@ enum GetOrFetch<'a> {
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 #[derive(Debug)]
 pub struct Project {
-    aggregator_tx: mpsc::UnboundedSender<Aggregator>,
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
@@ -400,13 +398,8 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(
-        key: ProjectKey,
-        config: Arc<Config>,
-        aggregator_tx: mpsc::UnboundedSender<Aggregator>,
-    ) -> Self {
+    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
-            aggregator_tx,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
@@ -500,14 +493,11 @@ impl Project {
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
-    pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+    pub fn merge_buckets(&mut self, aggregator: Addr<Aggregator>, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
             let buckets = self.rate_limit_metrics(buckets);
             if !buckets.is_empty() {
-                let merge = MergeBuckets::new(self.project_key, buckets);
-                self.aggregator_tx
-                    .send(Aggregator::MergeBuckets(merge))
-                    .ok();
+                aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
         }
     }
@@ -515,14 +505,11 @@ impl Project {
     /// Inserts given [metrics](Metric) into the metrics aggregator.
     ///
     /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+    pub fn insert_metrics(&mut self, aggregator: Addr<Aggregator>, metrics: Vec<Metric>) {
         if self.metrics_allowed() {
             let metrics = self.rate_limit_metrics(metrics);
             if !metrics.is_empty() {
-                let insert = InsertMetrics::new(self.project_key, metrics);
-                self.aggregator_tx
-                    .send(Aggregator::InsertMetrics(insert))
-                    .ok();
+                aggregator.send(InsertMetrics::new(self.project_key, metrics));
             }
         }
     }
@@ -802,6 +789,7 @@ impl Project {
         &mut self,
         partition_key: Option<u64>,
         buckets: Vec<Bucket>,
+        aggregator: Addr<Aggregator>,
         project_cache: Addr<ProjectCache>,
         envelope_manager: Addr<EnvelopeManager>,
         #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
@@ -814,15 +802,13 @@ impl Project {
             relay_log::trace!("project expired: merging back {} buckets", buckets.len());
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
-            let merge = MergeBuckets::new(self.project_key, buckets);
-            self.aggregator_tx.send(Aggregator::MergeBuckets(merge)).ok();
+            aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
-            let merge = MergeBuckets::new(self.project_key, buckets);
-            self.aggregator_tx.send(Aggregator::MergeBuckets(merge)).ok();
+            aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
 
@@ -873,13 +859,11 @@ mod tests {
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
     use relay_test::mock_service;
     use serde_json::json;
-    use tokio::sync::mpsc;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
     #[test]
     fn get_state_expired() {
-        let (tx, _) = mpsc::unbounded_channel();
         for expiry in [9999, 0] {
             let config = Arc::new(
                 Config::from_json_value(json!(
@@ -898,7 +882,7 @@ mod tests {
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
-            let mut project = Project::new(project_key, config.clone(), tx.clone());
+            let mut project = Project::new(project_key, config.clone());
             project.state = Some(Arc::new(project_state));
 
             // Direct access should always yield a state:
@@ -936,8 +920,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let (tx, _) = mpsc::unbounded_channel();
-        let mut project = Project::new(project_key, config, tx);
+        let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
@@ -967,8 +950,7 @@ mod tests {
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let (tx, _) = mpsc::unbounded_channel();
-        let mut project = Project::new(project_key, Arc::new(Config::default()), tx);
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {
