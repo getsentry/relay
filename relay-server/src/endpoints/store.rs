@@ -3,14 +3,14 @@
 use axum::extract::FromRequest;
 use axum::http::{header, Method};
 use axum::response::IntoResponse;
-use axum::{headers, Json, TypedHeader};
+use axum::Json;
 use bytes::Bytes;
 use relay_general::protocol::EventId;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
 // Transparent 1x1 gif
@@ -22,8 +22,7 @@ static PIXEL: &[u8] =
 #[from_request(state(ServiceState))]
 pub struct StoreParams {
     meta: RequestMeta,
-    #[from_request(via(TypedHeader))]
-    content_type: headers::ContentType, // TODO(ja): This may be too strict. Check past PRs, I think we need to use String here.
+    content_type: RawContentType,
     body: Bytes,
 }
 
@@ -36,7 +35,7 @@ impl StoreParams {
     }
 
     /// Parses a JSON event body into an `Envelope`.
-    fn parse_event(self, content_type: ContentType) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn parse_event(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { mut body, meta, .. } = self;
 
         // Python clients are well known to send crappy JSON in the Sentry world.  The reason
@@ -61,6 +60,12 @@ impl StoreParams {
         // is invalid, processing can be skipped altogether.
         let minimal = common::minimal_event_from_json(&body)?;
 
+        // If the content type is missing, assume "application/json".
+        let content_type = match self.content_type.as_ref() {
+            "" => ContentType::Json,
+            _ => self.content_type.into_string().into(),
+        };
+
         // Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event
         // type. The processing queue expects those in an explicit item.
         let item_type = ItemType::from_event_type(minimal.ty);
@@ -83,15 +88,9 @@ impl StoreParams {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        // If the content type is missing, assume "application/json".
-        let content_type = match self.content_type.to_string() {
-            content_type if content_type.is_empty() => ContentType::Json,
-            content_type => ContentType::from(content_type),
-        };
-
-        match content_type {
-            ContentType::Envelope => self.parse_envelope(),
-            _ => self.parse_event(content_type),
+        match self.content_type.as_ref() {
+            envelope::CONTENT_TYPE => self.parse_envelope(),
+            _ => self.parse_event(),
         }
     }
 }

@@ -4,14 +4,14 @@ use axum::body::Bytes;
 use axum::extract::Multipart;
 use axum::http::Request;
 use axum::response::IntoResponse;
-use axum::{headers, RequestExt, TypedHeader};
+use axum::RequestExt;
 use futures::{future, FutureExt};
 use relay_general::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
 // use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
@@ -154,7 +154,7 @@ fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>,
 pub async fn handle<B>(
     state: ServiceState,
     meta: RequestMeta,
-    TypedHeader(content_type): TypedHeader<headers::ContentType>,
+    content_type: RawContentType,
     request: Request<B>,
 ) -> axum::response::Result<impl IntoResponse>
 where
@@ -168,7 +168,7 @@ where
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     // TODO(ja): better comparison
-    let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.to_string().as_str()) {
+    let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
         extract_multipart(request.extract().await?, meta).await?
