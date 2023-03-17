@@ -1,12 +1,15 @@
 //! Endpoints for security reports.
 
 use axum::extract::{FromRequest, Query};
+use axum::handler::Handler;
 use axum::response::IntoResponse;
+use axum::{headers, RequestExt, TypedHeader};
 use bytes::Bytes;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
+use crate::endpoints::forward;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
@@ -55,7 +58,7 @@ impl SecurityReportParams {
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-pub async fn handle(
+async fn inner(
     state: ServiceState,
     params: SecurityReportParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
@@ -64,48 +67,35 @@ pub async fn handle(
     Ok(())
 }
 
-// TODO(ja): Filter
+fn predicate(TypedHeader(_): TypedHeader<headers::ContentType>) -> bool {
+    // let ty = content_type.type_().as_str();
+    // let subty = content_type.subtype().as_str();
+    // let suffix = content_type.suffix().map(|suffix| suffix.as_str());
 
-// #[derive(Debug)]
-// struct SecurityReportFilter;
+    // matches!(
+    //     (ty, subty, suffix),
+    //     ("application", "json", None)
+    //         | ("application", "csp-report", None)
+    //         | ("application", "expect-ct-report", None)
+    //         | ("application", "expect-ct-report", Some("json"))
+    //         | ("application", "expect-staple-report", None)
+    // )
+    todo!("get mime type and run predicate")
+}
 
-// impl pred::Predicate<ServiceState> for SecurityReportFilter {
-//     fn check(&self, request: &Request, _: &ServiceState) -> bool {
-//         let mime_type = match request.mime_type() {
-//             Ok(Some(mime)) => mime,
-//             _ => return false,
-//         };
-
-//         let ty = mime_type.type_().as_str();
-//         let subty = mime_type.subtype().as_str();
-//         let suffix = mime_type.suffix().map(|suffix| suffix.as_str());
-
-//         matches!(
-//             (ty, subty, suffix),
-//             ("application", "json", None)
-//                 | ("application", "csp-report", None)
-//                 | ("application", "expect-ct-report", None)
-//                 | ("application", "expect-ct-report", Some("json"))
-//                 | ("application", "expect-staple-report", None)
-//         )
-//     }
-// }
-
-// pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-//     common::cors(app)
-//         // Default security endpoint
-//         .resource(&common::normpath(r"/api/{project:\d+}/security/"), |r| {
-//             r.name("store-security-report");
-//             r.post()
-//                 .filter(SecurityReportFilter)
-//                 .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-//         })
-//         // Legacy security endpoint
-//         .resource(&common::normpath(r"/api/{project:\d+}/csp-report/"), |r| {
-//             r.name("store-csp-report");
-//             r.post()
-//                 .filter(SecurityReportFilter)
-//                 .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-//         })
-//         .register()
-// }
+pub async fn handle<B>(
+    state: ServiceState,
+    mut req: axum::http::Request<B>,
+) -> axum::response::Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    let data = req.extract_parts().await?;
+    Ok(if predicate(data) {
+        inner.call(req, state).await
+    } else {
+        forward::handle.call(req, state).await
+    })
+}

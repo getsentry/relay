@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use axum::extract::Query;
-use axum::response::{IntoResponse, Result};
-use axum::Json;
+use axum::handler::Handler;
+use axum::response::IntoResponse;
+use axum::{Json, RequestExt};
 use futures::future;
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
@@ -10,7 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
+use crate::endpoints::common::ServiceUnavailable;
+use crate::endpoints::forward;
 use crate::extractors::SignedJson;
+use crate::service::ServiceState;
 
 /// V2 version of this endpoint.
 ///
@@ -27,36 +31,10 @@ const ENDPOINT_V3: u16 = 3;
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
-pub struct VersionQuery {
+struct VersionQuery {
     #[serde(default)]
     version: u16,
 }
-
-// impl VersionQuery {
-//     fn from_request(req: &actix_web::Request) -> Self {
-//         let query = req.uri().query().unwrap_or("");
-//         serde_urlencoded::from_str::<VersionQuery>(query).unwrap_or(VersionQuery { version: 0 })
-//     }
-// }
-
-// impl<S> FromRequest<S> for VersionQuery {
-//     type Config = ();
-//     type Result = Self;
-
-//     fn from_request(req: &actix_web::HttpRequest<S>, _: &Self::Config) -> Self::Result {
-//         Self::from_request(req)
-//     }
-// }
-
-// /// Checks for a specific `version` query parameter.
-// struct VersionPredicate;
-
-// impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
-//     fn check(&self, req: &actix_web::Request, _: &S) -> bool {
-//         let query = VersionQuery::from_request(req);
-//         query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
-//     }
-// }
 
 /// The type returned for each requested project config.
 ///
@@ -105,7 +83,7 @@ struct GetProjectStatesResponseWrapper {
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProjectStatesRequest {
+struct GetProjectStatesRequest {
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
     #[serde(default)]
     full_config: bool,
@@ -113,10 +91,10 @@ pub struct GetProjectStatesRequest {
     no_cache: bool,
 }
 
-pub async fn handle(
+async fn inner(
     Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
-) -> Result<impl IntoResponse> {
+) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
 
     let no_cache = inner.no_cache;
@@ -143,7 +121,7 @@ pub async fn handle(
     let mut pending = Vec::with_capacity(keys_len);
 
     for (project_key, state_result) in future::join_all(futures).await {
-        let Some(project_state) = state_result.map_err(|_| ())? else { // TODO(ja): Error handling
+        let Some(project_state) = state_result? else {
             pending.push(project_key);
             continue;
         };
@@ -172,17 +150,23 @@ pub async fn handle(
     Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-// pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-//     app.resource("/api/0/relays/projectconfigs/", |r| {
-//         r.name("relay-projectconfigs");
-//         r.post()
-//             .filter(VersionPredicate)
-//             .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
+fn predicate(Query(query): Query<VersionQuery>) -> bool {
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+}
 
-//         // Forward all unsupported versions to the upstream.
-//         r.post().f(crate::endpoints::forward::forward_compat);
-//     })
-// }
-
-// TODO(ja): Check version predicate.
-// TODO(ja): forward if version is incompatible.
+pub async fn handle<B>(
+    state: ServiceState,
+    mut req: axum::http::Request<B>,
+) -> axum::response::Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    let data = req.extract_parts().await?;
+    Ok(if predicate(data) {
+        inner.call(req, state).await
+    } else {
+        forward::handle.call(req, state).await
+    })
+}

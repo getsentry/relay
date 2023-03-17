@@ -9,11 +9,8 @@ use tower::Service;
 
 /// Normalizes URLs with redundant slashes.
 ///
-/// # Example
-///
-/// ```
-/// todo!("implement NormalizeUrlsLayer example")
-/// ```
+/// Any groups of slashes will be collapsed into a single slash. For example, a request with
+/// `//foo///` will be changed to `/foo/`.
 #[derive(Clone, Debug)]
 pub struct NormalizePath<S> {
     inner: S,
@@ -70,7 +67,33 @@ fn fold_duplicate_slashes(uri: &mut Uri) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use similar_asserts::assert_eq;
 
     #[test]
-    fn duplicate_() {}
+    fn root() {
+        let mut uri = "/".parse().unwrap();
+        fold_duplicate_slashes(&mut uri);
+        assert_eq!("/", uri.to_string());
+    }
+
+    #[test]
+    fn path() {
+        let mut uri = "///hello///world///".parse().unwrap();
+        fold_duplicate_slashes(&mut uri);
+        assert_eq!("/hello/world/", uri.to_string());
+    }
+
+    #[test]
+    fn no_trailing_slash() {
+        let mut uri = "/hello".parse().unwrap();
+        fold_duplicate_slashes(&mut uri);
+        assert_eq!("/hello", uri.to_string());
+    }
+
+    #[test]
+    fn query_and_fragment() {
+        let mut uri = "//hello//?world=true///".parse().unwrap();
+        fold_duplicate_slashes(&mut uri);
+        assert_eq!("/hello/?world=true///", uri.to_string());
+    }
 }

@@ -53,6 +53,8 @@ impl HttpServer {
             ))
             .with_state(service);
 
+        // Axum layers apply after the router, but path normalization needs to run before.
+        // Therefore, wrap the axum router.
         let app = NormalizePath::new(app);
 
         let handle = Handle::new();
@@ -71,7 +73,9 @@ impl HttpServer {
         //     .backlog(config.max_pending_connections())
         //     .disable_signals();
 
-        // TODO(ja): dump_listen_infos(&server);
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
+
         Ok(Self {
             app,
             server,

@@ -2,17 +2,19 @@
 
 use axum::extract::Path;
 use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Result};
+use axum::response::IntoResponse;
 use relay_general::protocol::EventId;
 
 use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
+use crate::endpoints::common::ServiceUnavailable;
 use crate::envelope;
 
-pub async fn handle(Path(event_id): Path<EventId>) -> Result<impl IntoResponse> {
+pub async fn handle(
+    Path(event_id): Path<EventId>,
+) -> Result<impl IntoResponse, ServiceUnavailable> {
     let envelope_opt = TestStore::from_registry()
         .send(GetCapturedEnvelope { event_id })
-        .await
-        .map_err(|_| ())?; // TODO(ja): Proper error handler
+        .await?;
 
     Ok(match envelope_opt {
         Some(Ok(envelope)) => {

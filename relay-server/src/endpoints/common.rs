@@ -1,6 +1,5 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
-use std::fmt::Write;
 use std::time::Duration;
 
 use axum::extract::multipart::MultipartError;
@@ -22,6 +21,26 @@ use crate::statsd::RelayCounters;
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter,
 };
+
+#[derive(Clone, Copy, Debug, thiserror::Error)]
+#[error("the service is overloaded")]
+pub struct ServiceUnavailable;
+
+impl From<relay_system::SendError> for ServiceUnavailable {
+    fn from(_: relay_system::SendError) -> Self {
+        Self
+    }
+}
+
+impl IntoResponse for ServiceUnavailable {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorResponse::from_error(&self),
+        )
+            .into_response()
+    }
+}
 
 /// Error type for all store-like requests.
 ///
@@ -61,8 +80,11 @@ pub enum BadStoreRequest {
     #[error("failed to queue envelope")]
     QueueFailed(#[from] BufferError),
 
-    // #[error("failed to read request body")]
-    // PayloadError(#[source] failure::Compat<PayloadError>),
+    #[error(
+        "envelope exceeded size limits (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
+    )]
+    Overflow,
+
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
@@ -414,8 +436,7 @@ pub async fn handle_envelope(
 
     if !utils::check_envelope_size_limits(state.config(), &envelope) {
         envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        // return Err(PayloadError::Overflow.into());
-        todo!();
+        return Err(BadStoreRequest::Overflow);
     }
 
     queue_envelope(envelope, envelope_context, buffer_guard)?;
@@ -444,40 +465,9 @@ impl IntoResponse for TextResponse {
     }
 }
 
-/// A helper for creating Actix routes that are resilient against double-slashes
-///
-/// Write `normpath("api/store")` to create a route pattern that matches "/api/store/",
-/// "api//store", "api//store////", etc.
-pub fn normpath(route: &str) -> String {
-    let mut pattern = String::new();
-    for (i, segment) in route.trim_matches('/').split('/').enumerate() {
-        // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        let _ = write!(pattern, "/{{multislash{i}:/*}}{segment}");
-    }
-
-    if route.ends_with('/') {
-        pattern.push_str("{trailing_slash:/+}");
-    } else {
-        pattern.push_str("{trailing_slash:/*}");
-    }
-    pattern
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_normpath() {
-        assert_eq!(
-            normpath("/api/store/"),
-            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}"
-        );
-        assert_eq!(
-            normpath("/api/store"),
-            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
-        );
-    }
 
     #[test]
     fn test_minimal_empty_event() {
