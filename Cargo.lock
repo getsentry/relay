@@ -3457,6 +3457,8 @@ dependencies = [
 name = "relay-monitors"
 version = "23.3.0"
 dependencies = [
+ "once_cell",
+ "regex",
  "relay-common",
  "serde",
  "serde_json",

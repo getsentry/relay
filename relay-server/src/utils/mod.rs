@@ -1,8 +1,8 @@
 mod api;
 mod buffer;
 mod dynamic_sampling;
-mod envelope_context;
 mod garbage;
+mod managed_envelope;
 mod metrics_rate_limits;
 mod multipart;
 mod param_parser;
@@ -21,8 +21,8 @@ mod unreal;
 pub use self::api::*;
 pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
-pub use self::envelope_context::*;
 pub use self::garbage::*;
+pub use self::managed_envelope::*;
 pub use self::metrics_rate_limits::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]
