@@ -273,7 +273,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use relay_config::Config;
-use relay_system::Controller;
+use relay_system::{Controller, Service};
 
 use crate::actors::server::HttpServer;
 use crate::service::ServiceState;
@@ -295,7 +295,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        HttpServer::start(config.clone(), ServiceState::start(config)?)?;
+        let service = ServiceState::start(config.clone())?;
+        HttpServer::new(config, service)?.start();
         Controller::shutdown_handle().finished().await;
         anyhow::Ok(())
     })?;

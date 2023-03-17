@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
-use axum::{middleware, Router};
+use axum::http::{header, HeaderValue};
+use axum::{middleware, Router, ServiceExt};
 use axum_server::{Handle, Server};
 use relay_config::Config;
 use relay_log::_sentry::integrations::tower::NewSentryLayer;
-use relay_system::{Addr, Controller, Service, Shutdown};
-use tower::Layer;
+use relay_system::{Controller, Service, Shutdown};
+use tower_http::set_header::SetResponseHeaderLayer;
 
-use crate::middlewares;
+use crate::constants;
+use crate::middlewares::{self, NormalizePath};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
@@ -25,13 +27,13 @@ pub enum ServerError {
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
-    app: Router,
+    app: NormalizePath<Router>,
     server: Server,
     handle: Handle,
 }
 
 impl HttpServer {
-    pub fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
+    pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         // Inform the user about a removed feature.
@@ -39,17 +41,19 @@ impl HttpServer {
             || config.tls_identity_password().is_some()
             || config.tls_identity_path().is_some()
         {
-            return Err(ServerError::TlsNotSupported.into());
+            return Err(ServerError::TlsNotSupported);
         }
 
         let app = crate::endpoints::routes()
             .layer(NewSentryLayer::new_from_top())
             .layer(middleware::from_fn(middlewares::metrics))
-            .layer(middleware::from_fn(middlewares::common_headers))
+            .layer(SetResponseHeaderLayer::overriding(
+                header::SERVER,
+                HeaderValue::from_static(constants::SERVER),
+            ))
             .with_state(service);
 
-        // TODO: Make this a namable type.
-        // let app = middleware::from_fn(middlewares::normalize_uri).layer(app);
+        let app = NormalizePath::new(app);
 
         let handle = Handle::new();
         let server = axum_server::bind(config.listen_addr())
@@ -67,14 +71,12 @@ impl HttpServer {
         //     .backlog(config.max_pending_connections())
         //     .disable_signals();
 
-        // dump_listen_infos(&server);
-        let service = Self {
+        // TODO(ja): dump_listen_infos(&server);
+        Ok(Self {
             app,
             server,
             handle,
-        };
-
-        Ok(service.start())
+        })
     }
 }
 

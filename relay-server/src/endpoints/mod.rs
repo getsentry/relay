@@ -18,46 +18,44 @@ mod statics;
 mod store;
 mod unreal;
 
-use axum::routing::{any, get, post};
-use axum::Router;
+use axum::routing::{any, get, post, Router};
 
 use crate::service::ServiceState;
 
+#[rustfmt::skip]
 pub fn routes() -> Router<ServiceState> {
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
-        .route("/healthcheck/:kind/", get(health_check::handle)) // r.name("internal-healthcheck-ready");
-        .route("/events/:event_id/", get(events::handle)) // r.name("internal-events");
-        .fallback(statics::not_found);
+        .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
+        .route("/api/relay/events/:event_id/", get(events::handle))
+        .route("/api/relay/*not_found", any(statics::not_found));
 
     // Sentry Web API routes pointing to /api/0/relays/
     let web_routes = Router::new()
-        .route("/projectconfigs/", post(project_configs::handle)) // r.name("relay-projectconfigs");
-        .route("/publickeys/", post(public_keys::handle)) // r.name("relay-publickeys");
-        .route("/outcomes/", post(outcomes::handle)) // r.name("relay-outcomes");
-        .route("/:kind/", get(health_check::handle)); // r.name("internal-healthcheck-live");
+        .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
+        .route("/api/0/relays/publickeys/", post(public_keys::handle))
+        .route("/api/0/relays/outcomes/", post(outcomes::handle))
+        .route("/api/0/relays/:kind/", get(health_check::handle));
 
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
-        .route("/store/", post(store::handle).get(store::handle)) // r.name("store-default");
-        .route("/envelope/", post(envelope::handle)) // r.name("store-envelope");
-        .route("/security/", post(security_report::handle)) // r.name("store-security-report");
-        .route("/csp-report/", post(security_report::handle)) // r.name("store-security-report");
+        // Legacy store path that is missing the project parameter.
+        .route("/api/store/", post(store::handle).get(store::handle))
+        .route("/api/:project_id/store/", post(store::handle).get(store::handle))
+        .route("/api/:project_id/envelope/", post(envelope::handle))
+        .route("/api/:project_id/security/", post(security_report::handle))
+        .route("/api/:project_id/csp-report/", post(security_report::handle))
         // No mandatory trailing slash here because people already use it like this.
-        .route("/minidump", post(minidump::handle)) // r.name("store-minidump");
-        .route("/events/:event_id/attachments/", post(attachments::handle)) // r.name("store-attachment");
-        .route("/unreal/:sentry_key/", post(unreal::handle)) // r.name("store-unreal");
+        .route("/api/:project_id/minidump", post(minidump::handle))
+        .route("/api/:project_id/minidump/", post(minidump::handle))
+        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle))
+        .route("/api/:project_id/unreal/:sentry_key/", post(unreal::handle))
         .route_layer(common::cors());
 
     Router::new()
-        .nest("/api/relay", internal_routes)
-        .nest("/api/0/relays", web_routes)
-        .nest("/api/:project_id", store_routes)
-        // Legacy store path that is missing the project parameter.
-        .route(
-            "/api/store/",
-            post(store::handle).get(store::handle).layer(common::cors()),
-        ) // r.name("store-legacy");
+        .merge(internal_routes)
+        .merge(web_routes)
+        .merge(store_routes)
         // The "/api/" path is special as it is actually a web UI endpoint
         .route("/api/", any(statics::not_found))
         // Forward all other routes to the upstream
