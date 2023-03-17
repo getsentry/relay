@@ -53,6 +53,7 @@ hashbrown = "0.13.2"
 # hyper = { version = "0.14.25", default-features = false }  # TODO: Really needed? Remove if possible
 itertools = "0.10.5"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
+mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
 # native-tls = { version = "0.2.11", optional = true }

@@ -3124,6 +3124,7 @@ dependencies = [
  "itertools",
  "json-forensics",
  "libc",
+ "mime",
  "minidump",
  "multer",
  "once_cell",

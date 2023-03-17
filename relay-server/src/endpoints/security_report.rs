@@ -1,17 +1,15 @@
 //! Endpoints for security reports.
 
 use axum::extract::{FromRequest, Query};
-use axum::handler::Handler;
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::{headers, RequestExt, TypedHeader};
 use bytes::Bytes;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::endpoints::forward;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
@@ -55,47 +53,34 @@ impl SecurityReportParams {
     }
 }
 
+fn is_security_mime(mime: Mime) -> bool {
+    let ty = mime.type_().as_str();
+    let subty = mime.subtype().as_str();
+    let suffix = mime.suffix().map(|suffix| suffix.as_str());
+
+    matches!(
+        (ty, subty, suffix),
+        ("application", "json", None)
+            | ("application", "csp-report", None)
+            | ("application", "expect-ct-report", None)
+            | ("application", "expect-ct-report", Some("json"))
+            | ("application", "expect-staple-report", None)
+    )
+}
+
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-async fn inner(
+pub async fn handle(
     state: ServiceState,
+    mime: Mime,
     params: SecurityReportParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
+    if !is_security_mime(mime) {
+        return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
+    }
+
     let envelope = params.extract_envelope()?;
     common::handle_envelope(&state, envelope).await?;
-    Ok(())
-}
-
-fn predicate(TypedHeader(_): TypedHeader<headers::ContentType>) -> bool {
-    // let ty = content_type.type_().as_str();
-    // let subty = content_type.subtype().as_str();
-    // let suffix = content_type.suffix().map(|suffix| suffix.as_str());
-
-    // matches!(
-    //     (ty, subty, suffix),
-    //     ("application", "json", None)
-    //         | ("application", "csp-report", None)
-    //         | ("application", "expect-ct-report", None)
-    //         | ("application", "expect-ct-report", Some("json"))
-    //         | ("application", "expect-staple-report", None)
-    // )
-    todo!("get mime type and run predicate")
-}
-
-pub async fn handle<B>(
-    state: ServiceState,
-    mut req: axum::http::Request<B>,
-) -> axum::response::Result<impl IntoResponse>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<axum::BoxError>,
-{
-    let data = req.extract_parts().await?;
-    Ok(if predicate(data) {
-        inner.call(req, state).await
-    } else {
-        forward::handle.call(req, state).await
-    })
+    Ok(().into_response())
 }
