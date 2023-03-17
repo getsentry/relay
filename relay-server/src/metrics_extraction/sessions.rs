@@ -47,9 +47,8 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
-        target.push(Metric::new_mri(
-            MetricNamespace::Sessions(SessionsKind::Session),
-            MetricUnit::None,
+        target.push(Metric::new_session_mri(
+            SessionsKind::Session,
             MetricValue::Counter(session.total_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", "init"),
@@ -59,16 +58,14 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
-            SessionErrored::Individual(session_id) => Metric::new_mri(
-                MetricNamespace::Sessions(SessionsKind::Error),
-                MetricUnit::None,
+            SessionErrored::Individual(session_id) => Metric::new_session_mri(
+                SessionsKind::Error,
                 MetricValue::set_from_display(session_id),
                 timestamp,
                 tags.clone(),
             ),
-            SessionErrored::Aggregated(count) => Metric::new_mri(
-                MetricNamespace::Sessions(SessionsKind::Session),
-                MetricUnit::None,
+            SessionErrored::Aggregated(count) => Metric::new_session_mri(
+                SessionsKind::User,
                 MetricValue::Counter(count as f64),
                 timestamp,
                 with_tag(&tags, "session.status", "errored_preaggr"),
@@ -76,9 +73,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
-                MetricNamespace::Sessions(SessionsKind::User),
-                MetricUnit::None,
+            target.push(Metric::new_session_mri(
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", "errored"),
@@ -88,9 +83,8 @@ pub fn extract_session_metrics<T: SessionLike>(
         // For session updates without errors, we collect the user without a session.status tag.
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
-        target.push(Metric::new_mri(
-            MetricNamespace::Sessions(SessionsKind::User),
-            MetricUnit::None,
+        target.push(Metric::new_session_mri(
+            SessionsKind::User,
             MetricValue::set_from_str(distinct_id),
             timestamp,
             tags.clone(),
@@ -100,9 +94,8 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(Metric::new_mri(
-            MetricNamespace::Sessions(SessionsKind::Session),
-            MetricUnit::None,
+        target.push(Metric::new_session_mri(
+            SessionsKind::Session,
             MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Abnormal),
@@ -118,9 +111,8 @@ pub fn extract_session_metrics<T: SessionLike>(
                     session.abnormal_mechanism().to_string(),
                 );
             }
-            target.push(Metric::new_mri(
-                MetricNamespace::Sessions(SessionsKind::User),
-                MetricUnit::None,
+            target.push(Metric::new_session_mri(
+                SessionsKind::User,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 tags_for_abnormal_session,
@@ -129,18 +121,16 @@ pub fn extract_session_metrics<T: SessionLike>(
     }
 
     if session.crashed_count() > 0 {
-        target.push(Metric::new_mri(
-            MetricNamespace::Sessions(SessionsKind::Session),
-            MetricUnit::None,
+        target.push(Metric::new_session_mri(
+            SessionsKind::Session,
             MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Crashed),
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
-                MetricNamespace::Sessions(SessionsKind::User),
-                MetricUnit::None,
+            target.push(Metric::new_session_mri(
+                SessionsKind::User,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", SessionStatus::Crashed),

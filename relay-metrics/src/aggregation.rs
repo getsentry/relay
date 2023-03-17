@@ -19,8 +19,8 @@ use tokio::time::Instant;
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
-    protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricResourceIdentifier,
+    MetricType, MetricValue, MetricsContainer, SetType,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -1577,13 +1577,8 @@ impl AggregatorService {
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
         dbg!(&key);
-        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+        key.metric_name = match &key.metric_name.parse::<MetricResourceIdentifier>() {
             Ok(mri) => {
-                if matches!(mri.namespace, MetricNamespace::Unsupported) {
-                    relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
-                    return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
-                }
-
                 let mut metric_name = mri.to_string();
                 // do this so cost tracking still works accurately.
                 metric_name.shrink_to_fit();
@@ -1592,6 +1587,9 @@ impl AggregatorService {
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", key.metric_name);
                 return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+
+                //relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
+                //return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
             }
         };
 

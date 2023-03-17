@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
+use std::str::FromStr;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -177,7 +178,6 @@ impl Display for SessionsKind {
             Self::Session => write!(f, "session"),
             Self::User => write!(f, "user"),
             Self::Error => write!(f, "error"),
-            Self::Other(s) => write!(f, "{}", s),
         }
     }
 }
@@ -198,7 +198,7 @@ pub enum TransactionsKind<'a> {
     User,
     Duration,
     CountPerRootProject,
-    Measurements(Measurements),
+    Measurements(Measurements<'a>),
     Custom {
         name: &'a str,
         ty: MetricType,
@@ -206,8 +206,36 @@ pub enum TransactionsKind<'a> {
     },
 }
 
+impl<'a> TransactionsKind<'a> {
+    pub fn parse(name: &'a str, ty: MetricType, unit: MetricUnit) -> Self {
+        let prefix_len = "measurements.".len();
+
+        if &name[0..prefix_len] == "measurements." {
+            let measurement = match &name[prefix_len..] {
+                "frames_frozen" => Measurements::FramesFrozen,
+                "frames_frozen_rate" => Measurements::FramesFrozenRate,
+                "frames_slow" => Measurements::FramesSlow,
+                "frames_slow_rate" => Measurements::FramesSlowRate,
+                "frames_total" => Measurements::FramesTotal,
+                "stall_percentage" => Measurements::StallPercentage,
+                "stall_total_time" => Measurements::StallTotalTime,
+                "lcp" => Measurements::Lcp,
+                s => Measurements::Other(&s),
+            };
+            return Self::Measurements(measurement);
+        };
+
+        match name {
+            "duration" => Self::Duration,
+            "user" => Self::User,
+            "count_per_root_project" => Self::CountPerRootProject,
+            s => Self::Custom { name, ty, unit },
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measurements {
+pub enum Measurements<'a> {
     FramesFrozen,
     FramesFrozenRate,
     FramesSlow,
@@ -216,24 +244,21 @@ pub enum Measurements {
     StallPercentage,
     StallTotalTime,
     Lcp,
-    Other(String),
+    Other(&'a str),
 }
 
-impl<'a> From<&'a str> for TransactionsKind<'a> {
-    fn from(value: &'a str) -> Self {
-        match value {
-            "duration" => Self::Duration,
-            "user" => Self::User,
-            "count_per_root_project" => Self::CountPerRootProject,
-            "measurements.frames_frozen" => Self::MeasurementsFramesFrozen,
-            "measurements.frames_frozen_rate" => Self::MeasurementsFramesFrozenRate,
-            "measurements.frames_slow" => Self::MeasurementsFramesSlow,
-            "measurements.frames_slow_rate" => Self::MeasurementsFramesSlowRate,
-            "measurements.frames_total" => Self::MeasurementsFramesTotal,
-            "measurements.stall_percentage" => Self::MeasurementsStallPercentage,
-            "measurements.stall_total_time" => Self::MeasurementsStallTotalTime,
-            "measurements.lcp" => Self::MeasurementsLcp,
-            s => Self::Other(s),
+impl<'a> Display for Measurements<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FramesFrozen => write!(f, "measurements.frames_frozen"),
+            Self::FramesFrozenRate => write!(f, "measurements.frames_frozen_rate"),
+            Self::FramesSlow => write!(f, "measurements.frames_slow"),
+            Self::FramesSlowRate => write!(f, "measurements.frames_slow_rate"),
+            Self::FramesTotal => write!(f, "measurements.frames_total"),
+            Self::StallPercentage => write!(f, "measurements.stall_percentage"),
+            Self::StallTotalTime => write!(f, "measurements.stall_total_time"),
+            Self::Lcp => write!(f, "measurements.lcp"),
+            Self::Other(s) => write!(f, "{}", s),
         }
     }
 }
@@ -243,20 +268,14 @@ impl<'a> Display for TransactionsKind<'a> {
         match self {
             Self::Duration => write!(f, "duration"),
             Self::User => write!(f, "user"),
-            Self::MeasurementsLcp => write!(f, "measurements.lcp"),
             Self::CountPerRootProject => write!(f, "count_per_root_project"),
-            Self::MeasurementsFramesFrozen => write!(f, "measurements.frames_frozen"),
-            Self::MeasurementsFramesFrozenRate => write!(f, "measurements.frames_frozen_rate"),
-            Self::MeasurementsFramesSlow => write!(f, "measurements.frames_slow"),
-            Self::MeasurementsFramesSlowRate => write!(f, "measurements.frames_slow_rate"),
-            Self::MeasurementsFramesTotal => write!(f, "measurements.frames_total"),
-            Self::MeasurementsStallPercentage => write!(f, "measurements.stall_percentage"),
-            Self::MeasurementsStallTotalTime => write!(f, "measurements.stall_total_time"),
-            Self::Other(s) => write!(f, "{}", s),
+            Self::Measurements(measurement) => write!(f, "{}", measurement),
+            Self::Custom { name, ty, unit } => write!(f, "{}:transactions/{}@{}", ty, name, unit),
         }
     }
 }
 
+/*
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -270,24 +289,17 @@ impl<'a> Display for TransactionsKind<'a> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MetricNamespace<'a> {
     /// Metrics extracted from sessions.
-    Sessions(SessionsKind<'a>),
+    Sessions(SessionsKind),
     /// Metrics extracted from transaction events.
     Transactions(TransactionsKind<'a>),
-    // Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
-    // aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
-    // `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
-    // this variant.
-    //
-    // Relay currently drops all metrics whose namespace ends up being deserialized as
-    // `unsupported`. We may revise that in the future.
 }
 
 impl<'a> MetricNamespace<'a> {
-    pub fn parse(namespace: &'a str, name: &'a str) -> Self {
+    pub fn parse(namespace: &'a str, name: &'a str) -> Result<Self, ParseMetricError> {
         match namespace {
-            "sessions" => Self::Sessions(name.into()),
-            "transactions" => Self::Transactions(name.into()),
-            _ => Self::Unsupported,
+            "sessions" => Ok(Self::Sessions(name.into())),
+            "transactions" => Ok(Self::Transactions(name.into())),
+            _ => Err(ParseMetricError(())),
         }
     }
 
@@ -295,7 +307,6 @@ impl<'a> MetricNamespace<'a> {
         match self {
             Self::Sessions(session) => session.to_string(),
             Self::Transactions(transaction) => transaction.to_string(),
-            Self::Unsupported => "unsupported".to_owned(),
         }
     }
 
@@ -303,7 +314,6 @@ impl<'a> MetricNamespace<'a> {
         match self {
             Self::Sessions(_) => "sessions".to_owned(),
             Self::Transactions(_) => "transactions".to_owned(),
-            Self::Unsupported => "unsupported".to_owned(),
         }
     }
 }
@@ -328,31 +338,64 @@ impl<'a> fmt::Display for MetricNamespace<'a> {
         match self {
             MetricNamespace::Sessions(_) => write!(f, "sessions"),
             MetricNamespace::Transactions(_) => write!(f, "transactions"),
-            MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
     }
 }
-
-enum MRI {
-    Transaction(TransactionsKind),
-    Session(SessionsKind),
-}
-
-impl MRI {
-    fn unit(&self) -> MetricUnit {
-        todo!()
-    }
-
-    pub fn namespace(&self) -> MetricNamespace {
-        todo!()
-    }
-}
+*/
 
 /// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
-pub struct MetricResourceIdentifier<'a> {
+pub enum MetricResourceIdentifier<'a> {
+    Transaction(TransactionsKind<'a>),
+    Session(SessionsKind),
+}
+
+impl<'a> MetricResourceIdentifier<'a> {
+    pub fn unit(&self) -> MetricUnit {
+        todo!()
+    }
+
+    pub fn ty(&self) -> MetricType {
+        todo!()
+    }
+}
+
+impl<'a> ToString for MetricResourceIdentifier<'a> {
+    fn to_string(&self) -> String {
+        todo!()
+    }
+}
+
+/// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+impl<'a> FromStr for MetricResourceIdentifier<'a> {
+    type Err = ParseMetricError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
+        let ty: MetricType = raw_ty.parse()?;
+
+        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+
+        let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+
+        match raw_namespace {
+            "transaction" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit))),
+            "session" => {
+                let kind = match name {
+                    "user" => SessionsKind::User,
+                    "session" => SessionsKind::Session,
+                    "error" => SessionsKind::Error,
+                    _ => return Err(ParseMetricError(())),
+                };
+                Ok(Self::Session(kind))
+            }
+        }
+    }
+}
+
+/*
+pub struct FooMetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
@@ -401,6 +444,9 @@ impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
         )
     }
 }
+
+
+*/
 
 /// Validates a tag key.
 ///
@@ -629,20 +675,44 @@ impl Metric {
     ///
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
-    pub fn new_mri(
-        namespace: MetricNamespace,
+    /*
+        pub fn new_mri(
+            namespace: MetricNamespace,
+            unit: MetricUnit,
+            value: MetricValue,
+            timestamp: UnixTimestamp,
+            tags: BTreeMap<String, String>,
+        ) -> Self {
+            Self {
+                name: MetricResourceIdentifier {
+                    ty: value.ty(),
+                    namespace,
+                    unit,
+                }
+                .to_string(),
+                value,
+                timestamp,
+                tags,
+            }
+        }
+    */
+    pub fn new_transaction_mri(
         unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
     ) -> Self {
+        todo!()
+    }
+
+    pub fn new_session_mri(
+        kind: SessionsKind,
+        value: MetricValue,
+        timestamp: UnixTimestamp,
+        tags: BTreeMap<String, String>,
+    ) -> Self {
         Self {
-            name: MetricResourceIdentifier {
-                ty: value.ty(),
-                namespace,
-                unit,
-            }
-            .to_string(),
+            name: MetricResourceIdentifier::Session(kind).to_string(),
             value,
             timestamp,
             tags,
@@ -656,6 +726,8 @@ impl Metric {
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 
+        let x: MetricResourceIdentifier = MetricResourceIdentifier::from_str(string).ok()?;
+
         let name_value_str = components.next()?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
@@ -663,13 +735,12 @@ impl Metric {
             .split_once('/')
             .unwrap_or(("custom", string));
 
-        let mut metric = Self::new_mri(
-            MetricNamespace::parse(raw_namespace, name),
-            unit,
+        let mut metric = Self {
+            name: x.to_string(),
             value,
             timestamp,
-            BTreeMap::new(),
-        );
+            tags: BTreeMap::new(),
+        };
 
         for component in components {
             if let Some('#') = component.chars().next() {
