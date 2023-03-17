@@ -240,7 +240,25 @@ OsContext {
     }
 
     #[test]
-    fn test_indicate_frozen_os() {
+    fn test_indicate_frozen_os_windows() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        // Checks that the '>=' prefix is added.
+        assert_eq!(os.version.value().unwrap(), ">=10");
+    }
+
+    #[test]
+    fn test_indicate_frozen_os_mac() {
         let headers = Headers({
             let headers = vec![
             Annotated::new((
