@@ -5,6 +5,7 @@
 **Features**
 
 - Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
+- Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
 
 ## 23.3.0
 
