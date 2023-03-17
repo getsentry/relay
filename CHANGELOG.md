@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.3.0
 
 **Features**:
 
@@ -12,6 +12,11 @@
 - Scrub `span.data.http.query` with default scrubbers. ([#1889](https://github.com/getsentry/relay/pull/1889))
 - Synthesize new class attribute in device context using specs found on the device, such as processor_count, memory_size, etc. ([#1895](https://github.com/getsentry/relay/pull/1895))
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
+- Move device.class from contexts to tags. ([#1911](https://github.com/getsentry/relay/pull/1911))
+- Optionally mark scrubbed URL transactions as sanitized. ([#1917](https://github.com/getsentry/relay/pull/1917))
+- Perform PII scrubbing on meta's original_value field. ([#1892](https://github.com/getsentry/relay/pull/1892))
+- Add links to docs in YAML config file. ([#1923](https://github.com/getsentry/relay/pull/1923))
+- For security reports, add the request's `origin` header to sentry events. ([#1934](https://github.com/getsentry/relay/pull/1934))
 
 **Bug Fixes**:
 
@@ -24,6 +29,7 @@
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
 - Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
 - Move the pending envelopes buffering into the project cache. ([#1907](https://github.com/getsentry/relay/pull/1907))
+- Remove platform validation for profiles. ([#1933](https://github.com/getsentry/relay/pull/1933))
 
 ## 23.2.0
 

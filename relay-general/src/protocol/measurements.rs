@@ -145,9 +145,8 @@ mod tests {
     use relay_common::DurationUnit;
     use similar_asserts::assert_eq;
 
-    use crate::protocol::Event;
-
     use super::*;
+    use crate::protocol::Event;
 
     #[test]
     fn test_measurements_serialization() {

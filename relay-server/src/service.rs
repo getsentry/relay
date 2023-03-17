@@ -3,13 +3,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use once_cell::race::OnceBox;
-use tokio::runtime::Runtime;
-
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
 use relay_system::{Addr, Service};
+use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
@@ -113,11 +112,6 @@ impl ServiceState {
 
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
 
-        let outcome_producer =
-            OutcomeProducerService::create(config.clone())?.start_in(&outcome_runtime);
-        let outcome_aggregator =
-            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
-
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
                 Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
@@ -141,11 +135,16 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let project_cache =
-            ProjectCacheService::new(config.clone(), redis_pool).start_in(&project_runtime);
+        let project_cache = ProjectCacheService::new(
+            config.clone(),
+            processor.clone(),
+            upstream_relay.clone(),
+            redis_pool,
+        )
+        .start_in(&project_runtime);
 
         let health_check = HealthCheckService::new(config.clone()).start();
-        let relay_cache = RelayCacheService::new(config.clone()).start();
+        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
@@ -158,6 +157,15 @@ impl ServiceState {
             Some(project_cache.clone().recipient()),
         )
         .start_in(&aggregator_runtime);
+
+        let outcome_producer = OutcomeProducerService::create(
+            config.clone(),
+            upstream_relay.clone(),
+            envelope_manager.clone(),
+        )?
+        .start_in(&outcome_runtime);
+        let outcome_aggregator =
+            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         REGISTRY
             .set(Box::new(Registry {

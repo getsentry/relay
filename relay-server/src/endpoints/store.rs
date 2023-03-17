@@ -1,10 +1,10 @@
 //! Handles event store requests.
 
-use actix_web::{http::Method, App, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::http::Method;
+use actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use serde::Serialize;
-
 use relay_general::protocol::EventId;
+use serde::Serialize;
 
 use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};

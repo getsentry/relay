@@ -1,20 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
-use std::env;
 use std::error::Error;
-use std::fmt;
-use std::fs;
-use std::io;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
+use std::{env, fmt, fs, io};
 
 use anyhow::Context;
-use serde::de::{Unexpected, Visitor};
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
-
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
 use relay_kafka::{
@@ -22,11 +16,18 @@ use relay_kafka::{
 };
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
+use serde::de::{DeserializeOwned, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
+
+static CONFIG_YAML_HEADER: &str = r###"# Please see the relevant documentation.
+# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/
+# All config options: https://docs.sentry.io/product/relay/options/
+"###;
 
 /// Indicates config related errors.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -197,8 +198,11 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?;
 
         match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::to_writer(&mut f, self)
-                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
+            ConfigFormat::Yaml => {
+                f.write_all(CONFIG_YAML_HEADER.as_bytes())?;
+                serde_yaml::to_writer(&mut f, self)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?
+            }
             ConfigFormat::Json => serde_json::to_writer_pretty(&mut f, self)
                 .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
         }
@@ -1047,9 +1051,9 @@ impl ConfigObject for MinimalConfig {
 
 /// Alternative serialization of RelayInfo for config file using snake case.
 mod config_relay_info {
-    use super::*;
-
     use serde::ser::SerializeMap;
+
+    use super::*;
 
     // Uses snake_case as opposed to camelCase.
     #[derive(Debug, Serialize, Deserialize, Clone)]

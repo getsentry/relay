@@ -1,6 +1,5 @@
-use crate::types::Annotated;
-
 use crate::protocol::EventId;
+use crate::types::Annotated;
 
 /// Profile context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -20,9 +19,8 @@ impl ProfileContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Context;
-
     use super::*;
+    use crate::protocol::Context;
 
     #[test]
     pub(crate) fn test_trace_context_roundtrip() {

@@ -93,7 +93,7 @@
 //! }
 //! ```
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 mod android;
 mod cocoa;
@@ -109,29 +109,15 @@ use relay_general::protocol::EventId;
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
-use crate::sample::{parse_sample_profile, Version};
-
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
-enum Platform {
-    Android,
-    Cocoa,
-    Dotnet,
-    Javascript,
-    Node,
-    Php,
-    Python,
-    Rust,
-}
+use crate::sample::{parse_sample_profile, Version};
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
     #[serde(alias = "profile_id")]
     event_id: EventId,
-    platform: Platform,
+    platform: String,
     #[serde(default)]
     version: Version,
 }
@@ -147,9 +133,9 @@ pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError
     };
     let processed_payload = match profile.version {
         Version::V1 => parse_sample_profile(payload),
-        Version::Unknown => match profile.platform {
-            Platform::Android => parse_android_profile(payload),
-            Platform::Cocoa => parse_cocoa_profile(payload),
+        Version::Unknown => match profile.platform.as_str() {
+            "android" => parse_android_profile(payload),
+            "cocoa" => parse_cocoa_profile(payload),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };

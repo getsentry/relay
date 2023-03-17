@@ -21,11 +21,10 @@ pub fn should_filter(event: &Event, config: &ReleasesFilterConfig) -> Result<(),
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_general::protocol::{Event, LenientString};
     use relay_general::types::Annotated;
 
+    use super::*;
     use crate::GlobPatterns;
 
     fn get_event_for_release(release: &str) -> Event {

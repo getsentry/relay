@@ -9,11 +9,12 @@ use std::str::FromStr;
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
 use hmac::{Hmac, Mac};
-use rand::{rngs::OsRng, thread_rng, RngCore};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sha2::Sha512;
-
+use rand::rngs::OsRng;
+use rand::{thread_rng, RngCore};
 use relay_common::{UnixTimestamp, Uuid};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use sha2::Sha512;
 
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 

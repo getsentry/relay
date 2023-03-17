@@ -74,7 +74,7 @@ macro_rules! event_snapshot {
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);
                 let config = LightNormalizationConfig::default();
-                light_normalize_event(&mut event, &config).unwrap();
+                light_normalize_event(&mut event, config).unwrap();
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
                 let pii_config = pii_config();

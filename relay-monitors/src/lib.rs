@@ -104,8 +104,9 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use similar_asserts::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_json_roundtrip() {

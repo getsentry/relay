@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use actix::MailboxError;
 use actix_web::{App, Error, FromRequest, Json};
 use futures::{future, TryFutureExt};
-use serde::{Deserialize, Serialize};
-
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};

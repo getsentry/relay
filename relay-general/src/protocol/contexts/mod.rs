@@ -179,6 +179,13 @@ impl Contexts {
     {
         Some(&mut self.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
     }
+
+    pub fn get_context<S>(&self, key: S) -> Option<&Context>
+    where
+        S: AsRef<str>,
+    {
+        Some(&self.get(key.as_ref())?.value().as_ref()?.0)
+    }
 }
 
 impl std::ops::Deref for Contexts {
@@ -215,11 +222,10 @@ impl FromValue for Contexts {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
     use crate::types::{Map, Meta, ProcessingResult};
-
-    use super::*;
 
     #[test]
     fn test_other_context_roundtrip() {

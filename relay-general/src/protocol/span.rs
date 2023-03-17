@@ -62,9 +62,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
-    use crate::protocol::HttpElement;
-
     use super::*;
+    use crate::protocol::HttpElement;
 
     #[test]
     fn test_span_serialization() {

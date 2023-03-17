@@ -1,8 +1,9 @@
 //! Returns captured events.
 
-use actix_web::{actix::MailboxError, http::Method, App, HttpResponse, Path};
+use actix_web::actix::MailboxError;
+use actix_web::http::Method;
+use actix_web::{App, HttpResponse, Path};
 use futures::TryFutureExt;
-
 use relay_general::protocol::EventId;
 
 use crate::actors::test_store::{GetCapturedEnvelope, TestStore};

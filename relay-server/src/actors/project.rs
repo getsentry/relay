@@ -2,12 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
-use smallvec::SmallVec;
-use tokio::time::Instant;
-use url::Url;
-
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
@@ -16,21 +10,23 @@ use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContaine
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
 use relay_system::BroadcastChannel;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use tokio::time::Instant;
+use url::Url;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::EnvelopeProcessor;
+#[cfg(feature = "processing")]
+use crate::actors::processor::RateLimitFlushBuckets;
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
-
-#[cfg(feature = "processing")]
-use crate::actors::processor::RateLimitFlushBuckets;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

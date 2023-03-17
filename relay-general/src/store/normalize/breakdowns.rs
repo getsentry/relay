@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-
 use relay_common::{DurationUnit, MetricUnit};
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
@@ -236,10 +235,9 @@ mod tests {
     use chrono::{TimeZone, Timelike, Utc};
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
     use crate::types::Object;
-
-    use super::*;
 
     #[test]
     fn test_skip_with_empty_breakdowns_config() {

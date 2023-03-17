@@ -1,6 +1,3 @@
-use bytes::Bytes;
-use relay_general::user_agent::RawUserAgentInfo;
-use relay_replays::recording::RecordingScrubber;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -10,51 +7,36 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use brotli2::write::BrotliEncoder;
+use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
-use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
-
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
-use relay_general::pii::PiiConfigError;
-use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
+use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
+use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
+use relay_replays::recording::RecordingScrubber;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
-
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::ProjectState;
-use crate::actors::project_cache::ProjectCache;
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
-use crate::service::REGISTRY;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
-    SamplingResult,
-};
-
+use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::actors::envelopes::SendMetrics,
@@ -66,6 +48,22 @@ use {
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
+};
+
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::project::ProjectState;
+use crate::actors::project_cache::ProjectCache;
+use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::extractors::RequestMeta;
+use crate::metrics_extraction::sessions::extract_session_metrics;
+use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
+use crate::service::REGISTRY;
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::utils::{
+    self, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -1374,7 +1372,11 @@ impl EnvelopeProcessorService {
         Ok((event, item.len()))
     }
 
-    fn event_from_security_report(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
+    fn event_from_security_report(
+        &self,
+        item: Item,
+        meta: &RequestMeta,
+    ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
         let mut event = Event::default();
 
@@ -1408,6 +1410,15 @@ impl EnvelopeProcessorService {
             .and_then(Value::as_str)
         {
             event.environment = Annotated::from(env.to_owned());
+        }
+
+        if let Some(origin) = meta.origin() {
+            event
+                .request
+                .get_or_insert_with(Default::default)
+                .headers
+                .get_or_insert_with(Default::default)
+                .insert("Origin".into(), Annotated::new(origin.to_string().into()));
         }
 
         // Explicitly set the event type. This is required so that a `Security` item can be created
@@ -1647,10 +1658,11 @@ impl EnvelopeProcessorService {
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
-            self.event_from_security_report(item).map_err(|error| {
-                relay_log::error!("failed to extract security report: {}", LogError(&error));
-                error
-            })?
+            self.event_from_security_report(item, envelope.meta())
+                .map_err(|error| {
+                    relay_log::error!("failed to extract security report: {}", LogError(&error));
+                    error
+                })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
@@ -2195,16 +2207,21 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
-            normalize_transaction_name: state
-                .project_state
-                .has_feature(Feature::TransactionNameNormalize),
-            tx_name_rules: &state.project_state.config.tx_name_rules,
+            transaction_name_config: TransactionNameConfig {
+                scrub_identifiers: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameNormalize),
+                mark_scrubbed_as_sanitized: state
+                    .project_state
+                    .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
+                rules: &state.project_state.config.tx_name_rules,
+            },
 
             is_renormalize: false,
         };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            relay_general::store::light_normalize_event(&mut state.event, &config)
+            relay_general::store::light_normalize_event(&mut state.event, config)
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
 
@@ -2546,22 +2563,19 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
-
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
-
-    use super::*;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
@@ -2923,18 +2937,15 @@ mod tests {
             item
         });
 
-        let new_envelope = relay_test::with_system(move || {
-            let envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap();
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
-            envelope_response.envelope.unwrap().0
-        });
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap().0;
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
@@ -2972,43 +2983,41 @@ mod tests {
             item
         });
 
-        let new_envelope = relay_test::with_system(move || {
-            let mut datascrubbing_settings = DataScrubbingConfig::default();
-            // enable all the default scrubbing
-            datascrubbing_settings.scrub_data = true;
-            datascrubbing_settings.scrub_defaults = true;
-            datascrubbing_settings.scrub_ip_addresses = true;
+        let mut datascrubbing_settings = DataScrubbingConfig::default();
+        // enable all the default scrubbing
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
 
-            // Make sure to mask any IP-like looking data
-            let pii_config = PiiConfig::from_json(
-                r##"
+        // Make sure to mask any IP-like looking data
+        let pii_config = PiiConfig::from_json(
+            r##"
                 {
                     "applications": {
                         "**": ["@ip:mask"]
                     }
                 }
                 "##,
-            )
-            .unwrap();
+        )
+        .unwrap();
 
-            let config = ProjectConfig {
-                datascrubbing_settings,
-                pii_config: Some(pii_config),
-                ..Default::default()
-            };
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
+        };
 
-            let mut project_state = ProjectState::allowed();
-            project_state.config = config;
-            let envelope_response = processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(project_state),
-                    sampling_project_state: None,
-                })
-                .unwrap();
-            envelope_response.envelope.unwrap().0
-        });
+        let mut project_state = ProjectState::allowed();
+        project_state.config = config;
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap().0;
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -3072,17 +3081,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 
@@ -3123,17 +3129,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         let (envelope, ctx) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
@@ -3183,17 +3186,14 @@ mod tests {
             item
         });
 
-        let envelope_response = relay_test::with_system(move || {
-            processor
-                .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::standalone(&envelope),
-                    envelope,
-                    project_state: Arc::new(ProjectState::allowed()),
-                    sampling_project_state: None,
-                })
-                .unwrap()
-        });
+        let message = ProcessEnvelope {
+            envelope_context: EnvelopeContext::standalone(&envelope),
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
 
+        let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 

@@ -156,10 +156,10 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_general::protocol::Csp;
     use relay_general::types::Annotated;
+
+    use super::*;
 
     fn get_csp_event(blocked_uri: Option<&str>, source_file: Option<&str>) -> Event {
         fn annotated_string_or_none(val: Option<&str>) -> Annotated<String> {

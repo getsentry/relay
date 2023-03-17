@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-
 use relay_common::{ProjectKey, UnixTimestamp};
 use relay_metrics::{AggregatorConfig, AggregatorService, Metric, MetricValue};
 

@@ -66,7 +66,6 @@ use cadence::{
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
-
 use relay_log::LogError;
 
 /// Maximum number of metric events that can be queued before we start dropping them

@@ -7,15 +7,14 @@ use actix_web::dev::AsyncResult;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures::TryFutureExt;
-use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
-use serde::{Deserialize, Serialize};
-use url::Url;
-
 use relay_common::{
     Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
     ProjectKey, Scheme,
 };
+use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
+use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::body;
 use crate::extractors::ForwardedFor;

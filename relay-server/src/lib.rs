@@ -270,6 +270,7 @@ mod utils;
 mod testutils;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::Controller;
@@ -286,22 +287,23 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
     relay_log::info!("relay server starting");
 
-    // Spawn the main tokio runtime here since the controller cannot access the config.
+    // Create the main tokio runtime that all services run in.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
-    let _guard = main_runtime.enter();
 
-    // Run the controller and block until a shutdown signal is sent to this process. This will
-    // create an actix system, start a web server and run all relevant actors inside. See the
-    // `actors` module documentation for more information on all actors.
-    Controller::run(config.shutdown_timeout(), || {
-        let service = ServiceState::start(config.clone())?;
-        HttpServer::start(&config, service)
+    // Run the system and block until a shutdown signal is sent to this process. Inside, start a
+    // web server and run all relevant services. See the `actors` module documentation for more
+    // information on all services.
+    main_runtime.block_on(async {
+        Controller::start(config.shutdown_timeout());
+        HttpServer::start(config.clone(), ServiceState::start(config)?).await?;
+        Controller::shutdown_handle().finished().await;
+        anyhow::Ok(())
     })?;
 
-    // Shut down the tokio runtime immediately without waiting for tasks. Our services do not exit
-    // by themselves, and the shutdown timeout should have given them enough time to complete their
-    // tasks.
-    main_runtime.shutdown_background();
+    // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
+    // not exit by themselves, and the shutdown timeout should have given them enough time to
+    // complete their tasks. The additional 100ms allow services to run their error handlers.
+    main_runtime.shutdown_timeout(Duration::from_millis(100));
 
     relay_log::info!("relay shutdown complete");
     Ok(())

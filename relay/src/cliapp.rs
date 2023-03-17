@@ -1,7 +1,7 @@
 //! This module implements the definition of the command line app.
 
-use clap::ArgAction;
-use clap::{builder::ValueParser, Arg, ArgGroup, Command, ValueHint};
+use clap::builder::ValueParser;
+use clap::{Arg, ArgAction, ArgGroup, Command, ValueHint};
 use clap_complete::Shell;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

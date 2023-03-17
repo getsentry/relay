@@ -507,9 +507,8 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 mod tests {
     use itertools::Itertools;
 
-    use crate::pii::PiiConfig;
-
     use super::*;
+    use crate::pii::PiiConfig;
 
     enum AttachmentBytesTestCase<'a> {
         Builtin {
