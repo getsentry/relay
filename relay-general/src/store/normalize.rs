@@ -808,13 +808,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         if event.platform.as_str() == Some("java") {
             if let Some(event_logger) = event.logger.value_mut() {
-                let trimmed_logger = event_logger.as_str().trim();
-                let logger_len = bytecount::num_chars(trimmed_logger.as_bytes());
-
-                if logger_len > MaxChars::Logger.limit() {
-                    *event_logger = shorten_logger(trimmed_logger);
-                } else if trimmed_logger != event_logger.as_str() {
-                    *event_logger = trimmed_logger.to_owned();
+                let shortened = shorten_logger(event_logger.clone());
+                if shortened != event_logger.as_str() {
+                    *event_logger = shortened.to_owned();
                 }
             }
         }
@@ -1020,7 +1016,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
 /// a shortened version of the logger. If not, the same logger is returned as a
-/// String.
+/// String. The resulting logger is always trimmed.
 ///
 /// To shorten the logger, all extra chars that don't fit into the maximum limit
 /// are removed, from the beginning of the logger.  Then, if the remaining
@@ -1029,13 +1025,18 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 ///
 /// Additionally, the new logger is prefixed with `*`, to indicate it was
 /// shortened.
-fn shorten_logger(logger: &str) -> String {
-    let logger_len = bytecount::num_chars(logger.as_bytes());
+fn shorten_logger(logger: String) -> String {
+    let trimmed = logger.trim();
+    let logger_len = bytecount::num_chars(trimmed.as_bytes());
     if logger_len <= MaxChars::Logger.limit() {
-        return logger.to_owned();
+        if trimmed == logger {
+            return logger;
+        } else {
+            return trimmed.to_string();
+        };
     }
 
-    let mut tokens = logger.split("").collect_vec();
+    let mut tokens = trimmed.split("").collect_vec();
     // Remove empty str tokens from the beginning and end.
     tokens.pop();
     tokens.reverse(); // Prioritize chars from the end of the string.
