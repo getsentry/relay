@@ -72,7 +72,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeContext, Semaphore};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, Semaphore};
 
 <span class="doccomment">/// An error returned by [`BufferGuard::enter`] indicating that the buffer capacity has been
 /// exceeded.
@@ -118,11 +118,11 @@
     <span class="doccomment">/// Reserves resources for processing an envelope in Relay.
     ///
     /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
-    /// resources. When the envelope context is dropped, the slot is automatically reclaimed and can
+    /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
     /// be reused by a subsequent call to `enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
-    </span><span class="kw">pub fn </span>enter(<span class="kw-2">&amp;</span><span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="prelude-ty">Result</span>&lt;EnvelopeContext, BufferError&gt; {
+    </span><span class="kw">pub fn </span>enter(<span class="kw-2">&amp;</span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
         <span class="kw">let </span>permit = <span class="self">self</span>.inner.try_acquire().ok_or(BufferError)<span class="question-mark">?</span>;
 
         <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::EnvelopeQueueSize) = <span class="self">self</span>.used() <span class="kw">as </span>u64);
@@ -134,7 +134,7 @@
             }
         );
 
-        <span class="prelude-val">Ok</span>(EnvelopeContext::new(envelope, permit))
+        <span class="prelude-val">Ok</span>(ManagedEnvelope::new(envelope, permit))
     }
 }
 </code></pre></div>

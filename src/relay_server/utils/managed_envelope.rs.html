@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/envelope_context.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelope_context.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/managed_envelope.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>managed_envelope.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -248,19 +248,42 @@
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
-</span><span class="kw">use </span>std::net;
-<span class="kw">use </span>std::time::Instant;
+</span><span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::DataCategory;
-<span class="kw">use </span>relay_general::protocol::EventId;
 <span class="kw">use </span>relay_quotas::Scoping;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -293,9 +316,17 @@
     }
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>EnvelopeContext {
+    summary: EnvelopeSummary,
+    scoping: Scoping,
+    slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
+    done: bool,
+}
+
 <span class="doccomment">/// Tracks the lifetime of an [`Envelope`] in Relay.
 ///
-/// The envelope context accompanies envelopes through the processing pipeline in Relay and ensures
+/// The managed envelope accompanies envelopes through the processing pipeline in Relay and ensures
 /// that outcomes are recorded when the Envelope is dropped. They can be dropped in one of three
 /// ways:
 ///
@@ -303,36 +334,31 @@
 ///    another service, and no further outcomes need to be recorded.
 ///  - By calling [`reject`](Self::reject). The entire envelope was dropped, and the outcome
 ///    specifies the reason.
-///  - By dropping the envelope context. This indicates an issue or a bug and raises the
+///  - By dropping the managed envelope. This indicates an issue or a bug and raises the
 ///    `&quot;internal&quot;` outcome. There should be additional error handling to report an error to Sentry.
 ///
-/// The envelope context also holds a processing queue permit which is used for backpressure
+/// The managed envelope also holds a processing queue permit which is used for backpressure
 /// management. It is automatically reclaimed when the context is dropped along with the envelope.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>EnvelopeContext {
-    summary: EnvelopeSummary,
-    start_time: Instant,
-    received_at: DateTime&lt;Utc&gt;,
-    event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
-    remote_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
-    scoping: Scoping,
-    slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
-    done: bool,
+</span><span class="kw">pub struct </span>ManagedEnvelope {
+    envelope: Box&lt;Envelope&gt;,
+    context: EnvelopeContext,
 }
 
-<span class="kw">impl </span>EnvelopeContext {
-    <span class="doccomment">/// Computes an envelope context from the given envelope.
-    </span><span class="kw">fn </span>new_internal(envelope: <span class="kw-2">&amp;</span>Envelope, slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>ManagedEnvelope {
+    <span class="doccomment">/// Computes an managed envelope from the given envelope.
+    </span><span class="kw">fn </span>new_internal(envelope: Box&lt;Envelope&gt;, slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span>envelope.meta();
+        <span class="kw">let </span>summary = EnvelopeSummary::compute(envelope.as_ref());
+        <span class="kw">let </span>scoping = meta.get_partial_scoping();
         <span class="self">Self </span>{
-            summary: EnvelopeSummary::compute(envelope),
-            start_time: meta.start_time(),
-            received_at: relay_common::instant_to_date_time(meta.start_time()),
-            event_id: envelope.event_id(),
-            remote_addr: meta.client_addr(),
-            scoping: meta.get_partial_scoping(),
-            slot,
-            done: <span class="bool-val">false</span>,
+            envelope,
+            context: EnvelopeContext {
+                summary,
+                scoping,
+                slot,
+                done: <span class="bool-val">false</span>,
+            },
         }
     }
 
@@ -341,23 +367,39 @@
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
     </span><span class="attr">#[cfg(test)]
-    </span><span class="kw">pub fn </span>standalone(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>standalone(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>)
     }
 
-    <span class="doccomment">/// Computes an envelope context from the given envelope and binds it to the processing queue.
+    <span class="doccomment">/// Computes an managed envelope from the given envelope and binds it to the processing queue.
     ///
-    /// To provide additional scoping, use [`EnvelopeContext::scope`].
-    </span><span class="kw">pub fn </span>new(envelope: <span class="kw-2">&amp;</span>Envelope, slot: SemaphorePermit) -&gt; <span class="self">Self </span>{
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
+    </span><span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;, slot: SemaphorePermit) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">Some</span>(slot))
     }
 
-    <span class="doccomment">/// Update the context with new envelope information.
+    <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
+    </span><span class="kw">pub fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Envelope {
+        <span class="self">self</span>.envelope.as_ref()
+    }
+
+    <span class="doccomment">/// Returns a mutable reference to the contained [`Envelope`].
+    </span><span class="kw">pub fn </span>envelope_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Envelope {
+        <span class="self">self</span>.envelope.as_mut()
+    }
+
+    <span class="doccomment">/// Take the envelope out of the context and replace it with a dummy.
+    ///
+    /// Note that after taking out the envelope, the envelope summary is incorrect.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>take_envelope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Box&lt;Envelope&gt; {
+        Box::new(<span class="self">self</span>.envelope.take_items())
+    }
+
+    <span class="doccomment">/// Update the context with envelope information.
     ///
     /// This updates the item summary as well as the event id.
-    </span><span class="kw">pub fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.event_id = envelope.event_id();
-        <span class="self">self</span>.summary = EnvelopeSummary::compute(envelope);
+    </span><span class="kw">pub fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.context.summary = EnvelopeSummary::compute(<span class="self">self</span>.envelope());
         <span class="self">self
     </span>}
 
@@ -367,28 +409,28 @@
     /// if the context needs to be updated in-flight without recomputing the entire summary, this
     /// method can record that metric extraction for the event item has occurred.
     </span><span class="kw">pub fn </span>set_event_metrics_extracted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.summary.event_metrics_extracted = <span class="bool-val">true</span>;
+        <span class="self">self</span>.context.summary.event_metrics_extracted = <span class="bool-val">true</span>;
         <span class="self">self
     </span>}
 
     <span class="doccomment">/// Re-scopes this context to the given scoping.
     </span><span class="kw">pub fn </span>scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scoping: Scoping) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.scoping = scoping;
+        <span class="self">self</span>.context.scoping = scoping;
         <span class="self">self
     </span>}
 
     <span class="doccomment">/// Records an outcome scoped to this envelope&#39;s context.
     ///
-    /// This envelope context should be updated using [`update`](Self::update) soon after this
+    /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     </span><span class="kw">pub fn </span>track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, outcome: Outcome, category: DataCategory, quantity: usize) {
         <span class="kw">let </span>outcome_aggregator = TrackOutcome::from_registry();
         outcome_aggregator.send(TrackOutcome {
-            timestamp: <span class="self">self</span>.received_at,
-            scoping: <span class="self">self</span>.scoping,
+            timestamp: <span class="self">self</span>.received_at(),
+            scoping: <span class="self">self</span>.context.scoping,
             outcome,
-            event_id: <span class="self">self</span>.event_id,
-            remote_addr: <span class="self">self</span>.remote_addr,
+            event_id: <span class="self">self</span>.envelope.event_id(),
+            remote_addr: <span class="self">self</span>.meta().remote_addr(),
             category,
             <span class="comment">// Quantities are usually `usize` which lets us go all the way to 64-bit on our
             // machines, but the protocol and data store can only do 32-bit.
@@ -402,7 +444,7 @@
     /// the responsibility for logging outcomes has been moved. This function will not log any
     /// outcomes.
     </span><span class="kw">pub fn </span>accept(<span class="kw-2">mut </span><span class="self">self</span>) {
-        <span class="kw">if </span>!<span class="self">self</span>.done {
+        <span class="kw">if </span>!<span class="self">self</span>.context.done {
             <span class="self">self</span>.finish(RelayCounters::EnvelopeAccepted, Handling::Success);
         }
     }
@@ -412,10 +454,12 @@
     /// If metrics have been extracted from the event item, this will return the indexing category.
     /// Outcomes for metrics (the base data category) will be logged by the metrics aggregator.
     </span><span class="kw">fn </span>event_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
-        <span class="kw">let </span>category = <span class="self">self</span>.summary.event_category<span class="question-mark">?</span>;
+        <span class="kw">let </span>category = <span class="self">self</span>.context.summary.event_category<span class="question-mark">?</span>;
 
         <span class="kw">match </span>category.index_category() {
-            <span class="prelude-val">Some</span>(index_category) <span class="kw">if </span><span class="self">self</span>.summary.event_metrics_extracted =&gt; <span class="prelude-val">Some</span>(index_category),
+            <span class="prelude-val">Some</span>(index_category) <span class="kw">if </span><span class="self">self</span>.context.summary.event_metrics_extracted =&gt; {
+                <span class="prelude-val">Some</span>(index_category)
+            }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(category),
         }
     }
@@ -424,7 +468,7 @@
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
     </span><span class="kw">pub fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
-        <span class="kw">if </span><span class="self">self</span>.done {
+        <span class="kw">if </span><span class="self">self</span>.context.done {
             <span class="kw">return</span>;
         }
 
@@ -437,25 +481,25 @@
         }
 
         <span class="comment">// TODO: This could be optimized with Capture::should_capture
-        </span>TestStore::from_registry().send(Capture::rejected(<span class="self">self</span>.event_id, <span class="kw-2">&amp;</span>outcome));
+        </span>TestStore::from_registry().send(Capture::rejected(<span class="self">self</span>.envelope.event_id(), <span class="kw-2">&amp;</span>outcome));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = <span class="self">self</span>.event_category() {
             <span class="self">self</span>.track_outcome(outcome.clone(), category, <span class="number">1</span>);
         }
 
-        <span class="kw">if </span><span class="self">self</span>.summary.attachment_quantity &gt; <span class="number">0 </span>{
+        <span class="kw">if </span><span class="self">self</span>.context.summary.attachment_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome.clone(),
                 DataCategory::Attachment,
-                <span class="self">self</span>.summary.attachment_quantity,
+                <span class="self">self</span>.context.summary.attachment_quantity,
             );
         }
 
-        <span class="kw">if </span><span class="self">self</span>.summary.profile_quantity &gt; <span class="number">0 </span>{
+        <span class="kw">if </span><span class="self">self</span>.context.summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome,
                 DataCategory::Profile,
-                <span class="self">self</span>.summary.profile_quantity,
+                <span class="self">self</span>.context.summary.profile_quantity,
             );
         }
 
@@ -464,35 +508,39 @@
 
     <span class="doccomment">/// Returns scoping stored in this context.
     </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scoping {
-        <span class="self">self</span>.scoping
+        <span class="self">self</span>.context.scoping
+    }
+
+    <span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RequestMeta {
+        <span class="self">self</span>.envelope().meta()
     }
 
     <span class="doccomment">/// Returns the instant at which the envelope was received at this Relay.
     ///
     /// This is the monotonic time equivalent to [`received_at`](Self::received_at).
     </span><span class="kw">pub fn </span>start_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
-        <span class="self">self</span>.start_time
+        <span class="self">self</span>.meta().start_time()
     }
 
     <span class="doccomment">/// Returns the time at which the envelope was received at this Relay.
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
-        <span class="self">self</span>.received_at
+        relay_common::instant_to_date_time(<span class="self">self</span>.envelope().meta().start_time())
     }
 
     <span class="doccomment">/// Resets inner state to ensure there&#39;s no more logging.
     </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
-        <span class="self">self</span>.slot.take();
+        <span class="self">self</span>.context.slot.take();
 
         <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.start_time.elapsed());
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.start_time().elapsed());
 
-        <span class="self">self</span>.done = <span class="bool-val">true</span>;
+        <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
     }
 }
 
-<span class="kw">impl </span>Drop <span class="kw">for </span>EnvelopeContext {
+<span class="kw">impl </span>Drop <span class="kw">for </span>ManagedEnvelope {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.reject(Outcome::Invalid(DiscardReason::Internal));
     }

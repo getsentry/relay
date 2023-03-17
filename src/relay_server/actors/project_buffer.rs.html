@@ -198,18 +198,13 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_system::{FromMessage, Interface, Service};
 <span class="kw">use </span>tokio::sync::mpsc;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeContext;
+<span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
 <span class="doccomment">/// This key represents the index element in the queue.
 ///
@@ -231,15 +226,15 @@
     }
 }
 
-<span class="doccomment">/// Adds the envelope and the envelope context to the internal buffer.
+<span class="doccomment">/// Adds the envelope and the managed envelope to the internal buffer.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Enqueue {
     key: QueueKey,
-    value: (Box&lt;Envelope&gt;, EnvelopeContext),
+    value: ManagedEnvelope,
 }
 
 <span class="kw">impl </span>Enqueue {
-    <span class="kw">pub fn </span>new(key: QueueKey, value: (Box&lt;Envelope&gt;, EnvelopeContext)) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(key: QueueKey, value: ManagedEnvelope) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ key, value }
     }
 }
@@ -248,14 +243,11 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>DequeueMany {
     keys: Vec&lt;QueueKey&gt;,
-    sender: mpsc::UnboundedSender&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
+    sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
 }
 
 <span class="kw">impl </span>DequeueMany {
-    <span class="kw">pub fn </span>new(
-        keys: Vec&lt;QueueKey&gt;,
-        sender: mpsc::UnboundedSender&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
-    ) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(keys: Vec&lt;QueueKey&gt;, sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ keys, sender }
     }
 }
@@ -325,7 +317,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>BufferService {
     <span class="doccomment">/// Contains the cache of the incoming envelopes.
-    </span>buffer: BTreeMap&lt;QueueKey, Vec&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;&gt;,
+    </span>buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
 }
 
 <span class="kw">impl </span>BufferService {

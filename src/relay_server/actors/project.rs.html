@@ -1018,11 +1018,11 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::service::Registry;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1713,18 +1713,17 @@
     /// pipeline.
     </span><span class="kw">pub fn </span>check_envelope(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
-        <span class="kw-2">mut </span>envelope_context: EnvelopeContext,
+        <span class="kw-2">mut </span>envelope: ManagedEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
         <span class="kw">let </span>state = <span class="self">self</span>.valid_state().filter(|state| !state.invalid());
-        <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope_context.scoping();
+        <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope.scoping();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) = state {
-            scoping = state.scope_request(envelope.meta());
-            envelope_context.scope(scoping);
+            scoping = state.scope_request(envelope.envelope().meta());
+            envelope.scope(scoping);
 
-            <span class="kw">if let </span><span class="prelude-val">Err</span>(reason) = state.check_request(envelope.meta(), <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
-                envelope_context.reject(Outcome::Invalid(reason));
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(reason) = state.check_request(envelope.envelope().meta(), <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+                envelope.reject(Outcome::Invalid(reason));
                 <span class="kw">return </span><span class="prelude-val">Err</span>(reason);
             }
         }
@@ -1737,16 +1736,17 @@
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        <span class="kw">let </span>(enforcement, rate_limits) = envelope_limiter.enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
-        enforcement.track_outcomes(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;</span>scoping);
-        envelope_context.update(<span class="kw-2">&amp;</span>envelope);
+        <span class="kw">let </span>(enforcement, rate_limits) =
+            envelope_limiter.enforce(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
+        enforcement.track_outcomes(envelope.envelope(), <span class="kw-2">&amp;</span>scoping);
+        envelope.update();
 
-        <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.is_empty() {
+        <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.envelope().is_empty() {
             <span class="comment">// Individual rate limits have already been issued above
-            </span>envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+            </span>envelope.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
-            <span class="prelude-val">Some</span>((envelope, envelope_context))
+            <span class="prelude-val">Some</span>(envelope)
         };
 
         <span class="prelude-val">Ok</span>(CheckedEnvelope {

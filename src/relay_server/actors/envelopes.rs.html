@@ -408,8 +408,6 @@
 <a href="#407" id="407">407</a>
 <a href="#408" id="408">408</a>
 <a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
@@ -440,7 +438,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response};
 <span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
-<span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeContext;
+<span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
 <span class="doccomment">/// Error created while handling [`SendEnvelope`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -540,8 +538,7 @@
 <span class="doccomment">/// Sends an envelope to the upstream or Kafka.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SubmitEnvelope {
-    <span class="kw">pub </span>envelope: Box&lt;Envelope&gt;,
-    <span class="kw">pub </span>envelope_context: EnvelopeContext,
+    <span class="kw">pub </span>envelope: ManagedEnvelope,
 }
 
 <span class="doccomment">/// Sends a client report to the upstream.
@@ -701,18 +698,17 @@
     }
 
     <span class="kw">async fn </span>handle_submit(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SubmitEnvelope) {
-        <span class="kw">let </span>SubmitEnvelope {
-            envelope,
-            <span class="kw-2">mut </span>envelope_context,
-        } = message;
+        <span class="kw">let </span>SubmitEnvelope { <span class="kw-2">mut </span>envelope } = message;
 
-        <span class="kw">let </span>scoping = envelope_context.scoping();
-        <span class="kw">match </span><span class="self">self</span>.submit_envelope(envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
+        <span class="kw">let </span>scoping = envelope.scoping();
+
+        <span class="kw">let </span>inner_envelope = envelope.take_envelope();
+        <span class="kw">match </span><span class="self">self</span>.submit_envelope(inner_envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                envelope_context.accept();
+                envelope.accept();
             }
             <span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(e)) <span class="kw">if </span>e.is_received() =&gt; {
-                envelope_context.accept();
+                envelope.accept();
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="comment">// Errors are only logged for what we consider an internal discard reason. These
@@ -721,7 +717,7 @@
                     |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, scoping.project_key),
                     || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error)),
                 );
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }

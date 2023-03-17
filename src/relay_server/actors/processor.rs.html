@@ -3343,6 +3343,9 @@
 <a href="#3342" id="3342">3342</a>
 <a href="#3343" id="3343">3343</a>
 <a href="#3344" id="3344">3344</a>
+<a href="#3345" id="3345">3345</a>
+<a href="#3346" id="3346">3346</a>
+<a href="#3347" id="3347">3347</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3407,7 +3410,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, EnvelopeContext, FormDataIter,
+    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ManagedEnvelope,
     SamplingResult,
 };
 
@@ -3598,12 +3601,6 @@
 <span class="doccomment">/// A state container for envelope processing.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProcessEnvelopeState {
-    <span class="doccomment">/// The envelope.
-    ///
-    /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
-    /// removed at the beginning of processing and re-added in the end.
-    </span>envelope: Box&lt;Envelope&gt;,
-
     <span class="doccomment">/// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -3653,18 +3650,28 @@
     /// ID.
     </span>project_id: ProjectId,
 
-    <span class="doccomment">/// The envelope context before processing.
-    </span>envelope_context: EnvelopeContext,
+    <span class="doccomment">/// The managed envelope before processing.
+    </span>managed_envelope: ManagedEnvelope,
 }
 
 <span class="kw">impl </span>ProcessEnvelopeState {
+    <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
+    </span><span class="kw">fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Envelope {
+        <span class="self">self</span>.managed_envelope.envelope()
+    }
+
+    <span class="doccomment">/// Returns a mutable reference to the contained [`Envelope`].
+    </span><span class="kw">fn </span>envelope_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Envelope {
+        <span class="self">self</span>.managed_envelope.envelope_mut()
+    }
+
     <span class="doccomment">/// Returns whether any item in the envelope creates an event in any relay.
     ///
     /// This is used to branch into the processing pipeline. If this function returns false, only
     /// rate limits are executed. If this function returns true, an event is created either in the
     /// current relay or in an upstream processing relay.
     </span><span class="kw">fn </span>creates_event(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.envelope.items().any(Item::creates_event)
+        <span class="self">self</span>.envelope().items().any(Item::creates_event)
     }
 
     <span class="doccomment">/// Returns true if there is an event in the processing state.
@@ -3746,7 +3753,7 @@
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
+    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;ManagedEnvelope&gt;,
 }
 
 <span class="doccomment">/// Applies processing to all contents of the given envelope.
@@ -3760,8 +3767,7 @@
 ///  - Rate limiters and inbound filters on events in processing mode.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessEnvelope {
-    <span class="kw">pub </span>envelope: Box&lt;Envelope&gt;,
-    <span class="kw">pub </span>envelope_context: EnvelopeContext,
+    <span class="kw">pub </span>envelope: ManagedEnvelope,
     <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
     <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
 }
@@ -4150,10 +4156,10 @@
     /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     </span><span class="kw">fn </span>process_sessions(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>received = state.envelope_context.received_at();
+        <span class="kw">let </span>received = state.managed_envelope.received_at();
         <span class="kw">let </span>extracted_metrics = <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics;
         <span class="kw">let </span>metrics_config = state.project_state.config().session_metrics;
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
         <span class="kw">let </span>client = envelope.meta().client().map(|x| x.to_owned());
         <span class="kw">let </span>client_addr = envelope.meta().client_addr();
 
@@ -4191,7 +4197,7 @@
     /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
     /// is written back into the item.
     </span><span class="kw">fn </span>process_user_reports(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        state.envelope.retain_items(|item| {
+        state.envelope_mut().retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
                 <span class="kw">return </span><span class="bool-val">true</span>;
             };
@@ -4229,7 +4235,7 @@
             <span class="comment">// if a processing relay has client outcomes disabled we drop them.
             </span><span class="kw">if </span><span class="self">self</span>.config.processing_enabled() {
                 state
-                    .envelope
+                    .envelope_mut()
                     .retain_items(|item| item.ty() != <span class="kw-2">&amp;</span>ItemType::ClientReport);
             }
             <span class="kw">return</span>;
@@ -4237,14 +4243,14 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>timestamp = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>output_events = BTreeMap::new();
-        <span class="kw">let </span>received = state.envelope_context.received_at();
+        <span class="kw">let </span>received = state.managed_envelope.received_at();
 
-        <span class="kw">let </span>clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
+        <span class="kw">let </span>clock_drift_processor = ClockDriftProcessor::new(state.envelope().sent_at(), received)
             .at_least(MINIMUM_CLOCK_DRIFT);
 
         <span class="comment">// we&#39;re going through all client reports but we&#39;re effectively just merging
         // them into the first one.
-        </span>state.envelope.retain_items(|item| {
+        </span>state.envelope_mut().retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::ClientReport {
                 <span class="kw">return </span><span class="bool-val">true</span>;
             };
@@ -4353,7 +4359,7 @@
                 // now that the timestamp can be parsed, but just incase we fallback to UTC current
                 // `DateTime`.
                 </span>timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
-                scoping: state.envelope_context.scoping(),
+                scoping: state.managed_envelope.scoping(),
                 outcome,
                 event_id: <span class="prelude-val">None</span>,
                 remote_addr: <span class="prelude-val">None</span>, <span class="comment">// omitting the client address allows for better aggregation
@@ -4366,7 +4372,7 @@
     <span class="doccomment">/// Remove profiles from the envelope if the feature flag is not enabled.
     </span><span class="kw">fn </span>filter_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        state.envelope_mut().retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Profile =&gt; profiling_enabled,
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
@@ -4375,7 +4381,7 @@
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_check_ins(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        state.envelope.retain_items(|item| {
+        state.envelope_mut().retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::CheckIn {
                 <span class="kw">return </span><span class="bool-val">true</span>;
             }
@@ -4397,7 +4403,9 @@
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        state.envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
+        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Profile =&gt; <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>((profile_id, payload)) =&gt; {
                     <span class="kw">if </span>payload.len() &lt;= <span class="self">self</span>.config.max_profile_size() {
@@ -4418,7 +4426,7 @@
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-                        state.envelope_context.track_outcome(
+                        outcomes.push((
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -4426,7 +4434,7 @@
                             )),
                             DataCategory::Profile,
                             <span class="number">1</span>,
-                        );
+                        ));
                         <span class="bool-val">false
                     </span>}
                 }
@@ -4444,30 +4452,34 @@
                         }
                         <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, err),
                     };
-                    state.envelope_context.track_outcome(
+                    outcomes.push((
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
                         )),
                         DataCategory::Profile,
                         <span class="number">1</span>,
-                    );
+                    ));
                     <span class="bool-val">false
                 </span>}
             },
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
+        <span class="kw">for </span>(outcome, category, quantity) <span class="kw">in </span>outcomes {
+            state
+                .managed_envelope
+                .track_outcome(outcome, category, quantity);
+        }
     }
 
     <span class="doccomment">/// Remove replays if the feature flag is not enabled.
     </span><span class="kw">fn </span>process_replays(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>project_state = <span class="kw-2">&amp;mut </span>state.project_state;
+        <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
         <span class="kw">let </span>replays_enabled = project_state.has_feature(Feature::SessionReplay);
         <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
-        <span class="kw">let </span>context = <span class="kw-2">&amp;</span>state.envelope_context;
-        <span class="kw">let </span>meta = state.envelope.meta().clone();
+        <span class="kw">let </span>meta = state.envelope().meta().clone();
         <span class="kw">let </span>client_addr = meta.client_addr();
-        <span class="kw">let </span>event_id = state.envelope.event_id();
+        <span class="kw">let </span>event_id = state.envelope().event_id();
 
         <span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
         <span class="kw">let </span>config = project_state.config();
@@ -4484,7 +4496,9 @@
             client_hints: meta.client_hints().as_deref(),
         };
 
-        state.envelope.retain_items(<span class="kw">move </span>|item| <span class="kw">match </span>item.ty() {
+        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
+        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
                 <span class="kw">if </span>!replays_enabled {
                     <span class="kw">return </span><span class="bool-val">false</span>;
@@ -4505,40 +4519,25 @@
                         </span>}
                     },
                     <span class="prelude-val">Err</span>(e) =&gt; {
-                        <span class="kw">match </span>e {
+                        <span class="kw">let </span>discard_reason = <span class="kw">match </span>e {
                             ReplayError::NoContent =&gt; {
                                 <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: no data found&quot;</span>);
-                                context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
-                                    DataCategory::Replay,
-                                    <span class="number">1</span>,
-                                );
+                                DiscardReason::InvalidReplayEventNoPayload
                             }
                             ReplayError::CouldNotScrub(e) =&gt; {
                                 <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: PII scrub failure {}&quot;</span>, e);
-                                context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
-                                    DataCategory::Replay,
-                                    <span class="number">1</span>,
-                                );
+                                DiscardReason::InvalidReplayEventPii
                             }
                             ReplayError::CouldNotParse(e) =&gt; {
                                 <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e.to_string());
-                                context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                                    DataCategory::Replay,
-                                    <span class="number">1</span>,
-                                );
+                                DiscardReason::InvalidReplayEvent
                             }
                             ReplayError::InvalidPayload(e) =&gt; {
                                 <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e);
-                                context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                                    DataCategory::Replay,
-                                    <span class="number">1</span>,
-                                );
+                                DiscardReason::InvalidReplayEvent
                             }
-                        }
+                        };
+                        outcomes.push((Outcome::Invalid(discard_reason), DataCategory::Replay, <span class="number">1</span>));
                         <span class="bool-val">false
                     </span>}
                 }
@@ -4569,17 +4568,23 @@
                     </span>}
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
-                        context.track_outcome(
+                        outcomes.push((
                             Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
                             DataCategory::Replay,
                             <span class="number">1</span>,
-                        );
+                        ));
                         <span class="bool-val">false
                     </span>}
                 }
             }
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
+
+        <span class="kw">for </span>(outcome, category, quantity) <span class="kw">in </span>outcomes {
+            state
+                .managed_envelope
+                .track_outcome(outcome, category, quantity);
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -4629,11 +4634,12 @@
         message: ProcessEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessEnvelopeState, ProcessingError&gt; {
         <span class="kw">let </span>ProcessEnvelope {
-            <span class="kw-2">mut </span>envelope,
-            <span class="kw-2">mut </span>envelope_context,
+            envelope: <span class="kw-2">mut </span>managed_envelope,
             project_state,
             sampling_project_state,
         } = message;
+
+        <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
         <span class="comment">// Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
@@ -4653,7 +4659,7 @@
         {
             <span class="prelude-val">Some</span>(project_id) =&gt; project_id,
             <span class="prelude-val">None </span>=&gt; {
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal));
                 <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::MissingProjectId);
             }
         };
@@ -4665,7 +4671,6 @@
         </span>envelope.meta_mut().set_project_id(project_id);
 
         <span class="prelude-val">Ok</span>(ProcessEnvelopeState {
-            envelope,
             event: Annotated::empty(),
             transaction_metrics_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
@@ -4675,7 +4680,7 @@
             project_state,
             sampling_project_state,
             project_id,
-            envelope_context,
+            managed_envelope,
         })
     }
 
@@ -4693,7 +4698,7 @@
     /// way it processes any other envelopes.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>expand_unreal(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
+        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::UnrealReport) {
             utils::expand_unreal_envelope(item, envelope, <span class="kw-2">&amp;</span><span class="self">self</span>.config)<span class="question-mark">?</span>;
@@ -4961,7 +4966,7 @@
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
     </span><span class="kw">fn </span>extract_event(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
+        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
         <span class="comment">// Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
@@ -4983,9 +4988,10 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::DuplicateItem(duplicate.ty().clone()));
         }
 
+        <span class="kw">let </span><span class="kw-2">mut </span>sample_rates = <span class="prelude-val">None</span>;
         <span class="kw">let </span>(event, event_len) = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = event_item.or(security_item) {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing json event&quot;</span>);
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
                 <span class="comment">// Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
@@ -4993,7 +4999,7 @@
             </span>})
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = transaction_item {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing json transaction&quot;</span>);
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
                 <span class="comment">// Transaction items can only contain transaction events. Force the event type to
@@ -5002,7 +5008,7 @@
             </span>})
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = raw_security_item {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing security report&quot;</span>);
-            state.sample_rates = item.take_sample_rates();
+            sample_rates = item.take_sample_rates();
             <span class="self">self</span>.event_from_security_report(item, envelope.meta())
                 .map_err(|error| {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract security report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
@@ -5026,6 +5032,7 @@
         };
 
         state.event = event;
+        state.sample_rates = sample_rates;
         state.metrics.bytes_ingested_event = Annotated::new(event_len <span class="kw">as </span>u64);
 
         <span class="prelude-val">Ok</span>(())
@@ -5037,7 +5044,7 @@
     /// If there was no event payload prior to this function, it is created.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_unreal(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, <span class="kw-2">&amp;mut </span>state.envelope)
+        utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, state.managed_envelope.envelope_mut())
             .map_err(ProcessingError::InvalidUnrealReport)
     }
 
@@ -5049,8 +5056,7 @@
     /// If the event payload was empty before, it is created.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>create_placeholders(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
-
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope();
         <span class="kw">let </span>minidump_attachment =
             envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
         <span class="kw">let </span>apple_crash_report_attachment = envelope
@@ -5069,7 +5075,7 @@
 
     <span class="kw">fn </span>finalize_event(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>is_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
 
         <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
             <span class="prelude-val">Some</span>(event) =&gt; event,
@@ -5174,7 +5180,7 @@
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>processor = ClockDriftProcessor::new(sent_at, state.envelope_context.received_at())
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
         process_value(<span class="kw-2">&amp;mut </span>state.event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
             .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
@@ -5183,7 +5189,7 @@
         // store processing, which could modify the timestamp if it exceeds a threshold. We are
         // interested in the actual delay before this correction.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            <span class="kw">let </span>event_delay = state.envelope_context.received_at() - timestamp.into_inner();
+            <span class="kw">let </span>event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
             <span class="kw">if </span>event_delay &gt; SignedDuration::minutes(<span class="number">1</span>) {
                 <span class="kw">let </span>category = state.event_category().unwrap_or(DataCategory::Unknown);
                 <span class="macro">metric!</span>(
@@ -5199,16 +5205,17 @@
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>store_process_event(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>ProcessEnvelopeState {
-            <span class="kw-2">ref </span>envelope,
             <span class="kw-2">ref mut </span>event,
             <span class="kw-2">ref </span>project_state,
-            <span class="kw-2">ref </span>envelope_context,
+            <span class="kw-2">ref </span>managed_envelope,
             ..
         } = <span class="kw-2">*</span>state;
 
         <span class="kw">let </span>key_id = project_state
             .get_public_key_config()
             .and_then(|k| <span class="prelude-val">Some</span>(k.numeric_id<span class="question-mark">?</span>.to_string()));
+
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope();
 
         <span class="kw">if </span>key_id.is_none() {
             <span class="macro">relay_log::error!</span>(
@@ -5232,7 +5239,7 @@
             remove_other: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
             normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
             sent_at: envelope.sent_at(),
-            received_at: <span class="prelude-val">Some</span>(envelope_context.received_at()),
+            received_at: <span class="prelude-val">Some</span>(managed_envelope.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
@@ -5272,7 +5279,7 @@
     ///
     /// If there is no transaction event in the envelope, this function will do nothing.
     </span><span class="kw">fn </span>normalize_dsc(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">if </span>state.envelope.dsc().is_some() &amp;&amp; state.sampling_project_state.is_some() {
+        <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; state.sampling_project_state.is_some() {
             <span class="kw">return</span>;
         }
 
@@ -5282,7 +5289,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = state.project_state.get_public_key_config() <span class="kw">else </span>{ <span class="kw">return </span>};
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
-            state.envelope.set_dsc(dsc);
+            state.envelope_mut().set_dsc(dsc);
             state.sampling_project_state = <span class="prelude-val">Some</span>(state.project_state.clone());
         }
     }
@@ -5295,12 +5302,12 @@
             </span><span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
         };
 
-        <span class="kw">let </span>client_ip = state.envelope.meta().client_addr();
+        <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
         <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_state.config.filter_settings;
 
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.envelope_context.reject(Outcome::Filtered(err));
+                state.managed_envelope.reject(Outcome::Filtered(err));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -5334,9 +5341,9 @@
             envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
         }
 
-        <span class="kw">let </span>scoping = state.envelope_context.scoping();
+        <span class="kw">let </span>scoping = state.managed_envelope.scoping();
         <span class="kw">let </span>(enforcement, limits) = <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(<span class="kw-2">&amp;mut </span>state.envelope, <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
+            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
         </span>});
 
         <span class="kw">if </span>limits.is_limited() {
@@ -5345,10 +5352,10 @@
 
         <span class="kw">if </span>enforcement.event_active() {
             state.remove_event();
-            <span class="macro">debug_assert!</span>(state.envelope.is_empty());
+            <span class="macro">debug_assert!</span>(state.envelope().is_empty());
         }
 
-        enforcement.track_outcomes(<span class="kw-2">&amp;</span>state.envelope, <span class="kw-2">&amp;</span>state.envelope_context.scoping());
+        enforcement.track_outcomes(state.envelope(), <span class="kw-2">&amp;</span>state.managed_envelope.scoping());
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5373,7 +5380,8 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="kw">let </span>transaction_from_dsc = state
-            .envelope
+            .managed_envelope
+            .envelope()
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
@@ -5400,7 +5408,7 @@
             result<span class="question-mark">?</span>;
 
             state.transaction_metrics_extracted = <span class="bool-val">true</span>;
-            state.envelope_context.set_event_metrics_extracted();
+            state.managed_envelope.set_event_metrics_extracted();
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -5437,7 +5445,7 @@
     /// attachment types. When special attachments are detected, these are scrubbed with custom
     /// logic; otherwise the entire attachment is treated as a single binary blob.
     </span><span class="kw">fn </span>scrub_attachments(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
+        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = state.project_state.config.pii_config {
             <span class="kw">let </span>minidump = envelope
                 .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
@@ -5502,7 +5510,7 @@
             event_item.set_sample_rates(sample_rates);
         }
 
-        state.envelope.add_item(event_item);
+        state.envelope_mut().add_item(event_item);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5513,9 +5521,9 @@
             <span class="self">self</span>.config.processing_enabled(),
             <span class="kw-2">&amp;</span>state.project_state,
             state.sampling_project_state.as_deref(),
-            state.envelope.dsc(),
+            state.envelope().dsc(),
             state.event.value(),
-            state.envelope.meta().client_addr(),
+            state.envelope().meta().client_addr(),
         );
     }
 
@@ -5524,7 +5532,7 @@
         <span class="kw">match </span>std::mem::take(<span class="kw-2">&amp;mut </span>state.sampling_result) {
             SamplingResult::Drop(rule_ids) =&gt; {
                 state
-                    .envelope_context
+                    .managed_envelope
                     .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
                 <span class="prelude-val">Err</span>(ProcessingError::Sampled(rule_ids))
@@ -5537,7 +5545,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>request_meta = state.envelope.meta();
+        <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         <span class="kw">let </span>config = LightNormalizationConfig {
@@ -5546,7 +5554,7 @@
                 user_agent: request_meta.user_agent(),
                 client_hints: request_meta.client_hints().as_deref(),
             },
-            received_at: <span class="prelude-val">Some</span>(state.envelope_context.received_at()),
+            received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
             max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_past()),
             max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_future()),
             measurements_config: state.project_state.config.measurements.as_ref(),
@@ -5641,8 +5649,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>state = <span class="self">self</span>.prepare_state(message)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>project_id = state.project_id;
-        <span class="kw">let </span>client = state.envelope.meta().client().map(str::to_owned);
-        <span class="kw">let </span>user_agent = state.envelope.meta().user_agent().map(str::to_owned);
+        <span class="kw">let </span>client = state.envelope().meta().client().map(str::to_owned);
+        <span class="kw">let </span>user_agent = state.envelope().meta().user_agent().map(str::to_owned);
 
         relay_log::with_scope(
             |scope| {
@@ -5659,22 +5667,24 @@
                     <span class="prelude-val">Ok</span>(()) =&gt; {
                         <span class="comment">// The envelope could be modified or even emptied during processing, which
                         // requires recomputation of the context.
-                        </span>state.envelope_context.update(<span class="kw-2">&amp;</span>state.envelope);
+                        </span>state.managed_envelope.update();
 
                         <span class="kw">let </span>has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
-                        state.extracted_metrics.send_metrics(<span class="kw-2">&amp;</span>state.envelope);
+                        state
+                            .extracted_metrics
+                            .send_metrics(state.managed_envelope.envelope());
 
-                        <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.envelope.is_empty() {
+                        <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.managed_envelope.envelope().is_empty() {
                             <span class="kw">if </span>!has_metrics {
                                 <span class="comment">// Individual rate limits have already been issued
-                                </span>state.envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+                                </span>state.managed_envelope.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
                             } <span class="kw">else </span>{
-                                state.envelope_context.accept();
+                                state.managed_envelope.accept();
                             }
                             <span class="prelude-val">None
                         </span>} <span class="kw">else </span>{
-                            <span class="prelude-val">Some</span>((state.envelope, state.envelope_context))
+                            <span class="prelude-val">Some</span>(state.managed_envelope)
                         };
 
                         <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
@@ -5683,11 +5693,13 @@
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = err.to_outcome() {
-                            state.envelope_context.reject(outcome);
+                            state.managed_envelope.reject(outcome);
                         }
 
                         <span class="kw">if </span>err.should_keep_metrics() {
-                            state.extracted_metrics.send_metrics(<span class="kw-2">&amp;</span>state.envelope);
+                            state
+                                .extracted_metrics
+                                .send_metrics(state.managed_envelope.envelope());
                         }
 
                         <span class="prelude-val">Err</span>(err)
@@ -5698,8 +5710,8 @@
     }
 
     <span class="kw">fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessEnvelope) {
-        <span class="kw">let </span>project_key = message.envelope.meta().public_key();
-        <span class="kw">let </span>wait_time = message.envelope_context.start_time().elapsed();
+        <span class="kw">let </span>project_key = message.envelope.envelope().meta().public_key();
+        <span class="kw">let </span>wait_time = message.envelope.start_time().elapsed();
         <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), {
@@ -5708,10 +5720,9 @@
 
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>((envelope, envelope_context)) = response.envelope {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(managed_envelope) = response.envelope {
                     EnvelopeManager::from_registry().send(SubmitEnvelope {
-                        envelope,
-                        envelope_context,
+                        envelope: managed_envelope,
                     })
                 };
             }
@@ -6080,7 +6091,6 @@
         ServiceState::start(arconfig).unwrap();
 
         <span class="kw">let </span>service = create_test_processor(config);
-        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>);
 
         <span class="kw">let </span>event = Event {
             id: Annotated::new(EventId::new()),
@@ -6101,7 +6111,6 @@
             );
 
             <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
-                envelope: new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>),
                 event: Annotated::from(event.clone()),
                 transaction_metrics_extracted: <span class="bool-val">false</span>,
                 metrics: Default::default(),
@@ -6111,8 +6120,8 @@
                 project_state: Arc::new(project_state),
                 sampling_project_state: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
-                envelope_context: EnvelopeContext::new(
-                    <span class="kw-2">&amp;</span>envelope,
+                managed_envelope: ManagedEnvelope::new(
+                    new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>),
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                 ),
             };
@@ -6283,14 +6292,14 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-            envelope,
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
-        <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap().<span class="number">0</span>;
+        <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
+        <span class="kw">let </span>new_envelope = ctx.envelope();
 
         <span class="macro">assert_eq!</span>(new_envelope.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(new_envelope.items().next().unwrap().ty(), <span class="kw-2">&amp;</span>ItemType::Event);
@@ -6355,14 +6364,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.config = config;
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-            envelope,
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
-        <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap().<span class="number">0</span>;
+        <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap();
+        <span class="kw">let </span>new_envelope = new_envelope.envelope();
 
         <span class="kw">let </span>event_item = new_envelope.items().last().unwrap();
         <span class="kw">let </span>annotated_event: Annotated&lt;Event&gt; =
@@ -6427,8 +6436,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-            envelope,
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
@@ -6475,15 +6483,14 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-            envelope,
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
-        <span class="kw">let </span>(envelope, ctx) = envelope_response.envelope.unwrap();
-        <span class="kw">let </span>item = envelope.items().next().unwrap();
+        <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
+        <span class="kw">let </span>item = ctx.envelope().items().next().unwrap();
         <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::ClientReport);
 
         ctx.accept(); <span class="comment">// do not try to capture or emit outcomes
@@ -6532,8 +6539,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope_context: EnvelopeContext::standalone(<span class="kw-2">&amp;</span>envelope),
-            envelope,
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
