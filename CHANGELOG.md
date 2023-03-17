@@ -4,6 +4,14 @@
 
 **Features**:
 
+- Indicate if OS-version may be frozen with '>=' prefix. ([#1945](https://github.com/getsentry/relay/pull/1945))
+- Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
+
+
+## 23.3.0
+
+**Features**:
+
 - Extract attachments from transaction events and send them to kafka individually. ([#1844](https://github.com/getsentry/relay/pull/1844))
 - Protocol validation for source map image type. ([#1869](https://github.com/getsentry/relay/pull/1869))
 - Strip quotes from client hint values. ([#1874](https://github.com/getsentry/relay/pull/1874))
@@ -29,6 +37,7 @@
 - Deprecate fields on the profiling sample format. ([#1878](https://github.com/getsentry/relay/pull/1878))
 - Remove idle samples at the start and end of a profile and useless metadata. ([#1894](https://github.com/getsentry/relay/pull/1894))
 - Move the pending envelopes buffering into the project cache. ([#1907](https://github.com/getsentry/relay/pull/1907))
+- Remove platform validation for profiles. ([#1933](https://github.com/getsentry/relay/pull/1933))
 
 ## 23.2.0
 

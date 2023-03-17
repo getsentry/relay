@@ -9,7 +9,7 @@
     "client_os": {
       "name": "Windows",
       "type": "os",
-      "version": "10"
+      "version": ">=10"
     }
   },
   "csp": {
@@ -37,8 +37,16 @@
     "url": "http://notlocalhost:8000/"
   },
   "tags": [
-    ["effective-directive", "style-src"],
-    ["blocked-uri", "http://notlocalhost:8000/lol.css"]
+    [
+      "effective-directive",
+      "style-src"
+    ],
+    [
+      "blocked-uri",
+      "http://notlocalhost:8000/lol.css"
+    ]
   ],
-  "user": { "ip_address": "127.0.0.1" }
+  "user": {
+    "ip_address": "127.0.0.1"
+  }
 }

@@ -194,11 +194,12 @@ pub struct RelayCacheService {
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl RelayCacheService {
     /// Creates a new [`RelayCache`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         Self {
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
@@ -207,6 +208,7 @@ impl RelayCacheService {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
+            upstream_relay,
         }
     }
 
@@ -243,15 +245,13 @@ impl RelayCacheService {
         );
 
         let fetch_tx = self.fetch_tx();
+        let upstream_relay = self.upstream_relay.clone();
         tokio::spawn(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            let query_result = match UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .await
-            {
+            let query_result = match upstream_relay.send(SendQuery(request)).await {
                 Ok(inner) => inner,
                 // Drop the channels to propagate the `SendError` up.
                 Err(_send_error) => return,
