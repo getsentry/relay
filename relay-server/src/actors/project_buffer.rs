@@ -4,8 +4,7 @@ use relay_common::ProjectKey;
 use relay_system::{FromMessage, Interface, Service};
 use tokio::sync::mpsc;
 
-use crate::envelope::Envelope;
-use crate::utils::EnvelopeContext;
+use crate::utils::ManagedEnvelope;
 
 /// This key represents the index element in the queue.
 ///
@@ -27,15 +26,15 @@ impl QueueKey {
     }
 }
 
-/// Adds the envelope and the envelope context to the internal buffer.
+/// Adds the envelope and the managed envelope to the internal buffer.
 #[derive(Debug)]
 pub struct Enqueue {
     key: QueueKey,
-    value: (Box<Envelope>, EnvelopeContext),
+    value: ManagedEnvelope,
 }
 
 impl Enqueue {
-    pub fn new(key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) -> Self {
+    pub fn new(key: QueueKey, value: ManagedEnvelope) -> Self {
         Self { key, value }
     }
 }
@@ -44,14 +43,11 @@ impl Enqueue {
 #[derive(Debug)]
 pub struct DequeueMany {
     keys: Vec<QueueKey>,
-    sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
+    sender: mpsc::UnboundedSender<ManagedEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(
-        keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
-    ) -> Self {
+    pub fn new(keys: Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
         Self { keys, sender }
     }
 }
@@ -121,7 +117,7 @@ impl FromMessage<RemoveMany> for Buffer {
 #[derive(Debug)]
 pub struct BufferService {
     /// Contains the cache of the incoming envelopes.
-    buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
 }
 
 impl BufferService {

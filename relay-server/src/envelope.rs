@@ -861,6 +861,15 @@ impl Envelope {
         Ok(Box::new(Envelope { headers, items }))
     }
 
+    /// Move the envelope's items into an envelope with the same headers.
+    pub fn take_items(&mut self) -> Envelope {
+        let Self { headers, items } = self;
+        Self {
+            headers: headers.clone(),
+            items: std::mem::take(items),
+        }
+    }
+
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
