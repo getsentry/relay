@@ -178,16 +178,16 @@ impl EnvelopeSummary {
     }
 
     fn set_quantity(&mut self, item: &Item) {
-        let target_quantity = &mut match item.ty() {
-            ItemType::Attachment => self.attachment_quantity,
-            ItemType::Session => self.session_quantity,
-            ItemType::Profile => self.profile_quantity,
-            ItemType::ReplayEvent => self.replay_quantity,
-            ItemType::ReplayRecording => self.replay_quantity,
-            ItemType::CheckIn => self.checkin_quantity,
+        let target_quantity = match item.ty() {
+            ItemType::Attachment => &mut self.attachment_quantity,
+            ItemType::Session => &mut self.session_quantity,
+            ItemType::Profile => &mut self.profile_quantity,
+            ItemType::ReplayEvent => &mut self.replay_quantity,
+            ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::CheckIn => &mut self.checkin_quantity,
             _ => return,
         };
-        *target_quantity += item.quantity()
+        *target_quantity += item.quantity();
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
