@@ -4,8 +4,9 @@
 
 **Features**:
 
-
 - Indicate if OS-version may be frozen with '>=' prefix. ([#1945](https://github.com/getsentry/relay/pull/1945))
+- Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
+
 
 ## 23.3.0
 
