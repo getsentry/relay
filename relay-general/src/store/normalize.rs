@@ -810,7 +810,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             if let Some(event_logger) = event.logger.value_mut() {
                 let shortened = shorten_logger(event_logger.clone());
                 if shortened != event_logger.as_str() {
-                    *event_logger = shortened.to_owned();
+                    *event_logger = shortened;
                 }
             }
         }
