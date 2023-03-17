@@ -255,6 +255,61 @@
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
 <a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{FromUserAgentInfo, LenientString};
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::{get_version, is_known};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -330,14 +385,33 @@
 
     <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>os = parse_os(user_agent);
+        <span class="kw">let </span><span class="kw-2">mut </span>version = get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch);
 
         <span class="kw">if </span>!is_known(<span class="kw-2">&amp;</span>os.family) {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
+        <span class="kw">let </span>name = os.family.into_owned();
+
+        <span class="comment">// Since user-agent strings freeze the OS-version at windows 10 and mac os 10.15.7,
+        // we will indicate that the version may in reality be higher.
+        </span><span class="kw">if </span>name == <span class="string">&quot;Windows&quot; </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = version.as_mut() {
+                <span class="kw">if </span>v == <span class="string">&quot;10&quot; </span>{
+                    v.insert_str(<span class="number">0</span>, <span class="string">&quot;&gt;=&quot;</span>);
+                }
+            }
+        } <span class="kw">else if </span>name == <span class="string">&quot;Mac OS X&quot; </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = version.as_mut() {
+                <span class="kw">if </span>v == <span class="string">&quot;10.15.7&quot; </span>{
+                    v.insert_str(<span class="number">0</span>, <span class="string">&quot;&gt;=&quot;</span>);
+                }
+            }
+        }
+
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            name: Annotated::new(os.family.into_owned()),
-            version: Annotated::from(get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch)),
+            name: Annotated::new(name),
+            version: Annotated::from(version),
             ..OsContext::default()
         })
     }
@@ -448,7 +522,7 @@ OsContext {
             <span class="kw">let </span>headers = <span class="macro">vec!</span>[
             Annotated::new((
                 Annotated::new(<span class="string">&quot;user-agent&quot;</span>.to_string().into()),
-                Annotated::new(<span class="string">r#&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36&quot;#</span>.to_string().into()),
+                Annotated::new(<span class="string">r#&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36&quot;#</span>.to_string().into()),
             )),
             Annotated::new((
                 Annotated::new(<span class="string">&quot;invalid header&quot;</span>.to_string().into()),
@@ -467,7 +541,7 @@ OsContext {
         <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r###&quot;
 OsContext {
     name: &quot;Mac OS X&quot;,
-    version: &quot;10.15.7&quot;,
+    version: &quot;10.15.6&quot;,
     build: ~,
     kernel_version: ~,
     rooted: ~,
@@ -475,6 +549,42 @@ OsContext {
     other: {},
 }
         &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_indicate_frozen_os_windows() {
+        <span class="kw">let </span>headers = Headers({
+            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
+            Annotated::new((
+                Annotated::new(<span class="string">&quot;user-agent&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">r#&quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36&quot;#</span>.to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
+
+        <span class="comment">// Checks that the &#39;&gt;=&#39; prefix is added.
+        </span><span class="macro">assert_eq!</span>(os.version.value().unwrap(), <span class="string">&quot;&gt;=10&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_indicate_frozen_os_mac() {
+        <span class="kw">let </span>headers = Headers({
+            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
+            Annotated::new((
+                Annotated::new(<span class="string">&quot;user-agent&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">r#&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36&quot;#</span>.to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
+
+        <span class="comment">// Checks that the &#39;&gt;=&#39; prefix is added.
+        </span><span class="macro">assert_eq!</span>(os.version.value().unwrap(), <span class="string">&quot;&gt;=10.15.7&quot;</span>);
     }
 
     <span class="attr">#[test]

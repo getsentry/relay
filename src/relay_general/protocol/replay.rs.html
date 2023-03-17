@@ -946,7 +946,7 @@
     </span><span class="kw">fn </span>test_set_user_agent_meta() {
         <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
             name: Annotated::new(<span class="string">&quot;Mac OS X&quot;</span>.to_string()),
-            version: Annotated::new(<span class="string">&quot;10.15.7&quot;</span>.to_string()),
+            version: Annotated::new(<span class="string">&quot;&gt;=10.15.7&quot;</span>.to_string()),
             ..Default::default()
         }))));
         <span class="kw">let </span>browser_context =
