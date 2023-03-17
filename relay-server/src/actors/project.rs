@@ -664,9 +664,10 @@ impl Project {
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
     pub fn update_state(
         &mut self,
+        project_cache: Addr<ProjectCache>,
         mut state: Arc<ProjectState>,
         no_cache: bool,
-    ) -> Option<RequestUpdate> {
+    ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
         if state.invalid() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
@@ -677,14 +678,14 @@ impl Project {
 
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
-            None => return None,
+            None => return,
         };
 
         // If the channel has `no_cache` set but we are not a `no_cache` request, we have
         // been superseeded. Put it back and let the other request take precedence.
         if channel.no_cache && !no_cache {
             self.state_channel = Some(channel);
-            return None;
+            return;
         }
 
         match self.expiry_state() {
@@ -703,13 +704,13 @@ impl Project {
                 self.project_key
             );
 
-            return Some(RequestUpdate::new(self.project_key, no_cache));
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
+            return;
         }
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
-        None
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -928,7 +929,7 @@ mod tests {
         assert!(!project.state.as_ref().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
-        project.update_state(Arc::new(ProjectState::err()), false);
+        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
@@ -944,7 +945,7 @@ mod tests {
         // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
-        project.update_state(Arc::new(ProjectState::err()), false);
+        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
         project.fetch_state(addr, false);
     }
 

@@ -509,13 +509,12 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
 
-        let request_update = self
-            .get_or_create_project(project_key)
-            .update_state(state.clone(), no_cache);
-
-        if let Some(reqeust_update) = request_update {
-            self.handle_request_update(reqeust_update)
-        }
+        let project_cache = self.project_cache.clone();
+        self.get_or_create_project(project_key).update_state(
+            project_cache,
+            state.clone(),
+            no_cache,
+        );
 
         if !state.invalid() {
             self.dequeue(project_key);
