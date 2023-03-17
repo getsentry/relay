@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
+
 ## 23.3.0
 
 **Features**:

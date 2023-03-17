@@ -319,6 +319,8 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
         "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
         "frames_frozen" => Some(MetricUnit::None),
         "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+        "time_to_initial_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "time_to_first_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // React-Native
         "stall_count" => Some(MetricUnit::None),
