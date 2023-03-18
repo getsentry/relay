@@ -2026,7 +2026,11 @@ impl EnvelopeProcessorService {
             debug_assert!(state.envelope().is_empty());
         }
 
-        enforcement.track_outcomes(state.envelope(), &state.managed_envelope.scoping());
+        enforcement.track_outcomes(
+            state.envelope(),
+            &state.managed_envelope.scoping(),
+            self.outcome_aggregator.clone(),
+        );
 
         Ok(())
     }
@@ -2491,7 +2495,10 @@ impl EnvelopeProcessorService {
                 over_accept_once,
             );
 
-            let was_enforced = bucket_limiter.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
+            let was_enforced = bucket_limiter.enforce_limits(
+                rate_limits.as_ref().map_err(|_| ()),
+                self.outcome_aggregator.clone(),
+            );
 
             if was_enforced {
                 if let Ok(limits) = rate_limits {

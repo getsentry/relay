@@ -15,13 +15,13 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
-use crate::actors::outcome::{DiscardReason, Outcome};
-#[cfg(feature = "processing")]
-use crate::actors::processor::EnvelopeProcessor;
+use crate::actors::envelopes::SendMetrics;
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
-use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::actors::project_cache::{
+    CheckedEnvelope, ProjectCache, ProjectCacheContext, RequestUpdate,
+};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -475,12 +475,16 @@ impl Project {
     /// Applies cached rate limits to the given metrics or metrics buckets.
     ///
     /// This only applies the rate limits currently stored on the project.
-    fn rate_limit_metrics<T: MetricsContainer>(&self, metrics: Vec<T>) -> Vec<T> {
+    fn rate_limit_metrics<T: MetricsContainer>(
+        &self,
+        metrics: Vec<T>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> Vec<T> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {
                 match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
                     Ok(mut limiter) => {
-                        limiter.enforce_limits(Ok(&self.rate_limits));
+                        limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
                         limiter.into_metrics()
                     }
                     Err(metrics) => metrics,
@@ -493,9 +497,14 @@ impl Project {
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
-    pub fn merge_buckets(&mut self, aggregator: Addr<Aggregator>, buckets: Vec<Bucket>) {
+    pub fn merge_buckets(
+        &mut self,
+        aggregator: Addr<Aggregator>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        buckets: Vec<Bucket>,
+    ) {
         if self.metrics_allowed() {
-            let buckets = self.rate_limit_metrics(buckets);
+            let buckets = self.rate_limit_metrics(buckets, outcome_aggregator);
             if !buckets.is_empty() {
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
@@ -505,9 +514,14 @@ impl Project {
     /// Inserts given [metrics](Metric) into the metrics aggregator.
     ///
     /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(&mut self, aggregator: Addr<Aggregator>, metrics: Vec<Metric>) {
+    pub fn insert_metrics(
+        &mut self,
+        aggregator: Addr<Aggregator>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        metrics: Vec<Metric>,
+    ) {
         if self.metrics_allowed() {
-            let metrics = self.rate_limit_metrics(metrics);
+            let metrics = self.rate_limit_metrics(metrics, outcome_aggregator);
             if !metrics.is_empty() {
                 aggregator.send(InsertMetrics::new(self.project_key, metrics));
             }
@@ -745,6 +759,7 @@ impl Project {
     pub fn check_envelope(
         &mut self,
         mut envelope: ManagedEnvelope,
+        outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
@@ -769,7 +784,7 @@ impl Project {
 
         let (enforcement, rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
-        enforcement.track_outcomes(envelope.envelope(), &scoping);
+        enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
         envelope.update();
 
         let envelope = if envelope.envelope().is_empty() {
@@ -788,13 +803,19 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
+        context: ProjectCacheContext,
         partition_key: Option<u64>,
         buckets: Vec<Bucket>,
-        aggregator: Addr<Aggregator>,
-        project_cache: Addr<ProjectCache>,
-        envelope_manager: Addr<EnvelopeManager>,
-        #[cfg(feature = "processing")] envelope_processor: Addr<EnvelopeProcessor>,
     ) {
+        let ProjectCacheContext {
+            aggregator,
+            envelope_manager,
+            #[cfg(feature = "processing")]
+            envelope_processor,
+            outcome_aggregator,
+            project_cache,
+            ..
+        } = context;
         let config = self.config.clone();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
@@ -824,7 +845,8 @@ impl Project {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
-                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
+                let was_rate_limited =
+                    bucket_limiter.enforce_limits(Ok(&cached_rate_limits), outcome_aggregator);
 
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && config.processing_enabled() {
@@ -970,16 +992,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics_no_quota() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -990,7 +1014,7 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.is_empty());
     }
@@ -1005,16 +1029,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets_no_quota() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1025,7 +1051,7 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.is_empty());
     }
