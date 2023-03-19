@@ -56,7 +56,7 @@ impl From<Infallible> for BadEventMeta {
 
 impl IntoResponse for BadEventMeta {
     fn into_response(self) -> Response {
-        let mut code = match self {
+        let code = match self {
             Self::MissingAuth
             | Self::MultipleAuth
             | Self::BadAuth(_)
@@ -364,6 +364,10 @@ impl RequestMeta {
     }
 }
 
+/// Request information without required authentication parts.
+///
+/// This is identical to [`RequestMeta`] with the exception that the DSN, used to authenticate, is
+/// optional.
 pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 
 impl PartialMeta {
@@ -571,70 +575,6 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
         })
-    }
-}
-
-/// A wrapper type for [`RequestMeta`] that considers envelope headers in the first line of the
-/// request body.
-#[derive(Debug)]
-pub struct EnvelopeMeta {
-    request_meta: RequestMeta,
-}
-
-impl EnvelopeMeta {
-    const MAX_HEADER_SIZE: usize = 2048;
-
-    fn new(request_meta: RequestMeta) -> Self {
-        Self { request_meta }
-    }
-
-    /// Returns the request meta data.
-    pub fn into_inner(self) -> RequestMeta {
-        self.request_meta
-    }
-}
-
-// async fn extract_envelope_meta(
-//     request: HttpRequest<ServiceState>,
-// ) -> Result<EnvelopeMeta, actix_web::Error> {
-//     let result = RequestMeta::extract(&request).map(EnvelopeMeta::new);
-//     if !matches!(result, Err(BadEventMeta::MissingAuth)) {
-//         return result.map_err(|e| e.into());
-//     }
-
-//     // TODO(ja): Peek body
-//     // let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
-//     //     return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
-//     // };
-
-//     let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
-//     let partial_meta = PartialMeta::from_headers(&request);
-//     Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-// }
-
-#[axum::async_trait]
-impl FromRequestParts<ServiceState> for EnvelopeMeta {
-    type Rejection = BadEventMeta;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &ServiceState,
-    ) -> Result<Self, Self::Rejection> {
-        let result = parts.extract_with_state(state).await;
-        if !matches!(result, Err(BadEventMeta::MissingAuth)) {
-            return result.map(EnvelopeMeta::new);
-        }
-
-        // TODO(ja): Peek body
-        // let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
-        //     return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
-        // };
-
-        let json = "".as_bytes();
-
-        let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
-        let partial_meta = parts.extract::<PartialMeta>().await?;
-        Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
     }
 }
 
