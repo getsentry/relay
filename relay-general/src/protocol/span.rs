@@ -44,7 +44,7 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
@@ -59,7 +59,6 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-    use crate::protocol::HttpElement;
 
     #[test]
     fn test_span_serialization() {
