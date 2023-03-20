@@ -1047,7 +1047,7 @@ impl AggregatorConfig {
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
             );
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
+            return dbg!(Err(AggregateMetricsErrorKind::InvalidTimestamp.into()));
         }
 
         Ok(output_timestamp)
@@ -1562,6 +1562,7 @@ impl AggregatorService {
         }
 
         if let Err(err) = Self::normalize_metric_name(&mut key) {
+            dbg!("hey debugging");
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
                     "bucket.project_key",
@@ -1576,7 +1577,7 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        dbg!(&key);
+        dbg!("!!!!!!!!!!!!!!!!", &key);
         key.metric_name = match MetricResourceIdentifier::str_from(&key.metric_name) {
             Ok(mri) => {
                 let mut metric_name = mri.to_string();
@@ -1585,11 +1586,11 @@ impl AggregatorService {
                 metric_name
             }
             Err(_) => {
-                relay_log::debug!("invalid metric name {:?}", key.metric_name);
-                return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+                relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
+                return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
 
-                //relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
-                //return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
+                //relay_log::debug!("invalid metric name {:?}", key.metric_name);
+                //return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
             }
         };
 
@@ -2489,7 +2490,9 @@ mod tests {
 
         let mut metric3 = metric1.clone();
         metric3.timestamp = UnixTimestamp::from_secs(999994721);
+        dbg!("testing");
         aggregator.insert(project_key, metric1).unwrap();
+        return;
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
 

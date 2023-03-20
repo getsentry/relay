@@ -221,7 +221,7 @@ impl<'a> TransactionsKind<'a> {
     ) -> Result<Self, ParseMetricError> {
         let prefix_len = "measurements.".len();
 
-        if &name[..prefix_len] == "measurements." {
+        if name.len() > prefix_len && &name[..prefix_len] == "measurements." {
             let kind = match &name[prefix_len..] {
                 "frames_frozen" => Measurementkind::FramesFrozen,
                 "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
@@ -371,10 +371,11 @@ impl<'a> MetricResourceIdentifier<'a> {
     pub fn unit(&self) -> MetricUnit {
         match self {
             Self::Transaction(t) => match t {
-                TransactionsKind::Custom { unit, .. } => unit.clone(),
-                _ => todo!(),
+                TransactionsKind::Custom { unit, .. } => *unit,
+                TransactionsKind::Measurements { unit, .. } => *unit,
+                _ => MetricUnit::None,
             },
-            Self::Session(_) => todo!(),
+            Self::Session(_) => MetricUnit::None,
         }
     }
 
@@ -385,15 +386,17 @@ impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn str_from(s: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-        let ty: MetricType = raw_ty.parse()?;
+        let ty: MetricType = dbg!(raw_ty.parse()?);
 
         let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
 
+        //38, 22
+
         match raw_namespace {
-            "transaction" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit)?)),
-            "session" => {
+            "transactions" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit)?)),
+            "sessions" => {
                 let kind = match name {
                     "user" => SessionsKind::User,
                     "session" => SessionsKind::Session,
@@ -402,14 +405,25 @@ impl<'a> MetricResourceIdentifier<'a> {
                 };
                 Ok(Self::Session(kind))
             }
-            _ => Err(ParseMetricError(())),
+            s => {
+                dbg!(s);
+                Err(ParseMetricError(()))
+            }
         }
     }
 }
 
+/// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
 impl<'a> ToString for MetricResourceIdentifier<'a> {
     fn to_string(&self) -> String {
-        todo!()
+        let ty = self.ty().to_string();
+        let unit = self.unit().to_string();
+
+        let (ns, name) = match self {
+            Self::Transaction(t) => ("transactions".to_string(), t.to_string()),
+            Self::Session(s) => ("sessions".to_string(), s.to_string()),
+        };
+        format!("{ty}:{ns}/{name}@{unit}")
     }
 }
 
