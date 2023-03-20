@@ -21,7 +21,7 @@
     },
     "client_os": {
       "name": "Windows",
-      "version": "10",
+      "version": ">=10",
       "type": "os"
     }
   },
