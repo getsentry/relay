@@ -133,6 +133,7 @@ impl ServiceState {
 
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
+
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
