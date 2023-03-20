@@ -77,6 +77,7 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
     for (i, ch) in iterator {
         if let Some(skip_amount) = num_to_skip {
             num_to_skip = Some(skip_amount - 1);
+            // Prevents everything after the * in the pattern from being skipped
             if num_to_skip > Some(0) {
                 continue;
             }
@@ -95,6 +96,7 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
                     regex += ".*";
                     num_to_skip = Some(2);
+                    // Allows the / after ** to be optional
                     if star_star_slash {
                         regex += "/?";
                         num_to_skip = Some(3);
