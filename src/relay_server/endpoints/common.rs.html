@@ -821,17 +821,17 @@
 /// implicitly through an item that will create an event during ingestion.
 </span><span class="kw">pub async fn </span>handle_envelope(
     state: <span class="kw-2">&amp;</span>ServiceState,
-    <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
+    envelope: Box&lt;Envelope&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventId&gt;, BadStoreRequest&gt; {
-    <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
-    // empty, we fail the request with a special control flow error to skip checks and
-    // queueing, that still results in a `200 OK` response.
-    </span>utils::remove_unknown_items(state.config(), <span class="kw-2">&amp;mut </span>envelope);
-
     <span class="kw">let </span>buffer_guard = state.buffer_guard();
     <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = buffer_guard
         .enter(envelope)
         .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
+
+    <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
+    // empty, we fail the request with a special control flow error to skip checks and
+    // queueing, that still results in a `200 OK` response.
+    </span>utils::remove_unknown_items(state.config(), <span class="kw-2">&amp;mut </span>managed_envelope);
 
     <span class="kw">let </span>event_id = managed_envelope.envelope().event_id();
     <span class="kw">if </span>managed_envelope.envelope().is_empty() {

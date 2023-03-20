@@ -1186,6 +1186,11 @@
 <a href="#1185" id="1185">1185</a>
 <a href="#1186" id="1186">1186</a>
 <a href="#1187" id="1187">1187</a>
+<a href="#1188" id="1188">1188</a>
+<a href="#1189" id="1189">1189</a>
+<a href="#1190" id="1190">1190</a>
+<a href="#1191" id="1191">1191</a>
+<a href="#1192" id="1192">1192</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_common::DataCategory;
@@ -1359,18 +1364,23 @@
                 <span class="kw">continue</span>;
             }
 
-            <span class="kw">match </span>item.ty() {
-                ItemType::Attachment =&gt; summary.attachment_quantity += item.len().max(<span class="number">1</span>),
-                ItemType::Session =&gt; summary.session_quantity += <span class="number">1</span>,
-                ItemType::Profile =&gt; summary.profile_quantity += <span class="number">1</span>,
-                ItemType::ReplayEvent =&gt; summary.replay_quantity += <span class="number">1</span>,
-                ItemType::ReplayRecording =&gt; summary.replay_quantity += <span class="number">1</span>,
-                ItemType::CheckIn =&gt; summary.checkin_quantity += <span class="number">1</span>,
-                <span class="kw">_ </span>=&gt; (),
-            }
+            summary.set_quantity(item);
         }
 
         summary
+    }
+
+    <span class="kw">fn </span>set_quantity(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item) {
+        <span class="kw">let </span>target_quantity = <span class="kw">match </span>item.ty() {
+            ItemType::Attachment =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.attachment_quantity,
+            ItemType::Session =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.session_quantity,
+            ItemType::Profile =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_quantity,
+            ItemType::ReplayEvent =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
+            ItemType::ReplayRecording =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
+            ItemType::CheckIn =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.checkin_quantity,
+            <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+        };
+        <span class="kw-2">*</span>target_quantity += item.quantity();
     }
 
     <span class="doccomment">/// Infers the appropriate [`DataCategory`] for the envelope [`Item`].

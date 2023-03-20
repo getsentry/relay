@@ -3348,29 +3348,6 @@
 <a href="#3347" id="3347">3347</a>
 <a href="#3348" id="3348">3348</a>
 <a href="#3349" id="3349">3349</a>
-<a href="#3350" id="3350">3350</a>
-<a href="#3351" id="3351">3351</a>
-<a href="#3352" id="3352">3352</a>
-<a href="#3353" id="3353">3353</a>
-<a href="#3354" id="3354">3354</a>
-<a href="#3355" id="3355">3355</a>
-<a href="#3356" id="3356">3356</a>
-<a href="#3357" id="3357">3357</a>
-<a href="#3358" id="3358">3358</a>
-<a href="#3359" id="3359">3359</a>
-<a href="#3360" id="3360">3360</a>
-<a href="#3361" id="3361">3361</a>
-<a href="#3362" id="3362">3362</a>
-<a href="#3363" id="3363">3363</a>
-<a href="#3364" id="3364">3364</a>
-<a href="#3365" id="3365">3365</a>
-<a href="#3366" id="3366">3366</a>
-<a href="#3367" id="3367">3367</a>
-<a href="#3368" id="3368">3368</a>
-<a href="#3369" id="3369">3369</a>
-<a href="#3370" id="3370">3370</a>
-<a href="#3371" id="3371">3371</a>
-<a href="#3372" id="3372">3372</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3435,7 +3412,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ManagedEnvelope,
+    <span class="self">self</span>, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope,
     SamplingResult,
 };
 
@@ -4210,8 +4187,8 @@
         <span class="kw">let </span>clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        envelope.retain_items(|item| {
-            <span class="kw">match </span>item.ty() {
+        state.managed_envelope.retain_items(|item| {
+            <span class="kw">let </span>should_keep = <span class="kw">match </span>item.ty() {
                 ItemType::Session =&gt; <span class="self">self</span>.process_session(
                     item,
                     received,
@@ -4231,6 +4208,11 @@
                     extracted_metrics,
                 ),
                 <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>, <span class="comment">// Keep all other item types
+            </span>};
+            <span class="kw">if </span>should_keep {
+                ItemAction::Keep
+            } <span class="kw">else </span>{
+                ItemAction::DropSilently <span class="comment">// sessions never log outcomes.
             </span>}
         });
     }
@@ -4241,16 +4223,16 @@
     /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
     /// is written back into the item.
     </span><span class="kw">fn </span>process_user_reports(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        state.envelope_mut().retain_items(|item| {
+        state.managed_envelope.retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
-                <span class="kw">return </span><span class="bool-val">true</span>;
+                <span class="kw">return </span>ItemAction::Keep;
             };
 
             <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(session) =&gt; session,
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store user report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
-                    <span class="kw">return </span><span class="bool-val">false</span>;
+                    <span class="kw">return </span>ItemAction::DropSilently;
                 }
             };
 
@@ -4258,13 +4240,13 @@
                 <span class="prelude-val">Ok</span>(json) =&gt; json,
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize user report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-                    <span class="kw">return </span><span class="bool-val">false</span>;
+                    <span class="kw">return </span>ItemAction::DropSilently;
                 }
             };
 
             item.set_payload(ContentType::Json, json_string);
-            <span class="bool-val">true
-        </span>});
+            ItemAction::Keep
+        });
     }
 
     <span class="doccomment">/// Validates and extracts client reports.
@@ -4278,9 +4260,10 @@
         </span><span class="kw">if </span>!<span class="self">self</span>.config.emit_outcomes().any() || !<span class="self">self</span>.config.emit_client_outcomes() {
             <span class="comment">// if a processing relay has client outcomes disabled we drop them.
             </span><span class="kw">if </span><span class="self">self</span>.config.processing_enabled() {
-                state
-                    .envelope_mut()
-                    .retain_items(|item| item.ty() != <span class="kw-2">&amp;</span>ItemType::ClientReport);
+                state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+                    ItemType::ClientReport =&gt; ItemAction::DropSilently,
+                    <span class="kw">_ </span>=&gt; ItemAction::Keep,
+                });
             }
             <span class="kw">return</span>;
         }
@@ -4294,9 +4277,9 @@
 
         <span class="comment">// we&#39;re going through all client reports but we&#39;re effectively just merging
         // them into the first one.
-        </span>state.envelope_mut().retain_items(|item| {
+        </span>state.managed_envelope.retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::ClientReport {
-                <span class="kw">return </span><span class="bool-val">true</span>;
+                <span class="kw">return </span>ItemAction::Keep;
             };
             <span class="kw">match </span>ClientReport::parse(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(ClientReport {
@@ -4341,8 +4324,8 @@
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;invalid client report received: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err)),
             }
-            <span class="bool-val">false
-        </span>});
+            ItemAction::DropSilently
+        });
 
         <span class="kw">if </span>output_events.is_empty() {
             <span class="kw">return</span>;
@@ -4415,30 +4398,30 @@
     <span class="doccomment">/// Remove profiles from the envelope if the feature flag is not enabled.
     </span><span class="kw">fn </span>filter_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        state.envelope_mut().retain_items(|item| <span class="kw">match </span>item.ty() {
-            ItemType::Profile =&gt; profiling_enabled,
-            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+        state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+            ItemType::Profile <span class="kw">if </span>!profiling_enabled =&gt; ItemAction::DropSilently,
+            <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_check_ins(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        state.envelope_mut().retain_items(|item| {
+        state.managed_envelope.retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::CheckIn {
-                <span class="kw">return </span><span class="bool-val">true</span>;
+                <span class="kw">return </span>ItemAction::Keep;
             }
 
             <span class="kw">match </span>relay_monitors::process_check_in(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(processed) =&gt; {
                     item.set_payload(ContentType::Json, processed);
-                    <span class="bool-val">true
-                </span>}
+                    ItemAction::Keep
+                }
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="comment">// TODO: Track an outcome.
                     </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped invalid monitor check-in: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
-                    <span class="bool-val">false
-                </span>}
+                    ItemAction::DropSilently
+                }
             }
         })
     }
@@ -4446,9 +4429,7 @@
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
-        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Profile =&gt; <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>((profile_id, payload)) =&gt; {
                     <span class="kw">if </span>payload.len() &lt;= <span class="self">self</span>.config.max_profile_size() {
@@ -4461,25 +4442,20 @@
                             }
                         }
                         item.set_payload(ContentType::Json, payload);
-                        <span class="bool-val">true
-                    </span>} <span class="kw">else </span>{
+                        ItemAction::Keep
+                    } <span class="kw">else </span>{
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
                             <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
                                 <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-                        outcomes.push((
-                            Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(
-                                    relay_profiling::ProfileError::ExceedSizeLimit,
-                                ),
-                            )),
-                            DataCategory::Profile,
-                            <span class="number">1</span>,
-                        ));
-                        <span class="bool-val">false
-                    </span>}
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(
+                                relay_profiling::ProfileError::ExceedSizeLimit,
+                            ),
+                        )))
+                    }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
@@ -4495,23 +4471,13 @@
                         }
                         <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, err),
                     };
-                    outcomes.push((
-                        Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )),
-                        DataCategory::Profile,
-                        <span class="number">1</span>,
-                    ));
-                    <span class="bool-val">false
-                </span>}
+                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    )))
+                }
             },
-            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+            <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-        <span class="kw">for </span>(outcome, category, quantity) <span class="kw">in </span>outcomes {
-            state
-                .managed_envelope
-                .track_outcome(outcome, category, quantity);
-        }
     }
 
     <span class="doccomment">/// Remove replays if the feature flag is not enabled.
@@ -4539,27 +4505,25 @@
             client_hints: meta.client_hints().as_deref(),
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
-        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::ReplayEvent =&gt; {
                 <span class="kw">if </span>!replays_enabled {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
+                    <span class="kw">return </span>ItemAction::DropSilently;
                 }
 
                 <span class="kw">match </span><span class="self">self</span>.process_replay_event(<span class="kw-2">&amp;</span>item.payload(), config, client_addr, user_agent) {
                     <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
                         <span class="prelude-val">Ok</span>(json) =&gt; {
                             item.set_payload(ContentType::Json, json.as_bytes());
-                            <span class="bool-val">true
-                        </span>}
+                            ItemAction::Keep
+                        }
                         <span class="prelude-val">Err</span>(e) =&gt; {
                             <span class="macro">relay_log::error!</span>(
                                 <span class="string">&quot;replay-event: failed to serialize replay with message {}&quot;</span>,
                                 e
                             );
-                            <span class="bool-val">false
-                        </span>}
+                            ItemAction::Keep
+                        }
                     },
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <span class="kw">let </span>discard_reason = <span class="kw">match </span>e {
@@ -4580,20 +4544,19 @@
                                 DiscardReason::InvalidReplayEvent
                             }
                         };
-                        outcomes.push((Outcome::Invalid(discard_reason), DataCategory::Replay, <span class="number">1</span>));
-                        <span class="bool-val">false
-                    </span>}
+                        ItemAction::Drop(Outcome::Invalid(discard_reason))
+                    }
                 }
             }
             ItemType::ReplayRecording =&gt; {
                 <span class="kw">if </span>!replays_enabled {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
+                    <span class="kw">return </span>ItemAction::DropSilently;
                 }
 
                 <span class="comment">// XXX: Processing is there just for data scrubbing. Skip the entire expensive
                 // processing step if we do not need to scrub.
                 </span><span class="kw">if </span>!scrubbing_enabled || scrubber.is_empty() {
-                    <span class="kw">return </span><span class="bool-val">true</span>;
+                    <span class="kw">return </span>ItemAction::Keep;
                 }
 
                 <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
@@ -4607,27 +4570,18 @@
                 <span class="kw">match </span>parsed_recording {
                     <span class="prelude-val">Ok</span>(recording) =&gt; {
                         item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        <span class="bool-val">true
-                    </span>}
+                        ItemAction::Keep
+                    }
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-recording-event: {e} {event_id:?}&quot;</span>);
-                        outcomes.push((
-                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                            DataCategory::Replay,
-                            <span class="number">1</span>,
-                        ));
-                        <span class="bool-val">false
-                    </span>}
+                        ItemAction::Drop(Outcome::Invalid(
+                            DiscardReason::InvalidReplayRecordingEvent,
+                        ))
+                    }
                 }
             }
-            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+            <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-
-        <span class="kw">for </span>(outcome, category, quantity) <span class="kw">in </span>outcomes {
-            state
-                .managed_envelope
-                .track_outcome(outcome, category, quantity);
-        }
 
         <span class="prelude-val">Ok</span>(())
     }

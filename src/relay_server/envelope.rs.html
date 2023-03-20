@@ -1658,6 +1658,42 @@
 <a href="#1657" id="1657">1657</a>
 <a href="#1658" id="1658">1658</a>
 <a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1697,7 +1733,7 @@
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>relay_common::UnixTimestamp;
+<span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_general::types::Value;
@@ -2179,6 +2215,42 @@
     <span class="doccomment">/// Returns the length of this item&#39;s payload.
     </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.payload.len()
+    }
+
+    <span class="doccomment">/// Returns the number used for counting towards rate limits and producing outcomes.
+    ///
+    /// For attachments, we count the number of bytes. Other items are counted as 1.
+    </span><span class="kw">pub fn </span>quantity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="kw">match </span><span class="self">self</span>.ty() {
+            ItemType::Attachment =&gt; <span class="self">self</span>.len().max(<span class="number">1</span>),
+            <span class="kw">_ </span>=&gt; <span class="number">1</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the data category used for generating outcomes.
+    ///
+    /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
+    </span><span class="kw">pub fn </span>outcome_category(<span class="kw-2">&amp;</span><span class="self">self</span>, indexed: bool) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
+        <span class="kw">match </span><span class="self">self</span>.ty() {
+            ItemType::Event =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
+            ItemType::Transaction =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span>indexed {
+                DataCategory::TransactionIndexed
+            } <span class="kw">else </span>{
+                DataCategory::Transaction
+            }),
+            ItemType::Security | ItemType::RawSecurity =&gt; <span class="prelude-val">Some</span>(DataCategory::Security),
+            ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
+            ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
+            ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
+            ItemType::Metrics | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
+            ItemType::FormData =&gt; <span class="prelude-val">None</span>,
+            ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
+            ItemType::Profile =&gt; <span class="prelude-val">Some</span>(DataCategory::Profile),
+            ItemType::ReplayEvent | ItemType::ReplayRecording =&gt; <span class="prelude-val">Some</span>(DataCategory::Replay),
+            ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
+            ItemType::CheckIn =&gt; <span class="prelude-val">Some</span>(DataCategory::Monitor),
+            ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
     }
 
     <span class="doccomment">/// Returns `true` if this item&#39;s payload is empty.
