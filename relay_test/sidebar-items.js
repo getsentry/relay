@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["setup","Setup the test environment."]]};
+window.SIDEBAR_ITEMS = {"fn":[["mock_service","Spawns a mock service that handles messages through a closure."],["setup","Setup the test environment."]]};
