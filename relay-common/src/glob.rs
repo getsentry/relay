@@ -243,7 +243,7 @@ mod tests {
         assert!(regex.is_match(b"/dir/apps/file.txt"));
         assert!(regex.is_match(b"/dir/subdir/apps/file.txt"));
 
-        // Matches leading "docs/<something>", where <x> is a single dir or filename
+        // Matches leading "docs/<x>", where <x> is a single dir or filename
         let pattern = "docs/*";
         let regex = translate_codeowners_pattern(pattern).unwrap();
         assert!(regex.is_match(b"docs/getting-started.md"));
