@@ -7,7 +7,7 @@ use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
-use relay_system::{Addr, Service};
+use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
@@ -135,13 +135,24 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let project_cache = ProjectCacheService::new(
+        let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        let aggregator = AggregatorService::new(
+            config.aggregator_config().clone(),
+            Some(project_cache.clone().recipient()),
+        )
+        .start_in(&aggregator_runtime);
+
+        let guard = project_runtime.enter();
+        ProjectCacheService::new(
             config.clone(),
             processor.clone(),
+            envelope_manager.clone(),
             upstream_relay.clone(),
             redis_pool,
+            aggregator.clone(),
         )
-        .start_in(&project_runtime);
+        .spawn_handler(project_cache_rx);
+        drop(guard);
 
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
@@ -151,12 +162,6 @@ impl ServiceState {
                 aws_extension.start();
             }
         }
-
-        let aggregator = AggregatorService::new(
-            config.aggregator_config().clone(),
-            Some(project_cache.clone().recipient()),
-        )
-        .start_in(&aggregator_runtime);
 
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),

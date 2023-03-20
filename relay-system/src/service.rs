@@ -792,6 +792,7 @@ where
 /// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub struct Receiver<I: Interface> {
+    addr: Addr<I>,
     rx: mpsc::UnboundedReceiver<I>,
     name: &'static str,
     interval: tokio::time::Interval,
@@ -828,6 +829,11 @@ impl<I: Interface> Receiver<I> {
             }
         }
     }
+
+    /// The [`Addr`] that belongs to this [`Receiver`].
+    pub fn addr(&self) -> Addr<I> {
+        self.addr.clone()
+    }
 }
 
 impl<I: Interface> fmt::Debug for Receiver<I> {
@@ -856,6 +862,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     let receiver = Receiver {
+        addr: addr.clone(),
         rx,
         name,
         interval,
