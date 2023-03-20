@@ -807,11 +807,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         if event.platform.as_str() == Some("java") {
-            if let Some(event_logger) = event.logger.value_mut() {
-                let shortened = shorten_logger(event_logger.clone());
-                if shortened != event_logger.as_str() {
-                    *event_logger = shortened;
-                }
+            if let Some(event_logger) = event.logger.value_mut().take() {
+                let shortened = shorten_logger(event_logger);
+                event.logger.set_value(Some(shortened));
             }
         }
 
