@@ -241,7 +241,7 @@ jobs:
 
       - name: Push to ghcr.io
         # Do not run this on forks as they do not have access to secrets
-        if: "!github.event.pull_request.head.repo.fork"
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         run: |
           set -euxo pipefail
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
@@ -268,8 +268,8 @@ jobs:
       id-token: "write"
 
     # Skip redundant checks for library releases
-    # Skip if run on a fork
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork"
+    # Skip for dependabot and if run on a fork
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
@@ -446,9 +446,9 @@ jobs:
         run: docker load -i relay-docker-image.tgz
 
       - name: Run Sentry self-hosted e2e CI
-        # Skip if a fork as they cannot upload to ghcr and this test attempts to pull
+        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
         # the image from ghcr
-        if: "!github.event.pull_request.head.repo.fork"
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         uses: getsentry/action-self-hosted-e2e-tests@77805295ebff8a603def5970e18743ded72cb304
         with:
           project_name: relay
