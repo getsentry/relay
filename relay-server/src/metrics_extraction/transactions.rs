@@ -302,7 +302,10 @@ fn extract_transaction_metrics_inner(
             }
 
             metrics.push(Metric::new_transaction_mri(
-                TransactionsKind::Measurements(Measurementkind::Other(name)),
+                TransactionsKind::Measurements {
+                    kind: Measurementkind::Other(name),
+                    unit: measurement.unit.value().copied().unwrap_or_default(),
+                },
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -1163,7 +1166,10 @@ mod tests {
         assert_eq!(
             metrics,
             &[Metric::new_transaction_mri(
-                TransactionsKind::Measurements(Measurementkind::Lcp), // milliseconds
+                TransactionsKind::Measurements {
+                    kind: Measurementkind::Lcp,
+                    unit: MetricUnit::Duration(DurationUnit::MilliSecond)
+                },
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {

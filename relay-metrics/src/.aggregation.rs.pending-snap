@@ -47,3 +47,13 @@
 {"run_id":"1678898418-130772000","line":2598,"new":null,"old":null}
 {"run_id":"1678898418-130772000","line":2607,"new":null,"old":null}
 {"run_id":"1678898418-130772000","line":2616,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2558,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2225,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2190,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2565,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2574,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2585,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2596,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2605,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":2614,"new":null,"old":null}
+{"run_id":"1679300662-252008000","line":3098,"new":{"module_name":"relay_metrics__aggregation__tests","snapshot_name":"bucket_partitioning_dummy","metadata":{"source":"relay-metrics/src/aggregation.rs","assertion_line":3098,"expression":"output"},"snapshot":"[]"},"old":{"module_name":"relay_metrics__aggregation__tests","metadata":{},"snapshot":"[\n    \"metrics.buckets.per_batch:2|h\",\n    \"metrics.buckets.batches_per_partition:1|h\",\n]"}}

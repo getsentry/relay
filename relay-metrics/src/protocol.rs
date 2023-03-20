@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 use std::str::FromStr;
+use std::time::Duration;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -201,7 +202,10 @@ pub enum TransactionsKind<'a> {
     Duration(DurationUnit),
     CountPerRootProject,
     Breakdowns(&'a str),
-    Measurements(Measurementkind<'a>),
+    Measurements {
+        kind: Measurementkind<'a>,
+        unit: MetricUnit,
+    },
     Custom {
         name: &'a str,
         ty: MetricType,
@@ -217,8 +221,8 @@ impl<'a> TransactionsKind<'a> {
     ) -> Result<Self, ParseMetricError> {
         let prefix_len = "measurements.".len();
 
-        if &name[0..prefix_len] == "measurements." {
-            let measurement = match &name[prefix_len..] {
+        if &name[..prefix_len] == "measurements." {
+            let kind = match &name[prefix_len..] {
                 "frames_frozen" => Measurementkind::FramesFrozen,
                 "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
                 "frames_slow" => Measurementkind::FramesSlow,
@@ -229,7 +233,7 @@ impl<'a> TransactionsKind<'a> {
                 "lcp" => Measurementkind::Lcp,
                 s => Measurementkind::Other(&s),
             };
-            return Ok(Self::Measurements(measurement));
+            return Ok(Self::Measurements { kind, unit });
         };
 
         match name {
@@ -280,7 +284,7 @@ impl<'a> Display for TransactionsKind<'a> {
             Self::Breakdowns(breakdown) => write!(f, "breakdowns.{breakdown}"),
             Self::User => write!(f, "user"),
             Self::CountPerRootProject => write!(f, "count_per_root_project"),
-            Self::Measurements(measurement) => write!(f, "{}", measurement),
+            Self::Measurements { kind, .. } => write!(f, "{kind}"),
             Self::Custom { name, ty, unit } => write!(f, "{}:transactions/{}@{}", ty, name, unit),
         }
     }
