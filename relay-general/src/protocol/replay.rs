@@ -397,7 +397,7 @@ mod tests {
     fn test_set_user_agent_meta() {
         let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
             name: Annotated::new("Mac OS X".to_string()),
-            version: Annotated::new("10.15.7".to_string()),
+            version: Annotated::new(">=10.15.7".to_string()),
             ..Default::default()
         }))));
         let browser_context =

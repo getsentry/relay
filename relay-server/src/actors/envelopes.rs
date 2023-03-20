@@ -28,7 +28,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
-use crate::utils::EnvelopeContext;
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -128,8 +128,7 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Box<Envelope>,
-    pub envelope_context: EnvelopeContext,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Sends a client report to the upstream.
@@ -289,18 +288,17 @@ impl EnvelopeManagerService {
     }
 
     async fn handle_submit(&self, message: SubmitEnvelope) {
-        let SubmitEnvelope {
-            envelope,
-            mut envelope_context,
-        } = message;
+        let SubmitEnvelope { mut envelope } = message;
 
-        let scoping = envelope_context.scoping();
-        match self.submit_envelope(envelope, scoping, None).await {
+        let scoping = envelope.scoping();
+
+        let inner_envelope = envelope.take_envelope();
+        match self.submit_envelope(inner_envelope, scoping, None).await {
             Ok(_) => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
@@ -309,7 +307,7 @@ impl EnvelopeManagerService {
                     |scope| scope.set_tag("project_key", scoping.project_key),
                     || relay_log::error!("error sending envelope: {}", LogError(&error)),
                 );
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }
