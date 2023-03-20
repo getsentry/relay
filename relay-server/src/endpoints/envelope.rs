@@ -1,5 +1,8 @@
 //! Handles envelope store requests.
 
+use std::convert::Infallible;
+
+use axum::extract::rejection::BytesRejection;
 use axum::extract::FromRequest;
 use axum::http::Request;
 use axum::response::IntoResponse;
@@ -14,6 +17,39 @@ use crate::extractors::{BadEventMeta, PartialMeta, RequestMeta};
 use crate::service::ServiceState;
 
 #[derive(Debug)]
+pub enum BadEnvelopeParams {
+    EventMeta(BadEventMeta),
+    InvalidBody(BytesRejection),
+}
+
+impl From<BadEventMeta> for BadEnvelopeParams {
+    fn from(value: BadEventMeta) -> Self {
+        Self::EventMeta(value)
+    }
+}
+
+impl From<BytesRejection> for BadEnvelopeParams {
+    fn from(value: BytesRejection) -> Self {
+        Self::InvalidBody(value)
+    }
+}
+
+impl From<Infallible> for BadEnvelopeParams {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
+impl IntoResponse for BadEnvelopeParams {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            BadEnvelopeParams::EventMeta(inner) => inner.into_response(),
+            BadEnvelopeParams::InvalidBody(inner) => inner.into_response(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct EnvelopeParams {
     meta: RequestMeta,
     body: Bytes,
@@ -22,8 +58,6 @@ pub struct EnvelopeParams {
 impl EnvelopeParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, body } = self;
-        // let max_payload_size = request.state().config().max_envelope_size();
-        // let data = body::store_body(request, max_payload_size).await?;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
@@ -40,7 +74,7 @@ where
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
 {
-    type Rejection = BadEventMeta;
+    type Rejection = BadEnvelopeParams;
 
     async fn from_request(
         mut request: Request<B>,
@@ -51,14 +85,14 @@ where
         if !matches!(result, Err(BadEventMeta::MissingAuth)) {
             return Ok(Self {
                 meta: result?,
-                body: request.extract().await.unwrap(),
+                body: request.extract().await?,
             });
         }
 
         // TODO(ja): Improve PartialMeta / RequestMeta to parse Auth and meta separately, then merge
         // into RequestMeta.
         let partial_meta = request.extract_parts::<PartialMeta>().await?;
-        let body: Bytes = request.extract().await.unwrap();
+        let body: Bytes = request.extract().await?;
 
         let line = body
             .splitn(2, |b| *b == b'\n')
