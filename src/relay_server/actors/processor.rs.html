@@ -3346,6 +3346,31 @@
 <a href="#3345" id="3345">3345</a>
 <a href="#3346" id="3346">3346</a>
 <a href="#3347" id="3347">3347</a>
+<a href="#3348" id="3348">3348</a>
+<a href="#3349" id="3349">3349</a>
+<a href="#3350" id="3350">3350</a>
+<a href="#3351" id="3351">3351</a>
+<a href="#3352" id="3352">3352</a>
+<a href="#3353" id="3353">3353</a>
+<a href="#3354" id="3354">3354</a>
+<a href="#3355" id="3355">3355</a>
+<a href="#3356" id="3356">3356</a>
+<a href="#3357" id="3357">3357</a>
+<a href="#3358" id="3358">3358</a>
+<a href="#3359" id="3359">3359</a>
+<a href="#3360" id="3360">3360</a>
+<a href="#3361" id="3361">3361</a>
+<a href="#3362" id="3362">3362</a>
+<a href="#3363" id="3363">3363</a>
+<a href="#3364" id="3364">3364</a>
+<a href="#3365" id="3365">3365</a>
+<a href="#3366" id="3366">3366</a>
+<a href="#3367" id="3367">3367</a>
+<a href="#3368" id="3368">3368</a>
+<a href="#3369" id="3369">3369</a>
+<a href="#3370" id="3370">3370</a>
+<a href="#3371" id="3371">3371</a>
+<a href="#3372" id="3372">3372</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3573,11 +3598,10 @@
 }
 
 <span class="kw">impl </span>ExtractedMetrics {
-    <span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope) {
+    <span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, project_cache: Addr&lt;ProjectCache&gt;) {
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
         <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
-            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
             project_cache.send(InsertMetrics::new(project_key, <span class="self">self</span>.project_metrics));
         }
 
@@ -3589,7 +3613,6 @@
             // dependent_project_with_tracing  -&gt; metrics goes to root
             // root_project_with_tracing       -&gt; metrics goes to root == self
             </span><span class="kw">let </span>sampling_project_key = get_sampling_key(envelope).unwrap_or(project_key);
-            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
             project_cache.send(InsertMetrics::new(
                 sampling_project_key,
                 <span class="self">self</span>.sampling_metrics,
@@ -3878,6 +3901,10 @@
 /// This service handles messages in a worker pool with configurable concurrency.
 </span><span class="kw">pub struct </span>EnvelopeProcessorService {
     config: Arc&lt;Config&gt;,
+    envelope_manager: Addr&lt;EnvelopeManager&gt;,
+    project_cache: Addr&lt;ProjectCache&gt;,
+    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -3886,7 +3913,14 @@
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
+    </span><span class="kw">pub fn </span>new(
+        config: Arc&lt;Config&gt;,
+        _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        envelope_manager: Addr&lt;EnvelopeManager&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        project_cache: Addr&lt;ProjectCache&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span>{
             <span class="kw">let </span>geoip_lookup = <span class="kw">match </span>config.geoip_path() {
@@ -3901,11 +3935,21 @@
                 config,
                 rate_limiter,
                 geoip_lookup,
+                envelope_manager,
+                outcome_aggregator,
+                project_cache,
+                upstream_relay,
             })
         }
 
         <span class="attr">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
-        </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config })
+        </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            config,
+            envelope_manager,
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
+        })
     }
 
     <span class="doccomment">/// Returns Ok(true) if attributes were modified.
@@ -4340,7 +4384,6 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span>producer = TrackOutcome::from_registry();
         <span class="kw">for </span>((outcome_type, reason, category), quantity) <span class="kw">in </span>output_events.into_iter() {
             <span class="kw">let </span>outcome = <span class="kw">match </span>outcome_from_parts(outcome_type, <span class="kw-2">&amp;</span>reason) {
                 <span class="prelude-val">Ok</span>(outcome) =&gt; outcome,
@@ -4354,7 +4397,7 @@
                 }
             };
 
-            producer.send(TrackOutcome {
+            <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
                 <span class="comment">// If we get to this point, the unwrap should not be used anymore, since we know by
                 // now that the timestamp can be parsed, but just incase we fallback to UTC current
                 // `DateTime`.
@@ -5347,7 +5390,8 @@
         </span>});
 
         <span class="kw">if </span>limits.is_limited() {
-            ProjectCache::from_registry().send(UpdateRateLimits::new(scoping.project_key, limits));
+            <span class="self">self</span>.project_cache
+                .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         <span class="kw">if </span>enforcement.event_active() {
@@ -5671,9 +5715,10 @@
 
                         <span class="kw">let </span>has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
-                        state
-                            .extracted_metrics
-                            .send_metrics(state.managed_envelope.envelope());
+                        state.extracted_metrics.send_metrics(
+                            state.managed_envelope.envelope(),
+                            <span class="self">self</span>.project_cache.clone(),
+                        );
 
                         <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.managed_envelope.envelope().is_empty() {
                             <span class="kw">if </span>!has_metrics {
@@ -5697,9 +5742,10 @@
                         }
 
                         <span class="kw">if </span>err.should_keep_metrics() {
-                            state
-                                .extracted_metrics
-                                .send_metrics(state.managed_envelope.envelope());
+                            state.extracted_metrics.send_metrics(
+                                state.managed_envelope.envelope(),
+                                <span class="self">self</span>.project_cache.clone(),
+                            );
                         }
 
                         <span class="prelude-val">Err</span>(err)
@@ -5721,7 +5767,7 @@
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(managed_envelope) = response.envelope {
-                    EnvelopeManager::from_registry().send(SubmitEnvelope {
+                    <span class="self">self</span>.envelope_manager.send(SubmitEnvelope {
                         envelope: managed_envelope,
                     })
                 };
@@ -5750,7 +5796,6 @@
         <span class="kw">let </span>received = relay_common::instant_to_date_time(start_time);
         <span class="kw">let </span>received_timestamp = UnixTimestamp::from_secs(received.timestamp() <span class="kw">as </span>u64);
 
-        <span class="kw">let </span>project_cache = ProjectCache::from_registry();
         <span class="kw">let </span>clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
@@ -5764,7 +5809,8 @@
                     Metric::parse_all(<span class="kw-2">&amp;</span>payload, timestamp).filter_map(|result| result.ok());
 
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
-                project_cache.send(InsertMetrics::new(public_key, metrics));
+                <span class="self">self</span>.project_cache
+                    .send(InsertMetrics::new(public_key, metrics));
             } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::MetricBuckets {
                 <span class="kw">match </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload) {
                     <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>buckets) =&gt; {
@@ -5773,7 +5819,8 @@
                         }
 
                         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
-                        project_cache.send(MergeBuckets::new(public_key, buckets));
+                        <span class="self">self</span>.project_cache
+                            .send(MergeBuckets::new(public_key, buckets));
                     }
                     <span class="prelude-val">Err</span>(error) =&gt; {
                         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
@@ -5822,7 +5869,7 @@
             <span class="kw">if </span>was_enforced {
                 <span class="kw">if let </span><span class="prelude-val">Ok</span>(limits) = rate_limits {
                     <span class="comment">// Update the rate limits in the project cache.
-                    </span>ProjectCache::from_registry()
+                    </span><span class="self">self</span>.project_cache
                         .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
@@ -5831,7 +5878,7 @@
         <span class="kw">let </span>buckets = bucket_limiter.into_metrics();
         <span class="kw">if </span>!buckets.is_empty() {
             <span class="comment">// Forward buckets to envelope manager to send them to upstream or kafka:
-            </span>EnvelopeManager::from_registry().send(SendMetrics {
+            </span><span class="self">self</span>.envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
@@ -5875,7 +5922,7 @@
             }
             <span class="prelude-val">Ok</span>(envelope_body) =&gt; {
                 request.envelope_body = envelope_body;
-                UpstreamRelay::from_registry().send(SendRequest(request));
+                <span class="self">self</span>.upstream_relay.send(SendRequest(request));
             }
         }
     }
@@ -5925,6 +5972,7 @@
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::EventId;
     <span class="kw">use </span>relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -5996,22 +6044,22 @@
 
     <span class="doccomment">/// Checks that the default test-arguments leads to the item being kept, which helps ensure the
     /// other tests are valid.
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_process_session_keep_item() {
+    </span><span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_process_session_keep_item() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         <span class="macro">assert!</span>(args.run_session_producer());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_process_session_invalid_json() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_process_session_invalid_json() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.item
             .set_payload(ContentType::Json, <span class="string">&quot;this isnt valid json&quot;</span>);
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_process_session_sequence_overflow() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_process_session_sequence_overflow() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.item.set_payload(
             ContentType::Json,
@@ -6030,15 +6078,15 @@
         );
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_process_session_invalid_timestamp() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_process_session_invalid_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.received = DateTime::from_str(<span class="string">&quot;2021-05-26T08:00:00+0100&quot;</span>).unwrap();
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_process_session_metrics_extracted() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_process_session_metrics_extracted() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.item.set_metrics_extracted(<span class="bool-val">true</span>);
         <span class="macro">assert!</span>(!args.run_session_producer());
@@ -6255,8 +6303,16 @@
     }
 
     <span class="kw">fn </span>create_test_processor(config: Config) -&gt; EnvelopeProcessorService {
+        <span class="kw">let </span>(envelope_manager, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_manager&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream_relay&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         EnvelopeProcessorService {
             config: Arc::new(config),
+            envelope_manager,
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>rate_limiter: <span class="prelude-val">None</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -6264,11 +6320,8 @@
         }
     }
 
-    <span class="attr">#[test]
-    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
-                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
-                not fail.&quot;</span>]
-    </span><span class="kw">fn </span>test_user_report_invalid() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_user_report_invalid() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>event_id = protocol::EventId::new();
 
@@ -6305,11 +6358,8 @@
         <span class="macro">assert_eq!</span>(new_envelope.items().next().unwrap().ty(), <span class="kw-2">&amp;</span>ItemType::Event);
     }
 
-    <span class="attr">#[test]
-    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
-                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
-                not fail.&quot;</span>]
-    </span><span class="kw">fn </span>test_browser_version_extraction_with_pii_like_data() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_browser_version_extraction_with_pii_like_data() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>event_id = protocol::EventId::new();
 
@@ -6445,8 +6495,8 @@
         <span class="macro">assert!</span>(envelope_response.envelope.is_none());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_client_report_forwarding() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_client_report_forwarding() {
         relay_test::setup();
 
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
