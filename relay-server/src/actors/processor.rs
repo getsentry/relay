@@ -62,7 +62,7 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ManagedEnvelope,
+    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope,
     SamplingResult,
 };
 
@@ -837,8 +837,8 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        envelope.retain_items(|item| {
-            match item.ty() {
+        state.managed_envelope.retain_items(|item| {
+            let should_keep = match item.ty() {
                 ItemType::Session => self.process_session(
                     item,
                     received,
@@ -858,6 +858,11 @@ impl EnvelopeProcessorService {
                     extracted_metrics,
                 ),
                 _ => true, // Keep all other item types
+            };
+            if should_keep {
+                ItemAction::Keep
+            } else {
+                ItemAction::DropSilently // sessions never log outcomes.
             }
         });
     }
@@ -868,16 +873,16 @@ impl EnvelopeProcessorService {
     /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
     /// is written back into the item.
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
-        state.envelope_mut().retain_items(|item| {
+        state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::UserReport {
-                return true;
+                return ItemAction::Keep;
             };
 
             let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
                 Ok(session) => session,
                 Err(error) => {
                     relay_log::error!("failed to store user report: {}", LogError(&error));
-                    return false;
+                    return ItemAction::DropSilently;
                 }
             };
 
@@ -885,12 +890,12 @@ impl EnvelopeProcessorService {
                 Ok(json) => json,
                 Err(err) => {
                     relay_log::error!("failed to serialize user report: {}", LogError(&err));
-                    return false;
+                    return ItemAction::DropSilently;
                 }
             };
 
             item.set_payload(ContentType::Json, json_string);
-            true
+            ItemAction::Keep
         });
     }
 
@@ -905,9 +910,10 @@ impl EnvelopeProcessorService {
         if !self.config.emit_outcomes().any() || !self.config.emit_client_outcomes() {
             // if a processing relay has client outcomes disabled we drop them.
             if self.config.processing_enabled() {
-                state
-                    .envelope_mut()
-                    .retain_items(|item| item.ty() != &ItemType::ClientReport);
+                state.managed_envelope.retain_items(|item| match item.ty() {
+                    ItemType::ClientReport => ItemAction::DropSilently,
+                    _ => ItemAction::Keep,
+                });
             }
             return;
         }
@@ -921,9 +927,9 @@ impl EnvelopeProcessorService {
 
         // we're going through all client reports but we're effectively just merging
         // them into the first one.
-        state.envelope_mut().retain_items(|item| {
+        state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::ClientReport {
-                return true;
+                return ItemAction::Keep;
             };
             match ClientReport::parse(&item.payload()) {
                 Ok(ClientReport {
@@ -968,7 +974,7 @@ impl EnvelopeProcessorService {
                 }
                 Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
             }
-            false
+            ItemAction::DropSilently
         });
 
         if output_events.is_empty() {
@@ -1042,29 +1048,29 @@ impl EnvelopeProcessorService {
     /// Remove profiles from the envelope if the feature flag is not enabled.
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        state.envelope_mut().retain_items(|item| match item.ty() {
-            ItemType::Profile => profiling_enabled,
-            _ => true,
+        state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile if !profiling_enabled => ItemAction::DropSilently,
+            _ => ItemAction::Keep,
         });
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
     fn process_check_ins(&self, state: &mut ProcessEnvelopeState) {
-        state.envelope_mut().retain_items(|item| {
+        state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
-                return true;
+                return ItemAction::Keep;
             }
 
             match relay_monitors::process_check_in(&item.payload()) {
                 Ok(processed) => {
                     item.set_payload(ContentType::Json, processed);
-                    true
+                    ItemAction::Keep
                 }
                 Err(error) => {
                     // TODO: Track an outcome.
                     relay_log::debug!("dropped invalid monitor check-in: {}", LogError(&error));
-                    false
+                    ItemAction::DropSilently
                 }
             }
         })
@@ -1073,9 +1079,7 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let mut outcomes = vec![];
-        let envelope = state.managed_envelope.envelope_mut();
-        envelope.retain_items(|item| match item.ty() {
+        state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
                 Ok((profile_id, payload)) => {
                     if payload.len() <= self.config.max_profile_size() {
@@ -1088,7 +1092,7 @@ impl EnvelopeProcessorService {
                             }
                         }
                         item.set_payload(ContentType::Json, payload);
-                        true
+                        ItemAction::Keep
                     } else {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
@@ -1096,16 +1100,11 @@ impl EnvelopeProcessorService {
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-                        outcomes.push((
-                            Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(
-                                    relay_profiling::ProfileError::ExceedSizeLimit,
-                                ),
-                            )),
-                            DataCategory::Profile,
-                            1,
-                        ));
-                        false
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(
+                                relay_profiling::ProfileError::ExceedSizeLimit,
+                            ),
+                        )))
                     }
                 }
                 Err(err) => {
@@ -1122,23 +1121,13 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    outcomes.push((
-                        Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )),
-                        DataCategory::Profile,
-                        1,
-                    ));
-                    false
+                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    )))
                 }
             },
-            _ => true,
+            _ => ItemAction::Keep,
         });
-        for (outcome, category, quantity) in outcomes {
-            state
-                .managed_envelope
-                .track_outcome(outcome, category, quantity);
-        }
     }
 
     /// Remove replays if the feature flag is not enabled.
@@ -1166,26 +1155,24 @@ impl EnvelopeProcessorService {
             client_hints: meta.client_hints().as_deref(),
         };
 
-        let mut outcomes = vec![];
-        let envelope = state.managed_envelope.envelope_mut();
-        envelope.retain_items(|item| match item.ty() {
+        state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
-                    return false;
+                    return ItemAction::DropSilently;
                 }
 
                 match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
                             item.set_payload(ContentType::Json, json.as_bytes());
-                            true
+                            ItemAction::Keep
                         }
                         Err(e) => {
                             relay_log::error!(
                                 "replay-event: failed to serialize replay with message {}",
                                 e
                             );
-                            false
+                            ItemAction::Keep
                         }
                     },
                     Err(e) => {
@@ -1207,20 +1194,19 @@ impl EnvelopeProcessorService {
                                 DiscardReason::InvalidReplayEvent
                             }
                         };
-                        outcomes.push((Outcome::Invalid(discard_reason), DataCategory::Replay, 1));
-                        false
+                        ItemAction::Drop(Outcome::Invalid(discard_reason))
                     }
                 }
             }
             ItemType::ReplayRecording => {
                 if !replays_enabled {
-                    return false;
+                    return ItemAction::DropSilently;
                 }
 
                 // XXX: Processing is there just for data scrubbing. Skip the entire expensive
                 // processing step if we do not need to scrub.
                 if !scrubbing_enabled || scrubber.is_empty() {
-                    return true;
+                    return ItemAction::Keep;
                 }
 
                 // Limit expansion of recordings to the max replay size. The payload is
@@ -1234,27 +1220,18 @@ impl EnvelopeProcessorService {
                 match parsed_recording {
                     Ok(recording) => {
                         item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        true
+                        ItemAction::Keep
                     }
                     Err(e) => {
                         relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                        outcomes.push((
-                            Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
-                            DataCategory::Replay,
-                            1,
-                        ));
-                        false
+                        ItemAction::Drop(Outcome::Invalid(
+                            DiscardReason::InvalidReplayRecordingEvent,
+                        ))
                     }
                 }
             }
-            _ => true,
+            _ => ItemAction::Keep,
         });
-
-        for (outcome, category, quantity) in outcomes {
-            state
-                .managed_envelope
-                .track_outcome(outcome, category, quantity);
-        }
 
         Ok(())
     }

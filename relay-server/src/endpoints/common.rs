@@ -331,17 +331,17 @@ fn queue_envelope(
 /// implicitly through an item that will create an event during ingestion.
 pub async fn handle_envelope(
     state: &ServiceState,
-    mut envelope: Box<Envelope>,
+    envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    // If configured, remove unknown items at the very beginning. If the envelope is
-    // empty, we fail the request with a special control flow error to skip checks and
-    // queueing, that still results in a `200 OK` response.
-    utils::remove_unknown_items(state.config(), &mut envelope);
-
     let buffer_guard = state.buffer_guard();
     let mut managed_envelope = buffer_guard
         .enter(envelope)
         .map_err(BadStoreRequest::QueueFailed)?;
+
+    // If configured, remove unknown items at the very beginning. If the envelope is
+    // empty, we fail the request with a special control flow error to skip checks and
+    // queueing, that still results in a `200 OK` response.
+    utils::remove_unknown_items(state.config(), &mut managed_envelope);
 
     let event_id = managed_envelope.envelope().event_id();
     if managed_envelope.envelope().is_empty() {

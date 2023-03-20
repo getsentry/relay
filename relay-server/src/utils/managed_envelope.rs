@@ -8,7 +8,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -42,6 +42,17 @@ impl Handling {
     }
 }
 
+/// Represents the decision on whether or not to keep an envelope item.
+pub enum ItemAction {
+    /// Keep the item.
+    Keep,
+    /// Drop the item and log an outcome for it.
+    /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
+    Drop(Outcome),
+    /// Drop the item without logging an outcome.
+    DropSilently,
+}
+
 #[derive(Debug)]
 struct EnvelopeContext {
     summary: EnvelopeSummary,
@@ -72,7 +83,7 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
-    /// Computes an managed envelope from the given envelope.
+    /// Computes a managed envelope from the given envelope.
     fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -97,7 +108,7 @@ impl ManagedEnvelope {
         Self::new_internal(envelope, None)
     }
 
-    /// Computes an managed envelope from the given envelope and binds it to the processing queue.
+    /// Computes a managed envelope from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
@@ -129,6 +140,33 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Retains or drops items based on the [`ItemAction`].
+    ///
+    ///
+    /// This method operates in place and preserves the order of the retained items.
+    pub fn retain_items<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut Item) -> ItemAction,
+    {
+        let mut outcomes = vec![];
+        let use_indexed = self.use_index_category();
+        self.envelope.retain_items(|item| match f(item) {
+            ItemAction::Keep => true,
+            ItemAction::Drop(outcome) => {
+                if let Some(category) = item.outcome_category(use_indexed) {
+                    outcomes.push((outcome, category, item.quantity()));
+                }
+
+                false
+            }
+            ItemAction::DropSilently => false,
+        });
+        for (outcome, category, quantity) in outcomes {
+            self.track_outcome(outcome, category, quantity);
+        }
+        // TODO: once `update` is private, it should be called here.
+    }
+
     /// Record that event metrics have been extracted.
     ///
     /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
@@ -149,7 +187,7 @@ impl ManagedEnvelope {
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         let outcome_aggregator = TrackOutcome::from_registry();
         outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
@@ -175,6 +213,17 @@ impl ManagedEnvelope {
         }
     }
 
+    /// Returns `true` if the indexed data category should be used for reporting.
+    ///
+    /// If metrics have been extracted from the event item, we use the indexed category
+    /// (for example, [TransactionIndexed](`DataCategory::TransactionIndexed`)) for reporting
+    /// rate limits and outcomes, because reporting of the main category
+    /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
+    /// will be handled by the metrics aggregator.
+    fn use_index_category(&self) -> bool {
+        self.context.summary.event_metrics_extracted
+    }
+
     /// Returns the data category of the event item in the envelope.
     ///
     /// If metrics have been extracted from the event item, this will return the indexing category.
@@ -183,9 +232,7 @@ impl ManagedEnvelope {
         let category = self.context.summary.event_category?;
 
         match category.index_category() {
-            Some(index_category) if self.context.summary.event_metrics_extracted => {
-                Some(index_category)
-            }
+            Some(index_category) if self.use_index_category() => Some(index_category),
             _ => Some(category),
         }
     }
