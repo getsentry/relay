@@ -244,7 +244,7 @@ impl SqliteBufferService {
     async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
         let Enqueue {
             key,
-            value: managed_envelope,
+            value: mut managed_envelope,
         } = message;
 
         managed_envelope.spool();
@@ -255,8 +255,6 @@ impl SqliteBufferService {
             .bind(envelope_bytes)
             .execute(&self.db)
             .await?;
-
-        envelope_context.spool();
         Ok(())
     }
 
@@ -278,6 +276,9 @@ impl SqliteBufferService {
                 let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
                 let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
                 let envelope = Envelope::parse_bytes(envelope_bytes)?;
+
+                // TODO: do not use the "standalone"  here , rather make sure to hande over the
+                // permit. We have to plug into the system.
                 let managed_envelope = ManagedEnvelope::standalone(envelope);
                 sender.send(managed_envelope).ok();
             }
