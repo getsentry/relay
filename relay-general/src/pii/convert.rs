@@ -29,8 +29,6 @@ static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
     [
         "*.cookies.session",
         "*.cookies.sessionid",
-        // "contexts.response.cookies.session",
-        // "contexts.response.cookies.sessionid",
         // TODO: extend
     ]
     .join("|")
