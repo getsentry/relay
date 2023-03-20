@@ -83,6 +83,10 @@ declare_builtin_rules! {
         ty: RuleType::Anything,
         redaction: Redaction::Mask,
     };
+    "@anything:filter" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Replace(ReplaceRedaction::default()),
+    };
 
     // ip rules
     "@ip" => rule_alias!("@ip:replace");

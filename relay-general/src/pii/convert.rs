@@ -25,6 +25,12 @@ static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
+static PRIVATE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
+    ("$request.cookies.session | $request.headers.session")
+        .parse()
+        .unwrap()
+});
+
 pub fn to_pii_config(
     datascrubbing_config: &DataScrubbingConfig,
 ) -> Result<Option<PiiConfig>, PiiConfigError> {
@@ -34,6 +40,7 @@ pub fn to_pii_config(
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
         applied_rules.push("@common:filter".to_owned());
+        applications.insert(PRIVATE_COOKIES.clone(), vec!["@anything:filter".to_owned()]);
     }
 
     if datascrubbing_config.scrub_ip_addresses {
@@ -183,6 +190,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "a_password_here": "hello",
             "api_key": "secret_key",
             "apiKey": "secret_key",
+            "session": "my private session",
         })
     }
 
