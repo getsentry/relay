@@ -1,9 +1,10 @@
 use std::convert::Infallible;
 
 use axum::body::Bytes;
-use axum::extract::Multipart;
+use axum::extract::{DefaultBodyLimit, Multipart};
 use axum::http::Request;
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
 use futures::{future, FutureExt};
 use relay_config::Config;
@@ -126,7 +127,7 @@ fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>,
     Ok(envelope)
 }
 
-pub async fn handle<B>(
+async fn handle<B>(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
@@ -159,6 +160,10 @@ where
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
     Ok(TextResponse(id))
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 
 #[cfg(test)]

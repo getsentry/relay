@@ -1,6 +1,8 @@
-use axum::extract::{FromRequest, Query};
+use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
+use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
@@ -18,7 +20,7 @@ struct UnrealQuery {
 
 #[derive(Debug, FromRequest)]
 #[from_request(state(ServiceState))]
-pub struct UnrealParams {
+struct UnrealParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: UnrealQuery,
@@ -47,7 +49,7 @@ impl UnrealParams {
     }
 }
 
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
@@ -65,15 +67,6 @@ pub async fn handle(
     Ok(TextResponse(id))
 }
 
-// pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-//     common::cors(app)
-//         .resource(
-//             &common::normpath(r"/api/{project:\d+}/unreal/{sentry_key:\w+}/"),
-//             |r| {
-//                 r.name("store-unreal");
-//                 r.post()
-//                     .with_async(|m, r| common::handler(store_unreal(m, r)));
-//             },
-//         )
-//         .register()
-// }
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+}

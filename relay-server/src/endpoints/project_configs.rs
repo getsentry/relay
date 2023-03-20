@@ -167,6 +167,6 @@ where
     Ok(if predicate(data) {
         inner.call(req, state).await
     } else {
-        forward::handle.call(req, state).await
+        forward::forward(state, req).await
     })
 }

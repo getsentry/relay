@@ -19,7 +19,6 @@ mod store;
 mod unreal;
 
 use axum::extract::DefaultBodyLimit;
-use axum::handler::Handler;
 use axum::routing::{any, get, post, Router};
 use relay_config::Config;
 
@@ -49,25 +48,16 @@ pub fn routes(config: &Config) -> Router<ServiceState> {
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
         // Legacy store path that is missing the project parameter.
-        .route("/api/store/", post(store::handle).get(store::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
-        .route("/api/:project_id/store/", post(store::handle).get(store::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
-        .route("/api/:project_id/envelope/", post(envelope::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_envelope_size())))
-        .route("/api/:project_id/security/", post(security_report::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
-        .route("/api/:project_id/csp-report/", post(security_report::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
+        .route("/api/store/", store::route(config))
+        .route("/api/:project_id/store/", store::route(config))
+        .route("/api/:project_id/envelope/", envelope::route(config))
+        .route("/api/:project_id/security/", security_report::route(config))
+        .route("/api/:project_id/csp-report/", security_report::route(config))
         // No mandatory trailing slash here because people already use it like this.
-        .route("/api/:project_id/minidump", post(minidump::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
-        .route("/api/:project_id/minidump/", post(minidump::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
-        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
-        .route("/api/:project_id/unreal/:sentry_key/", post(unreal::handle)
-            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
+        .route("/api/:project_id/minidump", minidump::route(config))
+        .route("/api/:project_id/minidump/", minidump::route(config))
+        .route("/api/:project_id/events/:event_id/attachments/", attachments::route(config))
+        .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
         .route_layer(common::cors());
 
     Router::new()
@@ -77,5 +67,5 @@ pub fn routes(config: &Config) -> Router<ServiceState> {
         // The "/api/" path is special as it is actually a web UI endpoint
         .route("/api/", any(statics::not_found))
         // Forward all other routes to the upstream
-        .fallback(forward::handle.layer(DefaultBodyLimit::max(config.max_api_payload_size())))  // TODO(ja): get_limit_for_path
+        .fallback(forward::forward)
 }

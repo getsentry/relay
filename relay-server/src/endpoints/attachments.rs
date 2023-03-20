@@ -1,6 +1,7 @@
-use axum::extract::{Multipart, Path};
+use axum::extract::{DefaultBodyLimit, Multipart, Path};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
@@ -12,7 +13,7 @@ use crate::service::ServiceState;
 use crate::utils;
 
 #[derive(Debug, Deserialize)]
-pub struct AttachmentPath {
+struct AttachmentPath {
     event_id: EventId,
 }
 
@@ -32,7 +33,7 @@ async fn extract_envelope(
     Ok(envelope)
 }
 
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
@@ -41,4 +42,8 @@ pub async fn handle(
     let envelope = extract_envelope(state.config(), meta, path, multipart).await?;
     common::handle_envelope(&state, envelope).await?;
     Ok(StatusCode::CREATED)
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }

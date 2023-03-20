@@ -1,9 +1,11 @@
 //! Endpoints for security reports.
 
-use axum::extract::{FromRequest, Query};
+use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
+use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
@@ -20,7 +22,7 @@ struct SecurityReportQuery {
 
 #[derive(Debug, FromRequest)]
 #[from_request(state(ServiceState))]
-pub struct SecurityReportParams {
+struct SecurityReportParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: SecurityReportQuery,
@@ -71,7 +73,7 @@ fn is_security_mime(mime: Mime) -> bool {
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     mime: Mime,
     params: SecurityReportParams,
@@ -83,4 +85,8 @@ pub async fn handle(
     let envelope = params.extract_envelope()?;
     common::handle_envelope(&state, envelope).await?;
     Ok(().into_response())
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

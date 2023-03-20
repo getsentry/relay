@@ -1,10 +1,12 @@
 //! Handles event store requests.
 
-use axum::extract::FromRequest;
+use axum::extract::{DefaultBodyLimit, FromRequest};
 use axum::http::{header, Method};
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use axum::Json;
 use bytes::Bytes;
+use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Serialize;
 
@@ -20,7 +22,7 @@ static PIXEL: &[u8] =
 
 #[derive(Debug, FromRequest)]
 #[from_request(state(ServiceState))]
-pub struct StoreParams {
+struct StoreParams {
     meta: RequestMeta,
     content_type: RawContentType,
     body: Bytes,
@@ -103,7 +105,7 @@ struct StoreResponse {
 /// `handle_store_event` is an adaptor for `store_event` which cannot
 /// be used directly as a request handler since not all of its arguments
 /// implement the FromRequest trait.
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     method: Method,
     params: StoreParams,
@@ -117,27 +119,6 @@ pub async fn handle(
     })
 }
 
-// pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-//     common::cors(app)
-//         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
-//         // in their URL handling. Since actix does not normalize such paths, allow any number of
-//         // slashes. The trailing slash can also be omitted, optionally.
-//         .resource(&common::normpath(r"/api/{project:\d+}/store/"), |r| {
-//             r.name("store-default");
-//             r.post()
-//                 .with_async(|m, r| common::handler(store_event(m, r)));
-//             r.get()
-//                 .with_async(|m, r| common::handler(store_event(m, r)));
-//         })
-//         // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
-//         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
-//         // request.
-//         .resource(&common::normpath(r"/api/store/"), |r| {
-//             r.name("store-legacy");
-//             r.post()
-//                 .with_async(|m, r| common::handler(store_event(m, r)));
-//             r.get()
-//                 .with_async(|m, r| common::handler(store_event(m, r)));
-//         })
-//         .register()
-// }
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    (post(handle).get(handle)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+}

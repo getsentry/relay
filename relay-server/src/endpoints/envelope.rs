@@ -3,11 +3,13 @@
 use std::convert::Infallible;
 
 use axum::extract::rejection::BytesRejection;
-use axum::extract::FromRequest;
+use axum::extract::{DefaultBodyLimit, FromRequest};
 use axum::http::Request;
 use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
 use axum::{Json, RequestExt};
 use bytes::Bytes;
+use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Serialize;
 
@@ -16,8 +18,9 @@ use crate::envelope::Envelope;
 use crate::extractors::{BadEventMeta, PartialMeta, RequestMeta};
 use crate::service::ServiceState;
 
+/// Aggregate rejection thrown when extracting [`EnvelopeParams`].
 #[derive(Debug)]
-pub enum BadEnvelopeParams {
+enum BadEnvelopeParams {
     EventMeta(BadEventMeta),
     InvalidBody(BytesRejection),
 }
@@ -50,7 +53,7 @@ impl IntoResponse for BadEnvelopeParams {
 }
 
 #[derive(Debug)]
-pub struct EnvelopeParams {
+struct EnvelopeParams {
     meta: RequestMeta,
     body: Bytes,
 }
@@ -115,11 +118,15 @@ struct StoreResponse {
 }
 
 /// Handler for the envelope store endpoint.
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     params: EnvelopeParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = params.extract_envelope()?;
     let id = common::handle_envelope(&state, envelope).await?;
     Ok(Json(StoreResponse { id }))
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
 }

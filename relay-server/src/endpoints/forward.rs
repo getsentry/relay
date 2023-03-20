@@ -9,8 +9,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use axum::body::Bytes;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
-use axum::response::IntoResponse;
+use axum::extract::DefaultBodyLimit;
+use axum::handler::Handler;
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Uri};
+use axum::response::{IntoResponse, Response};
 use once_cell::sync::Lazy;
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;
@@ -22,7 +24,7 @@ use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::extractors::ForwardedFor;
-use crate::http::{HttpError, RequestBuilder, Response};
+use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
 
 /// Headers that this endpoint must handle and cannot forward.
@@ -43,18 +45,11 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
     header::CONTENT_LENGTH,
 ];
 
-/// Route classes with request body limit overrides.
-#[derive(Clone, Copy, Debug)]
-enum SpecialRoute {
-    FileUpload,
-    ChunkUpload,
-}
-
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
 #[derive(Debug, thiserror::Error)]
 #[error("error while forwarding request: {0}")]
-pub struct ForwardError(#[from] UpstreamRequestError);
+struct ForwardError(#[from] UpstreamRequestError);
 
 impl From<RecvError> for ForwardError {
     fn from(_: RecvError) -> Self {
@@ -63,7 +58,7 @@ impl From<RecvError> for ForwardError {
 }
 
 impl IntoResponse for ForwardError {
-    fn into_response(self) -> axum::response::Response {
+    fn into_response(self) -> Response {
         match &self.0 {
             UpstreamRequestError::Http(e) => match e {
                 HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
@@ -75,7 +70,7 @@ impl IntoResponse for ForwardError {
                         .into_response()
                 }
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
-                HttpError::Json(e) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
                 HttpError::NoCredentials => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             UpstreamRequestError::SendFailed(e) => {
@@ -94,35 +89,6 @@ impl IntoResponse for ForwardError {
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
         }
-    }
-}
-
-/// Glob matcher for special routes.
-static SPECIAL_ROUTES: Lazy<GlobMatcher<SpecialRoute>> = Lazy::new(|| {
-    let mut m = GlobMatcher::new();
-    // file uploads / legacy dsym uploads
-    m.add(
-        "/api/0/projects/*/*/releases/*/files/",
-        SpecialRoute::FileUpload,
-    );
-    m.add(
-        "/api/0/projects/*/*/releases/*/dsyms/",
-        SpecialRoute::FileUpload,
-    );
-    // new chunk uploads
-    m.add(
-        "/api/0/organizations/*/chunk-upload/",
-        SpecialRoute::ChunkUpload,
-    );
-    m
-});
-
-/// Returns the maximum request body size for a route path.
-fn get_limit_for_path(path: &str, config: &Config) -> usize {
-    match SPECIAL_ROUTES.test(path) {
-        Some(SpecialRoute::FileUpload) => config.max_api_file_upload_size(),
-        Some(SpecialRoute::ChunkUpload) => config.max_api_chunk_upload_size(),
-        None => config.max_api_payload_size(),
     }
 }
 
@@ -196,7 +162,7 @@ impl UpstreamRequest for ForwardRequest {
 
     fn respond(
         self: Box<Self>,
-        result: Result<Response, UpstreamRequestError>,
+        result: Result<UpstreamResponse, UpstreamRequestError>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
         Box::pin(async move {
             let result = match result {
@@ -222,13 +188,9 @@ impl UpstreamRequest for ForwardRequest {
     }
 }
 
-/// Implementation of the forward endpoint.
-///
-/// This endpoint will create a proxy request to the upstream for every incoming request and stream
-/// the request body back to the origin. Regardless of the incoming connection, the connection to
-/// the upstream uses its own HTTP version and transfer encoding.
+/// Internal implementation of the forward endpoint.
 #[axum::debug_handler(state = ServiceState)]
-pub async fn handle(
+async fn handle(
     state: ServiceState,
     forwarded_for: ForwardedFor,
     method: Method,
@@ -256,4 +218,62 @@ pub async fn handle(
     } else {
         (status, headers, Vec::new())
     })
+}
+
+/// Route classes with request body limit overrides.
+#[derive(Clone, Copy, Debug)]
+enum SpecialRoute {
+    FileUpload,
+    ChunkUpload,
+}
+
+/// Glob matcher for special routes.
+static SPECIAL_ROUTES: Lazy<GlobMatcher<SpecialRoute>> = Lazy::new(|| {
+    let mut m = GlobMatcher::new();
+    // file uploads / legacy dsym uploads
+    m.add(
+        "/api/0/projects/*/*/releases/*/files/",
+        SpecialRoute::FileUpload,
+    );
+    m.add(
+        "/api/0/projects/*/*/releases/*/dsyms/",
+        SpecialRoute::FileUpload,
+    );
+    // new chunk uploads
+    m.add(
+        "/api/0/organizations/*/chunk-upload/",
+        SpecialRoute::ChunkUpload,
+    );
+    m
+});
+
+/// Returns the maximum request body size for a route path.
+fn get_limit_for_path(path: &str, config: &Config) -> usize {
+    match SPECIAL_ROUTES.test(path) {
+        Some(SpecialRoute::FileUpload) => config.max_api_file_upload_size(),
+        Some(SpecialRoute::ChunkUpload) => config.max_api_chunk_upload_size(),
+        None => config.max_api_payload_size(),
+    }
+}
+
+/// Forward endpoint handler.
+///
+/// This endpoint will create a proxy request to the upstream for every incoming request and stream
+/// the request body back to the origin. Regardless of the incoming connection, the connection to
+/// the upstream uses its own HTTP version and transfer encoding.
+///
+/// # Usage
+///
+/// This endpoint is both a handler and a request function:
+///
+/// - Use it as [`Handler`] directly in router methods when registering this as a route.
+/// - Call this manually from other request handlers to conditionally forward from other endpoints.
+pub fn forward<B>(state: ServiceState, req: Request<B>) -> impl Future<Output = Response>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    let limit = get_limit_for_path(req.uri().path(), state.config());
+    handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
 }
