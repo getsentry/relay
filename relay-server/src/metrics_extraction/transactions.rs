@@ -3,12 +3,13 @@ use std::collections::BTreeMap;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, EventType, Measurement, TraceContext, TransactionSource,
+    User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
+    AggregatorConfig, DurationUnit, Measurementkind, Metric, MetricUnit, MetricValue, SessionsKind,
     TransactionsKind,
 };
 
@@ -300,9 +301,8 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            metrics.push(Metric::new_mri(
-                MetricNamespace::parse("transactions", &format!("measurements.{name}")),
-                measurement.unit.value().copied().unwrap_or_default(),
+            metrics.push(Metric::new_transaction_mri(
+                TransactionsKind::Measurements(Measurementkind::Other(name)),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -333,11 +333,8 @@ fn extract_transaction_metrics_inner(
 
                     let unit = measurement.unit.value();
 
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions(TransactionsKind::Other(&format!(
-                            "breakdowns.{breakdown}.{measurement_name}"
-                        ))),
-                        unit.copied().unwrap_or(MetricUnit::None),
+                    metrics.push(Metric::new_transaction_mri(
+                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}")),
                         MetricValue::Distribution(value),
                         timestamp,
                         tags.clone(),
@@ -348,9 +345,8 @@ fn extract_transaction_metrics_inner(
     }
 
     // Duration
-    metrics.push(Metric::new_mri(
-        MetricNamespace::Transactions(TransactionsKind::Duration),
-        MetricUnit::Duration(DurationUnit::MilliSecond),
+    metrics.push(Metric::new_transaction_mri(
+        TransactionsKind::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags.clone(),
@@ -367,9 +363,8 @@ fn extract_transaction_metrics_inner(
     root_counter_tags.insert("decision".to_owned(), decision);
 
     // Count the transaction towards the root
-    sampling_metrics.push(Metric::new_mri(
-        MetricNamespace::Transactions(TransactionsKind::CountPerRootProject),
-        MetricUnit::None,
+    sampling_metrics.push(Metric::new_transaction_mri(
+        TransactionsKind::CountPerRootProject,
         MetricValue::Counter(1.0),
         timestamp,
         root_counter_tags,
@@ -378,9 +373,8 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions(TransactionsKind::User),
-                MetricUnit::None,
+            metrics.push(Metric::new_transaction_mri(
+                TransactionsKind::User,
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags,
@@ -1168,9 +1162,8 @@ mod tests {
         metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
-            &[Metric::new_mri(
-                MetricNamespace::Transactions(TransactionsKind::MeasurementsLcp),
-                MetricUnit::Duration(DurationUnit::MilliSecond),
+            &[Metric::new_transaction_mri(
+                TransactionsKind::Measurements(Measurementkind::Lcp), // milliseconds
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {

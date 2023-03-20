@@ -182,6 +182,7 @@ impl Display for SessionsKind {
     }
 }
 
+/*
 impl From<&str> for SessionsKind {
     fn from(value: &str) -> Self {
         match value {
@@ -191,14 +192,16 @@ impl From<&str> for SessionsKind {
         }
     }
 }
+*/
 
 /// Enumerates the most common transaction-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TransactionsKind<'a> {
     User,
-    Duration,
+    Duration(DurationUnit),
     CountPerRootProject,
-    Measurements(Measurements<'a>),
+    Breakdowns(&'a str),
+    Measurements(Measurementkind<'a>),
     Custom {
         name: &'a str,
         ty: MetricType,
@@ -207,35 +210,42 @@ pub enum TransactionsKind<'a> {
 }
 
 impl<'a> TransactionsKind<'a> {
-    pub fn parse(name: &'a str, ty: MetricType, unit: MetricUnit) -> Self {
+    pub fn parse(
+        name: &'a str,
+        ty: MetricType,
+        unit: MetricUnit,
+    ) -> Result<Self, ParseMetricError> {
         let prefix_len = "measurements.".len();
 
         if &name[0..prefix_len] == "measurements." {
             let measurement = match &name[prefix_len..] {
-                "frames_frozen" => Measurements::FramesFrozen,
-                "frames_frozen_rate" => Measurements::FramesFrozenRate,
-                "frames_slow" => Measurements::FramesSlow,
-                "frames_slow_rate" => Measurements::FramesSlowRate,
-                "frames_total" => Measurements::FramesTotal,
-                "stall_percentage" => Measurements::StallPercentage,
-                "stall_total_time" => Measurements::StallTotalTime,
-                "lcp" => Measurements::Lcp,
-                s => Measurements::Other(&s),
+                "frames_frozen" => Measurementkind::FramesFrozen,
+                "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
+                "frames_slow" => Measurementkind::FramesSlow,
+                "frames_slow_rate" => Measurementkind::FramesSlowRate,
+                "frames_total" => Measurementkind::FramesTotal,
+                "stall_percentage" => Measurementkind::StallPercentage,
+                "stall_total_time" => Measurementkind::StallTotalTime,
+                "lcp" => Measurementkind::Lcp,
+                s => Measurementkind::Other(&s),
             };
-            return Self::Measurements(measurement);
+            return Ok(Self::Measurements(measurement));
         };
 
         match name {
-            "duration" => Self::Duration,
-            "user" => Self::User,
-            "count_per_root_project" => Self::CountPerRootProject,
-            s => Self::Custom { name, ty, unit },
+            "duration" => match unit {
+                MetricUnit::Duration(unit) => Ok(Self::Duration(unit)),
+                _ => Err(ParseMetricError(())),
+            },
+            "user" => Ok(Self::User),
+            "count_per_root_project" => Ok(Self::CountPerRootProject),
+            s => Ok(Self::Custom { name, ty, unit }),
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measurements<'a> {
+pub enum Measurementkind<'a> {
     FramesFrozen,
     FramesFrozenRate,
     FramesSlow,
@@ -247,7 +257,7 @@ pub enum Measurements<'a> {
     Other(&'a str),
 }
 
-impl<'a> Display for Measurements<'a> {
+impl<'a> Display for Measurementkind<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::FramesFrozen => write!(f, "measurements.frames_frozen"),
@@ -266,7 +276,8 @@ impl<'a> Display for Measurements<'a> {
 impl<'a> Display for TransactionsKind<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Duration => write!(f, "duration"),
+            Self::Duration(unit) => write!(f, "duration({unit})"),
+            Self::Breakdowns(breakdown) => write!(f, "breakdowns.{breakdown}"),
             Self::User => write!(f, "user"),
             Self::CountPerRootProject => write!(f, "count_per_root_project"),
             Self::Measurements(measurement) => write!(f, "{}", measurement),
@@ -354,24 +365,21 @@ pub enum MetricResourceIdentifier<'a> {
 
 impl<'a> MetricResourceIdentifier<'a> {
     pub fn unit(&self) -> MetricUnit {
-        todo!()
+        match self {
+            Self::Transaction(t) => match t {
+                TransactionsKind::Custom { unit, .. } => unit.clone(),
+                _ => todo!(),
+            },
+            Self::Session(_) => todo!(),
+        }
     }
 
     pub fn ty(&self) -> MetricType {
         todo!()
     }
-}
 
-impl<'a> ToString for MetricResourceIdentifier<'a> {
-    fn to_string(&self) -> String {
-        todo!()
-    }
-}
-
-/// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-impl<'a> FromStr for MetricResourceIdentifier<'a> {
-    type Err = ParseMetricError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+    pub fn str_from(s: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
         let ty: MetricType = raw_ty.parse()?;
 
@@ -380,7 +388,7 @@ impl<'a> FromStr for MetricResourceIdentifier<'a> {
         let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
 
         match raw_namespace {
-            "transaction" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit))),
+            "transaction" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit)?)),
             "session" => {
                 let kind = match name {
                     "user" => SessionsKind::User,
@@ -390,11 +398,25 @@ impl<'a> FromStr for MetricResourceIdentifier<'a> {
                 };
                 Ok(Self::Session(kind))
             }
+            _ => Err(ParseMetricError(())),
         }
     }
 }
 
+impl<'a> ToString for MetricResourceIdentifier<'a> {
+    fn to_string(&self) -> String {
+        todo!()
+    }
+}
+
 /*
+impl<'a> FromStr for MetricResourceIdentifier<'a> {
+    type Err = ParseMetricError;
+    fn from_str(s: &'a str) -> Result<Self, Self::Err> {
+
+    }
+}
+
 pub struct FooMetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
@@ -697,7 +719,7 @@ impl Metric {
         }
     */
     pub fn new_transaction_mri(
-        unit: MetricUnit,
+        kind: TransactionsKind,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
@@ -726,7 +748,7 @@ impl Metric {
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 
-        let x: MetricResourceIdentifier = MetricResourceIdentifier::from_str(string).ok()?;
+        let x: MetricResourceIdentifier = MetricResourceIdentifier::str_from(string).ok()?;
 
         let name_value_str = components.next()?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
@@ -965,8 +987,8 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+        let mri = MetricResourceIdentifier::str_from(&metric.name).unwrap();
+        assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
@@ -974,8 +996,8 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+        let mri = MetricResourceIdentifier::str_from(&metric.name).unwrap();
+        assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]

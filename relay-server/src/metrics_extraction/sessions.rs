@@ -4,7 +4,7 @@ use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue, SessionsKind};
+use relay_metrics::{Metric, MetricUnit, MetricValue, SessionsKind};
 
 use super::utils::with_tag;
 
@@ -65,7 +65,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 tags.clone(),
             ),
             SessionErrored::Aggregated(count) => Metric::new_session_mri(
-                SessionsKind::User,
+                SessionsKind::Session,
                 MetricValue::Counter(count as f64),
                 timestamp,
                 with_tag(&tags, "session.status", "errored_preaggr"),
@@ -74,6 +74,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_session_mri(
+                SessionsKind::User,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", "errored"),
