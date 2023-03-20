@@ -7,7 +7,7 @@
 - Indicate if OS-version may be frozen with '>=' prefix. ([#1945](https://github.com/getsentry/relay/pull/1945))
 - Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
 - Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
-
+- PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 
 ## 23.3.0
 
