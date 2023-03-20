@@ -1,0 +1,44 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: span
+---
+{
+  "data": {
+    "http": {
+      "fragment": "ccnumber=[Filtered],process_id=123",
+      "query": "ccnumber=[Filtered]&process_id=123"
+    }
+  },
+  "_meta": {
+    "data": {
+      "http": {
+        "fragment": {
+          "": {
+            "rem": [
+              [
+                "@creditcard:filter",
+                "s",
+                9,
+                19
+              ]
+            ],
+            "len": 40
+          }
+        },
+        "query": {
+          "": {
+            "rem": [
+              [
+                "@creditcard:filter",
+                "s",
+                9,
+                19
+              ]
+            ],
+            "len": 40
+          }
+        }
+      }
+    }
+  }
+}
