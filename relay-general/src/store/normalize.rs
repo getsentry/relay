@@ -1024,12 +1024,27 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 /// Additionally, the new logger is prefixed with `*`, to indicate it was
 /// shortened.
 fn shorten_logger(logger: String, meta: &mut Meta) -> String {
+    let original_len = bytecount::num_chars(logger.as_bytes());
     let trimmed = logger.trim();
     let logger_len = bytecount::num_chars(trimmed.as_bytes());
     if logger_len <= MaxChars::Logger.limit() {
         if trimmed == logger {
             return logger;
         } else {
+            if trimmed.is_empty() {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Removed,
+                    rule_id: "@logger:remove".to_owned(),
+                    range: Some((0, original_len)),
+                });
+            } else {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Substituted,
+                    rule_id: "@logger:trim".to_owned(),
+                    range: None,
+                });
+            }
+            meta.set_original_length(Some(original_len));
             return trimmed.to_string();
         };
     }
@@ -1046,12 +1061,13 @@ fn shorten_logger(logger: String, meta: &mut Meta) -> String {
     }
 
     tokens.reverse();
-    let new_len = tokens.len();
     meta.add_remark(Remark {
         ty: RemarkType::Substituted,
         rule_id: "@logger:replace".to_owned(),
-        range: (0, logger_len - new_len),
+        range: Some((0, logger_len - tokens.len())),
     });
+    meta.set_original_length(Some(original_len));
+
     format!("*{}", tokens.join(""))
 }
 

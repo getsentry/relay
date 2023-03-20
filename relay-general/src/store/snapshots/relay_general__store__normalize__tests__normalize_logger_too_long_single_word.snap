@@ -7,5 +7,18 @@ expression: event
   "level": "error",
   "type": "default",
   "logger": "*is-way_too_long-and_we_only_have_one_word-so_we_cant_smart_trim",
-  "platform": "java"
+  "platform": "java",
+  "_meta": {
+    "": {
+      "rem": [
+        [
+          "@logger:replace",
+          "s",
+          0,
+          5
+        ]
+      ],
+      "len": 68
+    }
+  }
 }

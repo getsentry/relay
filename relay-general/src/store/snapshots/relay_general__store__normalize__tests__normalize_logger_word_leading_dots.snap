@@ -7,5 +7,18 @@ expression: event
   "level": "error",
   "type": "default",
   "logger": "*this-tests-the-smart-trimming-and-word-removal-around-dot.words",
-  "platform": "java"
+  "platform": "java",
+  "_meta": {
+    "": {
+      "rem": [
+        [
+          "@logger:replace",
+          "s",
+          0,
+          3
+        ]
+      ],
+      "len": 66
+    }
+  }
 }

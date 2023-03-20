@@ -7,5 +7,18 @@ expression: event
   "level": "error",
   "type": "default",
   "logger": "*.this_part-is-kept.this_right_here-is_a-very_long_word",
-  "platform": "java"
+  "platform": "java",
+  "_meta": {
+    "": {
+      "rem": [
+        [
+          "@logger:replace",
+          "s",
+          0,
+          33
+        ]
+      ],
+      "len": 87
+    }
+  }
 }
