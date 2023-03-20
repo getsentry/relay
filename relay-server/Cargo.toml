@@ -38,7 +38,7 @@ processing = [
 # actix-web = { version = "0.7.19", default-features = false }
 anyhow = "1.0.66"
 axum = { version = "0.6.11", features = ["headers", "macros", "matched-path", "multipart"] }
-axum-server = "0.4.6"
+axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli2 = "0.3.2"
 bytes = { version = "1.4.0" }
