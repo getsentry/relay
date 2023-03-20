@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-use axum::extract::multipart::MultipartError;
 use axum::http::{header, HeaderName, Method, StatusCode};
 use axum::response::IntoResponse;
 use relay_general::protocol::{EventId, EventType};
@@ -19,7 +18,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope,
+    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -461,6 +460,7 @@ impl IntoResponse for TextResponse {
         // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
         let text = id.as_hyphenated().to_string();
 
+        // TODO(ja): Check if the header is needed; should be automatic
         ([(header::CONTENT_TYPE, "text/plain")], text).into_response()
     }
 }

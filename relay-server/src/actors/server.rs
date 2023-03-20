@@ -44,7 +44,7 @@ impl HttpServer {
             return Err(ServerError::TlsNotSupported);
         }
 
-        let app = crate::endpoints::routes()
+        let app = crate::endpoints::routes(&config)
             .layer(NewSentryLayer::new_from_top())
             .layer(middleware::from_fn(middlewares::metrics))
             .layer(SetResponseHeaderLayer::overriding(

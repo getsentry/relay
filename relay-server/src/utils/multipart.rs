@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::io;
 
-use axum::extract::multipart::{Multipart, MultipartError};
+use axum::extract::multipart::Multipart;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -148,20 +148,45 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-pub async fn multipart_items(mut multipart: Multipart) -> Result<Items, MultipartError> {
+#[derive(Debug, thiserror::Error)]
+pub enum MultipartError {
+    #[error("field exceeded the size limit")]
+    FieldSizeExceeded,
+    #[error(transparent)]
+    Raw(#[from] axum::extract::multipart::MultipartError),
+}
+
+pub async fn multipart_items<F>(
+    mut multipart: Multipart,
+    item_limit: usize,
+    mut infer_type: F,
+) -> Result<Items, MultipartError>
+where
+    F: FnMut(Option<&str>) -> AttachmentType,
+{
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
 
-    while let Some(field) = multipart.next_field().await? {
+    while let Some(mut field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_attachment_type(infer_type(field.name()));
+            item.set_filename(file_name);
+
+            // Extract the body after the immutable borrow on `file_name` is gone.
+            let mut body = Vec::new();
+            while let Some(bytes) = field.chunk().await? {
+                if body.len() > item_limit {
+                    return Err(MultipartError::FieldSizeExceeded);
+                }
+                body.extend_from_slice(&bytes);
+            }
+
             let content_type = match field.content_type() {
                 Some(string) => string.into(),
                 None => ContentType::OctetStream,
             };
 
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type(AttachmentType::default()); // TODO(ja): Infer type
-            item.set_filename(file_name);
             item.set_payload(content_type, field.bytes().await?);
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {

@@ -18,16 +18,24 @@ mod statics;
 mod store;
 mod unreal;
 
+use axum::extract::DefaultBodyLimit;
+use axum::handler::Handler;
 use axum::routing::{any, get, post, Router};
+use relay_config::Config;
 
 use crate::service::ServiceState;
 
+// TODO(ja): Find a better place for this
+/// Maximum size of a JSON request body.
+const MAX_JSON_SIZE: usize = 262_144;
+
 #[rustfmt::skip]
-pub fn routes() -> Router<ServiceState> {
+pub fn routes(config: &Config) -> Router<ServiceState> {
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
         .route("/api/relay/events/:event_id/", get(events::handle))
+        // Fallback route, but with a name, and just on `/api/relay/*`
         .route("/api/relay/*not_found", any(statics::not_found));
 
     // Sentry Web API routes pointing to /api/0/relays/
@@ -35,21 +43,31 @@ pub fn routes() -> Router<ServiceState> {
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
         .route("/api/0/relays/outcomes/", post(outcomes::handle))
-        .route("/api/0/relays/:kind/", get(health_check::handle));
+        .route("/api/0/relays/:kind/", get(health_check::handle))
+        .route_layer(DefaultBodyLimit::max(MAX_JSON_SIZE));
 
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
         // Legacy store path that is missing the project parameter.
-        .route("/api/store/", post(store::handle).get(store::handle))
-        .route("/api/:project_id/store/", post(store::handle).get(store::handle))
-        .route("/api/:project_id/envelope/", post(envelope::handle))
-        .route("/api/:project_id/security/", post(security_report::handle))
-        .route("/api/:project_id/csp-report/", post(security_report::handle))
+        .route("/api/store/", post(store::handle).get(store::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
+        .route("/api/:project_id/store/", post(store::handle).get(store::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
+        .route("/api/:project_id/envelope/", post(envelope::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_envelope_size())))
+        .route("/api/:project_id/security/", post(security_report::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
+        .route("/api/:project_id/csp-report/", post(security_report::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_event_size())))
         // No mandatory trailing slash here because people already use it like this.
-        .route("/api/:project_id/minidump", post(minidump::handle))
-        .route("/api/:project_id/minidump/", post(minidump::handle))
-        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle))
-        .route("/api/:project_id/unreal/:sentry_key/", post(unreal::handle))
+        .route("/api/:project_id/minidump", post(minidump::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
+        .route("/api/:project_id/minidump/", post(minidump::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
+        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
+        .route("/api/:project_id/unreal/:sentry_key/", post(unreal::handle)
+            .route_layer(DefaultBodyLimit::max(config.max_attachments_size())))
         .route_layer(common::cors());
 
     Router::new()
@@ -59,5 +77,5 @@ pub fn routes() -> Router<ServiceState> {
         // The "/api/" path is special as it is actually a web UI endpoint
         .route("/api/", any(statics::not_found))
         // Forward all other routes to the upstream
-        .fallback(forward::handle)
+        .fallback(forward::handle.layer(DefaultBodyLimit::max(config.max_api_payload_size())))  // TODO(ja): get_limit_for_path
 }

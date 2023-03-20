@@ -99,10 +99,7 @@ where
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
 
-        // TODO(ja): Configure MAX_JSON_SIZE somehow
         let body = Bytes::from_request(request, state).await?;
-        // let body = body::request_body(&request, MAX_JSON_SIZE).await?;
-
         let inner = relay.public_key.unpack(&body, &signature, None)?;
         Ok(SignedJson { inner, relay })
     }

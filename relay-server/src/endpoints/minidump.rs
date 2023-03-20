@@ -6,6 +6,7 @@ use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::RequestExt;
 use futures::{future, FutureExt};
+use relay_config::Config;
 use relay_general::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
@@ -69,7 +70,6 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
         None => return Ok(None),
     };
 
-    // TODO(ja): let max_single_size = request.state().config().max_attachment_size();
     let stream = future::ok::<_, Infallible>(payload.clone()).into_stream();
     let mut multipart = multer::Multipart::new(stream, boundary);
 
@@ -83,13 +83,12 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 }
 
 async fn extract_multipart(
+    config: &Config,
     multipart: Multipart,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    // let max_multipart_size = request.state().config().max_attachments_size();
-
-    // TODO(ja): infer_attachment_type
-    let mut items = utils::multipart_items(multipart).await?;
+    let max_size = config.max_attachment_size();
+    let mut items = utils::multipart_items(multipart, max_size, infer_attachment_type).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -127,30 +126,6 @@ fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>,
     Ok(envelope)
 }
 
-// /// Creates an evelope from a minidump request.
-// ///
-// /// Minidump request payloads do not have the same structure as usual
-// /// events from other SDKs.
-// ///
-// /// The minidump can either be transmitted as the request body, or as
-// /// `upload_file_minidump` in a multipart form-data/ request.
-// ///
-// /// Optionally, an event payload can be sent in the `sentry` form
-// /// field, either as JSON or as nested form data.
-// async fn extract_envelope<B>(
-//     request: Request<B>,
-//     meta: RequestMeta,
-// ) -> Result<Box<Envelope>, BadStoreRequest> {
-//     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
-//     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
-//     // multipart formdata request.
-//     if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
-//         extract_raw_minidump(request, meta).await
-//     } else {
-//         extract_multipart(request, meta).await
-//     }
-// }
-
 pub async fn handle<B>(
     state: ServiceState,
     meta: RequestMeta,
@@ -167,11 +142,10 @@ where
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
-    // TODO(ja): better comparison
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
-        extract_multipart(request.extract().await?, meta).await?
+        extract_multipart(state.config(), request.extract().await?, meta).await?
     };
 
     let id = envelope.event_id();

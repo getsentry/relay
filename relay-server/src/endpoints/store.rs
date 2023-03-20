@@ -80,10 +80,6 @@ impl StoreParams {
     }
 
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        // TODO(ja): Limit content size
-        // let max_payload_size = state.config().max_event_size();
-        // let data = body::store_body(request, max_payload_size).await?;
-
         if self.body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
