@@ -1048,7 +1048,7 @@ fn shorten_logger(logger: String) -> String {
     }
 
     tokens.reverse();
-    "*".to_owned() + &tokens.iter().join("")
+    format!("*{}", tokens.join(""))
 }
 
 /// Remove as many tokens as needed to match the maximum char limit defined in
