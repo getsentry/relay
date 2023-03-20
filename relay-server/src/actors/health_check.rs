@@ -52,21 +52,23 @@ impl FromMessage<IsHealthy> for HealthCheck {
 pub struct HealthCheckService {
     is_shutting_down: AtomicBool,
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl HealthCheckService {
     /// Creates a new instance of the HealthCheck service.
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         HealthCheckService {
             is_shutting_down: AtomicBool::new(false),
             config,
+            upstream_relay,
         }
     }
 
     async fn handle_is_healthy(&self, message: IsHealthy) -> bool {
-        let upstream = UpstreamRelay::from_registry();
+        let upstream = self.upstream_relay.clone();
 
         if self.config.relay_mode() == RelayMode::Managed {
             let fut = upstream.send(IsNetworkOutage);

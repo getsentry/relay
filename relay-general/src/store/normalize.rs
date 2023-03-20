@@ -11,14 +11,14 @@ use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use super::{schema, transactions, BreakdownsConfig, TransactionNameRule};
+use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
-    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
+    self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, DeviceClass, Event,
+    EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
+    Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
+use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -319,6 +319,8 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
         "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
         "frames_frozen" => Some(MetricUnit::None),
         "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+        "time_to_initial_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "time_to_first_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // React-Native
         "stall_count" => Some(MetricUnit::None),
@@ -660,7 +662,20 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
     logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
-#[derive(Default, Debug)]
+// Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high, medium, or low.
+fn normalize_device_class(event: &mut Event) {
+    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    let tag_name = "device.class".to_owned();
+    // Remove any existing device.class tag set by the client, since this should only be set by relay.
+    tags.remove("device.class");
+    if let Some(contexts) = event.contexts.value() {
+        if let Some(device_class) = DeviceClass::from_contexts(contexts) {
+            tags.insert(tag_name, Annotated::new(device_class.to_string()));
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
     pub user_agent: RawUserAgentInfo<&'a str>,
@@ -670,14 +685,13 @@ pub struct LightNormalizationConfig<'a> {
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
-    pub normalize_transaction_name: bool,
-    pub tx_name_rules: &'a [TransactionNameRule],
+    pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
 }
 
 pub fn light_normalize_event(
     event: &mut Annotated<Event>,
-    config: &LightNormalizationConfig,
+    config: LightNormalizationConfig,
 ) -> ProcessingResult {
     if config.is_renormalize {
         return Ok(());
@@ -687,11 +701,9 @@ pub fn light_normalize_event(
         // Validate and normalize transaction
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.normalize_transaction_name,
-            config.tx_name_rules,
-        );
+        // can revert some changes to ProcessingAction)
+        let mut transactions_processor =
+            transactions::TransactionsProcessor::new(config.transaction_name_config);
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
@@ -737,6 +749,7 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
+        normalize_device_class(event);
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
@@ -1002,8 +1015,8 @@ mod tests {
     use super::*;
     use crate::processor::process_value;
     use crate::protocol::{
-        ContextInner, Csp, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
-        Span, SpanId, TagEntry, TraceId, Values,
+        ContextInner, Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
+        RawStacktrace, Span, SpanId, TagEntry, TraceId, Values,
     };
     use crate::testutils::{get_path, get_value};
     use crate::types::{FromValue, SerializableAnnotated};
@@ -1131,7 +1144,7 @@ mod tests {
         let config = StoreConfig::default();
         let mut processor = NormalizeProcessor::new(Arc::new(config), None);
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let ip_addr = get_value!(event.user.ip_address!);
@@ -1159,7 +1172,7 @@ mod tests {
         let config = StoreConfig::default();
         let mut processor = NormalizeProcessor::new(Arc::new(config), None);
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(Annotated::empty(), event.value().unwrap().user);
@@ -1183,7 +1196,7 @@ mod tests {
             client_ip: Some(&ip_address),
             ..Default::default()
         };
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let ip_addr = get_value!(event.user.ip_address!);
@@ -1212,7 +1225,7 @@ mod tests {
             client_ip: Some(&ip_address),
             ..Default::default()
         };
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1238,7 +1251,7 @@ mod tests {
             client_ip: Some(&ip_address),
             ..Default::default()
         };
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1251,7 +1264,7 @@ mod tests {
         let processor = &mut NormalizeProcessor::default();
         let mut event = Annotated::new(Event::default());
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Error));
     }
@@ -1283,7 +1296,7 @@ mod tests {
             ..Event::default()
         });
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Info));
     }
@@ -1300,7 +1313,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1322,7 +1335,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1340,7 +1353,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.environment), None);
     }
@@ -1354,7 +1367,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let environment = get_path!(event.environment!);
@@ -1380,7 +1393,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let release = get_path!(event.release!);
@@ -1414,7 +1427,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.site), None);
@@ -1469,7 +1482,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1497,7 +1510,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1549,7 +1562,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         // should keep the first occurrence of every tag
@@ -1611,7 +1624,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1710,7 +1723,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1743,7 +1756,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let dist = &event.value().unwrap().dist;
@@ -1779,7 +1792,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1809,7 +1822,7 @@ mod tests {
         );
 
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1832,7 +1845,7 @@ mod tests {
         let mut processor = NormalizeProcessor::default();
 
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1859,7 +1872,7 @@ mod tests {
         );
 
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1906,7 +1919,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::default();
         let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
@@ -1969,7 +1982,7 @@ mod tests {
             max_secs_in_future,
             ..Default::default()
         };
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -2028,7 +2041,7 @@ mod tests {
             max_secs_in_future,
             ..Default::default()
         };
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -2274,19 +2287,19 @@ mod tests {
             event
         }
 
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config.clone()).unwrap();
         let first = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         // Expected some fields (such as timestamps) exist after first light normalization.
 
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config.clone()).unwrap();
         let second = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         assert_eq!(&first, &second, "idempotency check failed");
 
-        light_normalize_event(&mut event, &config).unwrap();
+        light_normalize_event(&mut event, config).unwrap();
         let third = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
@@ -2400,7 +2413,7 @@ mod tests {
                 .spans
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
-            let res = light_normalize_event(&mut modified_event, &Default::default());
+            let res = light_normalize_event(&mut modified_event, Default::default());
 
             assert!(res.is_err(), "{span:?}");
         }
@@ -2420,7 +2433,7 @@ mod tests {
 
         let result = light_normalize_event(
             &mut event,
-            &LightNormalizationConfig {
+            LightNormalizationConfig {
                 is_renormalize: true,
                 ..Default::default()
             },
@@ -2494,5 +2507,213 @@ mod tests {
             std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
             "If you add new fields, update the test accordingly"
         );
+    }
+
+    #[test]
+    fn test_no_device_class() {
+        let mut event = Event {
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        let tags = &event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        assert_eq!(None, tags.get("device_class"));
+    }
+
+    #[test]
+    fn test_apple_low_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 1000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apple_medium_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 2000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apple_high_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "iPhone".to_string().into(),
+                        processor_frequency: 3000.into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_low_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 1000.into(),
+                        processor_count: 6.into(),
+                        memory_size: (2 * 1024 * 1024 * 1024).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_medium_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 2000.into(),
+                        processor_count: 8.into(),
+                        memory_size: (6 * 1024 * 1024 * 1024).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_android_high_device_class() {
+        let mut event = Event {
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "device".to_owned(),
+                    Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                        family: "android".to_string().into(),
+                        processor_frequency: 2500.into(),
+                        processor_count: 8.into(),
+                        memory_size: (6 * 1024 * 1024 * 1024).into(),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }

@@ -103,7 +103,7 @@ def test_replay_event_with_processing(
     assert parsed_replay["contexts"] == {
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
         "replay": {
             "type": "replay",
             "error_sample_rate": replay["contexts"]["replay"]["error_sample_rate"],

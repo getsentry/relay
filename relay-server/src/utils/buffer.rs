@@ -10,7 +10,7 @@ use crate::actors::project_buffer;
 use crate::envelope::Envelope;
 use crate::service::create_runtime;
 use crate::statsd::RelayHistograms;
-use crate::utils::{EnvelopeContext, Semaphore};
+use crate::utils::{ManagedEnvelope, Semaphore};
 
 /// An error returned by [`BufferGuard::enter`] indicating that the buffer capacity has been
 /// exceeded.
@@ -56,11 +56,11 @@ impl BufferGuard {
     /// Reserves resources for processing an envelope in Relay.
     ///
     /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
-    /// resources. When the envelope context is dropped, the slot is automatically reclaimed and can
+    /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
     /// be reused by a subsequent call to `enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
-    pub fn enter(&self, envelope: &Envelope) -> Result<EnvelopeContext, BufferError> {
+    pub fn enter(&self, envelope: Box<Envelope>) -> Result<ManagedEnvelope, BufferError> {
         let permit = self.inner.try_acquire().ok_or(BufferError)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
@@ -72,7 +72,7 @@ impl BufferGuard {
             }
         );
 
-        Ok(EnvelopeContext::new(envelope, Some(permit)))
+        Ok(ManagedEnvelope::new(envelope, permit))
     }
 }
 
@@ -80,7 +80,7 @@ impl BufferGuard {
 ///
 /// This function internally creates a Tokio runtime, and executes all the configuration steps
 /// within its context. After the setup is done, used runtime will be dropped.
-pub fn setup_persisten_buffer(config: &Config) -> Result<(), project_buffer::BufferError> {
+pub fn setup_persistent_buffer(config: &Config) -> Result<(), project_buffer::BufferError> {
     if !config.cache_persistent_buffer_enabled() {
         return Ok(());
     }

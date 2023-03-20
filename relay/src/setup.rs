@@ -73,6 +73,6 @@ pub fn init_metrics(config: &Config) -> Result<()> {
 
 /// Initialize the persistent envelope buffer if enabled.
 pub fn init_persistent_buffer(config: &Config) -> Result<()> {
-    relay_server::setup_persisten_buffer(config)
+    relay_server::setup_persistent_buffer(config)
         .map_err(|err| anyhow!("failed to configure persistent envelope buffer: {:?}", err))
 }

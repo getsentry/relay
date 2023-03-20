@@ -11,7 +11,7 @@ use sqlx::{Pool, Row, Sqlite};
 use tokio::sync::mpsc;
 
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::utils::EnvelopeContext;
+use crate::utils::ManagedEnvelope;
 
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
@@ -50,15 +50,15 @@ impl QueueKey {
     }
 }
 
-/// Adds the envelope and the envelope context to the internal buffer.
+/// Adds the envelope and the managed envelope to the internal buffer.
 #[derive(Debug)]
 pub struct Enqueue {
     key: QueueKey,
-    value: (Box<Envelope>, EnvelopeContext),
+    value: ManagedEnvelope,
 }
 
 impl Enqueue {
-    pub fn new(key: QueueKey, value: (Box<Envelope>, EnvelopeContext)) -> Self {
+    pub fn new(key: QueueKey, value: ManagedEnvelope) -> Self {
         Self { key, value }
     }
 }
@@ -67,14 +67,11 @@ impl Enqueue {
 #[derive(Debug)]
 pub struct DequeueMany {
     keys: Vec<QueueKey>,
-    sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
+    sender: mpsc::UnboundedSender<ManagedEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(
-        keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<(Box<Envelope>, EnvelopeContext)>,
-    ) -> Self {
+    pub fn new(keys: Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
         Self { keys, sender }
     }
 }
@@ -144,7 +141,7 @@ impl FromMessage<RemoveMany> for Buffer {
 #[derive(Debug)]
 pub struct MemoryBufferService {
     /// Contains the cache of the incoming envelopes.
-    buffer: BTreeMap<QueueKey, Vec<(Box<Envelope>, EnvelopeContext)>>,
+    buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
 }
 
 impl MemoryBufferService {
@@ -247,10 +244,11 @@ impl SqliteBufferService {
     async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
         let Enqueue {
             key,
-            value: (envelope, mut envelope_context),
+            value: managed_envelope,
         } = message;
 
-        let envelope_bytes = envelope.to_vec()?;
+        managed_envelope.spool();
+        let envelope_bytes = managed_envelope.take_envelope().to_vec()?;
         sqlx::query("INSERT INTO envelopes (own_key, sampling_key, envelope) VALUES (?, ?, ?)")
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
@@ -280,9 +278,8 @@ impl SqliteBufferService {
                 let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
                 let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
                 let envelope = Envelope::parse_bytes(envelope_bytes)?;
-                // TODO: issue a permit here as well?
-                let context = EnvelopeContext::new(&envelope, None);
-                sender.send((envelope, context)).ok();
+                let managed_envelope = ManagedEnvelope::standalone(envelope);
+                sender.send(managed_envelope).ok();
             }
         }
 

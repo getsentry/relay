@@ -401,23 +401,9 @@ def test_cached_project_config(mini_sentry, relay):
         }
     )
 
-    # Caches must be expired at this point, and we are in the grace period.
-    time.sleep(2)
-    # The state must be stale and still be valid, but the update will be scheduled to get the new project state.
+    # Give it a bit time for update to go through.
+    time.sleep(1)
     data = get_response(relay, packed, signature)
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
-    # This is still a grace period, and the state for us must be still valid, even though we get the error parsing the new state.
-    try:
-        # Give it a bit time for update to go through.
-        time.sleep(1)
-        data = get_response(relay, packed, signature)
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-        }
-    finally:
-        mini_sentry.test_failures.clear()
 
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]

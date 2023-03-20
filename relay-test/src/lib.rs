@@ -6,19 +6,15 @@
 //!    captured by the test runner. All logs emitted with [`relay_log`] will show up for test
 //!    failures or when run with `--nocapture`.
 //!
-//!  - Wrap all code that spawns futures into [`block_fn`]. This ensures the actix system is both
-//!    registered and running.
+//! # Example
 //!
 //! ```
-//! relay_test::setup();
+//! #[test]
+//! fn my_test() {
+//!     relay_test::setup();
 //!
-//! // Access to the actix System is possible outside of `block_fn`.
-//! let system = actix::System::current();
-//!
-//! relay_test::block_fn(|| {
-//!     // `actix::spawn` can be called in here.
-//!     Ok::<(), ()>(())
-//! });
+//!     relay_log::debug!("hello, world!");
+//! }
 //! ```
 
 #![doc(
@@ -27,93 +23,32 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use std::cell::RefCell;
-
-use actix::{System, SystemRunner};
-pub use actix_web::test::*;
-use futures01::{future, IntoFuture};
-
-thread_local! {
-    static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());
-}
-
-struct Inner {
-    system: Option<System>,
-    runner: Option<SystemRunner>,
-}
-
-impl Inner {
-    fn new() -> Self {
-        let runner = System::new("relay tests");
-        let system = System::current();
-
-        Self {
-            system: Some(system),
-            runner: Some(runner),
-        }
-    }
-
-    fn set_current(&self) {
-        System::set_current(self.system.clone().unwrap());
-    }
-
-    fn runner(&mut self) -> &mut SystemRunner {
-        self.runner.as_mut().unwrap()
-    }
-}
-
-impl Drop for Inner {
-    fn drop(&mut self) {
-        self.system.take();
-        std::mem::forget(self.runner.take().unwrap())
-    }
-}
+use relay_system::{channel, Addr, Interface};
+use tokio::task::JoinHandle;
 
 /// Setup the test environment.
 ///
 ///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
-///  - Initializes an actix actor system and registers it as current. This allows to call
-///    `System::current`.
 pub fn setup() {
     relay_log::init_test!();
-
-    // Force initialization of the actix system
-    SYSTEM.with(|_sys| ());
 }
 
-/// Runs the provided function, blocking the current thread until the result future completes.
-///
-/// This function can be used to synchronously block the current thread until the provided `future`
-/// has resolved either successfully or with an error. The result of the future is then returned
-/// from this function call.
-///
-/// This is provided rather than a `block_on`-like interface to avoid accidentally calling a
-/// function which spawns before creating a future, which would attempt to spawn before actix is
-/// initialised.
-///
-/// Note that this function is intended to be used only for testing purpose.
-///
-/// # Panics
-///
-/// This function panics on nested call.
-pub fn block_fn<F, R>(future: F) -> Result<R::Item, R::Error>
+/// Spawns a mock service that handles messages through a closure.
+pub fn mock_service<S, I, F>(name: &'static str, mut state: S, mut f: F) -> (Addr<I>, JoinHandle<S>)
 where
-    F: FnOnce() -> R,
-    R: IntoFuture,
+    S: Send + 'static,
+    I: Interface,
+    F: FnMut(&mut S, I) + Send + 'static,
 {
-    SYSTEM.with(|cell| {
-        let mut inner = cell.borrow_mut();
-        inner.set_current();
-        inner.runner().block_on(future::lazy(future))
-    })
-}
+    let (addr, mut rx) = channel(name);
 
-/// Runs the provided function with an active actix system.
-///
-/// This function otherwise functions exactly as [`block_fn`].
-pub fn with_system<F, R>(func: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    block_fn(move || future::ok::<_, ()>(func())).unwrap()
+    let handle = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            f(&mut state, msg);
+        }
+
+        state
+    });
+
+    (addr, handle)
 }
