@@ -43,7 +43,7 @@ impl Handling {
 }
 
 /// Represents the decision on whether or not to keep an envelope item.
-pub enum RetainItem {
+pub enum ItemAction {
     /// Keep the item.
     Keep,
     /// Drop the item and log an outcome for it.
@@ -140,26 +140,26 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Retains only the items specified by the predicate.
+    /// Retains or drops items based on the [`ItemAction`].
     ///
-    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
-    /// in place and preserves the order of the retained items.
+    ///
+    /// This method operates in place and preserves the order of the retained items.
     pub fn retain_items<F>(&mut self, mut f: F)
     where
-        F: FnMut(&mut Item) -> RetainItem,
+        F: FnMut(&mut Item) -> ItemAction,
     {
         let mut outcomes = vec![];
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
-            RetainItem::Keep => true,
-            RetainItem::Drop(outcome) => {
+            ItemAction::Keep => true,
+            ItemAction::Drop(outcome) => {
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
                 }
 
                 false
             }
-            RetainItem::DropSilently => false,
+            ItemAction::DropSilently => false,
         });
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);

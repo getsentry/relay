@@ -62,7 +62,7 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ManagedEnvelope, RetainItem,
+    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope,
     SamplingResult,
 };
 
@@ -841,9 +841,9 @@ impl EnvelopeProcessorService {
                 _ => true, // Keep all other item types
             };
             if should_keep {
-                RetainItem::Keep
+                ItemAction::Keep
             } else {
-                RetainItem::DropSilently // sessions never log outcomes.
+                ItemAction::DropSilently // sessions never log outcomes.
             }
         });
     }
@@ -856,14 +856,14 @@ impl EnvelopeProcessorService {
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
         state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::UserReport {
-                return RetainItem::Keep;
+                return ItemAction::Keep;
             };
 
             let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
                 Ok(session) => session,
                 Err(error) => {
                     relay_log::error!("failed to store user report: {}", LogError(&error));
-                    return RetainItem::DropSilently;
+                    return ItemAction::DropSilently;
                 }
             };
 
@@ -871,12 +871,12 @@ impl EnvelopeProcessorService {
                 Ok(json) => json,
                 Err(err) => {
                     relay_log::error!("failed to serialize user report: {}", LogError(&err));
-                    return RetainItem::DropSilently;
+                    return ItemAction::DropSilently;
                 }
             };
 
             item.set_payload(ContentType::Json, json_string);
-            RetainItem::Keep
+            ItemAction::Keep
         });
     }
 
@@ -892,8 +892,8 @@ impl EnvelopeProcessorService {
             // if a processing relay has client outcomes disabled we drop them.
             if self.config.processing_enabled() {
                 state.managed_envelope.retain_items(|item| match item.ty() {
-                    ItemType::ClientReport => RetainItem::DropSilently,
-                    _ => RetainItem::Keep,
+                    ItemType::ClientReport => ItemAction::DropSilently,
+                    _ => ItemAction::Keep,
                 });
             }
             return;
@@ -910,7 +910,7 @@ impl EnvelopeProcessorService {
         // them into the first one.
         state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::ClientReport {
-                return RetainItem::Keep;
+                return ItemAction::Keep;
             };
             match ClientReport::parse(&item.payload()) {
                 Ok(ClientReport {
@@ -955,7 +955,7 @@ impl EnvelopeProcessorService {
                 }
                 Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
             }
-            RetainItem::DropSilently
+            ItemAction::DropSilently
         });
 
         if output_events.is_empty() {
@@ -1031,8 +1031,8 @@ impl EnvelopeProcessorService {
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile if !profiling_enabled => RetainItem::DropSilently,
-            _ => RetainItem::Keep,
+            ItemType::Profile if !profiling_enabled => ItemAction::DropSilently,
+            _ => ItemAction::Keep,
         });
     }
 
@@ -1041,18 +1041,18 @@ impl EnvelopeProcessorService {
     fn process_check_ins(&self, state: &mut ProcessEnvelopeState) {
         state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
-                return RetainItem::Keep;
+                return ItemAction::Keep;
             }
 
             match relay_monitors::process_check_in(&item.payload()) {
                 Ok(processed) => {
                     item.set_payload(ContentType::Json, processed);
-                    RetainItem::Keep
+                    ItemAction::Keep
                 }
                 Err(error) => {
                     // TODO: Track an outcome.
                     relay_log::debug!("dropped invalid monitor check-in: {}", LogError(&error));
-                    RetainItem::DropSilently
+                    ItemAction::DropSilently
                 }
             }
         })
@@ -1074,7 +1074,7 @@ impl EnvelopeProcessorService {
                             }
                         }
                         item.set_payload(ContentType::Json, payload);
-                        RetainItem::Keep
+                        ItemAction::Keep
                     } else {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
@@ -1082,7 +1082,7 @@ impl EnvelopeProcessorService {
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
-                        RetainItem::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(
                                 relay_profiling::ProfileError::ExceedSizeLimit,
                             ),
@@ -1103,12 +1103,12 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    RetainItem::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                         relay_profiling::discard_reason(err),
                     )))
                 }
             },
-            _ => RetainItem::Keep,
+            _ => ItemAction::Keep,
         });
     }
 
@@ -1140,21 +1140,21 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
-                    return RetainItem::DropSilently;
+                    return ItemAction::DropSilently;
                 }
 
                 match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
                             item.set_payload(ContentType::Json, json.as_bytes());
-                            RetainItem::Keep
+                            ItemAction::Keep
                         }
                         Err(e) => {
                             relay_log::error!(
                                 "replay-event: failed to serialize replay with message {}",
                                 e
                             );
-                            RetainItem::Keep
+                            ItemAction::Keep
                         }
                     },
                     Err(e) => {
@@ -1176,19 +1176,19 @@ impl EnvelopeProcessorService {
                                 DiscardReason::InvalidReplayEvent
                             }
                         };
-                        RetainItem::Drop(Outcome::Invalid(discard_reason))
+                        ItemAction::Drop(Outcome::Invalid(discard_reason))
                     }
                 }
             }
             ItemType::ReplayRecording => {
                 if !replays_enabled {
-                    return RetainItem::DropSilently;
+                    return ItemAction::DropSilently;
                 }
 
                 // XXX: Processing is there just for data scrubbing. Skip the entire expensive
                 // processing step if we do not need to scrub.
                 if !scrubbing_enabled || scrubber.is_empty() {
-                    return RetainItem::Keep;
+                    return ItemAction::Keep;
                 }
 
                 // Limit expansion of recordings to the max replay size. The payload is
@@ -1202,17 +1202,17 @@ impl EnvelopeProcessorService {
                 match parsed_recording {
                     Ok(recording) => {
                         item.set_payload(ContentType::OctetStream, recording.as_slice());
-                        RetainItem::Keep
+                        ItemAction::Keep
                     }
                     Err(e) => {
                         relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                        RetainItem::Drop(Outcome::Invalid(
+                        ItemAction::Drop(Outcome::Invalid(
                             DiscardReason::InvalidReplayRecordingEvent,
                         ))
                     }
                 }
             }
-            _ => RetainItem::Keep,
+            _ => ItemAction::Keep,
         });
 
         Ok(())
