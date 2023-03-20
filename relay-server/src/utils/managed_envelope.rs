@@ -217,9 +217,9 @@ impl ManagedEnvelope {
     ///
     /// If metrics have been extracted from the event item, we use the indexed category
     /// (for example, [TransactionIndexed](`DataCategory::TransactionIndexed`)) for reporting
-    /// rate limits and outcomes, because reporting of the main category (for example, [Transaction]
-    /// (`DataCategory::Transaction`) for processed transactions) will be handled by the metrics
-    /// aggregator.
+    /// rate limits and outcomes, because reporting of the main category
+    /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
+    /// will be handled by the metrics aggregator.
     fn use_index_category(&self) -> bool {
         self.context.summary.event_metrics_extracted
     }
