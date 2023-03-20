@@ -1,6 +1,5 @@
 ---
 source: relay-general/src/pii/convert.rs
-assertion_line: 1391
 expression: pii_config
 ---
 {
@@ -8,6 +7,9 @@ expression: pii_config
     "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !url && !message && !'http.request.url' && !'*url*' && !'*message*' && !'*http.request.url*'": [
       "@common:filter",
       "@ip:replace"
+    ],
+    "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+      "@anything:filter"
     ],
     "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
       "@anything:remove"

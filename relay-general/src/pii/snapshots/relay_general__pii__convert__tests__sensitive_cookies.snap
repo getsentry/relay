@@ -1,0 +1,105 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "request": {
+    "cookies": [
+      [
+        "session",
+        "[Filtered]"
+      ],
+      [
+        "sessionid",
+        "[Filtered]"
+      ]
+    ]
+  },
+  "contexts": {
+    "response": {
+      "cookies": [
+        [
+          "session",
+          "[Filtered]"
+        ],
+        [
+          "sessionid",
+          "[Filtered]"
+        ]
+      ],
+      "type": "response"
+    }
+  },
+  "_meta": {
+    "contexts": {
+      "response": {
+        "cookies": {
+          "0": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 18
+              }
+            }
+          },
+          "1": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    "request": {
+      "cookies": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 18
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 21
+            }
+          }
+        }
+      }
+    }
+  }
+}

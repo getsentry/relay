@@ -25,10 +25,17 @@ static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
-static PRIVATE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
-    ("$request.cookies.session | $request.headers.session")
-        .parse()
-        .unwrap()
+static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
+    [
+        "$request.cookies.session",
+        "$request.cookies.sessionid",
+        "contexts.response.cookies.session",
+        "contexts.response.cookies.sessionid",
+        // TODO: extend
+    ]
+    .join("|")
+    .parse()
+    .unwrap()
 });
 
 pub fn to_pii_config(
@@ -40,7 +47,10 @@ pub fn to_pii_config(
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
         applied_rules.push("@common:filter".to_owned());
-        applications.insert(PRIVATE_COOKIES.clone(), vec!["@anything:filter".to_owned()]);
+        applications.insert(
+            SENSITIVE_COOKIES.clone(),
+            vec!["@anything:filter".to_owned()],
+        );
     }
 
     if datascrubbing_config.scrub_ip_addresses {
@@ -190,7 +200,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "a_password_here": "hello",
             "api_key": "secret_key",
             "apiKey": "secret_key",
+        })
+    }
+
+    fn sensitive_cookies() -> serde_json::Value {
+        serde_json::json!({
             "session": "my private session",
+            "sessionid": "my private session ID",
         })
     }
 
@@ -221,6 +237,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
+            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+              "@anything:filter"
+            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
@@ -242,6 +261,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter",
               "@ip:replace"
+            ],
+            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+              "@anything:filter"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -275,6 +297,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace",
               "strip-fields"
+            ],
+            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+              "@anything:filter"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -327,6 +352,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
               "@common:filter",
               "@ip:replace"
+            ],
+            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+              "@anything:filter"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
@@ -389,6 +417,28 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "env": sensitive_vars(),
                     "headers": sensitive_vars(),
                     "cookies": sensitive_vars()
+                },
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_sensitive_cookies() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "cookies": sensitive_cookies()
+                },
+                "contexts": {
+                    "response": {
+                        "cookies": sensitive_cookies(),
+                    }
                 }
             })
             .into(),
@@ -1239,6 +1289,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace",
               "strip-fields"
+            ],
+            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
+              "@anything:filter"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
