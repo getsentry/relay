@@ -89,12 +89,13 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
                 let right_anchored = i + 2 == pattern.len();
                 let trailing_slash =
                     i + 2 < pattern.len() && pattern.chars().nth(i + 2) == Some('/');
-                let leading_star_slash = pattern.chars().nth(i + 2) == Some('/');
+                let star_star_slash = pattern.chars().nth(i + 1) == Some('*')
+                    && pattern.chars().nth(i + 2) == Some('/');
 
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
                     regex += ".*";
                     num_to_skip = Some(2);
-                    if leading_star_slash {
+                    if star_star_slash {
                         regex += "/?";
                         num_to_skip = Some(3);
                     }
@@ -276,6 +277,13 @@ mod tests {
         assert!(regex.is_match(b"/red/orange/file.py"));
         assert!(regex.is_match(b"red/file.py"));
         assert!(!regex.is_match(b"yellow/file.py"));
+
+        // Matches leading "red/<x>/file.py", where <x> is 0 or more dirs
+        let pattern = "red/**/file.py";
+        let regex = translate_codeowners_pattern(pattern).unwrap();
+        assert!(regex.is_match(b"red/orange/yellow/green/file.py"));
+        assert!(regex.is_match(b"red/file.py"));
+        assert!(!regex.is_match(b"something/red/file.py"));
 
         // Matches "<x>/yellow/file.py", where the leading / is optional and <x> is 0 or more dirs
         let pattern = "**/yellow/file.py";
