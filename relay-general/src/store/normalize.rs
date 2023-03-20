@@ -21,7 +21,7 @@ use crate::protocol::{
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
-    ProcessingResult, Value,
+    ProcessingResult, Remark, RemarkType, Value,
 };
 use crate::user_agent::RawUserAgentInfo;
 
@@ -764,7 +764,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     fn process_event(
         &mut self,
         event: &mut Event,
-        _meta: &mut Meta,
+        meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         event.process_child_values(self, state)?;
@@ -807,11 +807,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         if event.platform.as_str() == Some("java") {
-            if let Some(event_logger) = event.logger.value_mut() {
-                let shortened = shorten_logger(event_logger.clone());
-                if shortened != event_logger.as_str() {
-                    *event_logger = shortened;
-                }
+            if let Some(event_logger) = event.logger.value_mut().take() {
+                let shortened = shorten_logger(event_logger, meta);
+                event.logger.set_value(Some(shortened));
             }
         }
 
@@ -1025,7 +1023,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 ///
 /// Additionally, the new logger is prefixed with `*`, to indicate it was
 /// shortened.
-fn shorten_logger(logger: String) -> String {
+fn shorten_logger(logger: String, meta: &mut Meta) -> String {
     let trimmed = logger.trim();
     let logger_len = bytecount::num_chars(trimmed.as_bytes());
     if logger_len <= MaxChars::Logger.limit() {
@@ -1048,6 +1046,12 @@ fn shorten_logger(logger: String) -> String {
     }
 
     tokens.reverse();
+    let new_len = tokens.len();
+    meta.add_remark(Remark {
+        ty: RemarkType::Substituted,
+        rule_id: "@logger:replace".to_owned(),
+        range: (0, logger_len - new_len),
+    });
     format!("*{}", tokens.join(""))
 }
 
