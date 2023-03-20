@@ -27,10 +27,10 @@ static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
 
 static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
     [
-        "$request.cookies.session",
-        "$request.cookies.sessionid",
-        "contexts.response.cookies.session",
-        "contexts.response.cookies.sessionid",
+        "*.cookies.session",
+        "*.cookies.sessionid",
+        // "contexts.response.cookies.session",
+        // "contexts.response.cookies.sessionid",
         // TODO: extend
     ]
     .join("|")
@@ -237,11 +237,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-              "@anything:filter"
-            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.session || *.cookies.sessionid": [
+              "@anything:filter"
             ]
           }
         }
@@ -262,11 +262,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-              "@anything:filter"
-            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.session || *.cookies.sessionid": [
+              "@anything:filter"
             ]
           }
         }
@@ -298,11 +298,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-              "@anything:filter"
-            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.session || *.cookies.sessionid": [
+              "@anything:filter"
             ]
           }
         }
@@ -353,11 +353,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-              "@anything:filter"
-            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.session || *.cookies.sessionid": [
+              "@anything:filter"
             ]
           }
         }
@@ -1290,11 +1290,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-              "@anything:filter"
-            ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.session || *.cookies.sessionid": [
+              "@anything:filter"
             ]
           }
         }

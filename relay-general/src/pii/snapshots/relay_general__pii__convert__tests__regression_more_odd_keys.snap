@@ -8,11 +8,11 @@ expression: pii_config
       "@common:filter",
       "@ip:replace"
     ],
-    "$http.cookies.session || $http.cookies.sessionid || contexts.response.cookies.session || contexts.response.cookies.sessionid": [
-      "@anything:filter"
-    ],
     "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
       "@anything:remove"
+    ],
+    "*.cookies.session || *.cookies.sessionid": [
+      "@anything:filter"
     ]
   }
 }
