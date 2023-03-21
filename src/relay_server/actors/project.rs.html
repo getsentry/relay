@@ -1031,6 +1031,30 @@
 <a href="#1030" id="1030">1030</a>
 <a href="#1031" id="1031">1031</a>
 <a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1048,13 +1072,11 @@
 <span class="kw">use </span>tokio::time::Instant;
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::EnvelopeProcessor;
+<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::SendMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -1508,12 +1530,16 @@
     <span class="doccomment">/// Applies cached rate limits to the given metrics or metrics buckets.
     ///
     /// This only applies the rate limits currently stored on the project.
-    </span><span class="kw">fn </span>rate_limit_metrics&lt;T: MetricsContainer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: Vec&lt;T&gt;) -&gt; Vec&lt;T&gt; {
+    </span><span class="kw">fn </span>rate_limit_metrics&lt;T: MetricsContainer&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        metrics: Vec&lt;T&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    ) -&gt; Vec&lt;T&gt; {
         <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, <span class="self">self</span>.scoping()) {
             (<span class="prelude-val">Some</span>(state), <span class="prelude-val">Some</span>(scoping)) =&gt; {
                 <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping) {
                     <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
-                        limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits));
+                        limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
                         limiter.into_metrics()
                     }
                     <span class="prelude-val">Err</span>(metrics) =&gt; metrics,
@@ -1526,9 +1552,14 @@
     <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
-    </span><span class="kw">pub fn </span>merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, aggregator: Addr&lt;Aggregator&gt;, buckets: Vec&lt;Bucket&gt;) {
+    </span><span class="kw">pub fn </span>merge_buckets(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        aggregator: Addr&lt;Aggregator&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        buckets: Vec&lt;Bucket&gt;,
+    ) {
         <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets);
+            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets, outcome_aggregator);
             <span class="kw">if </span>!buckets.is_empty() {
                 aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
             }
@@ -1538,9 +1569,14 @@
     <span class="doccomment">/// Inserts given [metrics](Metric) into the metrics aggregator.
     ///
     /// The metrics will be keyed underneath this project key.
-    </span><span class="kw">pub fn </span>insert_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, aggregator: Addr&lt;Aggregator&gt;, metrics: Vec&lt;Metric&gt;) {
+    </span><span class="kw">pub fn </span>insert_metrics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        aggregator: Addr&lt;Aggregator&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        metrics: Vec&lt;Metric&gt;,
+    ) {
         <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">let </span>metrics = <span class="self">self</span>.rate_limit_metrics(metrics);
+            <span class="kw">let </span>metrics = <span class="self">self</span>.rate_limit_metrics(metrics, outcome_aggregator);
             <span class="kw">if </span>!metrics.is_empty() {
                 aggregator.send(InsertMetrics::new(<span class="self">self</span>.project_key, metrics));
             }
@@ -1778,6 +1814,7 @@
     </span><span class="kw">pub fn </span>check_envelope(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         <span class="kw-2">mut </span>envelope: ManagedEnvelope,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
         <span class="kw">let </span>state = <span class="self">self</span>.valid_state().filter(|state| !state.invalid());
         <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope.scoping();
@@ -1802,7 +1839,7 @@
 
         <span class="kw">let </span>(enforcement, rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
-        enforcement.track_outcomes(envelope.envelope(), <span class="kw-2">&amp;</span>scoping);
+        enforcement.track_outcomes(envelope.envelope(), <span class="kw-2">&amp;</span>scoping, outcome_aggregator);
         envelope.update();
 
         <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.envelope().is_empty() {
@@ -1821,13 +1858,19 @@
 
     <span class="kw">pub fn </span>flush_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        services: Services,
         partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
         buckets: Vec&lt;Bucket&gt;,
-        aggregator: Addr&lt;Aggregator&gt;,
-        project_cache: Addr&lt;ProjectCache&gt;,
-        envelope_manager: Addr&lt;EnvelopeManager&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     ) {
+        <span class="kw">let </span>Services {
+            aggregator,
+            envelope_manager,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>envelope_processor,
+            outcome_aggregator,
+            project_cache,
+            ..
+        } = services;
         <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
 
         <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the
@@ -1857,7 +1900,8 @@
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
                 <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
                 <span class="attr">#[allow(unused_variables)]
-                </span><span class="kw">let </span>was_rate_limited = bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits));
+                </span><span class="kw">let </span>was_rate_limited =
+                    bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits), outcome_aggregator);
 
                 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
                 </span><span class="kw">if </span>!was_rate_limited &amp;&amp; config.processing_enabled() {
@@ -2003,16 +2047,18 @@
         }
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics() {
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()], addr);
 
         <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics_no_quota() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics_no_quota() {
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">&quot;quotas&quot;</span>: [{
                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
@@ -2023,7 +2069,7 @@
            }]
         })));
 
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()], addr);
 
         <span class="macro">assert!</span>(metrics.is_empty());
     }
@@ -2038,16 +2084,18 @@
         }
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets() {
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()], addr);
 
         <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets_no_quota() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets_no_quota() {
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">&quot;quotas&quot;</span>: [{
                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
@@ -2058,7 +2106,7 @@
            }]
         })));
 
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()], addr);
 
         <span class="macro">assert!</span>(metrics.is_empty());
     }

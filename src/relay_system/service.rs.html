@@ -1085,13 +1085,6 @@
 <a href="#1084" id="1084">1084</a>
 <a href="#1085" id="1085">1085</a>
 <a href="#1086" id="1086">1086</a>
-<a href="#1087" id="1087">1087</a>
-<a href="#1088" id="1088">1088</a>
-<a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1886,7 +1879,6 @@
 /// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 </span><span class="kw">pub struct </span>Receiver&lt;I: Interface&gt; {
-    addr: Addr&lt;I&gt;,
     rx: mpsc::UnboundedReceiver&lt;I&gt;,
     name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
     interval: tokio::time::Interval,
@@ -1923,11 +1915,6 @@
             }
         }
     }
-
-    <span class="doccomment">/// The [`Addr`] that belongs to this [`Receiver`].
-    </span><span class="kw">pub fn </span>addr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Addr&lt;I&gt; {
-        <span class="self">self</span>.addr.clone()
-    }
 }
 
 <span class="kw">impl</span>&lt;I: Interface&gt; fmt::Debug <span class="kw">for </span>Receiver&lt;I&gt; {
@@ -1956,7 +1943,6 @@
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     <span class="kw">let </span>receiver = Receiver {
-        addr: addr.clone(),
         rx,
         name,
         interval,

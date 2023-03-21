@@ -1191,6 +1191,12 @@
 <a href="#1190" id="1190">1190</a>
 <a href="#1191" id="1191">1191</a>
 <a href="#1192" id="1192">1192</a>
+<a href="#1193" id="1193">1193</a>
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_common::DataCategory;
@@ -1199,6 +1205,7 @@
     DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+<span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
@@ -1520,9 +1527,14 @@
     <span class="doccomment">/// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    </span><span class="kw">pub fn </span>track_outcomes(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, scoping: <span class="kw-2">&amp;</span>Scoping) {
+    </span><span class="kw">pub fn </span>track_outcomes(
+        <span class="self">self</span>,
+        envelope: <span class="kw-2">&amp;</span>Envelope,
+        scoping: <span class="kw-2">&amp;</span>Scoping,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    ) {
         <span class="kw">for </span>outcome <span class="kw">in </span><span class="self">self</span>.get_outcomes(envelope, scoping) {
-            TrackOutcome::from_registry().send(outcome);
+            outcome_aggregator.send(outcome);
         }
     }
 }

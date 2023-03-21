@@ -163,11 +163,23 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
 <span class="kw">use </span>relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 <span class="kw">use </span>relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+<span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
@@ -261,7 +273,7 @@
         <span class="self">self</span>.transaction_count
     }
 
-    <span class="kw">fn </span>drop_with_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
+    <span class="kw">fn </span>drop_with_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome, outcome_aggregator: Addr&lt;TrackOutcome&gt;) {
         <span class="comment">// Drop transaction buckets:
         </span><span class="kw">let </span>metrics = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.metrics);
 
@@ -276,7 +288,7 @@
         <span class="comment">// Track outcome for the transaction metrics we dropped here:
         </span><span class="kw">if </span><span class="self">self</span>.transaction_count &gt; <span class="number">0 </span>{
             <span class="kw">let </span>timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
-            TrackOutcome::from_registry().send(TrackOutcome {
+            outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: <span class="self">self</span>.scoping,
                 outcome,
@@ -295,7 +307,11 @@
     // outcome is generated.
     //
     // Returns true if any metrics were dropped.
-    </span><span class="kw">pub fn </span>enforce_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rate_limits: <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>RateLimits, ()&gt;) -&gt; bool {
+    </span><span class="kw">pub fn </span>enforce_limits(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        rate_limits: <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>RateLimits, ()&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    ) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>dropped_stuff = <span class="bool-val">false</span>;
         <span class="kw">match </span>rate_limits {
             <span class="prelude-val">Ok</span>(rate_limits) =&gt; {
@@ -308,13 +324,19 @@
 
                 <span class="comment">// If a rate limit is active, discard transaction buckets.
                 </span><span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = active_rate_limits.longest() {
-                    <span class="self">self</span>.drop_with_outcome(Outcome::RateLimited(limit.reason_code.clone()));
+                    <span class="self">self</span>.drop_with_outcome(
+                        Outcome::RateLimited(limit.reason_code.clone()),
+                        outcome_aggregator,
+                    );
                     dropped_stuff = <span class="bool-val">true</span>;
                 }
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// Error from rate limiter, drop transaction buckets.
-                </span><span class="self">self</span>.drop_with_outcome(Outcome::Invalid(DiscardReason::Internal));
+                </span><span class="self">self</span>.drop_with_outcome(
+                    Outcome::Invalid(DiscardReason::Internal),
+                    outcome_aggregator,
+                );
                 dropped_stuff = <span class="bool-val">true</span>;
             }
         };

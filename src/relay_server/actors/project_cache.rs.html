@@ -862,7 +862,7 @@
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::EnvelopeManager;
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_buffer::{
@@ -1228,6 +1228,38 @@
     </span>no_cache: bool,
 }
 
+<span class="doccomment">/// Holds the addresses of all services required for [`ProjectCache`].
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>Services {
+    <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
+    <span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+    <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
+    <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
+}
+
+<span class="kw">impl </span>Services {
+    <span class="doccomment">/// Creates new [`Services`] context.
+    </span><span class="kw">pub fn </span>new(
+        aggregator: Addr&lt;Aggregator&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        envelope_manager: Addr&lt;EnvelopeManager&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        project_cache: Addr&lt;ProjectCache&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            aggregator,
+            envelope_processor,
+            envelope_manager,
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
+        }
+    }
+}
+
 <span class="doccomment">/// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -1235,10 +1267,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
-    aggregator: Addr&lt;Aggregator&gt;,
-    envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-    envelope_manager: Addr&lt;EnvelopeManager&gt;,
-    project_cache: Addr&lt;ProjectCache&gt;,
+    services: Services,
     <span class="comment">// Need hashbrown because drain_filter is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
@@ -1359,7 +1388,7 @@
             no_cache,
         } = message;
 
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="self">self</span>.get_or_create_project(project_key).update_state(
             project_cache,
             state.clone(),
@@ -1406,7 +1435,7 @@
     }
 
     <span class="kw">fn </span>handle_get(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetProjectState, sender: ProjectSender) {
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="self">self</span>.get_or_create_project(message.project_key).get_state(
             project_cache,
             sender,
@@ -1415,7 +1444,7 @@
     }
 
     <span class="kw">fn </span>handle_get_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetCachedProjectState) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="self">self</span>.get_or_create_project(message.project_key)
             .get_cached_state(project_cache, <span class="bool-val">false</span>)
     }
@@ -1425,14 +1454,15 @@
         message: CheckEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
         <span class="kw">let </span>CheckEnvelope { envelope: context } = message;
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(context.envelope().meta().public_key());
 
         <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         </span>project.prefetch(project_cache, <span class="bool-val">false</span>);
-        project.check_envelope(context)
+        project.check_envelope(context, outcome_aggregator)
     }
 
     <span class="doccomment">/// Handles the processing of the provided envelope.
@@ -1467,7 +1497,7 @@
         </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(CheckedEnvelope {
             envelope: <span class="prelude-val">Some</span>(managed_envelope),
             ..
-        }) = project.check_envelope(managed_envelope)
+        }) = project.check_envelope(managed_envelope, <span class="self">self</span>.services.outcome_aggregator.clone())
         {
             <span class="kw">let </span>sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| <span class="self">self</span>.projects.get(<span class="kw-2">&amp;</span>key))
@@ -1485,7 +1515,7 @@
                 }
             }
 
-            <span class="self">self</span>.envelope_processor.send(process);
+            <span class="self">self</span>.services.envelope_processor.send(process);
         }
     }
 
@@ -1504,7 +1534,7 @@
     /// The flushing of the buffered envelopes happens in `update_state`.
     </span><span class="kw">fn </span>handle_validate_envelope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ValidateEnvelope) {
         <span class="kw">let </span>ValidateEnvelope { envelope: context } = message;
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="kw">let </span>envelope = context.envelope();
 
         <span class="comment">// Fetch the project state for our key and make sure it&#39;s not invalid.
@@ -1538,36 +1568,25 @@
     }
 
     <span class="kw">fn </span>handle_insert_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: InsertMetrics) {
-        <span class="kw">let </span>aggregator = <span class="self">self</span>.aggregator.clone();
+        <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
+        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         </span><span class="self">self</span>.get_or_create_project(message.project_key())
-            .insert_metrics(aggregator, message.metrics());
+            .insert_metrics(aggregator, outcome_aggregator, message.metrics());
     }
 
     <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets) {
-        <span class="kw">let </span>aggregator = <span class="self">self</span>.aggregator.clone();
+        <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
+        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         </span><span class="self">self</span>.get_or_create_project(message.project_key())
-            .merge_buckets(aggregator, message.buckets());
+            .merge_buckets(aggregator, outcome_aggregator, message.buckets());
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
-        <span class="kw">let </span>aggregator = <span class="self">self</span>.aggregator.clone();
-        <span class="kw">let </span>envelope_manager = <span class="self">self</span>.envelope_manager.clone();
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">let </span>envelope_processor = <span class="self">self</span>.envelope_processor.clone();
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.project_cache.clone();
-
+        <span class="kw">let </span>context = <span class="self">self</span>.services.clone();
         <span class="self">self</span>.get_or_create_project(message.project_key)
-            .flush_buckets(
-                message.partition_key,
-                message.buckets,
-                aggregator,
-                project_cache,
-                envelope_manager,
-                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-                </span>envelope_processor,
-            );
+            .flush_buckets(context, message.partition_key, message.buckets);
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
@@ -1593,30 +1612,17 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProjectCacheService {
     config: Arc&lt;Config&gt;,
-    envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-    envelope_manager: Addr&lt;EnvelopeManager&gt;,
-    upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    services: Services,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
-    aggregator: Addr&lt;Aggregator&gt;,
 }
 
 <span class="kw">impl </span>ProjectCacheService {
     <span class="doccomment">/// Creates a new `ProjectCacheService`.
-    </span><span class="kw">pub fn </span>new(
-        config: Arc&lt;Config&gt;,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        envelope_manager: Addr&lt;EnvelopeManager&gt;,
-        upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
-        aggregator: Addr&lt;Aggregator&gt;,
-    ) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, services: Services, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
-            envelope_processor,
-            envelope_manager,
-            upstream_relay,
+            services,
             redis,
-            aggregator,
         }
     }
 }
@@ -1627,11 +1633,8 @@
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span><span class="self">Self </span>{
             config,
+            services,
             redis,
-            envelope_processor,
-            envelope_manager,
-            upstream_relay,
-            aggregator,
         } = <span class="self">self</span>;
 
         tokio::spawn(<span class="kw">async move </span>{
@@ -1648,13 +1651,10 @@
             // fetches via the project source.
             </span><span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
                 config: config.clone(),
-                aggregator,
-                envelope_processor,
-                envelope_manager,
-                project_cache: rx.addr(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
-                source: ProjectSource::start(config, upstream_relay, redis),
+                source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
+                services,
                 state_tx,
                 buffer_tx,
                 index: Default::default(),
@@ -1666,7 +1666,7 @@
                     biased;
 
                     <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
-                    <span class="prelude-val">Some</span>(context) = buffer_rx.recv() =&gt; broker.handle_processing(context),
+                    <span class="prelude-val">Some</span>(managed_envelope) = buffer_rx.recv() =&gt; broker.handle_processing(managed_envelope),
                     <span class="kw">_ </span>= ticker.tick() =&gt; broker.evict_stale_project_caches(),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message),
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,

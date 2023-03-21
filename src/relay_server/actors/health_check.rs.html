@@ -133,16 +133,22 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_metrics::AcceptsMetrics;
+<span class="kw">use </span>relay_metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
+<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
 
 <span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.
@@ -187,6 +193,7 @@
 </span><span class="kw">pub struct </span>HealthCheckService {
     is_shutting_down: AtomicBool,
     config: Arc&lt;Config&gt;,
+    aggregator: Addr&lt;Aggregator&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
 
@@ -194,10 +201,15 @@
     <span class="doccomment">/// Creates a new instance of the HealthCheck service.
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, upstream_relay: Addr&lt;UpstreamRelay&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(
+        config: Arc&lt;Config&gt;,
+        aggregator: Addr&lt;Aggregator&gt;,
+        upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    ) -&gt; <span class="self">Self </span>{
         HealthCheckService {
             is_shutting_down: AtomicBool::new(<span class="bool-val">false</span>),
             config,
+            aggregator,
             upstream_relay,
         }
     }
@@ -227,7 +239,7 @@
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                Registry::aggregator()
+                <span class="self">self</span>.aggregator
                     .send(AcceptsMetrics)
                     .<span class="kw">await
                     </span>.unwrap_or_default()

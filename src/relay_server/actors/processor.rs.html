@@ -3348,6 +3348,13 @@
 <a href="#3347" id="3347">3347</a>
 <a href="#3348" id="3348">3348</a>
 <a href="#3349" id="3349">3349</a>
+<a href="#3350" id="3350">3350</a>
+<a href="#3351" id="3351">3351</a>
+<a href="#3352" id="3352">3352</a>
+<a href="#3353" id="3353">3353</a>
+<a href="#3354" id="3354">3354</a>
+<a href="#3355" id="3355">3355</a>
+<a href="#3356" id="3356">3356</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5353,7 +5360,11 @@
             <span class="macro">debug_assert!</span>(state.envelope().is_empty());
         }
 
-        enforcement.track_outcomes(state.envelope(), <span class="kw-2">&amp;</span>state.managed_envelope.scoping());
+        enforcement.track_outcomes(
+            state.envelope(),
+            <span class="kw-2">&amp;</span>state.managed_envelope.scoping(),
+            <span class="self">self</span>.outcome_aggregator.clone(),
+        );
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5818,7 +5829,10 @@
                 over_accept_once,
             );
 
-            <span class="kw">let </span>was_enforced = bucket_limiter.enforce_limits(rate_limits.as_ref().map_err(|<span class="kw">_</span>| ()));
+            <span class="kw">let </span>was_enforced = bucket_limiter.enforce_limits(
+                rate_limits.as_ref().map_err(|<span class="kw">_</span>| ()),
+                <span class="self">self</span>.outcome_aggregator.clone(),
+            );
 
             <span class="kw">if </span>was_enforced {
                 <span class="kw">if let </span><span class="prelude-val">Ok</span>(limits) = rate_limits {

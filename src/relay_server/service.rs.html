@@ -220,6 +220,10 @@
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -237,7 +241,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, ProjectCacheService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{RelayCache, RelayCacheService};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreService;
@@ -381,19 +385,23 @@
         )
         .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
 
-        <span class="kw">let </span>guard = project_runtime.enter();
-        ProjectCacheService::new(
-            config.clone(),
+        <span class="comment">// Keep all the services in one context.
+        </span><span class="kw">let </span>project_cache_services = Services::new(
+            aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
             upstream_relay.clone(),
-            redis_pool,
-            aggregator.clone(),
-        )
-        .spawn_handler(project_cache_rx);
+        );
+        <span class="kw">let </span>guard = project_runtime.enter();
+        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
+            .spawn_handler(project_cache_rx);
         drop(guard);
 
-        <span class="kw">let </span>health_check = HealthCheckService::new(config.clone(), upstream_relay.clone()).start();
+        <span class="kw">let </span>health_check =
+            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
+                .start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_api) = config.aws_runtime_api() {
