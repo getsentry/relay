@@ -1,0 +1,24 @@
+---
+source: relay-general/src/store/normalize.rs
+expression: event
+---
+{
+  "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+  "level": "error",
+  "type": "default",
+  "logger": "",
+  "platform": "java",
+  "_meta": {
+    "": {
+      "rem": [
+        [
+          "@logger:remove",
+          "x",
+          0,
+          8
+        ]
+      ],
+      "len": 8
+    }
+  }
+}
