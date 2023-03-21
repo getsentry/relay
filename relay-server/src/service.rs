@@ -57,16 +57,6 @@ pub struct Registry {
     pub upstream_relay: Addr<UpstreamRelay>,
 }
 
-impl Registry {
-    /// Get the [`AggregatorService`] address from the registry.
-    ///
-    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
-    /// runtime and follow up refactoring of the dependencies.
-    pub fn aggregator() -> Addr<Aggregator> {
-        REGISTRY.get().unwrap().aggregator.clone()
-    }
-}
-
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
@@ -121,25 +111,7 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        #[allow(unused_mut)]
-        let mut envelope_manager = EnvelopeManagerService::new(
-            config.clone(),
-            processor.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-        );
-
-        #[cfg(feature = "processing")]
-        if config.processing_enabled() {
-            let rt = create_runtime("store-rt", 1);
-            let store = StoreService::create(config.clone())?.start_in(&rt);
-            envelope_manager.set_store_forwarder(store);
-            _store_runtime = Some(rt);
-        }
-
-        let envelope_manager = envelope_manager.start();
-
+        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeProcessorService::name());
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
@@ -150,7 +122,7 @@ impl ServiceState {
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
-        EnvelopeProcessorService::new(
+        let processor = EnvelopeProcessorService::new(
             config.clone(),
             redis_pool.clone(),
             envelope_manager.clone(),
@@ -158,13 +130,32 @@ impl ServiceState {
             project_cache.clone(),
             upstream_relay.clone(),
         )?
-        .spawn_handler(processor_rx);
+        .start();
 
         let aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             Some(project_cache.clone().recipient()),
         )
         .start_in(&aggregator_runtime);
+
+        #[allow(unused_mut)]
+        let mut envelope_manager_service = EnvelopeManagerService::new(
+            config.clone(),
+            aggregator.clone(),
+            processor.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
+
+        #[cfg(feature = "processing")]
+        if config.processing_enabled() {
+            let rt = create_runtime("store-rt", 1);
+            let store = StoreService::create(config.clone())?.start_in(&rt);
+            envelope_manager_service.set_store_forwarder(store);
+            _store_runtime = Some(rt);
+        }
+
+        envelope_manager_service.spawn_handler(envelope_manager_rx);
 
         // Keep all the services in one context.
         let project_cache_services = Services::new(
