@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
+use axum::error_handling::HandleErrorLayer;
 use axum::http::{header, HeaderValue};
 use axum::{middleware, Router, ServiceExt};
 use axum_server::{Handle, Server};
 use relay_config::Config;
 use relay_log::_sentry::integrations::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
+use tower::ServiceBuilder;
+use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
@@ -22,12 +25,36 @@ pub enum ServerError {
     TlsNotSupported,
 }
 
+/// Type of the web server's service.
+type App = NormalizePath<Router>;
+
+///
+fn make_app(service: ServiceState) -> App {
+    let decompression_layer = ServiceBuilder::new()
+        .layer(HandleErrorLayer::new(middlewares::decompression_error))
+        .layer(RequestDecompressionLayer::new());
+
+    let app = crate::endpoints::routes(service.config())
+        .layer(decompression_layer)
+        .layer(NewSentryLayer::new_from_top())
+        .layer(SetResponseHeaderLayer::overriding(
+            header::SERVER,
+            HeaderValue::from_static(constants::SERVER),
+        ))
+        .layer(middleware::from_fn(middlewares::metrics))
+        .with_state(service);
+
+    // Axum layers apply after the router, but path normalization needs to run before.
+    // Therefore, wrap the axum router.
+    NormalizePath::new(app)
+}
+
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
-    app: NormalizePath<Router>,
+    app: App,
     server: Server,
     handle: Handle,
 }
@@ -44,18 +71,8 @@ impl HttpServer {
             return Err(ServerError::TlsNotSupported);
         }
 
-        let app = crate::endpoints::routes(&config)
-            .layer(NewSentryLayer::new_from_top())
-            .layer(middleware::from_fn(middlewares::metrics))
-            .layer(SetResponseHeaderLayer::overriding(
-                header::SERVER,
-                HeaderValue::from_static(constants::SERVER),
-            ))
-            .with_state(service);
-
-        // Axum layers apply after the router, but path normalization needs to run before.
-        // Therefore, wrap the axum router.
-        let app = NormalizePath::new(app);
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
 
         let handle = Handle::new();
         let server = axum_server::bind(config.listen_addr())
@@ -73,11 +90,8 @@ impl HttpServer {
         //     .backlog(config.max_pending_connections())
         //     .disable_signals();
 
-        relay_log::info!("spawning http server");
-        relay_log::info!("  listening on http://{}/", config.listen_addr());
-
         Ok(Self {
-            app,
+            app: make_app(service),
             server,
             handle,
         })

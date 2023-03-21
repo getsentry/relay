@@ -42,7 +42,7 @@ impl ApiErrorResponse {
         }
     }
 
-    pub fn from_error<E: Error>(error: &E) -> Self {
+    pub fn from_error<E: Error + ?Sized>(error: &E) -> Self {
         let detail = Some(error.to_string());
 
         let mut causes = Vec::new();

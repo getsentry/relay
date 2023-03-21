@@ -119,6 +119,11 @@ async fn handle(
     })
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
     (post(handle).get(handle)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
