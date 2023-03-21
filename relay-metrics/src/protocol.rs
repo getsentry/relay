@@ -284,7 +284,7 @@ impl<'a> Display for Measurementkind<'a> {
 impl<'a> Display for TransactionsKind<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Duration(unit) => write!(f, "duration({unit})"),
+            Self::Duration(_) => write!(f, "duration"),
             Self::Breakdowns(breakdown) => write!(f, "breakdowns.{breakdown}"),
             Self::User => write!(f, "user"),
             Self::CountPerRootProject => write!(f, "count_per_root_project"),
@@ -380,6 +380,13 @@ impl<'a> MetricResourceIdentifier<'a> {
                 _ => MetricUnit::None,
             },
             Self::Session(_) => MetricUnit::None,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Transaction(t) => format!("{t}"),
+            Self::Session(s) => format!("{s}"),
         }
     }
 
