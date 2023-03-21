@@ -111,7 +111,10 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeProcessorService::name());
+
+        // Create an address for the `EnvelopeManagerService`, which can be injected into the
+        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
+        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
