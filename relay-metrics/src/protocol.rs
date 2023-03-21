@@ -214,6 +214,10 @@ pub enum TransactionsKind<'a> {
 }
 
 impl<'a> TransactionsKind<'a> {
+    pub fn to_mri(self) -> MetricResourceIdentifier<'a> {
+        MetricResourceIdentifier::Transaction(self)
+    }
+
     pub fn parse(
         name: &'a str,
         ty: MetricType,
@@ -285,7 +289,7 @@ impl<'a> Display for TransactionsKind<'a> {
             Self::User => write!(f, "user"),
             Self::CountPerRootProject => write!(f, "count_per_root_project"),
             Self::Measurements { kind, .. } => write!(f, "{kind}"),
-            Self::Custom { name, ty, unit } => write!(f, "{}:transactions/{}@{}", ty, name, unit),
+            Self::Custom { name, .. } => write!(f, "{name}"),
         }
     }
 }
@@ -380,7 +384,13 @@ impl<'a> MetricResourceIdentifier<'a> {
     }
 
     pub fn ty(&self) -> MetricType {
-        todo!()
+        match self {
+            Self::Transaction(t) => match t {
+                TransactionsKind::Custom { ty, .. } => *ty,
+                _ => todo!(),
+            },
+            Self::Session(_) => todo!(),
+        }
     }
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
@@ -391,8 +401,6 @@ impl<'a> MetricResourceIdentifier<'a> {
         let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-
-        //38, 22
 
         match raw_namespace {
             "transactions" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit)?)),
@@ -411,6 +419,10 @@ impl<'a> MetricResourceIdentifier<'a> {
             }
         }
     }
+
+    fn format_from_params(ns: &str, name: &str, unit: MetricUnit, ty: MetricType) -> String {
+        format!("{ty}:{ns}/{name}@{unit}")
+    }
 }
 
 /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
@@ -424,6 +436,18 @@ impl<'a> ToString for MetricResourceIdentifier<'a> {
             Self::Session(s) => ("sessions".to_string(), s.to_string()),
         };
         format!("{ty}:{ns}/{name}@{unit}")
+    }
+}
+
+impl<'a> From<TransactionsKind<'a>> for MetricResourceIdentifier<'a> {
+    fn from(value: TransactionsKind<'a>) -> Self {
+        MetricResourceIdentifier::Transaction(value)
+    }
+}
+
+impl From<SessionsKind> for MetricResourceIdentifier<'_> {
+    fn from(value: SessionsKind) -> Self {
+        Self::Session(value)
     }
 }
 
@@ -715,72 +739,44 @@ impl Metric {
     ///
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
-    /*
-        pub fn new_mri(
-            namespace: MetricNamespace,
-            unit: MetricUnit,
-            value: MetricValue,
-            timestamp: UnixTimestamp,
-            tags: BTreeMap<String, String>,
-        ) -> Self {
-            Self {
-                name: MetricResourceIdentifier {
-                    ty: value.ty(),
-                    namespace,
-                    unit,
-                }
-                .to_string(),
-                value,
-                timestamp,
-                tags,
-            }
-        }
-    */
-    pub fn new_transaction_mri(
-        kind: TransactionsKind,
-        value: MetricValue,
-        timestamp: UnixTimestamp,
-        tags: BTreeMap<String, String>,
-    ) -> Self {
-        todo!()
-    }
-
-    pub fn new_session_mri(
-        kind: SessionsKind,
+    pub fn new_mri(
+        mri: MetricResourceIdentifier,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: MetricResourceIdentifier::Session(kind).to_string(),
+            name: mri.to_string(),
             value,
             timestamp,
             tags,
         }
     }
 
+    // transactions/foo:42
+
     /// Parse statsd-compatible payload of format
     /// ```text
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
     /// ```
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
+        dbg!(string);
         let mut components = string.split('|');
 
-        let x: MetricResourceIdentifier = MetricResourceIdentifier::str_from(string).ok()?;
-
         let name_value_str = components.next()?;
+        dbg!(&name_value_str);
         let ty = components.next().and_then(|s| s.parse().ok())?;
+        dbg!(1);
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
-        let (raw_namespace, name) = name_and_namespace
-            .split_once('/')
-            .unwrap_or(("custom", string));
+        dbg!(2);
+        let (ns, name) = name_and_namespace.split_once('/')?;
+        dbg!(3);
 
-        let mut metric = Self {
-            name: x.to_string(),
-            value,
-            timestamp,
-            tags: BTreeMap::new(),
-        };
+        let normalized_format = MetricResourceIdentifier::format_from_params(ns, name, unit, ty);
+        let mri = MetricResourceIdentifier::str_from(&normalized_format).ok()?;
+        dbg!(4);
+
+        let mut metric = Self::new_mri(mri, value, timestamp, BTreeMap::new());
 
         for component in components {
             if let Some('#') = component.chars().next() {
@@ -805,7 +801,7 @@ impl Metric {
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
         let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
-        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
+        dbg!(Self::parse_str(string, timestamp).ok_or(ParseMetricError(())))
     }
 
     /// Parses a set of metric values from the raw protocol.

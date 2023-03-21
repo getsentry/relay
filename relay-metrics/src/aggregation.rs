@@ -2492,7 +2492,6 @@ mod tests {
         metric3.timestamp = UnixTimestamp::from_secs(999994721);
         dbg!("testing");
         aggregator.insert(project_key, metric1).unwrap();
-        return;
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
 

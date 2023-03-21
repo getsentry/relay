@@ -301,11 +301,12 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            metrics.push(Metric::new_transaction_mri(
+            metrics.push(Metric::new_mri(
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Other(name),
                     unit: measurement.unit.value().copied().unwrap_or_default(),
-                },
+                }
+                .into(),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -336,8 +337,9 @@ fn extract_transaction_metrics_inner(
 
                     let unit = measurement.unit.value();
 
-                    metrics.push(Metric::new_transaction_mri(
-                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}")),
+                    metrics.push(Metric::new_mri(
+                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}"))
+                            .into(),
                         MetricValue::Distribution(value),
                         timestamp,
                         tags.clone(),
@@ -348,8 +350,8 @@ fn extract_transaction_metrics_inner(
     }
 
     // Duration
-    metrics.push(Metric::new_transaction_mri(
-        TransactionsKind::Duration(DurationUnit::MilliSecond),
+    metrics.push(Metric::new_mri(
+        TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags.clone(),
@@ -366,8 +368,8 @@ fn extract_transaction_metrics_inner(
     root_counter_tags.insert("decision".to_owned(), decision);
 
     // Count the transaction towards the root
-    sampling_metrics.push(Metric::new_transaction_mri(
-        TransactionsKind::CountPerRootProject,
+    sampling_metrics.push(Metric::new_mri(
+        TransactionsKind::CountPerRootProject.into(),
         MetricValue::Counter(1.0),
         timestamp,
         root_counter_tags,
@@ -376,8 +378,8 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new_transaction_mri(
-                TransactionsKind::User,
+            metrics.push(Metric::new_mri(
+                TransactionsKind::User.into(),
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags,
@@ -467,7 +469,7 @@ mod tests {
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::DurationUnit;
+    use relay_metrics::{DurationUnit, MetricResourceIdentifier};
 
     use super::*;
 
@@ -1165,11 +1167,12 @@ mod tests {
         metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
-            &[Metric::new_transaction_mri(
+            &[Metric::new_mri(
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Lcp,
                     unit: MetricUnit::Duration(DurationUnit::MilliSecond)
-                },
+                }
+                .into(),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {
