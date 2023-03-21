@@ -19,9 +19,7 @@ use crate::actors::envelopes::SendMetrics;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
-use crate::actors::project_cache::{
-    CheckedEnvelope, ProjectCache, ProjectCacheContext, RequestUpdate,
-};
+use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -803,11 +801,11 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
-        context: ProjectCacheContext,
+        context: Services,
         partition_key: Option<u64>,
         buckets: Vec<Bucket>,
     ) {
-        let ProjectCacheContext {
+        let Services {
             aggregator,
             envelope_manager,
             #[cfg(feature = "processing")]

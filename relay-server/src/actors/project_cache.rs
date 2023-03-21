@@ -380,7 +380,7 @@ struct UpdateProjectState {
 
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
-pub struct ProjectCacheContext {
+pub struct Services {
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
@@ -389,8 +389,8 @@ pub struct ProjectCacheContext {
     pub upstream_relay: Addr<UpstreamRelay>,
 }
 
-impl ProjectCacheContext {
-    /// Creates new [`ProjectCacheContext`] context.
+impl Services {
+    /// Creates new [`Services`] context.
     pub fn new(
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
@@ -417,7 +417,7 @@ impl ProjectCacheContext {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    context: ProjectCacheContext,
+    context: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -762,17 +762,13 @@ impl ProjectCacheBroker {
 #[derive(Debug)]
 pub struct ProjectCacheService {
     config: Arc<Config>,
-    context: ProjectCacheContext,
+    context: Services,
     redis: Option<RedisPool>,
 }
 
 impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
-    pub fn new(
-        config: Arc<Config>,
-        context: ProjectCacheContext,
-        redis: Option<RedisPool>,
-    ) -> Self {
+    pub fn new(config: Arc<Config>, context: Services, redis: Option<RedisPool>) -> Self {
         Self {
             config,
             context,
