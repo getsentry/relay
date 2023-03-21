@@ -1033,6 +1033,30 @@ mod tests {
     }
 
     #[test]
+    fn test_replace_replaced_text_anything() {
+        let chunks = vec![Chunk::Redaction {
+            text: "[Filtered]".into(),
+            rule_id: "@password:filter".into(),
+            ty: RemarkType::Substituted,
+        }];
+        let rule = RuleRef {
+            id: "@anything:filter".into(),
+            origin: "@anything:filter".into(),
+            ty: RuleType::Anything,
+            redaction: Redaction::Replace(ReplaceRedaction {
+                text: "[Filtered]".into(),
+            }),
+        };
+        let res = apply_regex_to_chunks(
+            chunks.clone(),
+            &rule,
+            &Regex::new(r#".*"#).unwrap(),
+            ReplaceBehavior::Groups(smallvec::smallvec![0]),
+        );
+        assert_eq!(chunks, res);
+    }
+
+    #[test]
     fn test_scrub_span_data_not_scrubbed() {
         let mut span = Annotated::new(Span {
             data: Annotated::new(DataElement {
