@@ -8,13 +8,12 @@
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+#[doc(inline)]
+pub use uaparser::{Device, UserAgent, OS};
 use uaparser::{Parser, UserAgentParser};
 
 use crate::protocol::{HeaderName, HeaderValue, Headers, Request};
 use crate::types::Annotated;
-
-#[doc(inline)]
-pub use uaparser::{Device, UserAgent, OS};
 
 /// The global [`UserAgentParser`] already configured with a user agent database.
 ///

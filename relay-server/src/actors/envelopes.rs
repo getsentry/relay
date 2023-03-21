@@ -4,8 +4,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use tokio::sync::oneshot;
-
 use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
@@ -13,11 +11,16 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, NoResponse};
+#[cfg(feature = "processing")]
+use relay_system::Addr;
+use relay_system::{FromMessage, NoResponse};
+use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
+#[cfg(feature = "processing")]
+use crate::actors::store::{Store, StoreEnvelope, StoreError};
 use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -25,12 +28,9 @@ use crate::actors::upstream::{
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::{Registry, REGISTRY};
+use crate::service::Registry;
 use crate::statsd::RelayHistograms;
-use crate::utils::EnvelopeContext;
-
-#[cfg(feature = "processing")]
-use crate::actors::store::{Store, StoreEnvelope, StoreError};
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -130,8 +130,7 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Box<Envelope>,
-    pub envelope_context: EnvelopeContext,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Sends a client report to the upstream.
@@ -163,12 +162,6 @@ pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
     SendMetrics(SendMetrics),
-}
-
-impl EnvelopeManager {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().envelope_manager.clone()
-    }
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -291,18 +284,17 @@ impl EnvelopeManagerService {
     }
 
     async fn handle_submit(&self, message: SubmitEnvelope) {
-        let SubmitEnvelope {
-            envelope,
-            mut envelope_context,
-        } = message;
+        let SubmitEnvelope { mut envelope } = message;
 
-        let scoping = envelope_context.scoping();
-        match self.submit_envelope(envelope, scoping, None).await {
+        let scoping = envelope.scoping();
+
+        let inner_envelope = envelope.take_envelope();
+        match self.submit_envelope(inner_envelope, scoping, None).await {
             Ok(_) => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
@@ -311,7 +303,7 @@ impl EnvelopeManagerService {
                     |scope| scope.set_tag("project_key", scoping.project_key),
                     || relay_log::error!("error sending envelope: {}", LogError(&error)),
                 );
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }

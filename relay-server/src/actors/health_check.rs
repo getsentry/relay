@@ -2,12 +2,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
-use relay_metrics::AcceptsMetrics;
+use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::service::{Registry, REGISTRY};
+use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -52,21 +52,29 @@ impl FromMessage<IsHealthy> for HealthCheck {
 pub struct HealthCheckService {
     is_shutting_down: AtomicBool,
     config: Arc<Config>,
+    aggregator: Addr<Aggregator>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl HealthCheckService {
     /// Creates a new instance of the HealthCheck service.
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        aggregator: Addr<Aggregator>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         HealthCheckService {
             is_shutting_down: AtomicBool::new(false),
             config,
+            aggregator,
+            upstream_relay,
         }
     }
 
     async fn handle_is_healthy(&self, message: IsHealthy) -> bool {
-        let upstream = UpstreamRelay::from_registry();
+        let upstream = self.upstream_relay.clone();
 
         if self.config.relay_mode() == RelayMode::Managed {
             let fut = upstream.send(IsNetworkOutage);
@@ -90,7 +98,7 @@ impl HealthCheckService {
                     return false;
                 }
 
-                Registry::aggregator()
+                self.aggregator
                     .send(AcceptsMetrics)
                     .await
                     .unwrap_or_default()

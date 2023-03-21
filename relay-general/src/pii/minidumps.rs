@@ -322,11 +322,11 @@ impl PiiAttachmentsProcessor<'_> {
 
 #[cfg(test)]
 mod tests {
-    use minidump::{format::RVA, MinidumpModule, Module};
-
-    use crate::pii::PiiConfig;
+    use minidump::format::RVA;
+    use minidump::{MinidumpModule, Module};
 
     use super::*;
+    use crate::pii::PiiConfig;
 
     struct TestScrubber {
         orig_dump: Minidump<'static, &'static [u8]>,

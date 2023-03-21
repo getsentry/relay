@@ -13,15 +13,15 @@ use std::net::IpAddr;
 use std::num::ParseIntError;
 
 use chrono::{DateTime, Utc};
-use rand::{distributions::Uniform, Rng};
+use rand::distributions::Uniform;
+use rand::Rng;
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{Number, Value};
-
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Context, Event, TraceContext};
 use relay_general::store;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{Number, Value};
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -1251,18 +1251,16 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
-
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
     use chrono::{TimeZone, Utc};
-
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
         LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     use relay_general::types::Annotated;
+    use similar_asserts::assert_eq;
 
     use super::*;
 

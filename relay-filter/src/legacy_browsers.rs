@@ -150,10 +150,9 @@ mod tests {
     const SAFARI_6_UA: &str =
         "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
 
-    use super::*;
-
     use std::collections::BTreeSet;
 
+    use super::*;
     use crate::testutils;
 
     fn get_legacy_browsers_config(

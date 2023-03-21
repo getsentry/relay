@@ -3,7 +3,6 @@
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
-
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
 use relay_sampling::{
@@ -158,22 +157,18 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
-
     use chrono::Duration as DateDuration;
-    use relay_common::Uuid;
-
-    use relay_common::EventType;
+    use relay_common::{EventType, Uuid};
     use relay_general::protocol::{EventId, LenientString};
     use relay_general::types::Annotated;
     use relay_sampling::{
         DecayingFunction, EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType,
         SamplingConfig, SamplingMatch, SamplingRule, SamplingValue, TimeRange,
     };
-
-    use crate::testutils::project_state_with_config;
+    use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::testutils::project_state_with_config;
 
     macro_rules! assert_transaction_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {

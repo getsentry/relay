@@ -6,6 +6,7 @@ use relay_quotas::{
     DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use relay_system::Addr;
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
@@ -171,18 +172,23 @@ impl EnvelopeSummary {
                 continue;
             }
 
-            match item.ty() {
-                ItemType::Attachment => summary.attachment_quantity += item.len().max(1),
-                ItemType::Session => summary.session_quantity += 1,
-                ItemType::Profile => summary.profile_quantity += 1,
-                ItemType::ReplayEvent => summary.replay_quantity += 1,
-                ItemType::ReplayRecording => summary.replay_quantity += 1,
-                ItemType::CheckIn => summary.checkin_quantity += 1,
-                _ => (),
-            }
+            summary.set_quantity(item);
         }
 
         summary
+    }
+
+    fn set_quantity(&mut self, item: &Item) {
+        let target_quantity = match item.ty() {
+            ItemType::Attachment => &mut self.attachment_quantity,
+            ItemType::Session => &mut self.session_quantity,
+            ItemType::Profile => &mut self.profile_quantity,
+            ItemType::ReplayEvent => &mut self.replay_quantity,
+            ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::CheckIn => &mut self.checkin_quantity,
+            _ => return,
+        };
+        *target_quantity += item.quantity();
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -322,9 +328,14 @@ impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+    pub fn track_outcomes(
+        self,
+        envelope: &Envelope,
+        scoping: &Scoping,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         for outcome in self.get_outcomes(envelope, scoping) {
-            TrackOutcome::from_registry().send(outcome);
+            outcome_aggregator.send(outcome);
         }
     }
 }
@@ -616,16 +627,14 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::collections::BTreeMap;
-
-    use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
+    use smallvec::smallvec;
 
+    use super::*;
     use crate::envelope::{AttachmentType, ContentType};
 
     #[test]

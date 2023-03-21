@@ -7,8 +7,6 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
-use serde::{ser::Error, Serialize};
-
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
@@ -18,6 +16,8 @@ use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifi
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
+use serde::ser::Error;
+use serde::Serialize;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::ServiceError;
@@ -1147,8 +1147,9 @@ fn is_slow_item(item: &Item) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_common::ProjectKey;
+
+    use super::*;
 
     /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` method.
     fn arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {

@@ -147,9 +147,8 @@ pub fn selector_suggestions_from_value<T: ProcessValue>(
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Event;
-
     use super::*;
+    use crate::protocol::Event;
 
     #[test]
     fn test_empty() {

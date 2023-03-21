@@ -58,8 +58,9 @@ pub async fn peek_line<S>(
 
 #[cfg(test)]
 mod tests {
+    use actix_web::test::TestRequest;
+
     use super::*;
-    use relay_test::TestRequest;
 
     #[tokio::test]
     async fn test_empty() {

@@ -3,7 +3,6 @@ use actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::compat::Future01CompatExt;
 use futures01::{stream, Stream};
-
 use relay_general::protocol::EventId;
 
 use crate::body;

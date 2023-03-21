@@ -37,14 +37,14 @@ use std::io::{self, Write};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::UnixTimestamp;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use smallvec::SmallVec;
-
+use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::ErrorBoundary;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::DynamicSamplingContext;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -521,6 +521,42 @@ impl Item {
         self.payload.len()
     }
 
+    /// Returns the number used for counting towards rate limits and producing outcomes.
+    ///
+    /// For attachments, we count the number of bytes. Other items are counted as 1.
+    pub fn quantity(&self) -> usize {
+        match self.ty() {
+            ItemType::Attachment => self.len().max(1),
+            _ => 1,
+        }
+    }
+
+    /// Returns the data category used for generating outcomes.
+    ///
+    /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
+    pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
+        match self.ty() {
+            ItemType::Event => Some(DataCategory::Error),
+            ItemType::Transaction => Some(if indexed {
+                DataCategory::TransactionIndexed
+            } else {
+                DataCategory::Transaction
+            }),
+            ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::UnrealReport => Some(DataCategory::Error),
+            ItemType::Attachment => Some(DataCategory::Attachment),
+            ItemType::Session | ItemType::Sessions => None,
+            ItemType::Metrics | ItemType::MetricBuckets => None,
+            ItemType::FormData => None,
+            ItemType::UserReport => None,
+            ItemType::Profile => Some(DataCategory::Profile),
+            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
+            ItemType::ClientReport => None,
+            ItemType::CheckIn => Some(DataCategory::Monitor),
+            ItemType::Unknown(_) => None,
+        }
+    }
+
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
@@ -861,6 +897,15 @@ impl Envelope {
         Ok(Box::new(Envelope { headers, items }))
     }
 
+    /// Move the envelope's items into an envelope with the same headers.
+    pub fn take_items(&mut self) -> Envelope {
+        let Self { headers, items } = self;
+        Self {
+            headers: headers.clone(),
+            items: std::mem::take(items),
+        }
+    }
+
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -1152,9 +1197,9 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_common::ProjectId;
+
+    use super::*;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

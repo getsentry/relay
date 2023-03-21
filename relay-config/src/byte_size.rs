@@ -2,10 +2,10 @@ use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
-use serde::{de, ser::Serializer, Serialize};
-
 pub use human_size::ParsingError as ByteSizeParseError;
 use human_size::{Any, Size, SpecificSize};
+use serde::ser::Serializer;
+use serde::{de, Serialize};
 
 /// Represents a size in bytes.
 ///

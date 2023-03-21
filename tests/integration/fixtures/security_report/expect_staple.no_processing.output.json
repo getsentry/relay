@@ -9,7 +9,7 @@
     "client_os": {
       "name": "Windows",
       "type": "os",
-      "version": "10"
+      "version": ">=10"
     }
   },
   "culprit": "www.example.com",
@@ -29,10 +29,22 @@
     "url": "www.example.com"
   },
   "tags": [
-    ["hostname", "www.example.com"],
-    ["port", "443"],
-    ["response_status", "ERROR_RESPONSE"],
-    ["cert_status", "REVOKED"]
+    [
+      "hostname",
+      "www.example.com"
+    ],
+    [
+      "port",
+      "443"
+    ],
+    [
+      "response_status",
+      "ERROR_RESPONSE"
+    ],
+    [
+      "cert_status",
+      "REVOKED"
+    ]
   ],
   "expectstaple": {
     "date_time": "2014-04-06T13:00:50+00:00",
@@ -48,5 +60,7 @@
       "-----BEGIN CERTIFICATE-----\nCDE\n-----END CERTIFICATE-----"
     ]
   },
-  "user": { "ip_address": "127.0.0.1" }
+  "user": {
+    "ip_address": "127.0.0.1"
+  }
 }

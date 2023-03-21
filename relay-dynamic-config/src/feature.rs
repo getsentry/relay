@@ -17,7 +17,11 @@ pub enum Feature {
     /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
     #[serde(rename = "organizations:transaction-name-normalize")]
     TransactionNameNormalize,
-
+    /// True if transaction names scrubbed by regex patterns should be marked as "sanitized".
+    ///
+    /// Transaction names modified by clusterer rules are always marked as such.
+    #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
+    TransactionNameMarkScrubbedAsSanitized,
     /// Unused.
     ///
     /// This used to control the initial experimental metrics extraction for sessions and has been

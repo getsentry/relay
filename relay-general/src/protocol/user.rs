@@ -82,9 +82,8 @@ pub struct User {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::{Error, Map};
-
     use super::*;
+    use crate::types::{Error, Map};
 
     #[test]
     fn test_geo_roundtrip() {
