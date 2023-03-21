@@ -65,16 +65,16 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
     // not deeper
     let trailing_slash_star = pattern.len() > 1 && pattern.ends_with("/*");
 
-    let mut iterator = pattern.chars().enumerate();
-
-    // Anchored paths may or may not start with a slash
-    if anchored && pattern.starts_with('/') {
-        iterator.next();
-        regex += r"/?";
-    }
+    let pattern_vec: Vec<char> = pattern.chars().collect();
 
     let mut num_to_skip = None;
-    for (i, ch) in iterator {
+    for (i, &ch) in pattern_vec.iter().enumerate() {
+        // Anchored paths may or may not start with a slash
+        if i == 0 && anchored && pattern.starts_with('/') {
+            regex += r"/?";
+            continue;
+        }
+
         if let Some(skip_amount) = num_to_skip {
             num_to_skip = Some(skip_amount - 1);
             // Prevents everything after the * in the pattern from being skipped
@@ -82,16 +82,16 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
                 continue;
             }
         }
+
         if ch == '*' {
             // Handle double star (**) case properly
-            if i + 1 < pattern.len() && pattern.chars().nth(i + 1) == Some('*') {
+            if i + 1 < pattern.len() && pattern_vec[i + 1] == '*' {
                 let left_anchored = i == 0;
-                let leading_slash = i > 0 && pattern.chars().nth(i - 1) == Some('/');
+                let leading_slash = i > 0 && pattern_vec[i - 1] == '/';
                 let right_anchored = i + 2 == pattern.len();
-                let trailing_slash =
-                    i + 2 < pattern.len() && pattern.chars().nth(i + 2) == Some('/');
-                let star_star_slash = pattern.chars().nth(i + 1) == Some('*')
-                    && pattern.chars().nth(i + 2) == Some('/');
+                let trailing_slash = i + 2 < pattern.len() && pattern_vec[i + 2] == '/';
+                let star_star_slash =
+                    i + 2 < pattern.len() && pattern_vec[i + 1] == '*' && pattern_vec[i + 2] == '/';
 
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
                     regex += ".*";
