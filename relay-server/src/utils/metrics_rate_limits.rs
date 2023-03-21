@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::Utc;
 use relay_common::{DataCategory, MetricUnit, UnixTimestamp};
-use relay_metrics::{MetricResourceIdentifier, MetricsContainer};
+use relay_metrics::{MetricResourceIdentifier, MetricsContainer, TransactionsKind};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -41,20 +41,19 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     }
                 };
 
-                // Keep all metrics that are not transaction related:
-                if let MetricResourceIdentifier::Transaction(_) = mri {
-                    return None;
-                }
-
-                if let MetricUnit::Duration(_) = mri.name() {
-                    // The "duration" metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
-                    let count = metric.len();
-                    Some(count)
-                } else {
-                    // For any other metric in the transaction namespace, we check the limit with
-                    // quantity=0 so transactions are not double counted against the quota.
-                    Some(0)
+                match mri {
+                    MetricResourceIdentifier::Session(_) => None,
+                    MetricResourceIdentifier::Transaction(transaction) => match transaction {
+                        TransactionsKind::Duration(_) => {
+                            // The "duration" metric is extracted exactly once for every processed
+                            // transaction, so we can use it to count the number of transactions.
+                            let count = metric.len();
+                            Some(count)
+                        }
+                        // For any other metric in the transaction namespace, we check the limit with
+                        // quantity=0 so transactions are not double counted against the quota.
+                        _ => Some(0),
+                    },
                 }
             })
             .collect();

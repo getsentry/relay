@@ -214,10 +214,6 @@ pub enum TransactionsKind<'a> {
 }
 
 impl<'a> TransactionsKind<'a> {
-    pub fn to_mri(self) -> MetricResourceIdentifier<'a> {
-        MetricResourceIdentifier::Transaction(self)
-    }
-
     pub fn parse(
         name: &'a str,
         ty: MetricType,
@@ -247,7 +243,7 @@ impl<'a> TransactionsKind<'a> {
             },
             "user" => Ok(Self::User),
             "count_per_root_project" => Ok(Self::CountPerRootProject),
-            s => Ok(Self::Custom { name, ty, unit }),
+            _ => Ok(Self::Custom { name, ty, unit }),
         }
     }
 }
@@ -276,7 +272,7 @@ impl<'a> Display for Measurementkind<'a> {
             Self::StallPercentage => write!(f, "measurements.stall_percentage"),
             Self::StallTotalTime => write!(f, "measurements.stall_total_time"),
             Self::Lcp => write!(f, "measurements.lcp"),
-            Self::Other(s) => write!(f, "{}", s),
+            Self::Other(s) => write!(f, "measurements.{}", s),
         }
     }
 }
@@ -377,6 +373,8 @@ impl<'a> MetricResourceIdentifier<'a> {
             Self::Transaction(t) => match t {
                 TransactionsKind::Custom { unit, .. } => *unit,
                 TransactionsKind::Measurements { unit, .. } => *unit,
+                TransactionsKind::Duration(unit) => MetricUnit::Duration(*unit),
+                TransactionsKind::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
                 _ => MetricUnit::None,
             },
             Self::Session(_) => MetricUnit::None,
@@ -811,11 +809,11 @@ impl Metric {
     /// ```
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
-    /// let metric = Metric::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
+    /// let metric = Metric::parse(b"transactions/response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
+        let string = dbg!(std::str::from_utf8(slice).or(Err(ParseMetricError(())))?);
         dbg!(Self::parse_str(string, timestamp).ok_or(ParseMetricError(())))
     }
 
@@ -834,8 +832,8 @@ impl Metric {
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
     /// let data = br#"
-    /// endpoint.response_time@millisecond:57|d
-    /// endpoint.hits:1|c
+    /// transactions/endpoint.response_time@millisecond:57|d
+    /// transactions/endpoint.hits:1|c
     /// "#;
     ///
     /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {

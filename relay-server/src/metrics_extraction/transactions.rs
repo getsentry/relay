@@ -235,6 +235,8 @@ pub fn extract_transaction_metrics(
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
+    dbg!(&project_metrics, &sampling_metrics);
+
     extract_transaction_metrics_inner(
         aggregator_config,
         config,
@@ -259,6 +261,7 @@ fn extract_transaction_metrics_inner(
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -314,6 +317,8 @@ fn extract_transaction_metrics_inner(
         }
     }
 
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
+
     // Breakdowns
     if let Some(breakdowns) = event.breakdowns.value() {
         for (breakdown, measurements) in breakdowns.iter() {
@@ -349,6 +354,8 @@ fn extract_transaction_metrics_inner(
         }
     }
 
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
+
     // Duration
     metrics.push(Metric::new_mri(
         TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
@@ -356,6 +363,8 @@ fn extract_transaction_metrics_inner(
         timestamp,
         tags.clone(),
     ));
+
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
 
     let mut root_counter_tags = BTreeMap::new();
     if let Some(name) = transaction_from_dsc {
@@ -367,6 +376,7 @@ fn extract_transaction_metrics_inner(
     };
     root_counter_tags.insert("decision".to_owned(), decision);
 
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new_mri(
         TransactionsKind::CountPerRootProject.into(),
@@ -374,6 +384,8 @@ fn extract_transaction_metrics_inner(
         timestamp,
         root_counter_tags,
     ));
+
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
 
     // User
     if let Some(user) = event.user.value() {
@@ -386,6 +398,8 @@ fn extract_transaction_metrics_inner(
             ));
         }
     }
+
+    dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", &metrics.len(), &metrics);
 
     Ok(())
 }
@@ -1718,10 +1732,13 @@ mod tests {
             }
         }"#;
 
+        dbg!("111");
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let mut event: Annotated<Event> = Annotated::from_json(json).unwrap();
+
         // Normalize first, to make sure that the metrics were computed:
         let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
 
