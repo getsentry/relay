@@ -260,6 +260,8 @@ impl Replay {
     }
 
     fn normalize_array_fields(&mut self) {
+        // TODO: This should be replaced by the TrimmingProcessor.
+        // https://github.com/getsentry/relay/pull/1910#pullrequestreview-1337188206
         if let Some(items) = self.error_ids.value_mut() {
             items.truncate(100);
         }
@@ -581,6 +583,23 @@ mod tests {
         assert!(replay_value.error_ids.value().unwrap().len() == 100);
         assert!(replay_value.trace_ids.value().unwrap().len() == 100);
         assert!(replay_value.urls.value().unwrap().len() == 100);
+    }
+
+    #[test]
+    fn test_truncated_list_less_than_limit() {
+        let mut replay = Annotated::new(Replay {
+            urls: Annotated::new(Vec::new()),
+            error_ids: Annotated::new(Vec::new()),
+            trace_ids: Annotated::new(Vec::new()),
+            ..Default::default()
+        });
+
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize_array_fields();
+
+        assert!(replay_value.error_ids.value().unwrap().is_empty());
+        assert!(replay_value.trace_ids.value().unwrap().is_empty());
+        assert!(replay_value.urls.value().unwrap().is_empty());
     }
 
     fn simple_enabled_config() -> DataScrubbingConfig {
