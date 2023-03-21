@@ -218,22 +218,24 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn sensitive_cookies() -> serde_json::Value {
         serde_json::json!({
         // Common session cookie names for popular web frameworks
-        "sentrysid": "my secret sentrysid", // Sentry default session cookie name
-        "sudo": "my secret sudo",      // Sentry default sudo cookie name
-        "su": "my secret su",        // Sentry superuser cookie name
-        "session": "my secret session",
-        "sessionid": "my secret sessionid",
-        "user_session": "my secret user_session",
-        "symfony": "my secret symfony",
-        "phpsessid": "my secret phpsessid",
-        "fasthttpsessionid": "my secret fasthttpsessionid",
-        "mysession": "my secret mysession",
-        "irissessionid": "my secret irissessionid",
+        "sentrysid": "my sentrysid", // Sentry default session cookie name
+        "sudo": "my sudo",   // Sentry default sudo cookie name
+        "su": "my su",    // Sentry superuser cookie name
+        "session": "my session",
+        "sessionid": "my sessionid",
+        "user_session": "my user_session",
+        "symfony": "my symfony",
+        "phpsessid": "my phpsessid",
+        "fasthttpsessionid": "my fasthttpsessionid",
+        "mysession": "my mysession",
+        "irissessionid": "my irissessionid",
         // Common CSRF/XSRF cookie names for popular web frameworks
-        "_csrf": "my secret _csrf",
-        "xsrf-token": "my secret xsrf-token",
-        "fastcsrf": "my secret fastcsrf",
-        "_iris_csrf": "my secret _iris_csrf",
+        "_csrf": "my _csrf",
+        "csrftoken": "my csrftoken",
+        "csrf_token": "my csrf_token",
+        "xsrf-token": "my xsrf-token",
+        "fastcsrf": "my fastcsrf",
+        "_iris_csrf": "my _iris_csrf",
         })
     }
 

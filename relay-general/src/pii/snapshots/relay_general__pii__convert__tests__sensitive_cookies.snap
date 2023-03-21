@@ -6,11 +6,71 @@ expression: data
   "request": {
     "cookies": [
       [
+        "_csrf",
+        "[Filtered]"
+      ],
+      [
+        "_iris_csrf",
+        "[Filtered]"
+      ],
+      [
+        "csrf_token",
+        "[Filtered]"
+      ],
+      [
+        "csrftoken",
+        "[Filtered]"
+      ],
+      [
+        "fastcsrf",
+        "[Filtered]"
+      ],
+      [
+        "fasthttpsessionid",
+        "[Filtered]"
+      ],
+      [
+        "irissessionid",
+        "[Filtered]"
+      ],
+      [
+        "mysession",
+        "[Filtered]"
+      ],
+      [
+        "phpsessid",
+        "[Filtered]"
+      ],
+      [
+        "sentrysid",
+        "[Filtered]"
+      ],
+      [
         "session",
         "[Filtered]"
       ],
       [
         "sessionid",
+        "[Filtered]"
+      ],
+      [
+        "su",
+        "[Filtered]"
+      ],
+      [
+        "sudo",
+        "[Filtered]"
+      ],
+      [
+        "symfony",
+        "[Filtered]"
+      ],
+      [
+        "user_session",
+        "[Filtered]"
+      ],
+      [
+        "xsrf-token",
         "[Filtered]"
       ]
     ]
@@ -19,11 +79,71 @@ expression: data
     "response": {
       "cookies": [
         [
+          "_csrf",
+          "[Filtered]"
+        ],
+        [
+          "_iris_csrf",
+          "[Filtered]"
+        ],
+        [
+          "csrf_token",
+          "[Filtered]"
+        ],
+        [
+          "csrftoken",
+          "[Filtered]"
+        ],
+        [
+          "fastcsrf",
+          "[Filtered]"
+        ],
+        [
+          "fasthttpsessionid",
+          "[Filtered]"
+        ],
+        [
+          "irissessionid",
+          "[Filtered]"
+        ],
+        [
+          "mysession",
+          "[Filtered]"
+        ],
+        [
+          "phpsessid",
+          "[Filtered]"
+        ],
+        [
+          "sentrysid",
+          "[Filtered]"
+        ],
+        [
           "session",
           "[Filtered]"
         ],
         [
           "sessionid",
+          "[Filtered]"
+        ],
+        [
+          "su",
+          "[Filtered]"
+        ],
+        [
+          "sudo",
+          "[Filtered]"
+        ],
+        [
+          "symfony",
+          "[Filtered]"
+        ],
+        [
+          "user_session",
+          "[Filtered]"
+        ],
+        [
+          "xsrf-token",
           "[Filtered]"
         ]
       ],
@@ -45,7 +165,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 18
+                "len": 8
               }
             }
           },
@@ -60,7 +180,232 @@ expression: data
                     10
                   ]
                 ],
-                "len": 21
+                "len": 13
+              }
+            }
+          },
+          "10": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 10
+              }
+            }
+          },
+          "11": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          },
+          "12": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 5
+              }
+            }
+          },
+          "13": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 7
+              }
+            }
+          },
+          "14": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 10
+              }
+            }
+          },
+          "15": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 15
+              }
+            }
+          },
+          "16": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 13
+              }
+            }
+          },
+          "2": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 13
+              }
+            }
+          },
+          "3": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          },
+          "4": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 11
+              }
+            }
+          },
+          "5": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 20
+              }
+            }
+          },
+          "6": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 16
+              }
+            }
+          },
+          "7": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          },
+          "8": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          },
+          "9": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
               }
             }
           }
@@ -80,7 +425,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 18
+              "len": 8
             }
           }
         },
@@ -95,7 +440,232 @@ expression: data
                   10
                 ]
               ],
-              "len": 21
+              "len": 13
+            }
+          }
+        },
+        "10": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 10
+            }
+          }
+        },
+        "11": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 12
+            }
+          }
+        },
+        "12": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 5
+            }
+          }
+        },
+        "13": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 7
+            }
+          }
+        },
+        "14": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 10
+            }
+          }
+        },
+        "15": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 15
+            }
+          }
+        },
+        "16": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 13
+            }
+          }
+        },
+        "2": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 13
+            }
+          }
+        },
+        "3": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 12
+            }
+          }
+        },
+        "4": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 11
+            }
+          }
+        },
+        "5": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 20
+            }
+          }
+        },
+        "6": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 16
+            }
+          }
+        },
+        "7": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 12
+            }
+          }
+        },
+        "8": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 12
+            }
+          }
+        },
+        "9": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 12
             }
           }
         }
