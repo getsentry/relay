@@ -15,7 +15,7 @@ use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-use crate::actors::project_cache::{ProjectCache, ProjectCacheService};
+use crate::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
@@ -159,19 +159,23 @@ impl ServiceState {
         )
         .start_in(&aggregator_runtime);
 
-        let guard = project_runtime.enter();
-        ProjectCacheService::new(
-            config.clone(),
+        // Keep all the services in one context.
+        let project_cache_services = Services::new(
+            aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
             upstream_relay.clone(),
-            redis_pool,
-            aggregator.clone(),
-        )
-        .spawn_handler(project_cache_rx);
+        );
+        let guard = project_runtime.enter();
+        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
+            .spawn_handler(project_cache_rx);
         drop(guard);
 
-        let health_check = HealthCheckService::new(config.clone(), upstream_relay.clone()).start();
+        let health_check =
+            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
+                .start();
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         if let Some(aws_api) = config.aws_runtime_api() {
