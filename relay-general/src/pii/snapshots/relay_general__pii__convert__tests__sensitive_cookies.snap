@@ -14,11 +14,19 @@ expression: data
         "[Filtered]"
       ],
       [
-        "csrf_token",
+        "_xsrf",
         "[Filtered]"
       ],
       [
-        "csrftoken",
+        "csrf",
+        "[Filtered]"
+      ],
+      [
+        "csrf-token",
+        "[Filtered]"
+      ],
+      [
+        "csrf_token",
         "[Filtered]"
       ],
       [
@@ -70,7 +78,15 @@ expression: data
         "[Filtered]"
       ],
       [
+        "xsrf",
+        "[Filtered]"
+      ],
+      [
         "xsrf-token",
+        "[Filtered]"
+      ],
+      [
+        "xsrf_token",
         "[Filtered]"
       ]
     ]
@@ -87,11 +103,19 @@ expression: data
           "[Filtered]"
         ],
         [
-          "csrf_token",
+          "_xsrf",
           "[Filtered]"
         ],
         [
-          "csrftoken",
+          "csrf",
+          "[Filtered]"
+        ],
+        [
+          "csrf-token",
+          "[Filtered]"
+        ],
+        [
+          "csrf_token",
           "[Filtered]"
         ],
         [
@@ -143,7 +167,15 @@ expression: data
           "[Filtered]"
         ],
         [
+          "xsrf",
+          "[Filtered]"
+        ],
+        [
           "xsrf-token",
+          "[Filtered]"
+        ],
+        [
+          "xsrf_token",
           "[Filtered]"
         ]
       ],
@@ -195,7 +227,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 10
+                "len": 12
               }
             }
           },
@@ -225,7 +257,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 5
+                "len": 10
               }
             }
           },
@@ -240,7 +272,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 7
+                "len": 12
               }
             }
           },
@@ -255,7 +287,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 10
+                "len": 5
               }
             }
           },
@@ -270,7 +302,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 15
+                "len": 7
               }
             }
           },
@@ -279,13 +311,58 @@ expression: data
               "": {
                 "rem": [
                   [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 10
+              }
+            }
+          },
+          "17": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 15
+              }
+            }
+          },
+          "18": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 7
+              }
+            }
+          },
+          "19": {
+            "1": {
+              "": {
+                "rem": [
+                  [
                     "@password:filter",
                     "s",
                     0,
                     10
                   ]
                 ],
-                "len": 13
+                "len": 14
               }
             }
           },
@@ -294,6 +371,51 @@ expression: data
               "": {
                 "rem": [
                   [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 8
+              }
+            }
+          },
+          "20": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 14
+              }
+            }
+          },
+          "3": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@anything:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 7
+              }
+            }
+          },
+          "4": {
+            "1": {
+              "": {
+                "rem": [
+                  [
                     "@password:filter",
                     "s",
                     0,
@@ -304,7 +426,7 @@ expression: data
               }
             }
           },
-          "3": {
+          "5": {
             "1": {
               "": {
                 "rem": [
@@ -315,37 +437,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 12
-              }
-            }
-          },
-          "4": {
-            "1": {
-              "": {
-                "rem": [
-                  [
-                    "@anything:filter",
-                    "s",
-                    0,
-                    10
-                  ]
-                ],
-                "len": 11
-              }
-            }
-          },
-          "5": {
-            "1": {
-              "": {
-                "rem": [
-                  [
-                    "@anything:filter",
-                    "s",
-                    0,
-                    10
-                  ]
-                ],
-                "len": 20
+                "len": 13
               }
             }
           },
@@ -360,7 +452,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 16
+                "len": 11
               }
             }
           },
@@ -375,7 +467,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 12
+                "len": 20
               }
             }
           },
@@ -390,7 +482,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 12
+                "len": 16
               }
             }
           },
@@ -455,7 +547,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 10
+              "len": 12
             }
           }
         },
@@ -485,7 +577,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 5
+              "len": 10
             }
           }
         },
@@ -500,7 +592,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 7
+              "len": 12
             }
           }
         },
@@ -515,7 +607,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 10
+              "len": 5
             }
           }
         },
@@ -530,7 +622,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 15
+              "len": 7
             }
           }
         },
@@ -539,13 +631,58 @@ expression: data
             "": {
               "rem": [
                 [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 10
+            }
+          }
+        },
+        "17": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 15
+            }
+          }
+        },
+        "18": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 7
+            }
+          }
+        },
+        "19": {
+          "1": {
+            "": {
+              "rem": [
+                [
                   "@password:filter",
                   "s",
                   0,
                   10
                 ]
               ],
-              "len": 13
+              "len": 14
             }
           }
         },
@@ -554,6 +691,51 @@ expression: data
             "": {
               "rem": [
                 [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
+            }
+          }
+        },
+        "20": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 14
+            }
+          }
+        },
+        "3": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 7
+            }
+          }
+        },
+        "4": {
+          "1": {
+            "": {
+              "rem": [
+                [
                   "@password:filter",
                   "s",
                   0,
@@ -564,7 +746,7 @@ expression: data
             }
           }
         },
-        "3": {
+        "5": {
           "1": {
             "": {
               "rem": [
@@ -575,37 +757,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 12
-            }
-          }
-        },
-        "4": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@anything:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 11
-            }
-          }
-        },
-        "5": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@anything:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 20
+              "len": 13
             }
           }
         },
@@ -620,7 +772,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 16
+              "len": 11
             }
           }
         },
@@ -635,7 +787,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 12
+              "len": 20
             }
           }
         },
@@ -650,7 +802,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 12
+              "len": 16
             }
           }
         },

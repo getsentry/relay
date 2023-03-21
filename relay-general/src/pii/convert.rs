@@ -40,8 +40,14 @@ static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
         "*.cookies.mysession",
         "*.cookies.irissessionid",
         // Common CSRF/XSRF cookie names for popular web frameworks
+        "*.cookies.csrf",
+        "*.cookies.xsrf",
+        "*.cookies._xsrf",
         "*.cookies._csrf",
+        "*.cookies.csrf-token",
+        "*.cookies.csrf_token",
         "*.cookies.xsrf-token",
+        "*.cookies.xsrf_token",
         "*.cookies.fastcsrf",
         "*.cookies._iris_csrf",
     ]
@@ -230,10 +236,14 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "mysession": "my mysession",
         "irissessionid": "my irissessionid",
         // Common CSRF/XSRF cookie names for popular web frameworks
+        "csrf": "my csrf",
+        "xsrf": "my xsrf",
+        "_xsrf": "my _xsrf",
         "_csrf": "my _csrf",
-        "csrftoken": "my csrftoken",
+        "csrf-token": "my csrf-token",
         "csrf_token": "my csrf_token",
-        "xsrf-token": "my xsrf-token",
+        "xsrf-token": "my  xsrf-token",
+        "xsrf_token": "my  xsrf_token",
         "fastcsrf": "my fastcsrf",
         "_iris_csrf": "my _iris_csrf",
         })
@@ -269,7 +279,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies._csrf || *.cookies.xsrf-token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
             ]
           }
@@ -294,7 +304,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies._csrf || *.cookies.xsrf-token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
             ]
           }
@@ -330,7 +340,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies._csrf || *.cookies.xsrf-token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
             ]
           }
@@ -385,7 +395,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies._csrf || *.cookies.xsrf-token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
             ]
           }
@@ -1321,7 +1331,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies._csrf || *.cookies.xsrf-token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
             ]
           }
