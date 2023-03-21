@@ -990,6 +990,7 @@ mod tests {
 
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
 
+        dbg!(&metrics);
         assert!(metrics.is_empty());
     }
 }

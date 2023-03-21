@@ -1108,7 +1108,7 @@ mod tests {
 
     #[test]
     fn test_parse_all() {
-        let s = "transactions/foo:42|c\nbar:17|c";
+        let s = "transactions/foo:42|c\ntransactions/bar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
@@ -1120,7 +1120,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_crlf() {
-        let s = "transactions/foo:42|c\r\nbar:17|c";
+        let s = "transactions/foo:42|c\r\ntransactions/bar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
