@@ -11,9 +11,7 @@ use relay_log::LogError;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-#[cfg(feature = "processing")]
-use relay_system::Addr;
-use relay_system::{FromMessage, NoResponse};
+use relay_system::{Addr, FromMessage, NoResponse};
 use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
