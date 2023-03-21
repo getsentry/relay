@@ -111,6 +111,7 @@ impl ServiceState {
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
+        let test_store = TestStoreService::new(config.clone()).start();
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -120,8 +121,14 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
         #[allow(unused_mut)]
-        let mut envelope_manager = EnvelopeManagerService::new(config.clone());
+        let mut envelope_manager = EnvelopeManagerService::new(
+            config.clone(),
+            processor.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
@@ -132,7 +139,6 @@ impl ServiceState {
         }
 
         let envelope_manager = envelope_manager.start();
-        let test_store = TestStoreService::new(config.clone()).start();
 
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
@@ -144,7 +150,7 @@ impl ServiceState {
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
-        let processor = EnvelopeProcessorService::new(
+        EnvelopeProcessorService::new(
             config.clone(),
             redis_pool.clone(),
             envelope_manager.clone(),
@@ -152,7 +158,8 @@ impl ServiceState {
             project_cache.clone(),
             upstream_relay.clone(),
         )?
-        .start();
+        .spawn_handler(processor_rx);
+
         let aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             Some(project_cache.clone().recipient()),

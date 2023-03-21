@@ -201,15 +201,26 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
+    enveloper_processor: Addr<EnvelopeProcessor>,
+    test_store: Addr<TestStore>,
+    upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<Store>>,
 }
 
 impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        enveloper_processor: Addr<EnvelopeProcessor>,
+        test_store: Addr<TestStore>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
             config,
+            enveloper_processor,
+            test_store,
+            upstream_relay,
             #[cfg(feature = "processing")]
             store_forwarder: None,
         }
@@ -244,7 +255,7 @@ impl EnvelopeManagerService {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.config) {
-            TestStore::from_registry().send(Capture::accepted(envelope));
+            self.test_store.send(Capture::accepted(envelope));
             return Ok(());
         }
 
@@ -271,9 +282,9 @@ impl EnvelopeManagerService {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().send(SendRequest(request));
+            self.upstream_relay.send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
+            self.enveloper_processor.send(EncodeEnvelope::new(request));
         }
 
         match rx.await {
