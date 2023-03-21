@@ -1,6 +1,7 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
+use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
 ///
@@ -71,19 +72,19 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
 ///
 /// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
 /// known items will be retained.
-pub fn remove_unknown_items(config: &Config, envelope: &mut Envelope) {
+pub fn remove_unknown_items(config: &Config, envelope: &mut ManagedEnvelope) {
     if !config.accept_unknown_items() {
         envelope.retain_items(|item| match item.ty() {
             ItemType::Unknown(ty) => {
                 relay_log::debug!("dropping unknown item of type '{}'", ty);
-                false
+                ItemAction::DropSilently
             }
             _ => match item.attachment_type() {
                 Some(AttachmentType::Unknown(ty)) => {
                     relay_log::debug!("dropping unknown attachment of type '{}'", ty);
-                    false
+                    ItemAction::DropSilently
                 }
-                _ => true,
+                _ => ItemAction::Keep,
             },
         });
     }
