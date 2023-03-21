@@ -459,9 +459,7 @@ impl IntoResponse for TextResponse {
         // the minidump client expects the response to contain an event id as a hyphenated UUID
         // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
         let text = id.as_hyphenated().to_string();
-
-        // TODO(ja): Check if the header is needed; should be automatic
-        ([(header::CONTENT_TYPE, "text/plain")], text).into_response()
+        text.into_response()
     }
 }
 

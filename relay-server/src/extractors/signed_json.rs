@@ -10,9 +10,6 @@ use serde::de::DeserializeOwned;
 use crate::actors::relays::{GetRelay, RelayCache};
 use crate::utils::ApiErrorResponse;
 
-/// Maximum size of a JSON request body.
-const MAX_JSON_SIZE: usize = 262_144;
-
 #[derive(Debug)]
 pub struct SignedJson<T> {
     pub inner: T,

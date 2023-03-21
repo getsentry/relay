@@ -510,18 +510,28 @@ fn parse_header_url(req: &Parts, header: impl AsHeaderName) -> Option<Url> {
         })
 }
 
-/// TODO(ja): Doc
+/// Path parameters containing authentication information for store endpoints.
+///
+/// These parameters implement part of the authentication mechanism. For more information, see
+/// [`RequestMeta`].
 #[derive(Debug, serde::Deserialize)]
 struct StorePath {
-    /// TODO(ja): Doc
-    // The project_id was declared in the URL. Use it directly.
-    // --
-    // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
-    // id from the key lookup. Since this is the uncommon case, block the request until the
-    // project id is here.
+    /// The numeric identifier of the Sentry project.
+    ///
+    /// This parameter is part of the store endpoint paths, which are generally located under
+    /// `/api/:project_id/*`. By default, all store endpoints have the project ID in the path. To
+    /// resolve the project and associated information, Relay actually uses the DSN's
+    /// [`ProjectKey`]. During ingestion, the stated project ID from the URI path is validated
+    /// against information resolved from the upstream.
+    ///
+    /// The legacy endpoint (`/api/store/`) does not have the project ID. In this case, Relay skips
+    /// ID validation during ingestion.
     project_id: Option<ProjectId>,
 
-    /// TODO(ja): Doc
+    /// The DSN's public key, also referred to as project key.
+    ///
+    /// Some endpoints require this key in the path. On all other endpoints, the key is either sent
+    /// as header or query parameter.
     sentry_key: Option<String>,
 }
 

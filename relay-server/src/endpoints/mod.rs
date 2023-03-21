@@ -24,10 +24,6 @@ use relay_config::Config;
 
 use crate::service::ServiceState;
 
-// TODO(ja): Find a better place for this
-/// Maximum size of a JSON request body.
-const MAX_JSON_SIZE: usize = 262_144;
-
 #[rustfmt::skip]
 pub fn routes(config: &Config) -> Router<ServiceState> {
     // Relay-internal routes pointing to /api/relay/
@@ -43,7 +39,7 @@ pub fn routes(config: &Config) -> Router<ServiceState> {
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
         .route("/api/0/relays/outcomes/", post(outcomes::handle))
         .route("/api/0/relays/:kind/", get(health_check::handle))
-        .route_layer(DefaultBodyLimit::max(MAX_JSON_SIZE));
+        .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
 
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
