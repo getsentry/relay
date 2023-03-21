@@ -1047,7 +1047,7 @@ impl AggregatorConfig {
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
             );
-            return dbg!(Err(AggregateMetricsErrorKind::InvalidTimestamp.into()));
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
         }
 
         Ok(output_timestamp)
@@ -1529,7 +1529,7 @@ impl AggregatorService {
         mut key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
-        key = dbg!(Self::validate_metric_name(key, aggregator_config))?;
+        key = Self::validate_metric_name(key, aggregator_config)?;
         key = Self::validate_metric_tags(key, aggregator_config);
         Ok(key)
     }
@@ -1562,7 +1562,6 @@ impl AggregatorService {
         }
 
         if let Err(err) = Self::normalize_metric_name(&mut key) {
-            dbg!("hey debugging");
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
                     "bucket.project_key",
@@ -1577,7 +1576,6 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        dbg!("!!!!!!!!!!!!!!!!", &key);
         key.metric_name = match MetricResourceIdentifier::str_from(&key.metric_name) {
             Ok(mri) => {
                 let mut metric_name = mri.to_string();
@@ -1652,7 +1650,7 @@ impl AggregatorService {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
 
-        let key = dbg!(Self::validate_bucket_key(key, &self.config))?;
+        let key = Self::validate_bucket_key(key, &self.config)?;
 
         // XXX: This is not a great implementation of cost enforcement.
         //
@@ -1680,14 +1678,11 @@ impl AggregatorService {
         // items before they are parsed, as we can be sure that the new metric bucket will be
         // rejected in the aggregator regardless of whether it is merged into existing buckets,
         // whether it is just a counter, etc.
-        dbg!("RRRRR");
         self.cost_tracker.check_limits_exceeded(
             project_key,
             self.config.max_total_bucket_bytes,
             self.config.max_project_key_bucket_bytes,
         )?;
-
-        dbg!("hhhhh");
 
         let added_cost;
         match self.buckets.entry(key) {
@@ -1719,8 +1714,6 @@ impl AggregatorService {
             }
         }
 
-        dbg!("GGGGG");
-
         self.cost_tracker.add_cost(project_key, added_cost);
 
         Ok(())
@@ -1744,7 +1737,7 @@ impl AggregatorService {
             metric_name: metric.name,
             tags: metric.tags,
         };
-        dbg!(self.merge_in(key, metric.value))
+        self.merge_in(key, metric.value)
     }
 
     /// Merge a preaggregated bucket into this aggregator.
@@ -2490,7 +2483,6 @@ mod tests {
 
         let mut metric3 = metric1.clone();
         metric3.timestamp = UnixTimestamp::from_secs(999994721);
-        dbg!("testing");
         aggregator.insert(project_key, metric1).unwrap();
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
@@ -3045,7 +3037,7 @@ mod tests {
         let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        dbg!(aggregator.insert(project_key, metric.clone())).unwrap();
+        aggregator.insert(project_key, metric.clone()).unwrap();
         assert_eq!(
             aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded

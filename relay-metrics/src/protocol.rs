@@ -409,7 +409,7 @@ impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn str_from(s: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-        let ty: MetricType = dbg!(raw_ty.parse()?);
+        let ty: MetricType = raw_ty.parse()?;
 
         let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
@@ -426,10 +426,7 @@ impl<'a> MetricResourceIdentifier<'a> {
                 };
                 Ok(Self::Session(kind))
             }
-            s => {
-                dbg!(s);
-                Err(ParseMetricError(()))
-            }
+            _ => Err(ParseMetricError(())),
         }
     }
 
@@ -464,67 +461,6 @@ impl From<SessionsKind> for MetricResourceIdentifier<'_> {
     }
 }
 
-/*
-impl<'a> FromStr for MetricResourceIdentifier<'a> {
-    type Err = ParseMetricError;
-    fn from_str(s: &'a str) -> Result<Self, Self::Err> {
-
-    }
-}
-
-pub struct FooMetricResourceIdentifier<'a> {
-    /// The metric type.
-    pub ty: MetricType,
-    /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
-    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
-    /// the value `"custom"`.
-    pub namespace: MetricNamespace<'a>,
-    /// The metric unit.
-    pub unit: MetricUnit,
-}
-
-impl<'a> MetricResourceIdentifier<'a> {
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
-        dbg!(name);
-        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
-        let ty = raw_ty.parse()?;
-        dbg!("1");
-
-        //let (rest, raw_unit) = rest.split_once('@').ok_or(ParseMetricError(()))?;
-        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-        dbg!("2");
-
-        let (raw_namespace, raw_name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        dbg!("3");
-
-        //let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        Ok(Self {
-            ty,
-            namespace: MetricNamespace::parse(raw_namespace, raw_name),
-            unit,
-        })
-    }
-}
-
-impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // `<ty>:<ns>/<name>@<unit>`
-        write!(
-            f,
-            "{}:{}/{}@{}",
-            self.ty,
-            self.namespace.namespace_to_string(),
-            self.namespace.name_to_string(),
-            self.unit
-        )
-    }
-}
-
-
-*/
-
 /// Validates a tag key.
 ///
 /// Tag keys currently only need to not contain ASCII control characters. This might change.
@@ -554,7 +490,6 @@ fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !is_valid_name(name) {
-        dbg!("oh fug");
         return None;
     }
 
@@ -773,21 +708,15 @@ impl Metric {
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
     /// ```
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
-        dbg!(string);
         let mut components = string.split('|');
 
         let name_value_str = components.next()?;
-        dbg!(&name_value_str);
         let ty = components.next().and_then(|s| s.parse().ok())?;
-        dbg!(1);
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
-        dbg!(2);
         let (ns, name) = name_and_namespace.split_once('/')?;
-        dbg!(3);
 
         let normalized_format = MetricResourceIdentifier::format_from_params(ns, name, unit, ty);
         let mri = MetricResourceIdentifier::str_from(&normalized_format).ok()?;
-        dbg!(4);
 
         let mut metric = Self::new_mri(mri, value, timestamp, BTreeMap::new());
 
@@ -813,8 +742,8 @@ impl Metric {
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = dbg!(std::str::from_utf8(slice).or(Err(ParseMetricError(())))?);
-        dbg!(Self::parse_str(string, timestamp).ok_or(ParseMetricError(())))
+        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
+        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
     }
 
     /// Parses a set of metric values from the raw protocol.
