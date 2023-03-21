@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::outcome::DiscardReason;
+use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_buffer::{
@@ -378,6 +378,38 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
+/// Holds the addresses of all services required for [`ProjectCache`].
+#[derive(Debug, Clone)]
+pub struct Services {
+    pub aggregator: Addr<Aggregator>,
+    pub envelope_processor: Addr<EnvelopeProcessor>,
+    pub envelope_manager: Addr<EnvelopeManager>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    pub project_cache: Addr<ProjectCache>,
+    pub upstream_relay: Addr<UpstreamRelay>,
+}
+
+impl Services {
+    /// Creates new [`Services`] context.
+    pub fn new(
+        aggregator: Addr<Aggregator>,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        envelope_manager: Addr<EnvelopeManager>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        project_cache: Addr<ProjectCache>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
+        Self {
+            aggregator,
+            envelope_processor,
+            envelope_manager,
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
+        }
+    }
+}
+
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -385,10 +417,7 @@ struct UpdateProjectState {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    aggregator: Addr<Aggregator>,
-    envelope_processor: Addr<EnvelopeProcessor>,
-    envelope_manager: Addr<EnvelopeManager>,
-    project_cache: Addr<ProjectCache>,
+    services: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -509,7 +538,7 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
 
-        let project_cache = self.project_cache.clone();
+        let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(project_key).update_state(
             project_cache,
             state.clone(),
@@ -556,7 +585,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get(&mut self, message: GetProjectState, sender: ProjectSender) {
-        let project_cache = self.project_cache.clone();
+        let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(message.project_key).get_state(
             project_cache,
             sender,
@@ -565,7 +594,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
-        let project_cache = self.project_cache.clone();
+        let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(message.project_key)
             .get_cached_state(project_cache, false)
     }
@@ -575,14 +604,15 @@ impl ProjectCacheBroker {
         message: CheckEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope: context } = message;
-        let project_cache = self.project_cache.clone();
+        let project_cache = self.services.project_cache.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
         let project = self.get_or_create_project(context.envelope().meta().public_key());
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(project_cache, false);
-        project.check_envelope(context)
+        project.check_envelope(context, outcome_aggregator)
     }
 
     /// Handles the processing of the provided envelope.
@@ -617,7 +647,7 @@ impl ProjectCacheBroker {
         if let Ok(CheckedEnvelope {
             envelope: Some(managed_envelope),
             ..
-        }) = project.check_envelope(managed_envelope)
+        }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
@@ -635,7 +665,7 @@ impl ProjectCacheBroker {
                 }
             }
 
-            self.envelope_processor.send(process);
+            self.services.envelope_processor.send(process);
         }
     }
 
@@ -654,7 +684,7 @@ impl ProjectCacheBroker {
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
         let ValidateEnvelope { envelope: context } = message;
-        let project_cache = self.project_cache.clone();
+        let project_cache = self.services.project_cache.clone();
         let envelope = context.envelope();
 
         // Fetch the project state for our key and make sure it's not invalid.
@@ -688,36 +718,25 @@ impl ProjectCacheBroker {
     }
 
     fn handle_insert_metrics(&mut self, message: InsertMetrics) {
-        let aggregator = self.aggregator.clone();
+        let aggregator = self.services.aggregator.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         self.get_or_create_project(message.project_key())
-            .insert_metrics(aggregator, message.metrics());
+            .insert_metrics(aggregator, outcome_aggregator, message.metrics());
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
-        let aggregator = self.aggregator.clone();
+        let aggregator = self.services.aggregator.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         self.get_or_create_project(message.project_key())
-            .merge_buckets(aggregator, message.buckets());
+            .merge_buckets(aggregator, outcome_aggregator, message.buckets());
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let aggregator = self.aggregator.clone();
-        let envelope_manager = self.envelope_manager.clone();
-        #[cfg(feature = "processing")]
-        let envelope_processor = self.envelope_processor.clone();
-        let project_cache = self.project_cache.clone();
-
+        let context = self.services.clone();
         self.get_or_create_project(message.project_key)
-            .flush_buckets(
-                message.partition_key,
-                message.buckets,
-                aggregator,
-                project_cache,
-                envelope_manager,
-                #[cfg(feature = "processing")]
-                envelope_processor,
-            );
+            .flush_buckets(context, message.partition_key, message.buckets);
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -743,30 +762,17 @@ impl ProjectCacheBroker {
 #[derive(Debug)]
 pub struct ProjectCacheService {
     config: Arc<Config>,
-    envelope_processor: Addr<EnvelopeProcessor>,
-    envelope_manager: Addr<EnvelopeManager>,
-    upstream_relay: Addr<UpstreamRelay>,
+    services: Services,
     redis: Option<RedisPool>,
-    aggregator: Addr<Aggregator>,
 }
 
 impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
-    pub fn new(
-        config: Arc<Config>,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        envelope_manager: Addr<EnvelopeManager>,
-        upstream_relay: Addr<UpstreamRelay>,
-        redis: Option<RedisPool>,
-        aggregator: Addr<Aggregator>,
-    ) -> Self {
+    pub fn new(config: Arc<Config>, services: Services, redis: Option<RedisPool>) -> Self {
         Self {
             config,
-            envelope_processor,
-            envelope_manager,
-            upstream_relay,
+            services,
             redis,
-            aggregator,
         }
     }
 }
@@ -777,11 +783,8 @@ impl Service for ProjectCacheService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             config,
+            services,
             redis,
-            envelope_processor,
-            envelope_manager,
-            upstream_relay,
-            aggregator,
         } = self;
 
         tokio::spawn(async move {
@@ -798,13 +801,10 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
-                aggregator,
-                envelope_processor,
-                envelope_manager,
-                project_cache: rx.addr(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
-                source: ProjectSource::start(config, upstream_relay, redis),
+                source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
+                services,
                 state_tx,
                 buffer_tx,
                 index: Default::default(),
@@ -816,7 +816,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = state_rx.recv() => broker.merge_state(message),
-                    Some(context) = buffer_rx.recv() => broker.handle_processing(context),
+                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,

@@ -6,6 +6,7 @@ use relay_quotas::{
     DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use relay_system::Addr;
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
@@ -327,9 +328,14 @@ impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+    pub fn track_outcomes(
+        self,
+        envelope: &Envelope,
+        scoping: &Scoping,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         for outcome in self.get_outcomes(envelope, scoping) {
-            TrackOutcome::from_registry().send(outcome);
+            outcome_aggregator.send(outcome);
         }
     }
 }
