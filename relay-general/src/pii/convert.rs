@@ -470,7 +470,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             })
             .into(),
         );
-        dbg!(&data);
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
