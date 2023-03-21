@@ -801,7 +801,7 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
-        context: Services,
+        services: Services,
         partition_key: Option<u64>,
         buckets: Vec<Bucket>,
     ) {
@@ -813,7 +813,7 @@ impl Project {
             outcome_aggregator,
             project_cache,
             ..
-        } = context;
+        } = services;
         let config = self.config.clone();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the

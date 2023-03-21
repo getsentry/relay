@@ -160,7 +160,7 @@ impl ServiceState {
         .start_in(&aggregator_runtime);
 
         // Keep all the services in one context.
-        let project_cache_context = Services::new(
+        let project_cache_services = Services::new(
             aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
@@ -169,7 +169,7 @@ impl ServiceState {
             upstream_relay.clone(),
         );
         let guard = project_runtime.enter();
-        ProjectCacheService::new(config.clone(), project_cache_context, redis_pool)
+        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
             .spawn_handler(project_cache_rx);
         drop(guard);
 
