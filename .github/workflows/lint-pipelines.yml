@@ -3,7 +3,7 @@ name: Lint Deployment Pipelines
 on:
     pull_request:
     push:
-        branches: [main, test-me-*]
+        branches: [master, test/pipeline-*]
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -14,7 +14,7 @@ jobs:
         name: Lint GoCD Pipelines
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c  # v3
+            - uses: actions/checkout@v3
             - uses: getsentry/action-setup-gocd-cli@8391790b37dcf61bdf52d13fa1bf044c9bee9ac9  # v1.0.0
             - name: Lint Pipelines with gocd-cli
               run: ./.github/workflows/lint-pipelines.sh
