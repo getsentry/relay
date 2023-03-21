@@ -394,9 +394,17 @@ impl<'a> MetricResourceIdentifier<'a> {
         match self {
             Self::Transaction(t) => match t {
                 TransactionsKind::Custom { ty, .. } => *ty,
-                _ => todo!(),
+                TransactionsKind::Breakdowns(_) => MetricType::Distribution,
+                TransactionsKind::CountPerRootProject => MetricType::Counter,
+                TransactionsKind::Duration(_) => MetricType::Distribution,
+                TransactionsKind::Measurements { .. } => MetricType::Distribution,
+                TransactionsKind::User => MetricType::Set,
             },
-            Self::Session(_) => todo!(),
+            Self::Session(s) => match s {
+                SessionsKind::Session => MetricType::Counter,
+                SessionsKind::Error => MetricType::Set,
+                SessionsKind::User => MetricType::Set,
+            },
         }
     }
 
