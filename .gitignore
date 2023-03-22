@@ -17,6 +17,3 @@ target
 # NPM utilities for building docs
 /node_modules/
 package-lock.json
-
-# Default sqlite db files
-envelope-buffer.*

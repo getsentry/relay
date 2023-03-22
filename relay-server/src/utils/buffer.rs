@@ -81,27 +81,28 @@ impl BufferGuard {
 /// This function internally creates a Tokio runtime, and executes all the configuration steps
 /// within its context. After the setup is done, used runtime will be dropped.
 pub fn setup_persistent_buffer(config: &Config) -> Result<(), project_buffer::BufferError> {
-    if !config.cache_persistent_buffer_enabled() {
-        return Ok(());
+    if let Some(buffer_config) = config.cache_persistent_buffer() {
+        relay_log::info!("Configuring the persistent envelope buffer");
+
+        let options = SqliteConnectOptions::new()
+            .filename(PathBuf::from("sqlite://").join(buffer_config.buffer_path()))
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(true);
+
+        // All DB operations are async and must be run in the context of the tokio runtime.
+        // Also, the DB must be created and migrations run before all the services start, and if there
+        // are any errors we must bail out ASAP.
+        let setup_rt = create_runtime("buffer-setup", 1);
+        setup_rt
+            .block_on(async move {
+                let pool = SqlitePool::connect_with(options).await?;
+                let migrator = Migrator::new(Path::new("./migrations")).await?;
+                migrator
+                    .run(&pool)
+                    .await
+                    .map_err(project_buffer::BufferError::from)
+            })
+            .ok();
     }
-
-    relay_log::info!("Configuring the persistent envelope buffer");
-
-    let options = SqliteConnectOptions::new()
-        .filename(PathBuf::from("sqlite://").join(config.cache_persistent_buffer_path()))
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
-
-    // All the DB using async and must be run in the context of the tokio runtime.
-    // Also, the DB must be created and migrations run before all the servises start, and if there
-    // are any errors we must bail out ASAP.
-    let setup_rt = create_runtime("setup", 1);
-    setup_rt.block_on(async move {
-        let pool = SqlitePool::connect_with(options).await?;
-        let migrator = Migrator::new(Path::new("./migrations")).await?;
-        migrator
-            .run(&pool)
-            .await
-            .map_err(project_buffer::BufferError::from)
-    })
+    Ok(())
 }

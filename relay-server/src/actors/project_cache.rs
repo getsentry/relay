@@ -797,8 +797,8 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer = if config.cache_persistent_buffer_enabled() {
-                match SqliteBufferService::from_path(config.cache_persistent_buffer_path()).await {
+            let buffer = if let Some(buffer_config) = config.cache_persistent_buffer() {
+                match SqliteBufferService::from_path(buffer_config).await {
                     Ok(buf) => buf.start(),
 
                     // TODO: how to propagate this error to the entire rely and stop it?

@@ -736,19 +736,42 @@ impl Default for Http {
     }
 }
 
-fn default_persistent_buffer_path() -> PathBuf {
-    PathBuf::from("envelope-buffer.db")
+/// Maximum number of connections, which will be maintained by the pool.
+fn buffer_max_connections() -> u32 {
+    30
+}
+
+/// Minimal number of connections, which will be maintained by the pool.
+fn buffer_min_connections() -> u32 {
+    10
 }
 
 /// Controls internal caching behavior.
 #[derive(Serialize, Deserialize, Debug)]
-struct PersistentBuffer {
-    /// True if the Relay should persist the incoming envelopes to the disk in case they cannot be
-    /// processed right away.
-    enabled: bool,
+pub struct PersistentBuffer {
     /// The path to the persistent buffer file.
-    #[serde(default = "default_persistent_buffer_path")]
     path: PathBuf,
+    #[serde(default = "buffer_max_connections")]
+    max_connections: u32,
+    #[serde(default = "buffer_min_connections")]
+    min_connections: u32,
+}
+
+impl PersistentBuffer {
+    /// Return the path to the persistent buffer.
+    pub fn buffer_path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    /// Maximum number of connections, which will be maintained by the pool.
+    pub fn max_connections(&self) -> u32 {
+        self.max_connections
+    }
+
+    /// Minimal number of connections, which will be maintained by the pool.
+    pub fn min_connections(&self) -> u32 {
+        self.min_connections
+    }
 }
 
 /// Controls internal caching behavior.
@@ -1699,20 +1722,14 @@ impl Config {
 
     /// Returns `true` if the persistent envelope buffer is enabled, `false` otherwise.
     pub fn cache_persistent_buffer_enabled(&self) -> bool {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .map_or(false, |b| b.enabled)
+        self.values.cache.persistent_envelope_buffer.is_some()
     }
 
     /// Returns the path to the persistent envelope buffer file.
-    pub fn cache_persistent_buffer_path(&self) -> PathBuf {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .map_or(default_persistent_buffer_path(), |b| b.path.clone())
+    ///
+    /// If the path is not provided the default one will be used and assumed to be available.
+    pub fn cache_persistent_buffer(&self) -> Option<&PersistentBuffer> {
+        self.values.cache.persistent_envelope_buffer.as_ref()
     }
 
     /// Returns the maximum size of an event payload in bytes.

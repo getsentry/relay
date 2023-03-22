@@ -8,6 +8,8 @@ import time
 from requests.exceptions import HTTPError
 import queue
 from collections import namedtuple
+import tempfile
+import os
 
 from sentry_relay import PublicKey, SecretKey, generate_key_pair
 
@@ -239,23 +241,25 @@ def get_response(relay, packed, signature):
 
 
 @pytest.mark.parametrize(
-    "cache_enabled",
+    "buffer_config",
     [False, True],
 )
-def test_unparsable_project_config(cache_enabled, mini_sentry, relay):
+def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     project_key = 42
     relay_config = {
         "cache": {
             "project_expiry": 2,
             "project_grace_period": 20,
             "miss_expiry": 2,
-            "persistent_envelope_buffer": {
-                "enabled": cache_enabled,
-                "path": "/tmp/test-buffer.db",
-            },
         },
         "http": {"max_retry_interval": 1},
     }
+
+    if buffer_config:
+        temp = tempfile.mkdtemp()
+        dbfile = os.path.join(temp, "buffer.db")
+        relay_config["cache"]["persistent_envelope_buffer"] = {"path": dbfile}
+
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
     public_key = mini_sentry.get_dsn_public_key(project_key)

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use futures::TryStreamExt;
 use relay_common::ProjectKey;
+use relay_config::PersistentBuffer;
 use relay_log::LogError;
 use relay_system::{FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
@@ -229,14 +230,18 @@ pub struct SqliteBufferService {
 }
 
 impl SqliteBufferService {
-    /// Creates a new [`SqliteBufferService`] from the provide path to the sqlite database file.
-    pub async fn from_path(path: PathBuf) -> Result<Self, BufferError> {
+    /// Creates a new [`SqliteBufferService`] from the provided path to the SQLite database file.
+    pub async fn from_path(buffer_config: &PersistentBuffer) -> Result<Self, BufferError> {
         let options = SqliteConnectOptions::new()
-            .filename(PathBuf::from("sqlite://").join(path))
+            .filename(PathBuf::from("sqlite://").join(buffer_config.buffer_path()))
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
-        let db = SqlitePoolOptions::new().connect_with(options).await?;
+        let db = SqlitePoolOptions::new()
+            .max_connections(buffer_config.max_connections())
+            .min_connections(buffer_config.min_connections())
+            .connect_with(options)
+            .await?;
         Ok(Self { db })
     }
 
@@ -289,8 +294,8 @@ impl SqliteBufferService {
 
     /// Handles the remove request.
     ///
-    /// This remove all the envelopes from the internal buffer for the provided keys.
-    /// If any of the provided keys are still have the envelopes, the error will be logged with the
+    /// This removes all the envelopes from the internal buffer for the provided keys.
+    /// If any of the provided keys still have the envelopes, the error will be logged with the
     /// number of envelopes dropped for the specific project key.
     async fn handle_remove(&self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
