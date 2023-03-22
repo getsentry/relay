@@ -234,6 +234,17 @@ impl<'a> TransactionsKind<'a> {
             _ => Ok(Self::Custom { name, ty, unit }),
         }
     }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Duration(_) => format!("duration"),
+            Self::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
+            Self::User => format!("user"),
+            Self::CountPerRootProject => format!("count_per_root_project"),
+            Self::Measurements { kind, .. } => format!("{kind}"),
+            Self::Custom { name, .. } => format!("{name}"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -261,19 +272,6 @@ impl<'a> Display for Measurementkind<'a> {
             Self::StallTotalTime => write!(f, "measurements.stall_total_time"),
             Self::Lcp => write!(f, "measurements.lcp"),
             Self::Other(s) => write!(f, "measurements.{}", s),
-        }
-    }
-}
-
-impl<'a> Display for TransactionsKind<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Duration(_) => write!(f, "duration"),
-            Self::Breakdowns(breakdown) => write!(f, "breakdowns.{breakdown}"),
-            Self::User => write!(f, "user"),
-            Self::CountPerRootProject => write!(f, "count_per_root_project"),
-            Self::Measurements { kind, .. } => write!(f, "{kind}"),
-            Self::Custom { name, .. } => write!(f, "{name}"),
         }
     }
 }
@@ -315,8 +313,8 @@ impl<'a> MetricResourceIdentifier<'a> {
 
     pub fn name(&self) -> String {
         match self {
-            Self::Transaction(t) => format!("{t}"),
-            Self::Session(s) => format!("{s}"),
+            Self::Transaction(t) => t.name(),
+            Self::Session(s) => s.to_string(),
         }
     }
 
@@ -365,7 +363,14 @@ impl<'a> MetricResourceIdentifier<'a> {
         }
     }
 
-    fn format_from_params(ns: &str, name: &str, unit: MetricUnit, ty: MetricType) -> String {
+    pub fn namespace(&self) -> &str {
+        match self {
+            Self::Session(_) => "sessions",
+            Self::Transaction(_) => "transactions",
+        }
+    }
+
+    pub fn format_from_params(ns: &str, name: &str, unit: MetricUnit, ty: MetricType) -> String {
         format!("{ty}:{ns}/{name}@{unit}")
     }
 }
@@ -373,14 +378,7 @@ impl<'a> MetricResourceIdentifier<'a> {
 /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
 impl<'a> ToString for MetricResourceIdentifier<'a> {
     fn to_string(&self) -> String {
-        let ty = self.ty().to_string();
-        let unit = self.unit().to_string();
-
-        let (ns, name) = match self {
-            Self::Transaction(t) => ("transactions".to_string(), t.to_string()),
-            Self::Session(s) => ("sessions".to_string(), s.to_string()),
-        };
-        format!("{ty}:{ns}/{name}@{unit}")
+        Self::format_from_params(self.namespace(), &self.name(), self.unit(), self.ty())
     }
 }
 
