@@ -2,6 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
+use std::str::FromStr;
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -1576,7 +1577,7 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match MetricResourceIdentifier::from_str(&key.metric_name) {
+        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
             Ok(mri) => {
                 let mut metric_name = mri.to_string();
                 // do this so cost tracking still works accurately.

@@ -1719,7 +1719,6 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut event = Annotated::from_json(json).unwrap();
-
         // Normalize first, to make sure that the metrics were computed:
         let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
 

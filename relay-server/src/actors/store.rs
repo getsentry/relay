@@ -528,7 +528,7 @@ impl StoreService {
         organization_id: u64,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::from_str(&message.name);
+        let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri {
             Ok(MetricResourceIdentifier::Transaction(_)) => KafkaTopic::MetricsTransactions,
             Ok(MetricResourceIdentifier::Session(_)) => KafkaTopic::MetricsSessions,
