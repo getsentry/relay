@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use futures::TryStreamExt;
 use relay_common::ProjectKey;
@@ -9,14 +10,24 @@ use relay_system::{FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Row, Sqlite};
+use tokio::fs;
 use tokio::sync::mpsc;
 
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::utils::ManagedEnvelope;
+use crate::utils::{BufferGuard, ManagedEnvelope};
 
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
+    #[error("failed to store the envelope in the buffer")]
+    Full,
+
+    #[error("failed to issue a permit, too many envelopes in-flight processing")]
+    Overloaded,
+
+    #[error("failed to get the size of the buffer file")]
+    DatabaseSizeError(#[from] std::io::Error),
+
     /// Describes the errors linked with the `Sqlite` backed buffer.
     #[error("failed to fetch data from the database")]
     DatabaseError(#[from] sqlx::Error),
@@ -226,14 +237,21 @@ impl Drop for MemoryBufferService {
 /// [`Buffer`] interface implementation backed by SQLite.
 #[derive(Debug)]
 pub struct SqliteBufferService {
+    buffer: Arc<BufferGuard>,
     db: Pool<Sqlite>,
+    path: PathBuf,
+    db_size_limit: u64,
 }
 
 impl SqliteBufferService {
     /// Creates a new [`SqliteBufferService`] from the provided path to the SQLite database file.
-    pub async fn from_path(config: &PersistentBuffer) -> Result<Self, BufferError> {
+    pub async fn from_path(
+        buffer: Arc<BufferGuard>,
+        config: &PersistentBuffer,
+    ) -> Result<Self, BufferError> {
+        let path = config.buffer_path().to_owned();
         let options = SqliteConnectOptions::new()
-            .filename(PathBuf::from("sqlite://").join(config.buffer_path()))
+            .filename(PathBuf::from("sqlite://").join(&path))
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
@@ -242,11 +260,26 @@ impl SqliteBufferService {
             .min_connections(config.min_connections())
             .connect_with(options)
             .await?;
-        Ok(Self { db })
+        Ok(Self {
+            buffer,
+            db,
+            path,
+            db_size_limit: config.max_buffer_size(),
+        })
+    }
+
+    /// Returns the size of the buffer.
+    async fn buffer_size(&self) -> Result<u64, BufferError> {
+        Ok(fs::metadata(&self.path).await?.len())
     }
 
     /// Handles the enqueueing messages into the internal buffer.
     async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
+        // Reject all the enqueue requests if we exceed the max size of the buffer.
+        if self.buffer_size().await? >= self.db_size_limit {
+            return Err(BufferError::Full);
+        }
+
         let Enqueue {
             key,
             value: managed_envelope,
@@ -268,22 +301,25 @@ impl SqliteBufferService {
     async fn handle_dequeue(&self, message: DequeueMany) -> Result<(), BufferError> {
         let DequeueMany { keys, sender } = message;
 
+        // TODO: we also want to limit the number of fetched envelopes from the DB.
+        // DO NOT fetch all the envelopes at once.
         for key in keys {
             let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE own_key = ? AND sampling_key = ? RETURNING envelope",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
+            .bind(self.buffer.available() as i64)
             .fetch(&self.db);
 
             while let Some(row) = envelopes.try_next().await? {
                 let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
                 let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
                 let envelope = Envelope::parse_bytes(envelope_bytes)?;
-
-                // TODO: do not use the "standalone"  here , rather make sure to hande over the
-                // permit. We have to plug into the system.
-                let managed_envelope = ManagedEnvelope::standalone(envelope);
+                let managed_envelope = self
+                    .buffer
+                    .enter(envelope)
+                    .map_err(|_| BufferError::Overloaded)?;
                 sender.send(managed_envelope).ok();
             }
         }

@@ -755,7 +755,7 @@ pub struct PersistentBuffer {
     /// Minimal number of connections, which will be maintained by the pool.
     #[serde(default = "buffer_min_connections")]
     min_connections: u32,
-    /// The maximum size of the buffer to keep, in GB.
+    /// The maximum size of the buffer to keep, in bytes.
     max_size: Option<u64>,
 }
 
@@ -775,9 +775,11 @@ impl PersistentBuffer {
         self.min_connections
     }
 
-    /// The maximum size of the buffer, in GB.
+    /// The maximum size of the buffer, in bytes.
+    ///
+    /// Default: 10737418240 bytes or 10 GB.
     pub fn max_buffer_size(&self) -> u64 {
-        self.max_size.unwrap_or(10)
+        self.max_size.unwrap_or(10 * 1024 * 1024 * 1024)
     }
 }
 

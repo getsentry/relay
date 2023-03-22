@@ -27,7 +27,7 @@ use crate::actors::upstream::UpstreamRelay;
 
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, GarbageDisposal, ManagedEnvelope};
+use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -382,6 +382,7 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
+    buffer: Arc<BufferGuard>,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
@@ -393,6 +394,7 @@ pub struct Services {
 impl Services {
     /// Creates new [`Services`] context.
     pub fn new(
+        buffer: Arc<BufferGuard>,
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
         envelope_manager: Addr<EnvelopeManager>,
@@ -401,6 +403,7 @@ impl Services {
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         Self {
+            buffer,
             aggregator,
             envelope_processor,
             envelope_manager,
@@ -787,6 +790,7 @@ impl Service for ProjectCacheService {
             services,
             redis,
         } = self;
+        let buffer = services.buffer.clone();
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -798,7 +802,7 @@ impl Service for ProjectCacheService {
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
             let buffer = if let Some(buffer_config) = config.cache_persistent_buffer() {
-                match SqliteBufferService::from_path(buffer_config).await {
+                match SqliteBufferService::from_path(buffer, buffer_config).await {
                     Ok(buf) => buf.start(),
 
                     // TODO: how to propagate this error to the entire rely and stop it?

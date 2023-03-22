@@ -99,9 +99,11 @@ impl ManagedEnvelope {
         }
     }
 
-    /// Creates a standalone `EnvelopeContext`.
+    /// Creates a standalone `EnvelopeContext` for testing purposes.
     ///
-    /// As opposed to [`new`](Self::new), this does not require a queue permit.
+    /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
+    /// suitable for unit testing internals of the processing pipeline.
+    #[cfg(test)]
     pub fn standalone(envelope: Box<Envelope>) -> Self {
         Self::new_internal(envelope, None)
     }
