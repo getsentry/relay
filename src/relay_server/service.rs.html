@@ -224,6 +224,7 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -283,16 +284,6 @@
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
 
-<span class="kw">impl </span>Registry {
-    <span class="doccomment">/// Get the [`AggregatorService`] address from the registry.
-    ///
-    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
-    /// runtime and follow up refactoring of the dependencies.
-    </span><span class="kw">pub fn </span>aggregator() -&gt; Addr&lt;Aggregator&gt; {
-        REGISTRY.get().unwrap().aggregator.clone()
-    }
-}
-
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Registry {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         f.debug_struct(<span class="string">&quot;Registry&quot;</span>)
@@ -337,6 +328,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start_in(<span class="kw-2">&amp;</span>upstream_runtime);
+        <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
         <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
             <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
@@ -346,20 +338,10 @@
         };
 
         <span class="kw">let </span>buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager = EnvelopeManagerService::new(config.clone());
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if </span>config.processing_enabled() {
-            <span class="kw">let </span>rt = create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
-            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>rt);
-            envelope_manager.set_store_forwarder(store);
-            _store_runtime = <span class="prelude-val">Some</span>(rt);
-        }
-
-        <span class="kw">let </span>envelope_manager = envelope_manager.start();
-        <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
-
+        <span class="comment">// Create an address for the `EnvelopeManagerService`, which can be injected into the
+        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
+        </span><span class="kw">let </span>(envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
         <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
@@ -379,11 +361,31 @@
             upstream_relay.clone(),
         )<span class="question-mark">?
         </span>.start();
+
         <span class="kw">let </span>aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
         .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
+
+        <span class="attr">#[allow(unused_mut)]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager_service = EnvelopeManagerService::new(
+            config.clone(),
+            aggregator.clone(),
+            processor.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
+
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if </span>config.processing_enabled() {
+            <span class="kw">let </span>rt = create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
+            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>rt);
+            envelope_manager_service.set_store_forwarder(store);
+            _store_runtime = <span class="prelude-val">Some</span>(rt);
+        }
+
+        envelope_manager_service.spawn_handler(envelope_manager_rx);
 
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = Services::new(
