@@ -1200,44 +1200,30 @@ def test_rate_limit_external_relay(
         }
     ]
 
-    # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
-    # drops the event internally if it does not have permissions.
-    external_relay.send_event(42)
+    for i in range(3):
+        if i < 2:
+            # First time respond with 200
+            external_relay.send_event(42)
+        else:
+            # After a while, the server will respond with 429 because the rate limit has been
+            # propagated:
+            with pytest.raises(HTTPError) as e:
+                external_relay.send_event(42)
+            assert "429" in str(e)
 
-    # No event received:
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
+        # No event received:
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_events.get(timeout=1)
 
-    outcomes = outcomes_consumer.get_outcomes()
-    (outcome,) = outcomes
-    outcome.pop("timestamp")
-    assert outcome == {
-        "category": 1,
-        "key_id": 123,
-        "org_id": 1,
-        "outcome": 2,
-        "project_id": 42,
-        "quantity": 1,
-        "reason": "get_lost",
-    }
-
-    # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
-    # drops the event internally if it does not have permissions.
-    external_relay.send_event(42)
-
-    # No event received:
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
-
-    outcomes = outcomes_consumer.get_outcomes()
-    (outcome,) = outcomes
-    outcome.pop("timestamp")
-    assert outcome == {
-        "category": 1,
-        "key_id": 123,
-        "org_id": 1,
-        "outcome": 2,
-        "project_id": 42,
-        "quantity": 1,
-        "reason": "get_lost",
-    }
+        outcomes = outcomes_consumer.get_outcomes()
+        (outcome,) = outcomes
+        outcome.pop("timestamp")
+        assert outcome == {
+            "category": 1,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "get_lost",
+        }
