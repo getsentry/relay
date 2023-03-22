@@ -402,8 +402,8 @@ mod tests {
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
-        Addr, DataElement, DebugImage, DebugMeta, Event, ExtraValue, Headers, HttpElement,
-        LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
+        Addr, Breadcrumb, DataElement, DebugImage, DebugMeta, Event, ExtraValue, Headers,
+        HttpElement, LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, FromValue, Object, Value};
@@ -1151,5 +1151,113 @@ mod tests {
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(span);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_not_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "dance=true"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_strings_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "ccnumber=5105105105105100&process_id=123",
+                        "fragment": "ccnumber=5105105105105100,process_id=123"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_objects_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        },
+                        "fragment": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_untyped_props_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "untyped": "ccnumber=5105105105105100",
+                    "more_untyped": {
+                        "typed": "no",
+                        "scrubbed": "yes",
+                        "ccnumber": "5105105105105100"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
     }
 }
