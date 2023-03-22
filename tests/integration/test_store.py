@@ -1168,3 +1168,43 @@ def test_invalid_project_id(mini_sentry, relay):
 
     relay.send_event(99, headers=headers)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+
+def test_rate_limit_external_relay(mini_sentry, relay):
+    # Use 3 Relays to force the middle one to fetch public keys
+    relay = relay(
+        relay(relay(mini_sentry)), external=True
+    )  # TODO: use relay with processing
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
+    key_id = public_keys[0]["numericId"]
+
+    # manually  add all public keys form the relays to the configuration
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": str(key_id),
+            "categories": ["error"],
+            "limit": 0,
+            "window": 3600,
+            "reasonCode": "get_lost",
+        }
+    ]
+
+    # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
+    # drops the event internally if it does not have permissions.
+    relay.send_event(42)
+
+    # No event received:
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert [
+        json.loads(item.payload.bytes)["rate_limited_events"] for item in event.items
+    ] == [[{"category": "error", "quantity": 1, "reason": "get_lost"}]]
+
+    # outcomes_consumer.assert_rate_limited(
+    #     "get_lost", key_id=key_id, categories=["error"]
+    # )
