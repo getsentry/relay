@@ -33,7 +33,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
-                let mri = match MetricResourceIdentifier::parse(metric.name()) {
+                let mri = match MetricResourceIdentifier::from_str(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
                         relay_log::error!("Invalid MRI: {}", metric.name());

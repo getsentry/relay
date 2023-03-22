@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
+use std::str::FromStr;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -336,19 +337,13 @@ impl<'a> MetricResourceIdentifier<'a> {
         }
     }
 
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn parse(s: &'a str) -> Result<Self, ParseMetricError> {
-        //<ty>    |    <ns>/<name>@<unit>
-        let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-        let ty: MetricType = raw_ty.parse()?;
-
-        // <ns>/<name>    |    <unit>
-        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        // <ns>    |    <name>
-        let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-
-        match raw_namespace {
+    pub fn from_components(
+        ns: &'a str,
+        name: &'a str,
+        unit: MetricUnit,
+        ty: MetricType,
+    ) -> Result<Self, ParseMetricError> {
+        match ns {
             "transactions" => Ok(Self::Transaction(TransactionsKind::parse(name, ty, unit)?)),
             "sessions" => {
                 let kind = match name {
@@ -369,22 +364,40 @@ impl<'a> MetricResourceIdentifier<'a> {
             Self::Transaction(_) => "transactions",
         }
     }
+}
 
-    pub fn format_from_params(ns: &str, name: &str, unit: MetricUnit, ty: MetricType) -> String {
+impl<'a> ToString for MetricResourceIdentifier<'a> {
+    fn to_string(&self) -> String {
+        let ty = self.ty();
+        let ns = self.namespace();
+        let name = &self.name();
+        let unit = self.unit();
+
         format!("{ty}:{ns}/{name}@{unit}")
     }
 }
 
 /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-impl<'a> ToString for MetricResourceIdentifier<'a> {
-    fn to_string(&self) -> String {
-        Self::format_from_params(self.namespace(), &self.name(), self.unit(), self.ty())
+impl<'a> FromStr for MetricResourceIdentifier<'a> {
+    type Err = ParseMetricError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        //<ty>    |    <ns>/<name>@<unit>
+        let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
+        let ty: MetricType = raw_ty.parse()?;
+
+        // <ns>/<name>    |    <unit>
+        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+
+        // <ns>    |    <name>
+        let (ns, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+
+        Self::from_components(ns, name, unit, ty)
     }
 }
 
 impl<'a> From<TransactionsKind<'a>> for MetricResourceIdentifier<'a> {
     fn from(value: TransactionsKind<'a>) -> Self {
-        MetricResourceIdentifier::Transaction(value)
+        Self::Transaction(value)
     }
 }
 
@@ -648,8 +661,7 @@ impl Metric {
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
         let (ns, name) = name_and_namespace.split_once('/')?;
 
-        let normalized_format = MetricResourceIdentifier::format_from_params(ns, name, unit, ty);
-        let mri = MetricResourceIdentifier::parse(&normalized_format).ok()?;
+        let mri = MetricResourceIdentifier::from_components(ns, name, unit, ty).ok()?;
 
         let mut metric = Self::new_mri(mri, value, timestamp, BTreeMap::new());
 
@@ -876,7 +888,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
         assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -885,7 +897,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
         assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
