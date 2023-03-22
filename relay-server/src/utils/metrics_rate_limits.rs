@@ -3,6 +3,7 @@ use chrono::Utc;
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
@@ -96,7 +97,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         self.transaction_count
     }
 
-    fn drop_with_outcome(&mut self, outcome: Outcome) {
+    fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
         // Drop transaction buckets:
         let metrics = std::mem::take(&mut self.metrics);
 
@@ -111,7 +112,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
             let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
-            TrackOutcome::from_registry().send(TrackOutcome {
+            outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: self.scoping,
                 outcome,
@@ -130,7 +131,11 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     // outcome is generated.
     //
     // Returns true if any metrics were dropped.
-    pub fn enforce_limits(&mut self, rate_limits: Result<&RateLimits, ()>) -> bool {
+    pub fn enforce_limits(
+        &mut self,
+        rate_limits: Result<&RateLimits, ()>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> bool {
         let mut dropped_stuff = false;
         match rate_limits {
             Ok(rate_limits) => {
@@ -143,13 +148,19 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
                 // If a rate limit is active, discard transaction buckets.
                 if let Some(limit) = active_rate_limits.longest() {
-                    self.drop_with_outcome(Outcome::RateLimited(limit.reason_code.clone()));
+                    self.drop_with_outcome(
+                        Outcome::RateLimited(limit.reason_code.clone()),
+                        outcome_aggregator,
+                    );
                     dropped_stuff = true;
                 }
             }
             Err(_) => {
                 // Error from rate limiter, drop transaction buckets.
-                self.drop_with_outcome(Outcome::Invalid(DiscardReason::Internal));
+                self.drop_with_outcome(
+                    Outcome::Invalid(DiscardReason::Internal),
+                    outcome_aggregator,
+                );
                 dropped_stuff = true;
             }
         };
