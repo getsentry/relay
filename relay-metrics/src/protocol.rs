@@ -366,14 +366,17 @@ impl<'a> MetricResourceIdentifier<'a> {
     }
 }
 
-impl<'a> ToString for MetricResourceIdentifier<'a> {
-    fn to_string(&self) -> String {
-        let ty = self.ty();
-        let ns = self.namespace();
-        let name = &self.name();
-        let unit = self.unit();
-
-        format!("{ty}:{ns}/{name}@{unit}")
+impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // `<ty>:<ns>/<name>@<unit>`
+        write!(
+            f,
+            "{}:{}/{}@{}",
+            self.ty(),
+            self.namespace(),
+            self.name(),
+            self.unit()
+        )
     }
 }
 
