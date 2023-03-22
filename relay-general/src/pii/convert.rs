@@ -25,6 +25,37 @@ static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
+static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
+    [
+        // Common session cookie names for popular web frameworks
+        "*.cookies.sentrysid", // Sentry default session cookie name
+        "*.cookies.sudo",      // Sentry default sudo cookie name
+        "*.cookies.su",        // Sentry superuser cookie name
+        "*.cookies.session",
+        "*.cookies.sessionid",
+        "*.cookies.user_session",
+        "*.cookies.symfony",
+        "*.cookies.phpsessid",
+        "*.cookies.fasthttpsessionid",
+        "*.cookies.mysession",
+        "*.cookies.irissessionid",
+        // Common CSRF/XSRF cookie names for popular web frameworks
+        "*.cookies.csrf",
+        "*.cookies.xsrf",
+        "*.cookies._xsrf",
+        "*.cookies._csrf",
+        "*.cookies.csrf-token",
+        "*.cookies.csrf_token",
+        "*.cookies.xsrf-token",
+        "*.cookies.xsrf_token",
+        "*.cookies.fastcsrf",
+        "*.cookies._iris_csrf",
+    ]
+    .join("|")
+    .parse()
+    .unwrap()
+});
+
 pub fn to_pii_config(
     datascrubbing_config: &DataScrubbingConfig,
 ) -> Result<Option<PiiConfig>, PiiConfigError> {
@@ -34,6 +65,10 @@ pub fn to_pii_config(
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
         applied_rules.push("@common:filter".to_owned());
+        applications.insert(
+            SENSITIVE_COOKIES.clone(),
+            vec!["@anything:filter".to_owned()],
+        );
     }
 
     if datascrubbing_config.scrub_ip_addresses {
@@ -186,6 +221,35 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         })
     }
 
+    fn sensitive_cookies() -> serde_json::Value {
+        serde_json::json!({
+        // Common session cookie names for popular web frameworks
+        "sentrysid": "my sentrysid", // Sentry default session cookie name
+        "sudo": "my sudo",   // Sentry default sudo cookie name
+        "su": "my su",    // Sentry superuser cookie name
+        "session": "my session",
+        "sessionid": "my sessionid",
+        "user_session": "my user_session",
+        "symfony": "my symfony",
+        "phpsessid": "my phpsessid",
+        "fasthttpsessionid": "my fasthttpsessionid",
+        "mysession": "my mysession",
+        "irissessionid": "my irissessionid",
+        // Common CSRF/XSRF cookie names for popular web frameworks
+        "csrf": "my csrf",
+        "xsrf": "my xsrf",
+        "_xsrf": "my _xsrf",
+        "_csrf": "my _csrf",
+        "csrf-token": "my csrf-token",
+        "csrf_token": "my csrf_token",
+        "xsrf-token": "my  xsrf-token",
+        "xsrf_token": "my  xsrf_token",
+        "fastcsrf": "my fastcsrf",
+        "_iris_csrf": "my _iris_csrf",
+        "not_sensitive": "keep this",
+        })
+    }
+
     fn simple_enabled_pii_config() -> PiiConfig {
         to_pii_config(&simple_enabled_config()).unwrap()
     }
@@ -215,6 +279,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
@@ -237,6 +304,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
@@ -270,6 +340,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
@@ -322,6 +395,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
@@ -381,11 +457,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "env": sensitive_vars(),
                     "headers": sensitive_vars(),
                     "cookies": sensitive_vars()
-                }
+                },
             })
             .into(),
         );
 
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_sensitive_cookies() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "cookies": sensitive_cookies()
+                },
+                "contexts": {
+                    "response": {
+                        "cookies": sensitive_cookies(),
+                    }
+                }
+            })
+            .into(),
+        );
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1234,6 +1331,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
+            ],
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }

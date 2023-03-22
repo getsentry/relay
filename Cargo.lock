@@ -3347,7 +3347,7 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "relay"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "anyhow",
  "clap 4.1.4",
@@ -3364,7 +3364,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3380,7 +3380,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3411,7 +3411,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "chrono",
  "globset",
@@ -3429,7 +3429,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3449,7 +3449,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3457,7 +3457,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -3475,7 +3475,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3483,7 +3483,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "quote 1.0.23",
  "syn 1.0.107",
@@ -3491,7 +3491,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "globset",
  "insta",
@@ -3507,7 +3507,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "proc-macro2 1.0.51",
  "quote 1.0.23",
@@ -3556,7 +3556,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "rdkafka",
  "rdkafka-sys",
@@ -3571,7 +3571,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "chrono",
  "console",
@@ -3586,7 +3586,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "criterion",
  "float-ord",
@@ -3606,7 +3606,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "once_cell",
  "regex",
@@ -3619,7 +3619,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3633,7 +3633,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "insta",
  "relay-common",
@@ -3647,7 +3647,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "r2d2",
  "redis",
@@ -3658,7 +3658,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "assert-json-diff",
  "criterion",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "chrono",
  "insta",
@@ -3693,7 +3693,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "actix",
  "actix-web",
@@ -3759,7 +3759,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "cadence",
  "parking_lot 0.12.1",
@@ -3769,7 +3769,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "futures 0.3.26",
  "once_cell",
@@ -3780,7 +3780,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "23.3.0"
+version = "23.3.1"
 dependencies = [
  "relay-log",
  "relay-system",
