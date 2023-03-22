@@ -818,7 +818,7 @@ struct Cache {
     eviction_interval: u32,
     /// The settings to configure persistent buffering.
     ///
-    /// When enabled all the incoming envelope will be persisted to the disk instead of keeping
+    /// When enabled all incoming envelopes will be persisted to the disk instead of keeping
     /// them in memory.
     persistent_envelope_buffer: Option<PersistentBuffer>,
 }

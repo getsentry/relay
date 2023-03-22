@@ -19,13 +19,13 @@ use crate::utils::{BufferGuard, ManagedEnvelope};
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
-    #[error("failed to store the envelope in the buffer")]
-    Full,
+    #[error("failed to store the envelope in the buffer, max size {0} reached")]
+    Full(u64),
 
-    #[error("failed to issue a permit, too many envelopes in-flight processing")]
+    #[error("failed to issue a permit, too many envelopes currently in-flight")]
     Overloaded,
 
-    #[error("failed to get the size of the buffer file")]
+    #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseSizeError(#[from] std::io::Error),
 
     /// Describes the errors linked with the `Sqlite` backed buffer.
@@ -276,8 +276,9 @@ impl SqliteBufferService {
     /// Handles the enqueueing messages into the internal buffer.
     async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
         // Reject all the enqueue requests if we exceed the max size of the buffer.
-        if self.buffer_size().await? >= self.db_size_limit {
-            return Err(BufferError::Full);
+        let current_size = self.buffer_size().await?;
+        if current_size >= self.db_size_limit {
+            return Err(BufferError::Full(current_size));
         }
 
         let Enqueue {
