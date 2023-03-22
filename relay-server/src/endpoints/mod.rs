@@ -23,6 +23,7 @@ use axum::routing::{any, get, post, Router};
 use bytes::Bytes;
 use relay_config::Config;
 
+use crate::middlewares;
 use crate::service::ServiceState;
 
 #[rustfmt::skip]
@@ -60,7 +61,7 @@ where
         .route("/api/:project_id/minidump/", minidump::route(config))
         .route("/api/:project_id/events/:event_id/attachments/", attachments::route(config))
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
-        .route_layer(common::cors());
+        .route_layer(middlewares::cors());
 
     Router::new()
         .merge(internal_routes)
