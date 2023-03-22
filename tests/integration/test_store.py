@@ -1170,11 +1170,13 @@ def test_invalid_project_id(mini_sentry, relay):
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
-def test_rate_limit_external_relay(mini_sentry, relay):
-    # Use 3 Relays to force the middle one to fetch public keys
-    relay = relay(
-        relay(relay(mini_sentry)), external=True
-    )  # TODO: use relay with processing
+def test_rate_limit_external_relay(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
+    outcomes_consumer = outcomes_consumer()
+    relay = relay(relay(relay_with_processing()), external=True)
+
+    # TODO: should configure middle Relay to emit outcomes via HTTP?
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1200,11 +1202,18 @@ def test_rate_limit_external_relay(mini_sentry, relay):
     relay.send_event(42)
 
     # No event received:
-    event = mini_sentry.captured_events.get(timeout=1)
-    assert [
-        json.loads(item.payload.bytes)["rate_limited_events"] for item in event.items
-    ] == [[{"category": "error", "quantity": 1, "reason": "get_lost"}]]
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
 
-    # outcomes_consumer.assert_rate_limited(
-    #     "get_lost", key_id=key_id, categories=["error"]
-    # )
+    outcomes = outcomes_consumer.get_outcomes()
+    (outcome,) = outcomes
+    outcome.pop("timestamp")
+    assert outcome == {
+        "category": 1,
+        "key_id": 123,
+        "org_id": 1,
+        "outcome": 2,
+        "project_id": 42,
+        "quantity": 1,
+        "reason": "get_lost",
+    }
