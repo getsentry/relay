@@ -85,7 +85,7 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
 
         if ch == '*' {
             // Handle double star (**) case properly
-            if i + 1 < pattern.len() && pattern_vec[i + 1] == '*' {
+            if pattern_vec.get(i + 1) == Some('*') {
                 let left_anchored = i == 0;
                 let leading_slash = i > 0 && pattern_vec[i - 1] == '/';
                 let right_anchored = i + 2 == pattern.len();
