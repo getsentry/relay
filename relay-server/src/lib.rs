@@ -301,14 +301,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         anyhow::Ok(service)
     })?;
 
+    // TODO(ja): Temporary workaround for dropping runtimes inside ServiceState. Dropping them
+    // within `main_runtime` causes panics.
+    drop(service);
+
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to
     // complete their tasks. The additional 100ms allow services to run their error handlers.
     main_runtime.shutdown_timeout(Duration::from_millis(100));
-
-    // TODO(ja): Temporary workaround for dropping runtimes inside ServiceState. Dropping them
-    // within `main_runtime` causes panics.
-    drop(service);
 
     relay_log::info!("relay shutdown complete");
     Ok(())
