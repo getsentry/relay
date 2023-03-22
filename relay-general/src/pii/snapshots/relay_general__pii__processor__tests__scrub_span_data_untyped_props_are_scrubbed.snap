@@ -1,0 +1,46 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: span
+---
+{
+  "data": {
+    "more_untyped": {
+      "ccnumber": "[Filtered]",
+      "scrubbed": "yes",
+      "typed": "no"
+    },
+    "untyped": "ccnumber=[Filtered]"
+  },
+  "_meta": {
+    "data": {
+      "more_untyped": {
+        "ccnumber": {
+          "": {
+            "rem": [
+              [
+                "@creditcard:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 16
+          }
+        }
+      },
+      "untyped": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:filter",
+              "s",
+              9,
+              19
+            ]
+          ],
+          "len": 25
+        }
+      }
+    }
+  }
+}
