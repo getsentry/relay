@@ -246,6 +246,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "xsrf_token": "my  xsrf_token",
         "fastcsrf": "my fastcsrf",
         "_iris_csrf": "my _iris_csrf",
+        "not_sensitive": "keep this",
         })
     }
 

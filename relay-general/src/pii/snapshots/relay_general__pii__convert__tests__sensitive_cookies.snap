@@ -46,6 +46,10 @@ expression: data
         "[Filtered]"
       ],
       [
+        "not_sensitive",
+        "keep this"
+      ],
+      [
         "phpsessid",
         "[Filtered]"
       ],
@@ -135,6 +139,10 @@ expression: data
           "[Filtered]"
         ],
         [
+          "not_sensitive",
+          "keep this"
+        ],
+        [
           "phpsessid",
           "[Filtered]"
         ],
@@ -216,21 +224,6 @@ expression: data
               }
             }
           },
-          "10": {
-            "1": {
-              "": {
-                "rem": [
-                  [
-                    "@anything:filter",
-                    "s",
-                    0,
-                    10
-                  ]
-                ],
-                "len": 12
-              }
-            }
-          },
           "11": {
             "1": {
               "": {
@@ -257,7 +250,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 10
+                "len": 12
               }
             }
           },
@@ -272,7 +265,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 12
+                "len": 10
               }
             }
           },
@@ -287,7 +280,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 5
+                "len": 12
               }
             }
           },
@@ -302,7 +295,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 7
+                "len": 5
               }
             }
           },
@@ -317,7 +310,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 10
+                "len": 7
               }
             }
           },
@@ -332,7 +325,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 15
+                "len": 10
               }
             }
           },
@@ -347,7 +340,7 @@ expression: data
                     10
                   ]
                 ],
-                "len": 7
+                "len": 15
               }
             }
           },
@@ -356,13 +349,13 @@ expression: data
               "": {
                 "rem": [
                   [
-                    "@password:filter",
+                    "@anything:filter",
                     "s",
                     0,
                     10
                   ]
                 ],
-                "len": 14
+                "len": 7
               }
             }
           },
@@ -382,6 +375,21 @@ expression: data
             }
           },
           "20": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 14
+              }
+            }
+          },
+          "21": {
             "1": {
               "": {
                 "rem": [
@@ -536,21 +544,6 @@ expression: data
             }
           }
         },
-        "10": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@anything:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 12
-            }
-          }
-        },
         "11": {
           "1": {
             "": {
@@ -577,7 +570,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 10
+              "len": 12
             }
           }
         },
@@ -592,7 +585,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 12
+              "len": 10
             }
           }
         },
@@ -607,7 +600,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 5
+              "len": 12
             }
           }
         },
@@ -622,7 +615,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 7
+              "len": 5
             }
           }
         },
@@ -637,7 +630,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 10
+              "len": 7
             }
           }
         },
@@ -652,7 +645,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 15
+              "len": 10
             }
           }
         },
@@ -667,7 +660,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 7
+              "len": 15
             }
           }
         },
@@ -676,13 +669,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password:filter",
+                  "@anything:filter",
                   "s",
                   0,
                   10
                 ]
               ],
-              "len": 14
+              "len": 7
             }
           }
         },
@@ -702,6 +695,21 @@ expression: data
           }
         },
         "20": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 14
+            }
+          }
+        },
+        "21": {
           "1": {
             "": {
               "rem": [
