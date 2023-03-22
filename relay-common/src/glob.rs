@@ -85,19 +85,17 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
 
         if ch == '*' {
             // Handle double star (**) case properly
-            if pattern_vec.get(i + 1) == Some('*') {
+            if pattern_vec.get(i + 1) == Some(&'*') {
                 let left_anchored = i == 0;
-                let leading_slash = i > 0 && pattern_vec[i - 1] == '/';
+                let leading_slash = i > 0 && pattern_vec.get(i - 1) == Some(&'/');
                 let right_anchored = i + 2 == pattern.len();
-                let trailing_slash = i + 2 < pattern.len() && pattern_vec[i + 2] == '/';
-                let star_star_slash =
-                    i + 2 < pattern.len() && pattern_vec[i + 1] == '*' && pattern_vec[i + 2] == '/';
+                let trailing_slash = pattern_vec.get(i + 2) == Some(&'/');
 
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
                     regex += ".*";
                     num_to_skip = Some(2);
-                    // Allows the / after ** to be optional
-                    if star_star_slash {
+                    // Allows the trailing slash after ** to be optional
+                    if trailing_slash {
                         regex += "/?";
                         num_to_skip = Some(3);
                     }
