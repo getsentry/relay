@@ -1174,7 +1174,10 @@ def test_rate_limit_external_relay(
     mini_sentry, relay, relay_with_processing, outcomes_consumer
 ):
     outcomes_consumer = outcomes_consumer()
-    relay = relay(relay(relay_with_processing()), external=True)
+    middle_relay = relay(
+        relay_with_processing(), options={"outcomes": {"emit_outcomes": True}}
+    )
+    external_relay = relay(middle_relay, external=True)
 
     # TODO: should configure middle Relay to emit outcomes via HTTP?
 
@@ -1184,7 +1187,7 @@ def test_rate_limit_external_relay(
     key_id = public_keys[0]["numericId"]
 
     # manually  add all public keys form the relays to the configuration
-    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+    project_config["config"]["trustedRelays"] = list(external_relay.iter_public_keys())
     project_config["config"]["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -1199,7 +1202,28 @@ def test_rate_limit_external_relay(
 
     # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
     # drops the event internally if it does not have permissions.
-    relay.send_event(42)
+    external_relay.send_event(42)
+
+    # No event received:
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    (outcome,) = outcomes
+    outcome.pop("timestamp")
+    assert outcome == {
+        "category": 1,
+        "key_id": 123,
+        "org_id": 1,
+        "outcome": 2,
+        "project_id": 42,
+        "quantity": 1,
+        "reason": "get_lost",
+    }
+
+    # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
+    # drops the event internally if it does not have permissions.
+    external_relay.send_event(42)
 
     # No event received:
     with pytest.raises(queue.Empty):
