@@ -354,13 +354,13 @@ impl Processor for TransactionsProcessor<'_> {
             &TransactionSource::Url | &TransactionSource::Sanitized
         ) && self.name_config.scrub_identifiers
         {
-            let changed = scrub_identifiers(&mut event.transaction)?;
-            if changed && self.name_config.mark_scrubbed_as_sanitized {
-                let source = &mut event
+            scrub_identifiers(&mut event.transaction)?;
+            if self.name_config.mark_scrubbed_as_sanitized {
+                event
                     .transaction_info
                     .get_or_insert_with(Default::default)
-                    .source;
-                source.set_value(Some(TransactionSource::Sanitized));
+                    .source
+                    .set_value(Some(TransactionSource::Sanitized));
             }
         }
 
