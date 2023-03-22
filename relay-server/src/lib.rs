@@ -293,18 +293,22 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    main_runtime.block_on(async {
+    let service = main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
         let service = ServiceState::start(config.clone())?;
-        HttpServer::new(config, service)?.start();
+        HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
-        anyhow::Ok(())
+        anyhow::Ok(service)
     })?;
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to
     // complete their tasks. The additional 100ms allow services to run their error handlers.
     main_runtime.shutdown_timeout(Duration::from_millis(100));
+
+    // TODO(ja): Temporary workaround for dropping runtimes inside ServiceState. Dropping them
+    // within `main_runtime` causes panics.
+    drop(service);
 
     relay_log::info!("relay shutdown complete");
     Ok(())
