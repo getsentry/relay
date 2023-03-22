@@ -205,9 +205,7 @@ impl<'a> TransactionsKind<'a> {
         ty: MetricType,
         unit: MetricUnit,
     ) -> Result<Self, ParseMetricError> {
-        let measurements_prefix = "measurements.";
-
-        if let Some(remainder) = name.strip_prefix(measurements_prefix) {
+        if let Some(remainder) = name.strip_prefix("measurements.") {
             let kind = match remainder {
                 "frames_frozen" => Measurementkind::FramesFrozen,
                 "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
@@ -222,8 +220,7 @@ impl<'a> TransactionsKind<'a> {
             return Ok(Self::Measurements { kind, unit });
         };
 
-        let breakdowns_prefix = "breakdowns.";
-        if let Some(remainder) = name.strip_prefix(breakdowns_prefix) {
+        if let Some(remainder) = name.strip_prefix("breakdowns.") {
             return Ok(Self::Breakdowns(remainder));
         }
 
@@ -342,12 +339,15 @@ impl<'a> MetricResourceIdentifier<'a> {
     }
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn str_from(s: &'a str) -> Result<Self, ParseMetricError> {
+    pub fn parse(s: &'a str) -> Result<Self, ParseMetricError> {
+        //<ty>    |    <ns>/<name>@<unit>
         let (raw_ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
         let ty: MetricType = raw_ty.parse()?;
 
+        // <ns>/<name>    |    <unit>
         let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
+        // <ns>    |    <name>
         let (raw_namespace, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
 
         match raw_namespace {
@@ -651,7 +651,7 @@ impl Metric {
         let (ns, name) = name_and_namespace.split_once('/')?;
 
         let normalized_format = MetricResourceIdentifier::format_from_params(ns, name, unit, ty);
-        let mri = MetricResourceIdentifier::str_from(&normalized_format).ok()?;
+        let mri = MetricResourceIdentifier::parse(&normalized_format).ok()?;
 
         let mut metric = Self::new_mri(mri, value, timestamp, BTreeMap::new());
 
@@ -878,7 +878,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::str_from(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
         assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -887,7 +887,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::str_from(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
         assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 

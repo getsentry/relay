@@ -33,7 +33,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
-                let mri = match MetricResourceIdentifier::str_from(metric.name()) {
+                let mri = match MetricResourceIdentifier::parse(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
                         relay_log::error!("Invalid MRI: {}", metric.name());
@@ -42,6 +42,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 };
 
                 match mri {
+                    // Keep all metircs that are not transaction related.
                     MetricResourceIdentifier::Session(_) => None,
                     MetricResourceIdentifier::Transaction(transaction) => match transaction {
                         TransactionsKind::Duration(_) => {
