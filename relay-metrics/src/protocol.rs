@@ -2,8 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
-use std::str::FromStr;
-use std::time::Duration;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -165,7 +163,7 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
-/// Enumerates the most common session-names, with a catch-all for any other names.
+/// Enumerates the most common session-names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionsKind {
     Session,
@@ -182,18 +180,6 @@ impl Display for SessionsKind {
         }
     }
 }
-
-/*
-impl From<&str> for SessionsKind {
-    fn from(value: &str) -> Self {
-        match value {
-            "session" => Self::Session,
-            "user" => Self::User,
-            "error" => Self::Error,
-        }
-    }
-}
-*/
 
 /// Enumerates the most common transaction-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -219,10 +205,10 @@ impl<'a> TransactionsKind<'a> {
         ty: MetricType,
         unit: MetricUnit,
     ) -> Result<Self, ParseMetricError> {
-        let prefix_len = "measurements.".len();
+        let measurements_prefix = "measurements.";
 
-        if name.len() > prefix_len && &name[..prefix_len] == "measurements." {
-            let kind = match &name[prefix_len..] {
+        if let Some(remainder) = name.strip_prefix(measurements_prefix) {
+            let kind = match remainder {
                 "frames_frozen" => Measurementkind::FramesFrozen,
                 "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
                 "frames_slow" => Measurementkind::FramesSlow,
@@ -231,10 +217,15 @@ impl<'a> TransactionsKind<'a> {
                 "stall_percentage" => Measurementkind::StallPercentage,
                 "stall_total_time" => Measurementkind::StallTotalTime,
                 "lcp" => Measurementkind::Lcp,
-                s => Measurementkind::Other(&s),
+                s => Measurementkind::Other(s),
             };
             return Ok(Self::Measurements { kind, unit });
         };
+
+        let breakdowns_prefix = "breakdowns.";
+        if let Some(remainder) = name.strip_prefix(breakdowns_prefix) {
+            return Ok(Self::Breakdowns(remainder));
+        }
 
         match name {
             "duration" => match unit {
@@ -290,7 +281,6 @@ impl<'a> Display for TransactionsKind<'a> {
     }
 }
 
-/*
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -301,62 +291,6 @@ impl<'a> Display for TransactionsKind<'a> {
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MetricNamespace<'a> {
-    /// Metrics extracted from sessions.
-    Sessions(SessionsKind),
-    /// Metrics extracted from transaction events.
-    Transactions(TransactionsKind<'a>),
-}
-
-impl<'a> MetricNamespace<'a> {
-    pub fn parse(namespace: &'a str, name: &'a str) -> Result<Self, ParseMetricError> {
-        match namespace {
-            "sessions" => Ok(Self::Sessions(name.into())),
-            "transactions" => Ok(Self::Transactions(name.into())),
-            _ => Err(ParseMetricError(())),
-        }
-    }
-
-    pub fn name_to_string(&self) -> String {
-        match self {
-            Self::Sessions(session) => session.to_string(),
-            Self::Transactions(transaction) => transaction.to_string(),
-        }
-    }
-
-    pub fn namespace_to_string(&self) -> String {
-        match self {
-            Self::Sessions(_) => "sessions".to_owned(),
-            Self::Transactions(_) => "transactions".to_owned(),
-        }
-    }
-}
-/*
-impl std::str::FromStr for MetricNamespace {
-    type Err = ParseMetricError;
-    // <ns>/<name>
-    fn from_str(ns: &str) -> Result<Self, Self::Err> {
-        match ns {
-            "sessions" => Ok(MetricNamespace::Sessions),
-            "transactions" => Ok(MetricNamespace::Transactions),
-            _ => Ok(MetricNamespace::Unsupported),
-        }
-    }
-}
-*/
-
-//relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
-
-impl<'a> fmt::Display for MetricNamespace<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricNamespace::Sessions(_) => write!(f, "sessions"),
-            MetricNamespace::Transactions(_) => write!(f, "transactions"),
-        }
-    }
-}
-*/
 
 /// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
@@ -375,7 +309,8 @@ impl<'a> MetricResourceIdentifier<'a> {
                 TransactionsKind::Measurements { unit, .. } => *unit,
                 TransactionsKind::Duration(unit) => MetricUnit::Duration(*unit),
                 TransactionsKind::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
-                _ => MetricUnit::None,
+                TransactionsKind::User => MetricUnit::None,
+                TransactionsKind::CountPerRootProject => MetricUnit::None,
             },
             Self::Session(_) => MetricUnit::None,
         }

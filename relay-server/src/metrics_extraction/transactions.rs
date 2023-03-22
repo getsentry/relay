@@ -3,14 +3,12 @@ use std::collections::BTreeMap;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, EventType, Measurement, TraceContext, TransactionSource,
-    User,
+    AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Measurementkind, Metric, MetricUnit, MetricValue, SessionsKind,
-    TransactionsKind,
+    AggregatorConfig, DurationUnit, Measurementkind, Metric, MetricValue, TransactionsKind,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -335,8 +333,6 @@ fn extract_transaction_metrics_inner(
                         None => continue,
                     };
 
-                    let unit = measurement.unit.value();
-
                     metrics.push(Metric::new_mri(
                         TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}"))
                             .into(),
@@ -463,13 +459,14 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use relay_common::MetricUnit;
     use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::{DurationUnit, MetricResourceIdentifier};
+    use relay_metrics::DurationUnit;
 
     use super::*;
 

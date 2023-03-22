@@ -4,7 +4,7 @@ use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricUnit, MetricValue, SessionsKind};
+use relay_metrics::{Metric, MetricValue, SessionsKind};
 
 use super::utils::with_tag;
 
