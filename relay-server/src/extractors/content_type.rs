@@ -8,12 +8,6 @@ use axum::http::request::Parts;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawContentType(String);
 
-impl RawContentType {
-    pub fn into_string(self) -> String {
-        self.0
-    }
-}
-
 impl fmt::Display for RawContentType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)

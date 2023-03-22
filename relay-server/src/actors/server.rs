@@ -1,8 +1,9 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::error_handling::HandleErrorLayer;
 use axum::http::{header, HeaderValue};
-use axum::{middleware, Router, ServiceExt};
+use axum::{middleware, ServiceExt};
 use axum_server::{Handle, Server};
 use relay_config::Config;
 use relay_log::_sentry::integrations::tower::NewSentryLayer;
@@ -12,7 +13,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{self, NormalizePath};
+use crate::middlewares::{self, NormalizePathLayer};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
@@ -25,36 +26,12 @@ pub enum ServerError {
     TlsNotSupported,
 }
 
-/// Type of the web server's service.
-type App = NormalizePath<Router>;
-
-///
-fn make_app(service: ServiceState) -> App {
-    let decompression_layer = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(middlewares::decompression_error))
-        .layer(RequestDecompressionLayer::new());
-
-    let app = crate::endpoints::routes(service.config())
-        .layer(decompression_layer)
-        .layer(NewSentryLayer::new_from_top())
-        .layer(SetResponseHeaderLayer::overriding(
-            header::SERVER,
-            HeaderValue::from_static(constants::SERVER),
-        ))
-        .layer(middleware::from_fn(middlewares::metrics))
-        .with_state(service);
-
-    // Axum layers apply after the router, but path normalization needs to run before.
-    // Therefore, wrap the axum router.
-    NormalizePath::new(app)
-}
-
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
-    app: App,
+    service: ServiceState,
     server: Server,
     handle: Handle,
 }
@@ -91,7 +68,7 @@ impl HttpServer {
         //     .disable_signals();
 
         Ok(Self {
-            app: make_app(service),
+            service,
             server,
             handle,
         })
@@ -103,12 +80,37 @@ impl Service for HttpServer {
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self {
-            app,
+            service,
             server,
             handle,
         } = self;
 
-        tokio::spawn(server.serve(app.into_make_service()));
+        // Build the router middleware into a single service which runs _after_ routing. Service
+        // builder order defines layers added first will be called first. This means:
+        //  - Requests go from top to bottom
+        //  - Responses go from bottom to top
+        let middleware = ServiceBuilder::new()
+            .layer(middleware::from_fn(middlewares::metrics))
+            .layer(SetResponseHeaderLayer::overriding(
+                header::SERVER,
+                HeaderValue::from_static(constants::SERVER),
+            ))
+            .layer(NewSentryLayer::new_from_top())
+            .layer(HandleErrorLayer::new(middlewares::decompression_error))
+            .layer(RequestDecompressionLayer::new());
+
+        let router = crate::endpoints::routes(service.config())
+            .layer(middleware)
+            .with_state(service);
+
+        // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
+        // ConnectInfo is special as it needs to last.
+        let app = ServiceBuilder::new()
+            .layer(NormalizePathLayer::new())
+            .service(router)
+            .into_make_service_with_connect_info::<SocketAddr>();
+
+        tokio::spawn(server.serve(app));
 
         tokio::spawn(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
