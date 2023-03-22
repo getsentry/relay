@@ -66,7 +66,7 @@ impl EnvelopeParams {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        Envelope::parse_request(body, meta).map_err(BadStoreRequest::InvalidEnvelope)
+        Ok(Envelope::parse_request(body, meta)?)
     }
 }
 

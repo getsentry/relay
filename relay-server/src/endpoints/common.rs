@@ -52,6 +52,9 @@ pub enum BadStoreRequest {
     #[error("empty request body")]
     EmptyBody,
 
+    #[error("invalid request body")]
+    InvalidBody(#[source] std::io::Error),
+
     #[error("invalid JSON data")]
     InvalidJson(#[source] serde_json::Error),
 
@@ -59,7 +62,7 @@ pub enum BadStoreRequest {
     InvalidMsgpack(#[source] rmp_serde::decode::Error),
 
     #[error("invalid event envelope")]
-    InvalidEnvelope(#[source] EnvelopeError),
+    InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
     InvalidMultipart(#[from] multer::Error),

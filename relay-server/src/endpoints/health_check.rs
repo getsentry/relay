@@ -3,7 +3,6 @@
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Serialize;
 
 use crate::actors::health_check::{HealthCheck, IsHealthy};
@@ -15,10 +14,10 @@ struct Status {
 
 pub async fn handle(Path(kind): Path<IsHealthy>) -> impl IntoResponse {
     match HealthCheck::from_registry().send(kind).await {
-        Ok(true) => (StatusCode::OK, Json(Status { is_healthy: true })),
+        Ok(true) => (StatusCode::OK, axum::Json(Status { is_healthy: true })),
         _ => (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(Status { is_healthy: false }),
+            axum::Json(Status { is_healthy: false }),
         ),
     }
 }

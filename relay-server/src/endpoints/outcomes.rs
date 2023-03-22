@@ -1,6 +1,5 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use relay_config::EmitOutcomes;
 
 use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
@@ -17,5 +16,5 @@ pub async fn handle(state: ServiceState, body: SignedJson<SendOutcomes>) -> impl
         producer.send(outcome);
     }
 
-    (StatusCode::ACCEPTED, Json(SendOutcomesResponse {})).into_response()
+    (StatusCode::ACCEPTED, axum::Json(SendOutcomesResponse {})).into_response()
 }

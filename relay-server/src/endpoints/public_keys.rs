@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use axum::response::IntoResponse;
-use axum::Json;
 use futures::future;
 
 use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
@@ -28,5 +27,5 @@ pub async fn handle(body: SignedJson<GetRelays>) -> Result<impl IntoResponse, Se
         relays.insert(relay_id, relay_info);
     }
 
-    Ok(Json(GetRelaysResponse { relays }))
+    Ok(axum::Json(GetRelaysResponse { relays }))
 }
