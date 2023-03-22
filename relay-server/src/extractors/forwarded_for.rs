@@ -36,6 +36,7 @@ where
         let peer_addr = ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
             .await
             .map(|ConnectInfo(peer)| peer.ip().to_string())
+            // TODO(ja): Bubble up an error.
             .unwrap_or_default();
 
         let forwarded = parts

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::io;
 
-use axum::extract::multipart::Multipart;
+use axum::extract::multipart::{Field, Multipart};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -156,6 +156,19 @@ pub enum MultipartError {
     Raw(#[from] axum::extract::multipart::MultipartError),
 }
 
+async fn field_data<'a>(field: &mut Field<'a>, limit: usize) -> Result<Vec<u8>, MultipartError> {
+    let mut body = Vec::new();
+
+    while let Some(chunk) = field.chunk().await? {
+        if body.len() + chunk.len() > limit {
+            return Err(MultipartError::FieldSizeExceeded);
+        }
+        body.extend_from_slice(&chunk);
+    }
+
+    Ok(body)
+}
+
 pub async fn multipart_items<F>(
     mut multipart: Multipart,
     item_limit: usize,
@@ -172,25 +185,15 @@ where
             let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
-
-            // Extract the body after the immutable borrow on `file_name` is gone.
-            let mut body = Vec::new();
-            while let Some(bytes) = field.chunk().await? {
-                if body.len() > item_limit {
-                    return Err(MultipartError::FieldSizeExceeded);
-                }
-                body.extend_from_slice(&bytes);
-            }
-
             let content_type = match field.content_type() {
                 Some(string) => string.into(),
                 None => ContentType::OctetStream,
             };
-
-            item.set_payload(content_type, field.bytes().await?);
+            // Extract the body after the immutable borrow on `file_name` is gone.
+            item.set_payload(content_type, field_data(&mut field, item_limit).await?);
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
-            let data = field.bytes().await?;
+            let data = field_data(&mut field, item_limit).await?;
             // Ensure to decode this safely to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
             let string = String::from_utf8_lossy(&data);
