@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+
 ## 23.3.1
 
 **Features**:
@@ -10,7 +16,6 @@
 
 **Internal**:
 
-- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951)))
 
