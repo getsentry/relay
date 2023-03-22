@@ -231,15 +231,15 @@ pub struct SqliteBufferService {
 
 impl SqliteBufferService {
     /// Creates a new [`SqliteBufferService`] from the provided path to the SQLite database file.
-    pub async fn from_path(buffer_config: &PersistentBuffer) -> Result<Self, BufferError> {
+    pub async fn from_path(config: &PersistentBuffer) -> Result<Self, BufferError> {
         let options = SqliteConnectOptions::new()
-            .filename(PathBuf::from("sqlite://").join(buffer_config.buffer_path()))
+            .filename(PathBuf::from("sqlite://").join(config.buffer_path()))
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
         let db = SqlitePoolOptions::new()
-            .max_connections(buffer_config.max_connections())
-            .min_connections(buffer_config.min_connections())
+            .max_connections(config.max_connections())
+            .min_connections(config.min_connections())
             .connect_with(options)
             .await?;
         Ok(Self { db })
@@ -249,11 +249,10 @@ impl SqliteBufferService {
     async fn handle_enqueue(&self, message: Enqueue) -> Result<(), BufferError> {
         let Enqueue {
             key,
-            value: mut managed_envelope,
+            value: managed_envelope,
         } = message;
 
-        managed_envelope.spool();
-        let envelope_bytes = managed_envelope.take_envelope().to_vec()?;
+        let envelope_bytes = managed_envelope.into_envelope().to_vec()?;
         sqlx::query("INSERT INTO envelopes (own_key, sampling_key, envelope) VALUES (?, ?, ?)")
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())

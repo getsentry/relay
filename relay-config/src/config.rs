@@ -736,12 +736,10 @@ impl Default for Http {
     }
 }
 
-/// Maximum number of connections, which will be maintained by the pool.
 fn buffer_max_connections() -> u32 {
     30
 }
 
-/// Minimal number of connections, which will be maintained by the pool.
 fn buffer_min_connections() -> u32 {
     10
 }
@@ -751,10 +749,14 @@ fn buffer_min_connections() -> u32 {
 pub struct PersistentBuffer {
     /// The path to the persistent buffer file.
     path: PathBuf,
+    /// Maximum number of connections, which will be maintained by the pool.
     #[serde(default = "buffer_max_connections")]
     max_connections: u32,
+    /// Minimal number of connections, which will be maintained by the pool.
     #[serde(default = "buffer_min_connections")]
     min_connections: u32,
+    /// The maximum size of the buffer to keep, in GB.
+    max_size: Option<u64>,
 }
 
 impl PersistentBuffer {
@@ -771,6 +773,11 @@ impl PersistentBuffer {
     /// Minimal number of connections, which will be maintained by the pool.
     pub fn min_connections(&self) -> u32 {
         self.min_connections
+    }
+
+    /// The maximum size of the buffer, in GB.
+    pub fn max_buffer_size(&self) -> u64 {
+        self.max_size.unwrap_or(10)
     }
 }
 

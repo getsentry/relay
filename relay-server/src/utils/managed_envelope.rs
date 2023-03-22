@@ -123,6 +123,16 @@ impl ManagedEnvelope {
         self.envelope.as_mut()
     }
 
+    /// Consumes itself returning the managed envelope.
+    ///
+    /// This also releases the slot with [`SemaphorePermit`] and sets the internal context
+    /// to done so there is no rejection issued once the [`ManagedEnvelope`] is consumed.
+    pub fn into_envelope(mut self) -> Box<Envelope> {
+        self.context.slot.take();
+        self.context.done = true;
+        Box::new(self.envelope.take_items())
+    }
+
     /// Take the envelope out of the context and replace it with a dummy.
     ///
     /// Note that after taking out the envelope, the envelope summary is incorrect.
@@ -298,15 +308,6 @@ impl ManagedEnvelope {
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
         relay_common::instant_to_date_time(self.envelope().meta().start_time())
-    }
-
-    /// Set the `done` flag to true.
-    ///
-    /// This allows us to take the envelope out and drop the context without reporting the
-    /// rejection.
-    pub fn spool(&mut self) {
-        self.context.slot.take();
-        self.context.done = true;
     }
 
     /// Resets inner state to ensure there's no more logging.
