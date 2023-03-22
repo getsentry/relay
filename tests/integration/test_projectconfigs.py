@@ -258,6 +258,8 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     if buffer_config:
         temp = tempfile.mkdtemp()
         dbfile = os.path.join(temp, "buffer.db")
+        # set the buffer to something low to force the spooling
+        relay_config["cache"]["envelope_buffer_size"] = 3
         relay_config["cache"]["persistent_envelope_buffer"] = {"path": dbfile}
 
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
@@ -340,6 +342,8 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         }
     ]
 
+    relay.send_event(project_key)
+    relay.send_event(project_key)
     # Wait for caches to expire. And we will get into the grace period.
     time.sleep(3)
     # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.

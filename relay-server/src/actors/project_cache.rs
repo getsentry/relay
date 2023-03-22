@@ -17,7 +17,7 @@ use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_buffer::{
-    Buffer, DequeueMany, Enqueue, MemoryBufferService, QueueKey, RemoveMany, SqliteBufferService,
+    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
 };
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
@@ -790,7 +790,7 @@ impl Service for ProjectCacheService {
             services,
             redis,
         } = self;
-        let buffer = services.buffer.clone();
+        let buffer_guard = services.buffer.clone();
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -801,22 +801,14 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer = if let Some(buffer_config) = config.cache_persistent_buffer() {
-                match SqliteBufferService::from_path(buffer, buffer_config).await {
-                    Ok(buf) => buf.start(),
-
-                    // TODO: how to propagate this error to the entire rely and stop it?
-                    // Should this panic? But this will only kill the service and not the relay.
-                    Err(err) => {
-                        relay_log::error!(
-                            "failed to start SqliteBufferService: {}",
-                            LogError(&err)
-                        );
-                        return;
-                    }
+            let buffer = match BufferService::create(buffer_guard, config.clone()).await {
+                Ok(buffer) => buffer.start(),
+                // This should never happens, since on the startup Relay tries to create a DB and
+                // run migrations, and it that fails the Relay will not start.
+                Err(err) => {
+                    relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                    return;
                 }
-            } else {
-                MemoryBufferService::new().start()
             };
 
             // Main broker that serializes public and internal messages, and triggers project state

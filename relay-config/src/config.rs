@@ -745,7 +745,7 @@ fn buffer_min_connections() -> u32 {
 }
 
 /// Controls internal caching behavior.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistentBuffer {
     /// The path to the persistent buffer file.
     path: PathBuf,
