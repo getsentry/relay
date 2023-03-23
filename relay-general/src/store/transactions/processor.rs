@@ -1721,6 +1721,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1777,6 +1778,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1934,6 +1936,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: &[rule],
                 ..Default::default()
             }),
