@@ -10,7 +10,7 @@ use crate::actors::project_buffer;
 use crate::envelope::Envelope;
 use crate::service::create_runtime;
 use crate::statsd::RelayHistograms;
-use crate::utils::{ManagedEnvelope, Semaphore};
+use crate::utils::{ManagedEnvelope, Semaphore, SemaphorePermit};
 
 /// An error returned by [`BufferGuard::enter`] indicating that the buffer capacity has been
 /// exceeded.
@@ -53,9 +53,27 @@ impl BufferGuard {
         self.capacity.saturating_sub(self.available())
     }
 
+    /// Reserver the number of requested permits.
+    ///
+    /// Returns `Ok(Vec<SemaphorePermit>)` on success, which can be then use in
+    /// `ManagedEnvelope::new` to create a managed envelope.
+    pub fn try_reserve(&self, num: usize) -> Result<Vec<SemaphorePermit>, BufferError> {
+        let permits = self.inner.try_reserve(num).ok_or(BufferError)?;
+
+        relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
+        relay_statsd::metric!(
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
+                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
+                queue_size_pct.floor() as u64
+            }
+        );
+
+        Ok(permits)
+    }
+
     /// Reserves resources for processing an envelope in Relay.
     ///
-    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
+    /// Returns `Ok(ManagedEnvelope)` on success, which internally holds a handle to the reserved
     /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
     /// be reused by a subsequent call to `enter`.
     ///

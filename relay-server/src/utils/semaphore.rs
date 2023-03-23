@@ -46,6 +46,30 @@ impl Semaphore {
         self.capacity.load(Ordering::Relaxed)
     }
 
+    /// Tries to reserve the number of requested permits.
+    ///
+    /// Returns Some of the list of permits if the requested number of permits is available.
+    ///
+    /// Returns `None` if there are no resources available.
+    pub fn try_reserve(&self, num: usize) -> Option<Vec<SemaphorePermit>> {
+        let result = self
+            .capacity
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |val| {
+                val.checked_sub(num)
+            });
+
+        match result {
+            Ok(_) => Some(
+                (0..num)
+                    .map(|_| SemaphorePermit {
+                        handle: self.capacity.clone(),
+                    })
+                    .collect(),
+            ),
+            Err(_) => None,
+        }
+    }
+
     /// Acquires a resource of this semaphore, returning a RAII guard.
     ///
     /// Returns `Some` if the semaphore has available resources. Once the permit is dropped, the

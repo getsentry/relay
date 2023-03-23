@@ -322,26 +322,29 @@ impl BufferService {
 
         // Persistent buffer is configured, lets try to get data from the disk.
         if let Some(db) = &self.db {
-            // TODO: we also want to limit the number of fetched envelopes from the DB.
-            // DO NOT fetch all the envelopes at once.
-            for key in keys {
-                let mut envelopes = sqlx::query(
-                "DELETE FROM envelopes WHERE own_key = ? AND sampling_key = ? RETURNING envelope",
+            // TODO: remove hardcoded number here
+            // If the requested permits are available, let use them and fetch the envelopes.
+            if let Ok(mut permits) = self.buffer_guard.try_reserve(100) {
+                for key in keys {
+                    let mut envelopes = sqlx::query(
+                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
+            .bind(100)
             .fetch(db);
 
-                while let Some(row) = envelopes.try_next().await? {
-                    let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
-                    let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
-                    let envelope = Envelope::parse_bytes(envelope_bytes)?;
-                    let managed_envelope = self
-                        .buffer_guard
-                        .enter(envelope)
-                        .map_err(|_| BufferError::Overloaded)?;
+                    while let Some(row) = envelopes.try_next().await? {
+                        let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
+                        let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
+                        let envelope = Envelope::parse_bytes(envelope_bytes)?;
+                        let managed_envelope = ManagedEnvelope::new(
+                            envelope,
+                            permits.pop().ok_or(BufferError::Overloaded)?,
+                        );
 
-                    sender.send(managed_envelope).ok();
+                        sender.send(managed_envelope).ok();
+                    }
                 }
             }
         }
