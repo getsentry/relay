@@ -1,15 +1,17 @@
 use std::time::Duration;
 
 use axum::http::{HeaderName, Method};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 /// Creates a preconfigured CORS middleware builder for store requests.
 ///
-/// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
-/// returns an App. This configures POST as allowed method, allows default sentry headers, and
+/// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`,
+/// which returns an App. This configures POST as allowed method, allows default sentry headers, and
 /// exposes the return headers.
 pub fn cors() -> CorsLayer {
     CorsLayer::new()
+        // This should also contain GET for the /store/ endpoint. Axum emits a correct "allow"
+        // header for this. In practice, this is not an issue, so we can be more restrictive.
         .allow_methods(Method::POST)
         .allow_headers([
             HeaderName::from_static("x-sentry-auth"),
@@ -24,7 +26,7 @@ pub fn cors() -> CorsLayer {
             HeaderName::from_static("content-encoding"),
             HeaderName::from_static("transfer-encoding"),
         ])
-        .allow_origin(tower_http::cors::Any)
+        .allow_origin(Any)
         .expose_headers([
             HeaderName::from_static("x-sentry-error"),
             HeaderName::from_static("x-sentry-rate-limits"),

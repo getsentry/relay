@@ -72,8 +72,11 @@ def test_options_response(mini_sentry, relay, method_to_test):
     }
 
     result = relay.send_options(project_id, headers)
-
-    assert result.ok == should_succeed
+    assert result.ok, result
+    # GET is never allowed for XHR
+    assert result.headers["access-control-allow-methods"] == "POST"
+    # Contents tested by test_security_report_preflight
+    assert "access-control-allow-headers" in result.headers
 
 
 def test_store_node_base64(mini_sentry, relay_chain):
