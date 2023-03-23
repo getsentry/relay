@@ -45,6 +45,9 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
     header::CONTENT_LENGTH,
 ];
 
+/// Root path of all API endpoints.
+const API_PATH: &str = "/api/";
+
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
 #[derive(Debug, thiserror::Error)]
@@ -189,7 +192,6 @@ impl UpstreamRequest for ForwardRequest {
 }
 
 /// Internal implementation of the forward endpoint.
-#[axum::debug_handler(state = ServiceState)]
 async fn handle(
     state: ServiceState,
     forwarded_for: ForwardedFor,
@@ -198,11 +200,17 @@ async fn handle(
     headers: HeaderMap<HeaderValue>,
     data: Bytes,
 ) -> Result<impl IntoResponse, ForwardError> {
+    // The `/api/` path is special as it is actually a web UI endpoint. Therefore, reject requests
+    // that either go to the API root or point outside the API.
+    if uri.path() == API_PATH || !uri.path().starts_with(API_PATH) {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    }
+
     let (tx, rx) = oneshot::channel();
 
     let request = ForwardRequest {
         method,
-        path: uri.to_string(), // TODO(ja): check that Uri is relative
+        path: uri.to_string(),
         headers,
         forwarded_for,
         data,
@@ -213,10 +221,10 @@ async fn handle(
     UpstreamRelay::from_registry().send(SendRequest(request));
     let (status, headers, body) = rx.await??;
 
-    Ok(if headers.iter().any(|(name, _)| name == "content-type") {
-        (status, headers, body)
+    Ok(if headers.contains_key(header::CONTENT_TYPE) {
+        (status, headers, body).into_response()
     } else {
-        (status, headers, Vec::new())
+        (status, headers).into_response()
     })
 }
 

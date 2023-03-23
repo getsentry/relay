@@ -37,7 +37,7 @@ where
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
         .route("/api/relay/events/:event_id/", get(events::handle))
-        // Fallback route, but with a name, and just on `/api/relay/*`
+        // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/*not_found", any(statics::not_found));
 
     // Sentry Web API routes pointing to /api/0/relays/
@@ -67,8 +67,6 @@ where
         .merge(internal_routes)
         .merge(web_routes)
         .merge(store_routes)
-        // The "/api/" path is special as it is actually a web UI endpoint
-        .route("/api/", any(statics::not_found))
-        // Forward all other routes to the upstream
+        // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)
 }
