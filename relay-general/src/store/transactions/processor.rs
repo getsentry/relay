@@ -1787,45 +1787,51 @@ mod tests {
         .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
-         {
-           "type": "transaction",
-           "transaction": "/foo/*/user/123/0/",
-           "transaction_info": {
-             "source": "sanitized"
-           },
-           "modules": {
-             "rack": "1.2.3"
-           },
-           "timestamp": 1619420400.0,
-           "start_timestamp": 1619420341.0,
-           "contexts": {
-             "trace": {
-               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-               "span_id": "fa90fdead5f74053",
-               "op": "rails.request",
-               "status": "ok",
-               "type": "trace"
-             }
-           },
-           "sdk": {
-             "name": "sentry.ruby"
-           },
-           "spans": [],
-           "_meta": {
-             "transaction": {
-               "": {
-                 "rem": [
-                   [
-                     "/foo/*/**",
-                     "s"
-                   ]
-                 ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
-               }
-             }
-           }
-         }
-         "###);
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0/",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "modules": {
+            "rack": "1.2.3"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.ruby"
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "/foo/*/**",
+                    "s"
+                  ],
+                  [
+                    "int",
+                    "s",
+                    12,
+                    15
+                  ]
+                ],
+                "val": "/foo/*/user/123/0/"
+              }
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
