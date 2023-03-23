@@ -849,6 +849,17 @@ impl OutcomeBroker {
                 {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
+
+                if matches!(message.outcome, Outcome::RateLimited(None)) {
+                    // Reason should always be set for error rate limits.
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_tag("category", message.category);
+                            scope.set_tag("project_key", message.scoping.project_key);
+                        },
+                        || relay_log::error!("Rate limit without reason"),
+                    );
+                }
             }
             Self::ClientReport(producer) => {
                 send_outcome_metric(&message, "client_report");
