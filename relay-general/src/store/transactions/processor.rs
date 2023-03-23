@@ -341,28 +341,32 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // Normalize transaction names for URLs and Sanitized transaction sources.
-        // This in addition to renaming rules can catch some high cardinality parts.
-        if matches!(
-            event.get_transaction_source(),
-            &TransactionSource::Url | &TransactionSource::Sanitized
-        ) && self.name_config.scrub_identifiers
-        {
-            let changed = scrub_identifiers(&mut event.transaction)?;
-            if changed && self.name_config.mark_scrubbed_as_sanitized {
-                let source = &mut event
-                    .transaction_info
-                    .get_or_insert_with(Default::default)
-                    .source;
-                source.set_value(Some(TransactionSource::Sanitized));
+        if self.name_config.scrub_identifiers {
+            // Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
+            if matches!(
+                event.get_transaction_source(),
+                &TransactionSource::Url | &TransactionSource::Sanitized
+            ) {
+                scrub_identifiers(&mut event.transaction)?;
+                if self.name_config.mark_scrubbed_as_sanitized {
+                    // TODO(iker): we also mark transaction as sanitized after
+                    // applying renaming rules. Once we remove this feature
+                    // flag, relay should only mark transactions as sanitized
+                    // once.
+                    event
+                        .transaction_info
+                        .get_or_insert_with(Default::default)
+                        .source
+                        .set_value(Some(TransactionSource::Sanitized));
+                }
             }
-        }
 
-        // Apply the rule if any found
-        self.apply_transaction_rename_rule(
-            &mut event.transaction,
-            event.transaction_info.value_mut(),
-        )?;
+            self.apply_transaction_rename_rule(
+                &mut event.transaction,
+                event.transaction_info.value_mut(),
+            )?;
+        }
 
         validate_transaction(event)?;
 
@@ -1720,6 +1724,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1776,6 +1781,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: rules.as_ref(),
                 ..Default::default()
             }),
@@ -1784,45 +1790,51 @@ mod tests {
         .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
-         {
-           "type": "transaction",
-           "transaction": "/foo/*/user/123/0/",
-           "transaction_info": {
-             "source": "sanitized"
-           },
-           "modules": {
-             "rack": "1.2.3"
-           },
-           "timestamp": 1619420400.0,
-           "start_timestamp": 1619420341.0,
-           "contexts": {
-             "trace": {
-               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-               "span_id": "fa90fdead5f74053",
-               "op": "rails.request",
-               "status": "ok",
-               "type": "trace"
-             }
-           },
-           "sdk": {
-             "name": "sentry.ruby"
-           },
-           "spans": [],
-           "_meta": {
-             "transaction": {
-               "": {
-                 "rem": [
-                   [
-                     "/foo/*/**",
-                     "s"
-                   ]
-                 ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
-               }
-             }
-           }
-         }
-         "###);
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0/",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "modules": {
+            "rack": "1.2.3"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.ruby"
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "/foo/*/**",
+                    "s"
+                  ],
+                  [
+                    "int",
+                    "s",
+                    12,
+                    15
+                  ]
+                ],
+                "val": "/foo/*/user/123/0/"
+              }
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
@@ -1933,6 +1945,7 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
                 rules: &[rule],
                 ..Default::default()
             }),
