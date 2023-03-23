@@ -841,16 +841,7 @@ impl OutcomeBroker {
         match self {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
-                send_outcome_metric(&message, "kafka");
-                let organization_id = message.scoping.organization_id;
-                let raw_message = TrackRawOutcome::from_outcome(message, config);
-                if let Err(error) =
-                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
-                {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
-                }
-
-                if matches!(message.outcome, Outcome::RateLimited(None)) {
+                if matches!(&message.outcome, Outcome::RateLimited(None)) {
                     // Reason should always be set for error rate limits.
                     relay_log::with_scope(
                         |scope| {
@@ -859,6 +850,15 @@ impl OutcomeBroker {
                         },
                         || relay_log::error!("Rate limit without reason"),
                     );
+                }
+
+                send_outcome_metric(&message, "kafka");
+                let organization_id = message.scoping.organization_id;
+                let raw_message = TrackRawOutcome::from_outcome(message, config);
+                if let Err(error) =
+                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
+                {
+                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
             Self::ClientReport(producer) => {
