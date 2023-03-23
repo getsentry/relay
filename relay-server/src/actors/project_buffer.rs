@@ -158,8 +158,8 @@ pub struct BufferService {
     buffer_guard: Arc<BufferGuard>,
     config: Option<PersistentBuffer>,
     // this is half of the `envelope_buffer_size` defined in the [`relay_config::Config`].
-    memory_buffer_size: usize,
-    in_memory_count: i64,
+    memory_limit: Option<usize>,
+    count_mem_envelopes: i64,
     db: Option<Pool<Sqlite>>,
 }
 
@@ -173,8 +173,8 @@ impl BufferService {
             buffer: BTreeMap::new(),
             buffer_guard,
             config: None,
-            memory_buffer_size: config.envelope_buffer_size() / 2,
-            in_memory_count: 0,
+            memory_limit: None,
+            count_mem_envelopes: 0,
             db: None,
         };
 
@@ -192,6 +192,12 @@ impl BufferService {
                 .connect_with(options)
                 .await?;
 
+            // Set the buffer memory limit, which must not be bigger then `envelope_buffer_size`.
+            let limit = buffer_config
+                .memory_limit()
+                .unwrap_or(config.envelope_buffer_size() / 2);
+            service.memory_limit = Some(limit.min(config.envelope_buffer_size()));
+
             service.db = Some(db);
             service.config = Some(buffer_config.to_owned());
         }
@@ -199,36 +205,35 @@ impl BufferService {
         Ok(service)
     }
 
-    /// Returns the size of the buffer.
-    fn buffer_size(&self) -> Option<u64> {
-        if let Some(config) = &self.config {
-            return std::fs::metadata(config.buffer_path())
-                .ok()
-                .map(|meta| meta.len());
-        }
-
-        None
-    }
-
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     fn try_enqueue(&mut self) -> Result<(), BufferError> {
+        let Self {
+            db,
+            config,
+            memory_limit,
+            ref mut buffer,
+            ..
+        } = self;
+
         // Buffer to disk only if the DB and config are provided.
-        if let (Some(db), Some(config)) = (&self.db, &self.config) {
+        if let (Some(db), Some(config), Some(memory_limit)) = (db, config, memory_limit) {
             // And if the count of in memory envelopes is over the defined max buffer size.
-            if self.in_memory_count > self.memory_buffer_size as i64 {
+            if self.count_mem_envelopes > *memory_limit as i64 {
                 // Reject all the enqueue requests if we exceed the max size of the buffer.
-                let current_size = self.buffer_size();
+                let current_size = std::fs::metadata(config.buffer_path())
+                    .ok()
+                    .map(|meta| meta.len());
                 if current_size.map_or(false, |size| size >= config.max_buffer_size()) {
                     return Err(BufferError::Full(current_size.unwrap_or_default()));
                 }
 
                 // Do not drain and just keep the buffer around, so we do not have to allocate it
                 // again.
-                let buf = std::mem::take(&mut self.buffer);
+                let buf = std::mem::take(buffer);
                 let db = db.clone();
-                self.in_memory_count = 0;
+                self.count_mem_envelopes = 0;
 
                 // spawn the task to enqueue the entire buffer
                 tokio::spawn(async move {
@@ -262,7 +267,12 @@ impl BufferService {
                         });
 
                         let query = query_builder.build();
-                        query.execute(&db).await.unwrap();
+                        if let Err(err) = query.execute(&db).await {
+                            relay_log::error!(
+                                "failed to buffer envelopes to disk: {}",
+                                LogError(&err)
+                            )
+                        }
                     }
                 });
             }
@@ -281,7 +291,7 @@ impl BufferService {
 
         // save to the internal buffer
         self.buffer.entry(key).or_default().push(managed_envelope);
-        self.in_memory_count += 1;
+        self.count_mem_envelopes += 1;
 
         Ok(())
     }
@@ -293,7 +303,7 @@ impl BufferService {
         let DequeueMany { keys, sender } = message;
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
-                self.in_memory_count -= 1;
+                self.count_mem_envelopes -= 1;
                 sender.send(value).ok();
             }
         }
@@ -318,6 +328,7 @@ impl BufferService {
                         .buffer_guard
                         .enter(envelope)
                         .map_err(|_| BufferError::Overloaded)?;
+
                     sender.send(managed_envelope).ok();
                 }
             }
