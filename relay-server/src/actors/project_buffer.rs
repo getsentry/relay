@@ -322,10 +322,10 @@ impl BufferService {
 
         // Persistent buffer is configured, lets try to get data from the disk.
         if let Some(db) = &self.db {
-            // TODO: remove hardcoded number here
-            // If the requested permits are available, let use them and fetch the envelopes.
-            if let Ok(mut permits) = self.buffer_guard.try_reserve(100) {
-                for key in keys {
+            for key in keys {
+                // TODO: remove hardcoded number for the limit.
+                // If the requested permits are available, let use them and fetch the envelopes.
+                if let Ok(mut permits) = self.buffer_guard.try_reserve(100) {
                     let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
             )
