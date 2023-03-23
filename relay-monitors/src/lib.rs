@@ -60,6 +60,46 @@ where
     uuid.as_simple().serialize(serializer)
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+enum Schedule {
+    Crontab { value: String },
+    Interval { value: u64, unit: IntervalName },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum IntervalName {
+    Year,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
+}
+
+/// The monitor configuration playload for upserting monitors during check-in
+#[derive(Debug, Deserialize, Serialize)]
+struct MonitorConfig {
+    /// The monitor schedule configuration
+    schedule: Schedule,
+
+    /// How long (in minutes) after the expected checkin time will we wait until we consider the
+    /// checkin to have been missed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    checkin_margin: Option<u64>,
+
+    /// How long (in minutes) is the checkin allowed to run for in in_rogress before it is
+    /// considered failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_runtime: Option<u64>,
+
+    /// tz database style timezone string
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timezone: Option<String>,
+}
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 struct CheckIn {
@@ -76,6 +116,10 @@ struct CheckIn {
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     duration: Option<f64>,
+
+    /// monitor configuration to support upserts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monitor_config: Option<MonitorConfig>,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -129,6 +173,73 @@ mod tests {
   "monitor_slug": "my-monitor",
   "status": "in_progress",
   "duration": 21.0
+}"#;
+
+        let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
+        let serialized = serde_json::to_string_pretty(&check_in).unwrap();
+
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn process_with_upsert_short() {
+        let json = r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "crontab",
+      "value": "0 * * * *"
+    }
+  }
+}"#;
+
+        let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
+        let serialized = serde_json::to_string_pretty(&check_in).unwrap();
+
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn process_with_upsert_interval() {
+        let json = r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "interval",
+      "value": 5,
+      "unit": "day"
+    },
+    "checkin_margin": 5,
+    "max_runtime": 10,
+    "timezone": "America/Los_Angles"
+  }
+}"#;
+
+        let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
+        let serialized = serde_json::to_string_pretty(&check_in).unwrap();
+
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn process_with_upsert_full() {
+        let json = r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "crontab",
+      "value": "0 * * * *"
+    },
+    "checkin_margin": 5,
+    "max_runtime": 10,
+    "timezone": "America/Los_Angles"
+  }
 }"#;
 
         let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
