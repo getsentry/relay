@@ -15,6 +15,14 @@ use tokio::sync::mpsc;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
+/// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
+///
+/// To prevent excessive memory allocations, the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER,
+/// which defaults to 999 for SQLite versions prior to 3.32.0 (2020-05-22) or 32766 for SQLite versions after 3.32.0.
+///
+/// Keep it on the lower side for now.
+const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
+
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
@@ -250,8 +258,9 @@ impl BufferService {
                         })
                         .collect::<Vec<_>>();
 
-                    // TODO: have this number configured.
-                    for chunk in envelopes.chunks(1000) {
+                    // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+                    // here to prepare the chnunks which will be preparing the batch inserts.
+                    for chunk in envelopes.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3) {
                         query_builder.push_values(chunk, |mut b, v| match &v.1 {
                             Ok(envelope_bytes) => {
                                 b.push_bind(v.0.own_key.to_string())
@@ -273,6 +282,9 @@ impl BufferService {
                                 LogError(&err)
                             )
                         }
+                        // Reset the builder to initial state set by `QueryBuilder::new` function,
+                        // so it can be reused for another chunk.
+                        query_builder.reset();
                     }
                 });
             }
