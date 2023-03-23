@@ -341,26 +341,27 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // Apply the rule if any found
-        self.apply_transaction_rename_rule(
-            &mut event.transaction,
-            event.transaction_info.value_mut(),
-        )?;
+        if self.name_config.scrub_identifiers {
+            // Apply the rule if any found
+            self.apply_transaction_rename_rule(
+                &mut event.transaction,
+                event.transaction_info.value_mut(),
+            )?;
 
-        // Normalize transaction names for URLs and Sanitized transaction sources.
-        // This in addition to renaming rules can catch some high cardinality parts.
-        if matches!(
-            event.get_transaction_source(),
-            &TransactionSource::Url | &TransactionSource::Sanitized
-        ) && self.name_config.scrub_identifiers
-        {
-            scrub_identifiers(&mut event.transaction)?;
-            if self.name_config.mark_scrubbed_as_sanitized {
-                event
-                    .transaction_info
-                    .get_or_insert_with(Default::default)
-                    .source
-                    .set_value(Some(TransactionSource::Sanitized));
+            // Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
+            if matches!(
+                event.get_transaction_source(),
+                &TransactionSource::Url | &TransactionSource::Sanitized
+            ) {
+                scrub_identifiers(&mut event.transaction)?;
+                if self.name_config.mark_scrubbed_as_sanitized {
+                    event
+                        .transaction_info
+                        .get_or_insert_with(Default::default)
+                        .source
+                        .set_value(Some(TransactionSource::Sanitized));
+                }
             }
         }
 
