@@ -278,9 +278,6 @@ use relay_system::Controller;
 use crate::actors::server::HttpServer;
 use crate::service::ServiceState;
 
-// Re-export utility function for setting up the persistent envelope buffer if configured.
-pub use utils::setup_persistent_buffer;
-
 /// Runs a relay web server and spawns all internal worker threads.
 ///
 /// This effectively boots the entire server application. It blocks the current thread until a

@@ -165,6 +165,17 @@ impl UpdateRateLimits {
     }
 }
 
+pub struct BufferIndex {
+    project_key: ProjectKey,
+    keys: BTreeSet<QueueKey>,
+}
+
+impl BufferIndex {
+    pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
+        Self { project_key, keys }
+    }
+}
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -193,6 +204,7 @@ pub enum ProjectCache {
     InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
+    BufferIndex(BufferIndex),
 }
 
 impl ProjectCache {
@@ -202,6 +214,14 @@ impl ProjectCache {
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<BufferIndex> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: BufferIndex, _: ()) -> Self {
+        Self::BufferIndex(message)
+    }
+}
 
 impl FromMessage<RequestUpdate> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -477,8 +497,11 @@ impl ProjectCacheBroker {
         }
 
         if !result.is_empty() {
-            self.buffer
-                .send(DequeueMany::new(result, self.buffer_tx.clone()))
+            self.buffer.send(DequeueMany::new(
+                partial_key,
+                result,
+                self.buffer_tx.clone(),
+            ))
         }
     }
 
@@ -743,6 +766,10 @@ impl ProjectCacheBroker {
             .flush_buckets(context, message.partition_key, message.buckets);
     }
 
+    fn handle_buffer_index(&mut self, message: BufferIndex) {
+        self.index.insert(message.project_key, message.keys);
+    }
+
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -758,6 +785,7 @@ impl ProjectCacheBroker {
             ProjectCache::InsertMetrics(message) => self.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
+            ProjectCache::BufferIndex(message) => self.handle_buffer_index(message),
         }
     }
 }
@@ -791,6 +819,7 @@ impl Service for ProjectCacheService {
             redis,
         } = self;
         let buffer_guard = services.buffer.clone();
+        let project_cache = services.project_cache.clone();
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -801,15 +830,18 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer = match BufferService::create(buffer_guard, config.clone()).await {
-                Ok(buffer) => buffer.start(),
-                // This should never happens, since on the startup Relay tries to create a DB and
-                // run migrations, and it that fails the Relay will not start.
-                Err(err) => {
-                    relay_log::error!("failed to start buffer service: {}", LogError(&err));
-                    return;
-                }
-            };
+            let buffer =
+                match BufferService::create(buffer_guard, project_cache, config.clone()).await {
+                    Ok(buffer) => buffer.start(),
+                    // This should never happens, since on the startup Relay tries to create a DB and
+                    // run migrations, and it that fails the Relay will not start.
+                    Err(err) => {
+                        relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                        // NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        std::process::exit(1);
+                    }
+                };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.

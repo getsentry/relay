@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use relay_config::{Config, RelayMode};
 
 pub fn check_config(config: &Config) -> Result<()> {
@@ -69,10 +69,4 @@ pub fn init_metrics(config: &Config) -> Result<()> {
     );
 
     Ok(())
-}
-
-/// Initialize the persistent envelope buffer if enabled.
-pub fn init_persistent_buffer(config: &Config) -> Result<()> {
-    relay_server::setup_persistent_buffer(config)
-        .map_err(|err| anyhow!("failed to configure persistent envelope buffer: {:?}", err))
 }

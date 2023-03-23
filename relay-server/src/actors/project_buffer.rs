@@ -1,17 +1,18 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use futures::TryStreamExt;
 use relay_common::ProjectKey;
 use relay_config::{Config, PersistentBuffer};
 use relay_log::LogError;
-use relay_system::{FromMessage, Interface, Service};
-use sqlx::migrate::MigrateError;
+use relay_system::{Addr, FromMessage, Interface, Service};
+use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
+use crate::actors::project_cache::{BufferIndex, ProjectCache};
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
@@ -44,9 +45,6 @@ pub enum BufferError {
 
     #[error("failed to run migrations")]
     MigrationFailed(#[from] MigrateError),
-
-    #[error("failed to read the migrations directory")]
-    MissingMigrations,
 }
 
 /// This key represents the index element in the queue.
@@ -85,13 +83,22 @@ impl Enqueue {
 /// Removes messages from the internal buffer and streams them to the sender.
 #[derive(Debug)]
 pub struct DequeueMany {
+    project_key: ProjectKey,
     keys: Vec<QueueKey>,
     sender: mpsc::UnboundedSender<ManagedEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(keys: Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
-        Self { keys, sender }
+    pub fn new(
+        project_key: ProjectKey,
+        keys: Vec<QueueKey>,
+        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+    ) -> Self {
+        Self {
+            project_key,
+            keys,
+            sender,
+        }
     }
 }
 
@@ -159,40 +166,61 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+#[derive(Debug)]
+struct BufferSpoolConfig {
+    config: PersistentBuffer,
+    memory_limit: usize,
+    db: Pool<Sqlite>,
+}
+
 /// [`Buffer`] interface implementation backed by SQLite.
 #[derive(Debug)]
 pub struct BufferService {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
-    config: Option<PersistentBuffer>,
-    // this is half of the `envelope_buffer_size` defined in the [`relay_config::Config`].
-    memory_limit: Option<usize>,
+    project_cache: Addr<ProjectCache>,
+    spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
-    db: Option<Pool<Sqlite>>,
 }
 
 impl BufferService {
+    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(true);
+
+        let db = SqlitePoolOptions::new().connect_with(options).await?;
+
+        let migrator = Migrator::new(Path::new("./migrations")).await?;
+        migrator.run(&db).await?;
+
+        Ok(())
+    }
+
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
         buffer_guard: Arc<BufferGuard>,
+        project_cache: Addr<ProjectCache>,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let mut service = Self {
             buffer: BTreeMap::new(),
             buffer_guard,
-            config: None,
-            memory_limit: None,
+            project_cache,
             count_mem_envelopes: 0,
-            db: None,
+            spool_config: None,
         };
 
         // Only iof persistent buffer enabled, we create the pool and set the config.
         if let Some(buffer_config) = config.cache_persistent_buffer() {
-            let path = buffer_config.buffer_path().to_owned();
+            let path = PathBuf::from("sqlite://").join(buffer_config.buffer_path());
+
+            Self::setup(&path).await?;
+
             let options = SqliteConnectOptions::new()
-                .filename(PathBuf::from("sqlite://").join(&path))
-                .journal_mode(SqliteJournalMode::Wal)
-                .create_if_missing(true);
+                .filename(path)
+                .journal_mode(SqliteJournalMode::Wal);
 
             let db = SqlitePoolOptions::new()
                 .max_connections(buffer_config.max_connections())
@@ -204,10 +232,13 @@ impl BufferService {
             let limit = buffer_config
                 .memory_limit()
                 .unwrap_or(config.envelope_buffer_size() / 2);
-            service.memory_limit = Some(limit.min(config.envelope_buffer_size()));
+            let spool_config = BufferSpoolConfig {
+                memory_limit: limit.min(config.envelope_buffer_size()),
+                config: buffer_config.clone(),
+                db,
+            };
 
-            service.db = Some(db);
-            service.config = Some(buffer_config.to_owned());
+            service.spool_config = Some(spool_config);
         }
 
         Ok(service)
@@ -216,25 +247,28 @@ impl BufferService {
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
-    fn try_enqueue(&mut self) -> Result<(), BufferError> {
+    fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
-            db,
-            config,
-            memory_limit,
+            spool_config,
             ref mut buffer,
             ..
         } = self;
 
         // Buffer to disk only if the DB and config are provided.
-        if let (Some(db), Some(config), Some(memory_limit)) = (db, config, memory_limit) {
+        if let Some(BufferSpoolConfig {
+            config,
+            db,
+            memory_limit,
+        }) = spool_config
+        {
             // And if the count of in memory envelopes is over the defined max buffer size.
             if self.count_mem_envelopes > *memory_limit as i64 {
                 // Reject all the enqueue requests if we exceed the max size of the buffer.
                 let current_size = std::fs::metadata(config.buffer_path())
                     .ok()
-                    .map(|meta| meta.len());
-                if current_size.map_or(false, |size| size >= config.max_buffer_size()) {
-                    return Err(BufferError::Full(current_size.unwrap_or_default()));
+                    .map_or(0, |meta| meta.len());
+                if current_size > config.max_buffer_size() {
+                    return Err(BufferError::Full(current_size));
                 }
 
                 // Do not drain and just keep the buffer around, so we do not have to allocate it
@@ -299,7 +333,7 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        self.try_enqueue()?;
+        self.try_spool()?;
 
         // save to the internal buffer
         self.buffer.entry(key).or_default().push(managed_envelope);
@@ -312,7 +346,14 @@ impl BufferService {
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
     async fn handle_dequeue(&mut self, message: DequeueMany) -> Result<(), BufferError> {
-        let DequeueMany { keys, sender } = message;
+        let DequeueMany {
+            project_key,
+            mut keys,
+            sender,
+        } = message;
+
+        let mut back_keys = BTreeSet::new();
+
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
                 self.count_mem_envelopes -= 1;
@@ -321,18 +362,18 @@ impl BufferService {
         }
 
         // Persistent buffer is configured, lets try to get data from the disk.
-        if let Some(db) = &self.db {
-            for key in keys {
+        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
+            while let Some(key) = keys.pop() {
                 // TODO: remove hardcoded number for the limit.
                 // If the requested permits are available, let use them and fetch the envelopes.
                 if let Ok(mut permits) = self.buffer_guard.try_reserve(100) {
                     let mut envelopes = sqlx::query(
-                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
-            )
-            .bind(key.own_key.to_string())
-            .bind(key.sampling_key.to_string())
-            .bind(100)
-            .fetch(db);
+                        "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
+                    )
+                    .bind(key.own_key.to_string())
+                    .bind(key.sampling_key.to_string())
+                    .bind(100)
+                    .fetch(db);
 
                     while let Some(row) = envelopes.try_next().await? {
                         let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
@@ -345,7 +386,27 @@ impl BufferService {
 
                         sender.send(managed_envelope).ok();
                     }
+
+                    // let's check if there are any data left in the db
+                    let result = sqlx::query(
+                        "SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 1",
+                    )
+                    .bind(key.own_key.to_string())
+                    .bind(key.sampling_key.to_string())
+                    .fetch_one(db)
+                    .await;
+
+                    // Make sure to save the key which will be sent back if there are some more
+                    // records left in the db.
+                    if result.map_or(true, |row| !row.is_empty()) {
+                        back_keys.insert(key);
+                    }
                 }
+            }
+            if !keys.is_empty() || !back_keys.is_empty() {
+                back_keys.extend(keys);
+                self.project_cache
+                    .send(BufferIndex::new(project_key, back_keys))
             }
         }
 
@@ -364,7 +425,7 @@ impl BufferService {
             count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
         }
 
-        if let Some(db) = &self.db {
+        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
                 let result =
                     sqlx::query("DELETE FROM envelopes where own_key = ? AND sampling_key = ?")
@@ -416,7 +477,7 @@ impl Drop for BufferService {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
         // We have envelopes in memory, try to buffer them to the disk.
         if count > 0 {
-            if let Err(err) = self.try_enqueue() {
+            if let Err(err) = self.try_spool() {
                 relay_log::error!("failed to spool {} on shutdown: {}", count, LogError(&err));
             }
         }

@@ -357,7 +357,6 @@ pub fn run(config: Config, _matches: &ArgMatches) -> Result<()> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;
-    setup::init_persistent_buffer(&config)?;
     relay_server::run(config)?;
     Ok(())
 }
