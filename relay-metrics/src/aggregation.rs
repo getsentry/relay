@@ -2,7 +2,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
-use std::str::FromStr;
 use std::time::Duration;
 use std::{fmt, mem};
 

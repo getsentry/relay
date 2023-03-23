@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
-use std::str::FromStr;
 
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
@@ -193,11 +192,6 @@ pub enum TransactionsKind<'a> {
         kind: Measurementkind<'a>,
         unit: MetricUnit,
     },
-    Custom {
-        name: &'a str,
-        ty: MetricType,
-        unit: MetricUnit,
-    },
 }
 
 impl<'a> TransactionsKind<'a> {
@@ -232,7 +226,7 @@ impl<'a> TransactionsKind<'a> {
             },
             "user" => Ok(Self::User),
             "count_per_root_project" => Ok(Self::CountPerRootProject),
-            _ => Ok(Self::Custom { name, ty, unit }),
+            _ => return Err(ParseMetricError(())),
         }
     }
 
@@ -243,7 +237,6 @@ impl<'a> TransactionsKind<'a> {
             Self::User => format!("user"),
             Self::CountPerRootProject => format!("count_per_root_project"),
             Self::Measurements { kind, .. } => format!("{kind}"),
-            Self::Custom { name, .. } => format!("{name}"),
         }
     }
 }
@@ -307,7 +300,6 @@ impl<'a> MetricResourceIdentifier<'a> {
     pub fn ty(&self) -> MetricType {
         match self {
             Self::Transaction(t) => match t {
-                TransactionsKind::Custom { ty, .. } => *ty,
                 TransactionsKind::Breakdowns(_) => MetricType::Distribution,
                 TransactionsKind::CountPerRootProject => MetricType::Counter,
                 TransactionsKind::Duration(_) => MetricType::Distribution,
@@ -338,7 +330,6 @@ impl<'a> MetricResourceIdentifier<'a> {
     pub fn unit(&self) -> MetricUnit {
         match self {
             Self::Transaction(t) => match t {
-                TransactionsKind::Custom { unit, .. } => *unit,
                 TransactionsKind::Measurements { unit, .. } => *unit,
                 TransactionsKind::Duration(unit) => MetricUnit::Duration(*unit),
                 TransactionsKind::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
