@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::error_handling::HandleErrorLayer;
 use axum::http::{header, HeaderValue};
 use axum::{middleware, ServiceExt};
 use axum_server::{Handle, Server};
@@ -9,11 +8,12 @@ use relay_config::Config;
 use relay_log::_sentry::integrations::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
-use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{self, NormalizePathLayer};
+use crate::middlewares::{
+    self, CatchPanicLayer, HandleErrorLayer, NormalizePathLayer, RequestDecompressionLayer,
+};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
@@ -91,6 +91,7 @@ impl Service for HttpServer {
         //  - Responses go from bottom to top
         let middleware = ServiceBuilder::new()
             .layer(middleware::from_fn(middlewares::metrics))
+            .layer(CatchPanicLayer::custom(middlewares::handle_panic))
             .layer(SetResponseHeaderLayer::overriding(
                 header::SERVER,
                 HeaderValue::from_static(constants::SERVER),
