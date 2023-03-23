@@ -448,7 +448,7 @@ mod tests {
     use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
-    use crate::store::LazyGlob;
+    use crate::store::{LazyGlob, RedactionRule, RuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
@@ -2129,4 +2129,50 @@ mod tests {
         "open-12345-close",
         "open-12345-close"
     );
+
+    #[test]
+    fn test_scrub_identifiers_before_rules() {
+        // There's a rule matching the transaction name. However, the UUID
+        // should be scrubbed first. Scrubbing the UUID makes the rule to not
+        // match the transformed transaction name anymore.
+
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        // Annotate the snapshot instead of comparing transaction names, to also
+        // make sure the event's _meta is correct.
+        assert_annotated_snapshot!(event);
+    }
 }
