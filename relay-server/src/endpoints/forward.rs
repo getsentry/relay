@@ -148,19 +148,16 @@ impl UpstreamRequest for ForwardRequest {
     ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
-            // must not forward the content-encoding header, as the actix http client will do its own
-            // content encoding. Also remove content-length because it's likely wrong.
-            if HOP_BY_HOP_HEADERS.iter().any(|x| x == key)
-                || IGNORED_REQUEST_HEADERS.iter().any(|x| x == key)
-            {
-                continue;
+            // must not forward the content-encoding header, as the actix http client will do its
+            // own content encoding. Also remove content-length because it's likely wrong.
+            if !HOP_BY_HOP_HEADERS.contains(key) && !IGNORED_REQUEST_HEADERS.contains(key) {
+                builder = builder.header(key, value);
             }
-
-            builder.header(key, value);
         }
 
-        builder.header("X-Forwarded-For", self.forwarded_for.as_ref());
-        builder.body(&self.data)
+        builder
+            .header("X-Forwarded-For", self.forwarded_for.as_ref())
+            .body(&self.data)
     }
 
     fn respond(

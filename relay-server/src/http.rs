@@ -60,11 +60,8 @@ impl RequestBuilder {
     }
 
     /// Add a new header, not replacing existing ones.
-    pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
-        // Note: This is the only use of `take_mut`. Remove the dependency when removing this.
-        take_mut::take(&mut self.builder, |b| {
-            b.header(key.as_ref(), value.as_ref())
-        });
+    pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
+        self.builder = self.builder.header(key.as_ref(), value.as_ref());
         self
     }
 
@@ -72,29 +69,20 @@ impl RequestBuilder {
     ///
     /// If the value is `Some`, the header is added. If the value is `None`, headers are not
     /// changed.
-    pub fn header_opt(
-        &mut self,
-        key: impl AsRef<str>,
-        value: Option<impl AsRef<[u8]>>,
-    ) -> &mut Self {
+    pub fn header_opt(mut self, key: impl AsRef<str>, value: Option<impl AsRef<[u8]>>) -> Self {
         if let Some(value) = value {
-            take_mut::take(&mut self.builder, |b| {
-                b.header(key.as_ref(), value.as_ref())
-            });
+            self.builder = self.builder.header(key.as_ref(), value.as_ref());
         }
         self
+    }
+
+    pub fn content_encoding(self, encoding: HttpEncoding) -> Self {
+        self.header_opt("content-encoding", encoding.name())
     }
 
     pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
         self.builder = self.builder.body(body.as_ref().to_vec());
         self.finish()
-    }
-
-    pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
-        match encoding.name() {
-            Some(name) => self.header("Content-Encoding", name),
-            None => self,
-        }
     }
 }
 

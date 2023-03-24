@@ -442,11 +442,7 @@ where
         self.query.route()
     }
 
-    fn build(
-        &mut self,
-        config: &Config,
-        mut builder: RequestBuilder,
-    ) -> Result<Request, HttpError> {
+    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
         // Memoize the serialized body and signature for retries.
         let credentials = config.credentials().ok_or(HttpError::NoCredentials)?;
         let (body, signature) = self
@@ -461,9 +457,10 @@ where
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
         );
 
-        builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
-        builder.header(header::CONTENT_TYPE, b"application/json");
-        builder.body(&body)
+        builder
+            .header("X-Sentry-Relay-Signature", signature.as_bytes())
+            .header(header::CONTENT_TYPE, b"application/json")
+            .body(&body)
     }
 
     fn respond(
@@ -753,14 +750,12 @@ impl SharedClient {
                 .http_host_header()
                 .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-            let method = request.method();
-
-            let mut builder = RequestBuilder::reqwest(self.reqwest.request(method, url));
-            builder.header("Host", host_header.as_bytes());
+            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url))
+                .header("Host", host_header.as_bytes());
 
             if request.set_relay_id() {
                 if let Some(credentials) = self.config.credentials() {
-                    builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+                    builder = builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
                 }
             }
 
