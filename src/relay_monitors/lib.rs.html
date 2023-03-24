@@ -176,6 +176,117 @@
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -238,6 +349,46 @@
     uuid.as_simple().serialize(serializer)
 }
 
+<span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(tag = <span class="string">&quot;type&quot;</span>)]
+</span><span class="kw">enum </span>Schedule {
+    Crontab { value: String },
+    Interval { value: u64, unit: IntervalName },
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+</span><span class="kw">enum </span>IntervalName {
+    Year,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
+}
+
+<span class="doccomment">/// The monitor configuration playload for upserting monitors during check-in
+</span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">struct </span>MonitorConfig {
+    <span class="doccomment">/// The monitor schedule configuration
+    </span>schedule: Schedule,
+
+    <span class="doccomment">/// How long (in minutes) after the expected checkin time will we wait until we consider the
+    /// checkin to have been missed.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>checkin_margin: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+
+    <span class="doccomment">/// How long (in minutes) is the checkin allowed to run for in in_rogress before it is
+    /// considered failed.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>max_runtime: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+
+    <span class="doccomment">/// tz database style timezone string
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>timezone: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
 <span class="doccomment">/// The monitor check-in payload.
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>CheckIn {
@@ -254,6 +405,10 @@
     <span class="doccomment">/// Duration of this check since it has started in seconds.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+
+    <span class="doccomment">/// monitor configuration to support upserts.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>monitor_config: <span class="prelude-ty">Option</span>&lt;MonitorConfig&gt;,
 }
 
 <span class="doccomment">/// Normalizes a monitor check-in payload.
@@ -307,6 +462,73 @@
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
   &quot;duration&quot;: 21.0
+}&quot;#</span>;
+
+        <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
+        <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
+
+        <span class="macro">assert_eq!</span>(json, serialized);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>process_with_upsert_short() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
+  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;monitor_config&quot;: {
+    &quot;schedule&quot;: {
+      &quot;type&quot;: &quot;crontab&quot;,
+      &quot;value&quot;: &quot;0 * * * *&quot;
+    }
+  }
+}&quot;#</span>;
+
+        <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
+        <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
+
+        <span class="macro">assert_eq!</span>(json, serialized);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>process_with_upsert_interval() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
+  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;monitor_config&quot;: {
+    &quot;schedule&quot;: {
+      &quot;type&quot;: &quot;interval&quot;,
+      &quot;value&quot;: 5,
+      &quot;unit&quot;: &quot;day&quot;
+    },
+    &quot;checkin_margin&quot;: 5,
+    &quot;max_runtime&quot;: 10,
+    &quot;timezone&quot;: &quot;America/Los_Angles&quot;
+  }
+}&quot;#</span>;
+
+        <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
+        <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
+
+        <span class="macro">assert_eq!</span>(json, serialized);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>process_with_upsert_full() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
+  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;monitor_config&quot;: {
+    &quot;schedule&quot;: {
+      &quot;type&quot;: &quot;crontab&quot;,
+      &quot;value&quot;: &quot;0 * * * *&quot;
+    },
+    &quot;checkin_margin&quot;: 5,
+    &quot;max_runtime&quot;: 10,
+    &quot;timezone&quot;: &quot;America/Los_Angles&quot;
+  }
 }&quot;#</span>;
 
         <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
