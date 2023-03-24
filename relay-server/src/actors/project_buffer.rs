@@ -215,7 +215,6 @@ impl BufferService {
 
         // Only if persistent buffer enabled, we create the pool and set the config.
         if let Some(path) = config.cache_persistent_buffer_path() {
-            let path = PathBuf::from("sqlite://").join(path);
             relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
 
             Self::setup(&path).await?;
