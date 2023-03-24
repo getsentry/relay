@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::TryStreamExt;
@@ -7,7 +7,7 @@ use relay_common::ProjectKey;
 use relay_config::{Config, PersistentBuffer};
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
-use sqlx::migrate::{MigrateError, Migrator};
+use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
@@ -191,9 +191,7 @@ impl BufferService {
             .create_if_missing(true);
 
         let db = SqlitePoolOptions::new().connect_with(options).await?;
-
-        let migrator = Migrator::new(Path::new("./migrations")).await?;
-        migrator.run(&db).await?;
+        sqlx::migrate!("../migrations").run(&db).await?;
 
         Ok(())
     }
@@ -212,9 +210,10 @@ impl BufferService {
             spool_config: None,
         };
 
-        // Only iof persistent buffer enabled, we create the pool and set the config.
+        // Only if persistent buffer enabled, we create the pool and set the config.
         if let Some(buffer_config) = config.cache_persistent_buffer() {
             let path = PathBuf::from("sqlite://").join(buffer_config.buffer_path());
+            relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
 
             Self::setup(&path).await?;
 
