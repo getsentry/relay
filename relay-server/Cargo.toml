@@ -13,9 +13,6 @@ publish = false
 [features]
 default = []
 ssl = [  # TODO(ja): Remove this feature
-    # "actix-web/tls",
-    # "dep:native-tls",
-    # "dep:tokio-native-tls",
     "relay-quotas/tls",
     "relay-redis/tls",
 ]

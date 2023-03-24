@@ -1,4 +1,4 @@
-///! Abstractions for dealing with either actix-web client structs or reqwest structs.
+///! Abstractions for dealing with HTTP clients.
 ///!
 ///! All of it is implemented as enums because if they were traits, they'd have to be boxed to be
 ///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
@@ -94,14 +94,9 @@ impl Response {
     }
 
     pub async fn consume(&mut self) -> Result<(), HttpError> {
-        // Consume the request payload such that the underlying connection returns to a
-        // "clean state".
-        //
-        // We do not understand if this is strictly necessary for reqwest. It was ported
-        // from actix-web where it was clearly necessary to un-break keepalive connections,
-        // but no testcase has been written for this and we are unsure on how to reproduce
-        // outside of prod. I (markus) have not found code in reqwest that would explicitly
-        // deal with this.
+        // Consume the request payload such that the underlying connection returns to a "clean
+        // state" and can be reused by the client. This is explicitly required, see:
+        // https://github.com/seanmonstar/reqwest/issues/1272#issuecomment-839813308
         while self.0.chunk().await?.is_some() {}
         Ok(())
     }

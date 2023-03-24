@@ -716,12 +716,8 @@ impl SharedClient {
         let reqwest = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
-            // In actix-web client this option could be set on a per-request basis.  In reqwest
-            // this option can only be set per-client. For non-forwarded upstream requests that is
-            // desirable, so we have it enabled.
-            //
             // In the forward endpoint, this means that content negotiation is done twice, and the
-            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
             .trust_dns(true)
             .build()

@@ -147,9 +147,9 @@ impl UpstreamRequest for ForwardRequest {
         mut builder: RequestBuilder,
     ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
-            // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
-            // must not forward the content-encoding header, as the actix http client will do its
-            // own content encoding. Also remove content-length because it's likely wrong.
+            // Since the body is always decompressed by the server, we must not forward the
+            // content-encoding header, as the upstream client will do its own content encoding.
+            // Also, remove content-length because it's likely wrong.
             if !HOP_BY_HOP_HEADERS.contains(key) && !IGNORED_REQUEST_HEADERS.contains(key) {
                 builder = builder.header(key, value);
             }

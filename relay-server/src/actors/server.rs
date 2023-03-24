@@ -6,7 +6,7 @@ use axum::http::{header, HeaderValue};
 use axum::{middleware, ServiceExt};
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig, Server};
 use relay_config::Config;
-use relay_log::_sentry::integrations::tower::NewSentryLayer;
+use relay_log::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
