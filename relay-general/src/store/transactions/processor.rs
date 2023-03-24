@@ -1925,7 +1925,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user",
+            "transaction": "/foo/rule-target/user",
             "transaction_info": {
               "source": "url"
             },
@@ -1999,7 +1999,7 @@ mod tests {
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user"
+                 "val": "/foo/rule-target/user"
                }
              }
            }
