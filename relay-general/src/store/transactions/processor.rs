@@ -57,7 +57,13 @@ impl<'r> TransactionsProcessor<'r> {
 
                 if let Some((rule, result)) = result {
                     if *transaction != result {
-                        meta.set_original_value(Some(transaction.clone()));
+                        // If another rule was applied before, we don't want to
+                        // rename the transaction name to keep the original one.
+                        // We do want to continue adding remarks though, in
+                        // order to keep track of all rules applied.
+                        if meta.original_value().is_none() {
+                            meta.set_original_value(Some(transaction.clone()));
+                        }
                         // add also the rule which was applied to the transaction name
                         meta.add_remark(Remark::new(RemarkType::Substituted, rule));
                         *transaction = result;
@@ -1678,7 +1684,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/",
+            "transaction": "/foo/rule-target/user/123/0/",
             "transaction_info": {
               "source": "url"
             },
@@ -1725,8 +1731,8 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -1762,11 +1768,17 @@ mod tests {
                "": {
                  "rem": [
                    [
+                     "int",
+                     "s",
+                     22,
+                     25
+                   ],
+                   [
                      "/foo/*/user/*/**",
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
+                 "val": "/foo/rule-target/user/123/0/"
                }
              }
            }
@@ -1782,8 +1794,8 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -1819,17 +1831,17 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "/foo/*/**",
-                    "s"
-                  ],
-                  [
                     "int",
                     "s",
-                    12,
-                    15
+                    22,
+                    25
+                  ],
+                  [
+                    "/foo/*/**",
+                    "s"
                   ]
                 ],
-                "val": "/foo/*/user/123/0/"
+                "val": "/foo/rule-target/user/123/0/"
               }
             }
           }
