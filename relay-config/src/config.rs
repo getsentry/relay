@@ -758,31 +758,9 @@ pub struct PersistentBuffer {
     /// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the befault is 10737418240 bytes or 10 GB.
-    max_size: Option<u64>,
-}
-
-impl PersistentBuffer {
-    /// Return the path to the persistent buffer.
-    pub fn buffer_path(&self) -> &PathBuf {
-        &self.path
-    }
-
-    /// Maximum number of connections, which will be maintained by the pool.
-    pub fn max_connections(&self) -> u32 {
-        self.max_connections
-    }
-
-    /// Minimal number of connections, which will be maintained by the pool.
-    pub fn min_connections(&self) -> u32 {
-        self.min_connections
-    }
-
-    /// The maximum size of the buffer, in bytes.
-    ///
-    /// Default: 10737418240 bytes or 10 GB.
-    pub fn max_buffer_size(&self) -> u64 {
-        self.max_size.unwrap_or(10 * 1024 * 1024 * 1024)
-    }
+    max_disk_size: Option<usize>,
+    /// The maximum number of envelopes to keep in the memory buffer before spooling them to disk.
+    max_memory_size: Option<usize>,
 }
 
 /// Controls internal caching behavior.
@@ -1736,11 +1714,58 @@ impl Config {
         self.values.cache.persistent_envelope_buffer.is_some()
     }
 
-    /// Returns the path to the persistent envelope buffer file.
+    /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
+    pub fn cache_persistent_buffer_path(&self) -> Option<PathBuf> {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.path.to_owned())
+    }
+
+    /// Maximum number of connections to create to buffer file.
+    pub fn cache_persistent_buffer_max_connections(&self) -> u32 {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.max_connections)
+            .unwrap_or(buffer_max_connections())
+    }
+
+    /// Minimum number of connections to create to buffer file.
+    pub fn cache_persistent_buffer_min_connections(&self) -> u32 {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.min_connections)
+            .unwrap_or(buffer_min_connections())
+    }
+
+    /// The maximum size of the buffer, in bytes.
     ///
-    /// If the path is not provided the default one will be used and assumed to be available.
-    pub fn cache_persistent_buffer(&self) -> Option<&PersistentBuffer> {
-        self.values.cache.persistent_envelope_buffer.as_ref()
+    /// Default: 10737418240 bytes or 10 GB.
+    pub fn cache_persistent_buffer_max_disk_size(&self) -> usize {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .and_then(|b| b.max_disk_size)
+            .unwrap_or(10 * 1024 * 1024 * 1024)
+    }
+
+    /// The maximum size of the memory buffer.
+    ///
+    /// Set to smaller between `cache.persistent_envelope_buffer.max_memory_size` and `cache.envelope_buffer_size`.
+    /// Default set to half of `cache.envelope_buffer_size`
+    pub fn cache_persistent_buffer_max_memory_size(&self) -> usize {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .and_then(|b| b.max_memory_size)
+            .unwrap_or(self.envelope_buffer_size() / 2)
     }
 
     /// Returns the maximum size of an event payload in bytes.

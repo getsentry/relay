@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::TryStreamExt;
 use relay_common::ProjectKey;
-use relay_config::{Config, PersistentBuffer};
+use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
@@ -168,9 +169,9 @@ impl FromMessage<RemoveMany> for Buffer {
 
 #[derive(Debug)]
 struct BufferSpoolConfig {
-    config: PersistentBuffer,
-    memory_limit: usize,
     db: Pool<Sqlite>,
+    max_disk_size: usize,
+    max_memory_size: usize,
 }
 
 /// [`Buffer`] interface implementation backed by SQLite.
@@ -178,6 +179,7 @@ struct BufferSpoolConfig {
 pub struct BufferService {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
+    config: Arc<Config>,
     project_cache: Addr<ProjectCache>,
     spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
@@ -205,33 +207,33 @@ impl BufferService {
         let mut service = Self {
             buffer: BTreeMap::new(),
             buffer_guard,
+            config: config.clone(),
             project_cache,
             count_mem_envelopes: 0,
             spool_config: None,
         };
 
         // Only if persistent buffer enabled, we create the pool and set the config.
-        if let Some(buffer_config) = config.cache_persistent_buffer() {
-            let path = PathBuf::from("sqlite://").join(buffer_config.buffer_path());
+        if let Some(path) = config.cache_persistent_buffer_path() {
+            let path = PathBuf::from("sqlite://").join(path);
             relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
 
             Self::setup(&path).await?;
 
             let options = SqliteConnectOptions::new()
-                .filename(path)
+                .filename(&path)
                 .journal_mode(SqliteJournalMode::Wal);
 
             let db = SqlitePoolOptions::new()
-                .max_connections(buffer_config.max_connections())
-                .min_connections(buffer_config.min_connections())
+                .max_connections(config.cache_persistent_buffer_max_connections())
+                .min_connections(config.cache_persistent_buffer_min_connections())
                 .connect_with(options)
                 .await?;
 
             let spool_config = BufferSpoolConfig {
-                // Set the buffer memory limit, to half of the size of`envelope_buffer_size`.
-                memory_limit: config.envelope_buffer_size() / 2,
-                config: buffer_config.clone(),
                 db,
+                max_disk_size: config.cache_persistent_buffer_max_disk_size(),
+                max_memory_size: config.cache_persistent_buffer_max_memory_size(),
             };
 
             service.spool_config = Some(spool_config);
@@ -245,6 +247,7 @@ impl BufferService {
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
+            config,
             spool_config,
             ref mut buffer,
             ..
@@ -252,18 +255,24 @@ impl BufferService {
 
         // Buffer to disk only if the DB and config are provided.
         if let Some(BufferSpoolConfig {
-            config,
             db,
-            memory_limit,
+            max_disk_size,
+            max_memory_size,
         }) = spool_config
         {
             // And if the count of in memory envelopes is over the defined max buffer size.
-            if self.count_mem_envelopes > *memory_limit as i64 {
+            if self.count_mem_envelopes > *max_memory_size as i64 {
                 // Reject all the enqueue requests if we exceed the max size of the buffer.
-                let current_size = std::fs::metadata(config.buffer_path())
+                let db_file_path =
+                    config
+                        .cache_persistent_buffer_path()
+                        .ok_or(BufferError::DatabaseSizeError(Error::from(
+                            ErrorKind::NotFound,
+                        )))?;
+                let current_size = std::fs::metadata(db_file_path)
                     .ok()
                     .map_or(0, |meta| meta.len());
-                if current_size > config.max_buffer_size() {
+                if current_size as usize > *max_disk_size {
                     return Err(BufferError::Full(current_size));
                 }
 
@@ -372,12 +381,14 @@ impl BufferService {
 
         // Persistent buffer is configured, lets try to get data from the disk.
         if let Some(BufferSpoolConfig {
-            db, memory_limit, ..
+            db,
+            max_memory_size,
+            ..
         }) = &self.spool_config
         {
             // The size of the batch per key we want to fetch from the persistent buffer.
             // Should still fit into memory, but must not be too big, for one go.
-            let request_size: usize = (memory_limit / (keys.len() + 1) + 1).min(500);
+            let request_size: usize = (max_memory_size / (keys.len() + 1) + 1).min(500);
             while let Some(key) = keys.pop() {
                 // If the requested permits are available, let use them and fetch the envelopes.
                 // request
@@ -401,30 +412,35 @@ impl BufferService {
                                     LogError(&err)
                                 ),
                             },
-                            Ok(None) => break,
+
+                            Ok(None) => {
+                                // Let's check if there are any data left in the db.
+                                let result = sqlx::query(
+                                    "SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 1",
+                                )
+                                .bind(key.own_key.to_string())
+                                .bind(key.sampling_key.to_string())
+                                .fetch_one(db)
+                                .await;
+
+                                // Make sure to save the key which will be sent back if there are some more
+                                // records left in the db.
+                                if result.map_or(true, |row| !row.is_empty()) {
+                                    back_keys.insert(key);
+                                }
+
+                                break;
+                            }
+
                             Err(err) => {
                                 relay_log::error!(
                                     "failed to read the buffer stream from the disk: {}",
                                     LogError(&err)
                                 );
+                                back_keys.insert(key);
                                 break;
                             }
                         }
-                    }
-
-                    // let's check if there are any data left in the db
-                    let result = sqlx::query(
-                        "SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 1",
-                    )
-                    .bind(key.own_key.to_string())
-                    .bind(key.sampling_key.to_string())
-                    .fetch_one(db)
-                    .await;
-
-                    // Make sure to save the key which will be sent back if there are some more
-                    // records left in the db.
-                    if result.map_or(true, |row| !row.is_empty()) {
-                        back_keys.insert(key);
                     }
                 }
             }
