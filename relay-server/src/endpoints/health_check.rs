@@ -21,3 +21,7 @@ pub async fn handle(Path(kind): Path<IsHealthy>) -> impl IntoResponse {
         ),
     }
 }
+
+pub async fn handle_live() -> impl IntoResponse {
+    handle(Path(IsHealthy::Liveness)).await
+}
