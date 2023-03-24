@@ -3069,7 +3069,7 @@ mod tests {
         };
 
         let metric2 = Metric {
-            name: "c:transactions/user".to_owned(),
+            name: "s:transactions/user".to_owned(),
             value: MetricValue::Counter(43.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -3109,6 +3109,7 @@ mod tests {
     #[test]
     fn test_bucket_partitioning_128() {
         let output = run_test_bucket_partitioning(Some(128));
+        dbg!(&output);
         // Because buckets are stored in a HashMap, we do not know in what order the buckets will
         // be processed, so we need to convert them to a set:
         let (partition_keys, tail) = output.split_at(2);
