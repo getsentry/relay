@@ -926,7 +926,7 @@ mod tests {
 
     fn create_transaction_metric() -> Metric {
         Metric {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/breakdowns.foo".to_string(),
             value: MetricValue::Counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
@@ -960,7 +960,7 @@ mod tests {
 
     fn create_transaction_bucket() -> Bucket {
         Bucket {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/breakdowns.foo".to_string(),
             value: BucketValue::Counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),

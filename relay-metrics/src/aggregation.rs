@@ -1742,6 +1742,7 @@ impl AggregatorService {
             metric_name: metric.name,
             tags: metric.tags,
         };
+        dbg!(&key.cost());
         dbg!("ajsdnfasfa");
         self.merge_in(key, metric.value)
     }
@@ -2620,13 +2621,21 @@ mod tests {
     }
 
     #[test]
+    fn test_capped_iter_empty() {
+        let buckets = vec![];
+
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
         let mut aggregator = AggregatorService::new(test_config(), None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let metric = Metric {
-            name: "c:transactions/user@none".to_owned(),
+            name: "c:transactions/breakdowns.foo_counter@none".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2634,50 +2643,77 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/user@none".to_owned(),
+            metric_name: "c:transactions/breakdowns.foo_counter@none".to_owned(),
             tags: BTreeMap::new(),
         };
+        dbg!(&bucket_key.cost());
+
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
+        dbg!(fixed_cost);
         for (metric_name, metric_value, expected_added_cost) in [
             (
-                "c:transactions/user@none",
+                "c:transactions/breakdowns.foo_counter@none",
                 MetricValue::Counter(42.),
-                fixed_cost,
+                fixed_cost + 7,
             ),
-            ("c:transactions/user@none", MetricValue::Counter(42.), 0), // counters have constant size
             (
-                "s:transactions/user@none",
+                "c:transactions/breakdowns.foo_counter@none",
+                MetricValue::Counter(42.),
+                0,
+            ), // counters have constant size
+            (
+                "s:transactions/breakdowns.foo_set@none",
                 MetricValue::Set(123),
-                fixed_cost + 4,
+                fixed_cost + 7,
             ), // Added a new bucket + 1 element
-                                                                        /*
-                                                                        ("s:transactions/foo@none", MetricValue::Set(123), 0), // Same element in set, no change
-                                                                        ("s:transactions/foo@none", MetricValue::Set(456), 4), // Different element in set -> +4
-                                                                        (
-                                                                            "d:transactions/foo@none",
-                                                                            MetricValue::Distribution(1.0),
-                                                                            fixed_cost + 12,
-                                                                        ), // New bucket + 1 element
-                                                                        ("d:transactions/foo@none", MetricValue::Distribution(1.0), 0), // no new element
-                                                                        (
-                                                                            "d:transactions/foo@none",
-                                                                            MetricValue::Distribution(2.0),
-                                                                            12,
-                                                                        ), // 1 new element
-                                                                        (
-                                                                            "g:transactions/foo@none",
-                                                                            MetricValue::Gauge(0.3),
-                                                                            fixed_cost,
-                                                                        ), // New bucket
-                                                                        ("g:transactions/foo@none", MetricValue::Gauge(0.2), 0), // gauge has constant size
-                                                                                                                                 */
+            (
+                "s:transactions/breakdowns.foo_set@none",
+                MetricValue::Set(123),
+                0,
+            ), // Same element in set, no change
+            (
+                "s:transactions/breakdowns.foo_set@none",
+                MetricValue::Set(456),
+                4,
+            ), // Different element in set -> +4
+            (
+                "d:transactions/breakdowns.foo_distribution@none",
+                MetricValue::Distribution(1.0),
+                fixed_cost + 24,
+            ), // New bucket + 1 element
+            (
+                "d:transactions/breakdowns.foo_distribution@none",
+                MetricValue::Distribution(1.0),
+                0,
+            ), // no new element
+            (
+                "d:transactions/breakdowns.foo_distribution@none",
+                MetricValue::Distribution(2.0),
+                12,
+            ), // 1 new element
+            (
+                "g:transactions/breakdowns.foo_gauge@none",
+                MetricValue::Gauge(0.3),
+                fixed_cost + 5,
+            ), // New bucket
+            (
+                "g:transactions/breakdowns.foo_gauge@none",
+                MetricValue::Gauge(0.2),
+                0,
+            ), // gauge has constant size
         ] {
             let mut metric = metric.clone();
             metric.value = metric_value;
             metric.name = metric_name.to_string();
-            dbg!(&metric.name);
 
             let current_cost = aggregator.cost_tracker.total_cost;
+            dbg!(
+                &metric.name,
+                &metric.value,
+                expected_added_cost,
+                current_cost,
+                "###########"
+            );
             aggregator.insert(project_key, metric).unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
@@ -2685,14 +2721,6 @@ mod tests {
 
         aggregator.pop_flush_buckets();
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
-    }
-
-    #[test]
-    fn test_capped_iter_empty() {
-        let buckets = vec![];
-
-        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
-        assert!(iter.next().is_none());
     }
 
     #[test]
@@ -3115,8 +3143,8 @@ mod tests {
         let (partition_keys, tail) = output.split_at(2);
         insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
         {
-            "metrics.buckets.partition_keys:59|h",
-            "metrics.buckets.partition_keys:62|h",
+            "metrics.buckets.partition_keys:12|h",
+            "metrics.buckets.partition_keys:1|h",
         }
         "###);
 

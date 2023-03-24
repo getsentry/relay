@@ -313,6 +313,7 @@ impl<'a> MetricResourceIdentifier<'a> {
             },
         }
     }
+
     pub fn namespace(&self) -> &str {
         match self {
             Self::Session(_) => "sessions",
@@ -688,7 +689,7 @@ impl Metric {
     /// ```
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
-    /// let metric = Metric::parse(b"transactions/response_time@millisecond:57|d", UnixTimestamp::now())
+    /// let metric = Metric::parse(b"transactions/duration@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -711,8 +712,8 @@ impl Metric {
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
     /// let data = br#"
-    /// transactions/endpoint.response_time@millisecond:57|d
-    /// transactions/endpoint.hits:1|c
+    /// transactions/duration@millisecond:57|d
+    /// transactions/count_per_root_project:1|c
     /// "#;
     ///
     /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
