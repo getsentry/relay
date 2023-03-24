@@ -326,6 +326,26 @@ pub enum MetricResourceIdentifier<'a> {
     Session(SessionsKind),
 }
 
+pub trait MriTrait: Sized {
+    type Err;
+    fn ty(&self) -> MetricType;
+    fn namespace(&self) -> &str;
+    fn name(&self) -> &str;
+    fn unit(&self) -> MetricUnit;
+
+    fn parse(s: &str) -> Result<Self, Self::Err>;
+
+    fn as_string(&self) -> String {
+        format!(
+            "{}:{}/{}@{}",
+            self.ty(),
+            self.namespace(),
+            self.name(),
+            self.unit()
+        )
+    }
+}
+
 impl<'a> MetricResourceIdentifier<'a> {
     pub fn ty(&self) -> MetricType {
         match self {
