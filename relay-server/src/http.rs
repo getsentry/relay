@@ -61,6 +61,7 @@ impl RequestBuilder {
 
     /// Add a new header, not replacing existing ones.
     pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
+        // Note: This is the only use of `take_mut`. Remove the dependency when removing this.
         take_mut::take(&mut self.builder, |b| {
             b.header(key.as_ref(), value.as_ref())
         });

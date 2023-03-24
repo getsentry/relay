@@ -3198,7 +3198,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tokio-native-tls",
  "tower",
  "tower-http",
  "url",
