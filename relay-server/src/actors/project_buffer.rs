@@ -372,17 +372,23 @@ impl BufferService {
         }
 
         // Persistent buffer is configured, lets try to get data from the disk.
-        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
+        if let Some(BufferSpoolConfig {
+            db, memory_limit, ..
+        }) = &self.spool_config
+        {
+            // The size of the batch per key we want to fetch from the persistent buffer.
+            // Should still fit into memory, but must not be too big, for one go.
+            let request_size: usize = (memory_limit / (keys.len() + 1) + 1).min(500);
             while let Some(key) = keys.pop() {
-                // TODO: remove hardcoded number for the limit.
                 // If the requested permits are available, let use them and fetch the envelopes.
-                if let Ok(mut permits) = self.buffer_guard.try_reserve(100) {
+                // request
+                if let Ok(mut permits) = self.buffer_guard.try_reserve(request_size) {
                     let mut envelopes = sqlx::query(
                         "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
                     )
                     .bind(key.own_key.to_string())
                     .bind(key.sampling_key.to_string())
-                    .bind(100)
+                    .bind(request_size as u32)
                     .fetch(db);
 
                     loop {
