@@ -606,8 +606,6 @@ impl MergeValue for BucketValue {
 
 impl MergeValue for MetricValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        dbg!(&self, &bucket_value);
-        dbg!("@@@@@@@@@@@@@@@@@@@@@@@@@@");
         match (bucket_value, self) {
             (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
                 *counter += value;
@@ -870,12 +868,6 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 enum AggregateMetricsErrorKind {
     #[error("found invalid identifier")]
     InvalidIdentifier,
-    /// A metric bucket had invalid characters in the metric name.
-    #[error("found invalid characters")]
-    InvalidCharacters,
-    /// A metric bucket had an unknown namespace in the metric name.
-    #[error("found unsupported namespace")]
-    UnsupportedNamespace,
     /// A metric bucket's timestamp was out of the configured acceptable range.
     #[error("found invalid timestamp")]
     InvalidTimestamp,
@@ -1686,7 +1678,6 @@ impl AggregatorService {
         )?;
 
         let added_cost;
-        dbg!("asdfa");
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
@@ -1695,14 +1686,11 @@ impl AggregatorService {
                 );
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
-                dbg!();
                 value.merge_into(bucket_value)?;
-                dbg!();
                 let cost_after = bucket_value.cost();
                 added_cost = cost_after.saturating_sub(cost_before);
             }
             Entry::Vacant(entry) => {
-                dbg!();
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
                     metric_name = &entry.key().metric_name
@@ -1742,8 +1730,6 @@ impl AggregatorService {
             metric_name: metric.name,
             tags: metric.tags,
         };
-        dbg!(&key.cost());
-        dbg!("ajsdnfasfa");
         self.merge_in(key, metric.value)
     }
 
@@ -2646,10 +2632,8 @@ mod tests {
             metric_name: "c:transactions/breakdowns.foo_counter@none".to_owned(),
             tags: BTreeMap::new(),
         };
-        dbg!(&bucket_key.cost());
 
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
-        dbg!(fixed_cost);
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/breakdowns.foo_counter@none",
@@ -2707,13 +2691,6 @@ mod tests {
             metric.name = metric_name.to_string();
 
             let current_cost = aggregator.cost_tracker.total_cost;
-            dbg!(
-                &metric.name,
-                &metric.value,
-                expected_added_cost,
-                current_cost,
-                "###########"
-            );
             aggregator.insert(project_key, metric).unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
@@ -3137,7 +3114,6 @@ mod tests {
     #[test]
     fn test_bucket_partitioning_128() {
         let output = run_test_bucket_partitioning(Some(128));
-        dbg!(&output);
         // Because buckets are stored in a HashMap, we do not know in what order the buckets will
         // be processed, so we need to convert them to a set:
         let (partition_keys, tail) = output.split_at(2);
