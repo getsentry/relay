@@ -61,12 +61,14 @@ pub enum RelayHistograms {
     /// `content-encoding` header, then this is the size before decompression.
     ///
     /// The maximum request body size can be configured with `limits.max_envelope_size`.
+    #[allow(unused)] // TODO(ja): Bring back
     RequestSizeBytesRaw,
     /// The size of the request body as seen by Relay after decompression and decoding in bytes.
     ///
     /// JSON store requests may contain a base64 zlib compressed payload without proper
     /// `content-encoding` header. In this case, this metric contains the size after decoding.
     /// Otherwise, it is always equal to `event.size_bytes.raw`.
+    #[allow(unused)] // TODO(ja): Bring back
     RequestSizeBytesUncompressed,
     /// Number of projects in the in-memory project cache that are waiting for their state to be
     /// updated.
