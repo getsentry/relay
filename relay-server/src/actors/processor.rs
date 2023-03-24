@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::body::Bytes;
-use brotli2::write::BrotliEncoder;
+use brotli::CompressorWriter as BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
@@ -2514,9 +2514,10 @@ impl EnvelopeProcessorService {
                 encoder.finish()?
             }
             HttpEncoding::Br => {
-                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                // Use default buffer size (via 0), medium quality (5), and the default lgwin (22).
+                let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
                 encoder.write_all(body.as_ref())?;
-                encoder.finish()?
+                encoder.into_inner()
             }
         };
         Ok(envelope_body)
