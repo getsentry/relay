@@ -263,11 +263,20 @@ fn apply_regex_to_chunks<'a>(
     // on the chunks, but the `regex` crate does not support that.
 
     let mut search_string = String::new();
+    let mut has_text = false;
     for chunk in &chunks {
         match chunk {
-            Chunk::Text { text } => search_string.push_str(&text.replace('\x00', "")),
+            Chunk::Text { text } => {
+                has_text = true;
+                search_string.push_str(&text.replace('\x00', ""));
+            }
             Chunk::Redaction { .. } => search_string.push('\x00'),
         }
+    }
+
+    if !has_text {
+        // Nothing to replace.
+        return chunks;
     }
 
     // Early exit if this regex does not match and return the original chunks.
@@ -385,16 +394,14 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use insta::assert_debug_snapshot;
 
     use super::*;
     use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
-        Addr, DataElement, DebugImage, DebugMeta, Event, ExtraValue, Headers, HttpElement,
-        LogEntry, NativeDebugImage, Request, Span, TagEntry, Tags,
+        Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry,
+        NativeDebugImage, Request, Span, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, FromValue, Object, Value};
@@ -1033,17 +1040,41 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_span_data_not_scrubbed() {
-        let mut span = Annotated::new(Span {
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: Annotated::new(Value::String("dance=true".to_owned())),
-                    ..Default::default()
-                }),
-                ..Default::default()
+    fn test_replace_replaced_text_anything() {
+        let chunks = vec![Chunk::Redaction {
+            text: "[Filtered]".into(),
+            rule_id: "@password:filter".into(),
+            ty: RemarkType::Substituted,
+        }];
+        let rule = RuleRef {
+            id: "@anything:filter".into(),
+            origin: "@anything:filter".into(),
+            ty: RuleType::Anything,
+            redaction: Redaction::Replace(ReplaceRedaction {
+                text: "[Filtered]".into(),
             }),
-            ..Default::default()
-        });
+        };
+        let res = apply_regex_to_chunks(
+            chunks.clone(),
+            &rule,
+            &Regex::new(r#".*"#).unwrap(),
+            ReplaceBehavior::Groups(smallvec::smallvec![0]),
+        );
+        assert_eq!(chunks, res);
+    }
+
+    #[test]
+    fn test_scrub_span_data_http_not_scrubbed() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "dance=true"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
 
         let ds_config = DataScrubbingConfig {
             scrub_data: true,
@@ -1058,19 +1089,18 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_span_data_is_scrubbed() {
-        let mut span = Annotated::new(Span {
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: Annotated::new(Value::String(
-                        "ccnumber=5105105105105100&process_id=123".to_owned(),
-                    )),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+    fn test_scrub_span_data_http_strings_are_scrubbed() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "ccnumber=5105105105105100&process_id=123",
+                        "fragment": "ccnumber=5105105105105100,process_id=123"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
 
         let ds_config = DataScrubbingConfig {
             scrub_data: true,
@@ -1085,28 +1115,24 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_span_data_object_is_scrubbed() {
-        let mut span = Annotated::new(Span {
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: Annotated::new(Value::Object({
-                        let mut map = BTreeMap::new();
-                        map.insert(
-                            "ccnumber".to_owned(),
-                            Annotated::new(Value::String("5105105105105100".to_owned())),
-                        );
-                        map.insert(
-                            "process_id".to_owned(),
-                            Annotated::new(Value::String("123".to_owned())),
-                        );
-                        map
-                    })),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+    fn test_scrub_span_data_http_objects_are_scrubbed() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        },
+                        "fragment": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
 
         let ds_config = DataScrubbingConfig {
             scrub_data: true,
@@ -1118,5 +1144,141 @@ mod tests {
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(span);
+    }
+
+    #[test]
+    fn test_scrub_span_data_untyped_props_are_scrubbed() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "untyped": "ccnumber=5105105105105100",
+                    "more_untyped": {
+                        "typed": "no",
+                        "scrubbed": "yes",
+                        "ccnumber": "5105105105105100"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(span);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_not_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "dance=true"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_strings_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": "ccnumber=5105105105105100&process_id=123",
+                        "fragment": "ccnumber=5105105105105100,process_id=123"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_http_objects_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "http": {
+                        "query": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        },
+                        "fragment": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_breadcrumb_data_untyped_props_are_scrubbed() {
+        let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "untyped": "ccnumber=5105105105105100",
+                    "more_untyped": {
+                        "typed": "no",
+                        "scrubbed": "yes",
+                        "ccnumber": "5105105105105100"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(breadcrumb);
     }
 }

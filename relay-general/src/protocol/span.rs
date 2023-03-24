@@ -1,6 +1,4 @@
-use crate::protocol::{
-    DataElement, JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId,
-};
+use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -46,8 +44,8 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
-    #[metastructure(pii = "maybe")]
-    pub data: Annotated<DataElement>,
+    #[metastructure(pii = "true")]
+    pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -57,13 +55,10 @@ pub struct Span {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
     use super::*;
-    use crate::protocol::HttpElement;
 
     #[test]
     fn test_span_serialization() {
@@ -75,17 +70,7 @@ mod tests {
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "status": "ok",
-  "data": {
-    "http": {
-      "query": "is_sample_query=true",
-      "not_query": "this is not the query"
-    },
-    "more_fields": {
-      "how_many": "yes",
-      "many": "a lot!"
-    }
-  }
+  "status": "ok"
 }"#;
 
         let span = Annotated::new(Span {
@@ -99,38 +84,6 @@ mod tests {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
-            data: Annotated::new(DataElement {
-                http: Annotated::new(HttpElement {
-                    query: Annotated::new(Value::String("is_sample_query=true".to_owned())),
-                    other: {
-                        let mut map = BTreeMap::new();
-                        map.insert(
-                            "not_query".to_owned(),
-                            Annotated::new(Value::String("this is not the query".to_owned())),
-                        );
-                        map
-                    },
-                }),
-                other: {
-                    let mut inner_map = BTreeMap::new();
-                    inner_map.insert(
-                        "how_many".to_owned(),
-                        Annotated::new(Value::String("yes".to_owned())),
-                    );
-                    inner_map.insert(
-                        "many".to_owned(),
-                        Annotated::new(Value::String("a lot!".to_owned())),
-                    );
-
-                    let mut outter_map = BTreeMap::new();
-                    outter_map.insert(
-                        "more_fields".to_owned(),
-                        Annotated::new(Value::Object(inner_map)),
-                    );
-
-                    outter_map
-                },
-            }),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());
