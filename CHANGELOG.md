@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+
 ## 23.3.1
 
 **Features**:
