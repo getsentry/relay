@@ -759,11 +759,6 @@ pub struct PersistentBuffer {
     ///
     /// If not set the befault is 10737418240 bytes or 10 GB.
     max_size: Option<u64>,
-    /// The buffer memory limit.
-    ///
-    /// When provided, either `envelope_buffer_size` or `memory_limit` is used depending what is smaller.
-    /// If not set the default will be the half of `envelope_buffer_size`.
-    memory_limit: Option<usize>,
 }
 
 impl PersistentBuffer {
@@ -787,11 +782,6 @@ impl PersistentBuffer {
     /// Default: 10737418240 bytes or 10 GB.
     pub fn max_buffer_size(&self) -> u64 {
         self.max_size.unwrap_or(10 * 1024 * 1024 * 1024)
-    }
-
-    /// The buffer memory limit.
-    pub fn memory_limit(&self) -> Option<usize> {
-        self.memory_limit
     }
 }
 

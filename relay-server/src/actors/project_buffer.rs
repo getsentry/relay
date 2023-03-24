@@ -8,13 +8,13 @@ use relay_config::{Config, PersistentBuffer};
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::{MigrateError, Migrator};
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
 use crate::actors::project_cache::{BufferIndex, ProjectCache};
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::utils::{BufferGuard, ManagedEnvelope};
+use crate::utils::{BufferGuard, ManagedEnvelope, SemaphorePermit};
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
 ///
@@ -228,12 +228,9 @@ impl BufferService {
                 .connect_with(options)
                 .await?;
 
-            // Set the buffer memory limit, which must not be bigger then `envelope_buffer_size`.
-            let limit = buffer_config
-                .memory_limit()
-                .unwrap_or(config.envelope_buffer_size() / 2);
             let spool_config = BufferSpoolConfig {
-                memory_limit: limit.min(config.envelope_buffer_size()),
+                // Set the buffer memory limit, to half of the size of`envelope_buffer_size`.
+                memory_limit: config.envelope_buffer_size() / 2,
                 config: buffer_config.clone(),
                 db,
             };
@@ -271,8 +268,6 @@ impl BufferService {
                     return Err(BufferError::Full(current_size));
                 }
 
-                // Do not drain and just keep the buffer around, so we do not have to allocate it
-                // again.
                 let buf = std::mem::take(buffer);
                 let db = db.clone();
                 self.count_mem_envelopes = 0;
@@ -326,6 +321,21 @@ impl BufferService {
         Ok(())
     }
 
+    /// Extreacts the envelope from the `SqliteRow`.
+    ///
+    /// Reads the bytes and tries to perse them into `Envelope`.
+    fn extract_envelope(
+        row: SqliteRow,
+        permit: Option<SemaphorePermit>,
+    ) -> Result<ManagedEnvelope, BufferError> {
+        let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
+        let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
+        let envelope = Envelope::parse_bytes(envelope_bytes)?;
+        let managed_envelope =
+            ManagedEnvelope::new(envelope, permit.ok_or(BufferError::Overloaded)?);
+        Ok(managed_envelope)
+    }
+
     /// Handles the enqueueing messages into the internal buffer.
     async fn handle_enqueue(&mut self, message: Enqueue) -> Result<(), BufferError> {
         let Enqueue {
@@ -375,16 +385,26 @@ impl BufferService {
                     .bind(100)
                     .fetch(db);
 
-                    while let Some(row) = envelopes.try_next().await? {
-                        let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
-                        let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
-                        let envelope = Envelope::parse_bytes(envelope_bytes)?;
-                        let managed_envelope = ManagedEnvelope::new(
-                            envelope,
-                            permits.pop().ok_or(BufferError::Overloaded)?,
-                        );
-
-                        sender.send(managed_envelope).ok();
+                    loop {
+                        match envelopes.try_next().await {
+                            Ok(Some(row)) => match Self::extract_envelope(row, permits.pop()) {
+                                Ok(managed_envelope) => {
+                                    sender.send(managed_envelope).ok();
+                                }
+                                Err(err) => relay_log::error!(
+                                    "failed to extractt envelope from the buffer: {}",
+                                    LogError(&err)
+                                ),
+                            },
+                            Ok(None) => break,
+                            Err(err) => {
+                                relay_log::error!(
+                                    "failed to read the buffer stream from the disk: {}",
+                                    LogError(&err)
+                                );
+                                break;
+                            }
+                        }
                     }
 
                     // let's check if there are any data left in the db
