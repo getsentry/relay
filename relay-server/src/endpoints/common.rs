@@ -39,8 +39,6 @@ impl IntoResponse for ServiceUnavailable {
 }
 
 /// Error type for all store-like requests.
-///
-/// Functions returning this error must use [`handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
     #[error("could not schedule event processing")]
@@ -146,64 +144,6 @@ impl IntoResponse for BadStoreRequest {
         response
     }
 }
-
-// impl BadStoreRequest {
-//     fn into_response(self) -> HttpResponse {
-//         let body = ApiErrorResponse::from_error(&self);
-
-//         let response = match &self {
-//             BadStoreRequest::RateLimited(rate_limits) => {
-//                 let retry_after_header = rate_limits
-//                     .longest()
-//                     .map(|limit| limit.retry_after.remaining_seconds().to_string())
-//                     .unwrap_or_default();
-
-//                 let rate_limits_header = utils::format_rate_limits(rate_limits);
-
-//                 // For rate limits, we return a special status code and indicate the client to hold
-//                 // off until the rate limit period has expired. Currently, we only support the
-//                 // delay-seconds variant of the Rate-Limit header.
-//                 HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-//                     .header(header::RETRY_AFTER, retry_after_header)
-//                     .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
-//                     .json(&body)
-//             }
-//             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
-//                 // These errors indicate that something's wrong with our service system, most likely
-//                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
-//                 // client. It might retry event submission at a later time.
-//                 HttpResponse::ServiceUnavailable().json(&body)
-//             }
-//             BadStoreRequest::EventRejected(_) => {
-//                 // The event has been discarded, which is generally indicated with a 403 error.
-//                 // Originally, Sentry also used this status code for event filters, but these are
-//                 // now executed asynchronously in `EnvelopeProcessor`.
-//                 HttpResponse::Forbidden().json(&body)
-//             }
-//             BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
-//                 HttpResponse::PayloadTooLarge().json(&body)
-//             }
-//             _ => {
-//                 // In all other cases, we indicate a generic bad request to the client and render
-//                 // the cause. This was likely the client's fault.
-//                 HttpResponse::BadRequest().json(&body)
-//             }
-//         };
-
-//         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-//         if response.status().is_server_error() {
-//             relay_log::error!("error handling request: {}", LogError(&self));
-//         }
-
-//         response
-//     }
-// }
-
-// impl From<PayloadError> for BadStoreRequest {
-//     fn from(error: PayloadError) -> Self {
-//         Self::PayloadError(failure::Fail::compat(error))
-//     }
-// }
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct MinimalEvent {
