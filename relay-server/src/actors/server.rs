@@ -1,9 +1,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::http::{header, HeaderValue};
 use axum::{middleware, ServiceExt};
-use axum_server::{Handle, Server};
+use axum_server::{AddrIncomingConfig, Handle, HttpConfig, Server};
 use relay_config::Config;
 use relay_log::_sentry::integrations::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
@@ -36,6 +37,14 @@ pub struct HttpServer {
     handle: Handle,
 }
 
+/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
+/// is not available.
+const KEEPALIVE_RETRIES: u32 = 5;
+
+/// Set a timeout for reading client request headers. If a client does not transmit the entire
+/// header within this time, the connection is closed.
+const CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
@@ -51,21 +60,29 @@ impl HttpServer {
         relay_log::info!("spawning http server");
         relay_log::info!("  listening on http://{}/", config.listen_addr());
 
-        let handle = Handle::new();
-        let server = axum_server::bind(config.listen_addr())
-            // todo http_config
-            // todo addr_incoming_config
-            .handle(handle.clone());
+        let http_config = HttpConfig::new()
+            .http1_half_close(false) // TODO(ja): Benchmark with `true`
+            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
+            .http1_writev(true)
+            .http2_keep_alive_timeout(config.keepalive_timeout())
+            .build();
 
-        // let mut server = server::new(move || make_app(service.clone()));
-        // server = server
-        //     .workers(config.cpu_concurrency())
-        //     .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
-        //     .keep_alive(config.keepalive_timeout().as_secs() as usize)
+        let addr_config = AddrIncomingConfig::new()
+            .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
+            .build();
+
+        // TODO(ja): These are unsupported for now:
         //     .maxconn(config.max_connections())
         //     .maxconnrate(config.max_connection_rate())
         //     .backlog(config.max_pending_connections())
-        //     .disable_signals();
+
+        let handle = Handle::new();
+        let server = axum_server::bind(config.listen_addr())
+            .http_config(http_config)
+            .addr_incoming_config(addr_config)
+            .handle(handle.clone());
 
         Ok(Self {
             service,
