@@ -189,9 +189,6 @@ name = "anyhow"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
-dependencies = [
- "backtrace",
-]
 
 [[package]]
 name = "anylog"
@@ -2521,9 +2518,9 @@ checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 
 [[package]]
 name = "openssl"
-version = "0.10.45"
+version = "0.10.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b102428fd03bc5edf97f62620f7298614c45cedf287c271e7ed450bbaf83f2e1"
+checksum = "518915b97df115dd36109bfa429a48b8f737bd05508cf9588977b599648926d2"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
@@ -2562,9 +2559,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.80"
+version = "0.9.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23bbbf7854cd45b83958ebe919f0e8e516793727652e27fda10a8384cfc790b7"
+checksum = "666416d899cf077260dac8698d60a60b435a46d57e82acb1be3d0dad87284e5b"
 dependencies = [
  "autocfg 1.1.0",
  "cc",
@@ -3240,25 +3237,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-cabi"
-version = "0.8.19"
-dependencies = [
- "anyhow",
- "chrono",
- "json-forensics",
- "once_cell",
- "relay-auth",
- "relay-common",
- "relay-dynamic-config",
- "relay-ffi",
- "relay-general",
- "relay-sampling",
- "sentry-release-parser",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "relay-common"
 version = "23.3.1"
 dependencies = [
@@ -3320,22 +3298,6 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec 1.10.0",
-]
-
-[[package]]
-name = "relay-ffi"
-version = "23.3.1"
-dependencies = [
- "anyhow",
- "relay-ffi-macros",
-]
-
-[[package]]
-name = "relay-ffi-macros"
-version = "23.3.1"
-dependencies = [
- "quote 1.0.23",
- "syn 1.0.107",
 ]
 
 [[package]]
@@ -4029,7 +3991,6 @@ checksum = "96c337b2564b136475f056ca1e5c958a58acdc3a6c48a6a02064f749f87acb18"
 dependencies = [
  "lazy_static",
  "regex",
- "serde",
 ]
 
 [[package]]
