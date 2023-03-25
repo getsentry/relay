@@ -9,7 +9,9 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{
+    SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
+};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
@@ -221,7 +223,19 @@ impl BufferService {
 
             let options = SqliteConnectOptions::new()
                 .filename(&path)
-                .journal_mode(SqliteJournalMode::Wal);
+                // The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement transactions.
+                // The WAL journaling mode is persistent; after being set it stays in effect
+                // across multiple database connections and after closing and reopening the database.
+                //
+                // 1. WAL is significantly faster in most scenarios.
+                // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
+                // 3. Disk I/O operations tends to be more sequential using WAL.
+                // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
+                .journal_mode(SqliteJournalMode::Wal)
+                // If shared-cache mode is enabled and a thread establishes multiple
+                // connections to the same database, the connections share a single data and schema cache.
+                // This can significantly reduce the quantity of memory and IO required by the system.
+                .shared_cache(true);
 
             let db = SqlitePoolOptions::new()
                 .max_connections(config.cache_persistent_buffer_max_connections())
