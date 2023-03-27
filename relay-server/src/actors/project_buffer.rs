@@ -9,9 +9,7 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
-use sqlx::sqlite::{
-    SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
-};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
