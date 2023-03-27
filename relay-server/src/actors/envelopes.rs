@@ -8,12 +8,10 @@ use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::{Bucket, MergeBuckets};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-#[cfg(feature = "processing")]
-use relay_system::Addr;
-use relay_system::{FromMessage, NoResponse};
+use relay_system::{Addr, FromMessage, NoResponse};
 use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
@@ -28,7 +26,6 @@ use crate::actors::upstream::{
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::Registry;
 use crate::statsd::RelayHistograms;
 use crate::utils::ManagedEnvelope;
 
@@ -201,15 +198,29 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
+    aggregator: Addr<Aggregator>,
+    enveloper_processor: Addr<EnvelopeProcessor>,
+    test_store: Addr<TestStore>,
+    upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<Store>>,
 }
 
 impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        aggregator: Addr<Aggregator>,
+        enveloper_processor: Addr<EnvelopeProcessor>,
+        test_store: Addr<TestStore>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
             config,
+            aggregator,
+            enveloper_processor,
+            test_store,
+            upstream_relay,
             #[cfg(feature = "processing")]
             store_forwarder: None,
         }
@@ -244,7 +255,7 @@ impl EnvelopeManagerService {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.config) {
-            TestStore::from_registry().send(Capture::accepted(envelope));
+            self.test_store.send(Capture::accepted(envelope));
             return Ok(());
         }
 
@@ -271,9 +282,9 @@ impl EnvelopeManagerService {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().send(SendRequest(request));
+            self.upstream_relay.send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
+            self.enveloper_processor.send(EncodeEnvelope::new(request));
         }
 
         match rx.await {
@@ -337,7 +348,8 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets));
+            self.aggregator
+                .send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 
