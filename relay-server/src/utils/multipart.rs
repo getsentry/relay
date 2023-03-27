@@ -279,7 +279,6 @@ mod tests {
     /// Regression test for multipart payloads without a trailing newline.
     #[tokio::test]
     async fn missing_trailing_newline() -> anyhow::Result<()> {
-        // let boundary = "X-BOUNDARY";
         let data = "--X-BOUNDARY\r\nContent-Disposition: form-data; \
         name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"; // No trailing newline
 

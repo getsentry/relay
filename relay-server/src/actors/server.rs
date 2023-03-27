@@ -10,7 +10,6 @@ use relay_log::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
-use tower_http::trace::{DefaultOnFailure, TraceLayer};
 
 use crate::constants;
 use crate::middlewares::{
