@@ -12,10 +12,6 @@ publish = false
 
 [features]
 default = []
-ssl = [  # TODO(ja): Remove this feature
-    "relay-quotas/tls",
-    "relay-redis/tls",
-]
 processing = [
     "dep:minidump",
     "dep:relay-monitors",
