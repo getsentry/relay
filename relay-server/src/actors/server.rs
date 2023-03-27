@@ -10,7 +10,7 @@ use relay_log::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnFailure, TraceLayer};
 
 use crate::constants;
 use crate::middlewares::{
@@ -115,7 +115,7 @@ impl Service for HttpServer {
                 HeaderValue::from_static(constants::SERVER),
             ))
             .layer(NewSentryLayer::new_from_top())
-            .layer(TraceLayer::new_for_http())
+            .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .layer(RequestDecompressionLayer::new());
 
