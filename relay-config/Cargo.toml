@@ -20,7 +20,7 @@ num_cpus = "1.13.0"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-kafka = { path = "../relay-kafka" }
-relay-log = { path = "../relay-log" }
+relay-log = { path = "../relay-log", features = ["init"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-redis = { path = "../relay-redis" }
 serde = { version = "1.0.114", features = ["derive"] }

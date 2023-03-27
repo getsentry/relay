@@ -217,6 +217,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use axum::body::Full;
+    use axum::extract::FromRequest;
+    use axum::http::Request;
+    use bytes::Bytes;
+
     use super::*;
 
     #[test]
@@ -269,5 +274,24 @@ mod tests {
         let entries: Vec<_> = iter.collect();
 
         assert_eq!(entries, vec![]);
+    }
+
+    /// Regression test for multipart payloads without a trailing newline.
+    #[tokio::test]
+    async fn missing_trailing_newline() -> anyhow::Result<()> {
+        // let boundary = "X-BOUNDARY";
+        let data = "--X-BOUNDARY\r\nContent-Disposition: form-data; \
+        name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"; // No trailing newline
+
+        let request = Request::builder()
+            .header("content-type", "multipart/form-data; boundary=X-BOUNDARY")
+            .body(Full::new(Bytes::from(data)))
+            .unwrap();
+
+        let mut multipart = Multipart::from_request(request, &()).await?;
+        assert!(multipart.next_field().await?.is_some());
+        assert!(multipart.next_field().await?.is_none());
+
+        Ok(())
     }
 }
