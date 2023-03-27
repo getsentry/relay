@@ -17,4 +17,7 @@ jobs:
             - uses: actions/checkout@v3
             - uses: getsentry/action-setup-gocd-cli@8391790b37dcf61bdf52d13fa1bf044c9bee9ac9  # v1.0.0
             - name: Lint Pipelines with gocd-cli
-              run: ./.github/workflows/lint-pipelines.sh
+              run: |
+                  echo "GoCD YAML Linting"
+                  find "gocd" -name "*.yaml" -type f -print0 | \
+                  xargs -0 -I'{}' bash -c 'printf  "\n🔎 Linting {}\n\t" && gocd-cli configrepo syntax --yaml --raw "{}"'
