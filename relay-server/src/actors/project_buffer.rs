@@ -3,7 +3,6 @@ use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use futures::TryStreamExt;
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
@@ -13,9 +12,9 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
-use crate::actors::project_cache::{BufferIndex, ProjectCache};
+use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::utils::{BufferGuard, ManagedEnvelope, SemaphorePermit};
+use crate::utils::{BufferGuard, ManagedEnvelope};
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
 ///
@@ -31,8 +30,8 @@ pub enum BufferError {
     #[error("failed to store the envelope in the buffer, max size {0} reached")]
     Full(u64),
 
-    #[error("failed to issue a permit, too many envelopes currently in-flight")]
-    Overloaded,
+    #[error("failed to move envelope from disk to memory")]
+    CapacityExceeded(#[from] crate::utils::BufferError),
 
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseSizeError(#[from] std::io::Error),
@@ -343,15 +342,11 @@ impl BufferService {
     /// Extreacts the envelope from the `SqliteRow`.
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
-    fn extract_envelope(
-        row: SqliteRow,
-        permit: Option<SemaphorePermit>,
-    ) -> Result<ManagedEnvelope, BufferError> {
+    fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
         let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
         let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
         let envelope = Envelope::parse_bytes(envelope_bytes)?;
-        let managed_envelope =
-            ManagedEnvelope::new(envelope, permit.ok_or(BufferError::Overloaded)?);
+        let managed_envelope = self.buffer_guard.enter(envelope)?;
         Ok(managed_envelope)
     }
 
@@ -371,6 +366,57 @@ impl BufferService {
         Ok(())
     }
 
+    /// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
+    /// managed envelopes and send to back into processing pipeline.
+    ///
+    /// If the error happens in delete/fetch phase, the key is returned to the index and will be
+    /// re-tried later again.
+    async fn fetch_and_delete(
+        &self,
+        db: &Pool<Sqlite>,
+        key: QueueKey,
+        sender: &mpsc::UnboundedSender<ManagedEnvelope>,
+    ) -> Option<QueueKey> {
+        loop {
+            let envelopes = sqlx::query(
+                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
+            )
+            .bind(key.own_key.to_string())
+            .bind(key.sampling_key.to_string())
+            .fetch_all(db);
+
+            match envelopes.await {
+                Ok(envelopes) => {
+                    // If there is nothing left in the buffer for the current key, break
+                    // the loop.
+                    if envelopes.is_empty() {
+                        break None;
+                    }
+
+                    for envelope in envelopes {
+                        match self.extract_envelope(envelope) {
+                            Ok(managed_envelope) => {
+                                sender.send(managed_envelope).ok();
+                            }
+                            Err(err) => relay_log::error!(
+                                "failed to extractt envelope from the buffer: {}",
+                                LogError(&err)
+                            ),
+                        }
+                    }
+                }
+
+                Err(err) => {
+                    relay_log::error!(
+                        "failed to read the buffer stream from the disk: {}",
+                        LogError(&err)
+                    );
+                    break Some(key);
+                }
+            }
+        }
+    }
+
     /// Handles the dequeueing messages from the internal buffer.
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
@@ -381,7 +427,7 @@ impl BufferService {
             sender,
         } = message;
 
-        let mut back_keys = BTreeSet::new();
+        let mut unused_keys = BTreeSet::new();
 
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
@@ -391,74 +437,17 @@ impl BufferService {
         }
 
         // Persistent buffer is configured, lets try to get data from the disk.
-        if let Some(BufferSpoolConfig {
-            db,
-            max_memory_size,
-            ..
-        }) = &self.spool_config
-        {
-            // The size of the batch per key we want to fetch from the persistent buffer.
-            // Should still fit into memory, but must not be too big, for one go.
-            let request_size: usize = (max_memory_size / (keys.len() + 1) + 1).min(500);
+        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             while let Some(key) = keys.pop() {
-                // If the requested permits are available, let use them and fetch the envelopes.
-                // request
-                if let Ok(mut permits) = self.buffer_guard.try_reserve(request_size) {
-                    let mut envelopes = sqlx::query(
-                        "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?) RETURNING envelope",
-                    )
-                    .bind(key.own_key.to_string())
-                    .bind(key.sampling_key.to_string())
-                    .bind(request_size as u32)
-                    .fetch(db);
-
-                    loop {
-                        match envelopes.try_next().await {
-                            Ok(Some(row)) => match Self::extract_envelope(row, permits.pop()) {
-                                Ok(managed_envelope) => {
-                                    sender.send(managed_envelope).ok();
-                                }
-                                Err(err) => relay_log::error!(
-                                    "failed to extractt envelope from the buffer: {}",
-                                    LogError(&err)
-                                ),
-                            },
-
-                            Ok(None) => {
-                                // Let's check if there are any data left in the db.
-                                let result = sqlx::query(
-                                    "SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 1",
-                                )
-                                .bind(key.own_key.to_string())
-                                .bind(key.sampling_key.to_string())
-                                .fetch_one(db)
-                                .await;
-
-                                // Make sure to save the key which will be sent back if there are some more
-                                // records left in the db.
-                                if result.map_or(true, |row| !row.is_empty()) {
-                                    back_keys.insert(key);
-                                }
-
-                                break;
-                            }
-
-                            Err(err) => {
-                                relay_log::error!(
-                                    "failed to read the buffer stream from the disk: {}",
-                                    LogError(&err)
-                                );
-                                back_keys.insert(key);
-                                break;
-                            }
-                        }
-                    }
+                // If the key is returned we must save it for the next iterration.
+                if let Some(key) = self.fetch_and_delete(db, key, &sender).await {
+                    unused_keys.insert(key);
                 }
             }
-            if !keys.is_empty() || !back_keys.is_empty() {
-                back_keys.extend(keys);
+            if !keys.is_empty() || !unused_keys.is_empty() {
+                unused_keys.extend(keys);
                 self.project_cache
-                    .send(BufferIndex::new(project_key, back_keys))
+                    .send(UpdateBufferIndex::new(project_key, unused_keys))
             }
         }
 

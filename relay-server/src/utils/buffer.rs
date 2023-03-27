@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::envelope::Envelope;
 use crate::statsd::RelayHistograms;
-use crate::utils::{ManagedEnvelope, Semaphore, SemaphorePermit};
+use crate::utils::{ManagedEnvelope, Semaphore};
 
 /// An error returned by [`BufferGuard::enter`] indicating that the buffer capacity has been
 /// exceeded.
@@ -43,24 +43,6 @@ impl BufferGuard {
     /// Returns the number of envelopes in the pipeline.
     pub fn used(&self) -> usize {
         self.capacity.saturating_sub(self.available())
-    }
-
-    /// Reserver the number of requested permits.
-    ///
-    /// Returns `Ok(Vec<SemaphorePermit>)` on success, which can be then use in
-    /// `ManagedEnvelope::new` to create a managed envelope.
-    pub fn try_reserve(&self, num: usize) -> Result<Vec<SemaphorePermit>, BufferError> {
-        let permits = self.inner.try_reserve(num).ok_or(BufferError)?;
-
-        relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
-        relay_statsd::metric!(
-            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
-                queue_size_pct.floor() as u64
-            }
-        );
-
-        Ok(permits)
     }
 
     /// Reserves resources for processing an envelope in Relay.

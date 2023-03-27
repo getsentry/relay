@@ -165,12 +165,17 @@ impl UpdateRateLimits {
     }
 }
 
-pub struct BufferIndex {
+/// Updates buffer index for [`ProjectKey`] with keys list of the [`QueueKey`]s.
+///
+/// This message is sent from the project buffer in case of the error while fetching the data from
+/// the persistent buffer, ensuring that we stil have the index pointing to the keys, which could be found in the
+/// persistent storage.
+pub struct UpdateBufferIndex {
     project_key: ProjectKey,
     keys: BTreeSet<QueueKey>,
 }
 
-impl BufferIndex {
+impl UpdateBufferIndex {
     pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
         Self { project_key, keys }
     }
@@ -204,7 +209,7 @@ pub enum ProjectCache {
     InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
-    BufferIndex(BufferIndex),
+    UpdateBufferIndex(UpdateBufferIndex),
 }
 
 impl ProjectCache {
@@ -215,11 +220,11 @@ impl ProjectCache {
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<BufferIndex> for ProjectCache {
+impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: BufferIndex, _: ()) -> Self {
-        Self::BufferIndex(message)
+    fn from_message(message: UpdateBufferIndex, _: ()) -> Self {
+        Self::UpdateBufferIndex(message)
     }
 }
 
@@ -766,7 +771,7 @@ impl ProjectCacheBroker {
             .flush_buckets(context, message.partition_key, message.buckets);
     }
 
-    fn handle_buffer_index(&mut self, message: BufferIndex) {
+    fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
         self.index.insert(message.project_key, message.keys);
     }
 
@@ -785,7 +790,7 @@ impl ProjectCacheBroker {
             ProjectCache::InsertMetrics(message) => self.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-            ProjectCache::BufferIndex(message) => self.handle_buffer_index(message),
+            ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
         }
     }
 }
