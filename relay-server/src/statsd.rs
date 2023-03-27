@@ -49,27 +49,6 @@ pub enum RelayHistograms {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     EventSpans,
-    /// The size of the HTTP request body as seen by Relay after it is extracted from a request in
-    /// bytes.
-    ///
-    /// - For envelope requests, this is the full size of the envelope.
-    /// - For JSON store requests, this is the size of the JSON body.
-    /// - For multipart uploads of crash reports and attachments, this is the size of the multipart
-    ///   body including boundaries.
-    ///
-    /// If this request contains a base64 zlib compressed payload without a proper
-    /// `content-encoding` header, then this is the size before decompression.
-    ///
-    /// The maximum request body size can be configured with `limits.max_envelope_size`.
-    #[allow(unused)] // TODO(ja): Bring back
-    RequestSizeBytesRaw,
-    /// The size of the request body as seen by Relay after decompression and decoding in bytes.
-    ///
-    /// JSON store requests may contain a base64 zlib compressed payload without proper
-    /// `content-encoding` header. In this case, this metric contains the size after decoding.
-    /// Otherwise, it is always equal to `event.size_bytes.raw`.
-    #[allow(unused)] // TODO(ja): Bring back
-    RequestSizeBytesUncompressed,
     /// Number of projects in the in-memory project cache that are waiting for their state to be
     /// updated.
     ///
@@ -151,8 +130,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::RequestSizeBytesRaw => "event.size_bytes.raw",
-            RelayHistograms::RequestSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
