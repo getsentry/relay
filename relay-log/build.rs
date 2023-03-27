@@ -17,8 +17,12 @@ fn emit_release_var() -> Result<(), io::Error> {
         ));
     }
 
+    let version = std::env::var("CARGO_PKG_VERSION").unwrap();
     let revision = String::from_utf8_lossy(&cmd.stdout);
-    println!("cargo:rustc-env=RELAY_RELEASE=relay@{revision}");
+    println!("cargo:rustc-env=RELAY_RELEASE=relay@{version}+{revision}");
+
+    // This is used for production deploys.
+    println!("cargo:rustc-env=RELAY_REVISION=relay@{revision}");
 
     Ok(())
 }
