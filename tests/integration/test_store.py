@@ -148,11 +148,11 @@ def test_store_rate_limit(mini_sentry, relay):
     with pytest.raises(HTTPError):
         relay.send_event(project_id, {"message": "invalid"})
 
-    # Generated outcome has no reason code:
+    # Generated outcome has reason code 'generic':
     outcome_envelope = mini_sentry.captured_events.get(timeout=1)
     outcome = json.loads(outcome_envelope.items[0].payload.bytes)
     assert outcome["rate_limited_events"] == [
-        {"reason": "", "category": "error", "quantity": 1}
+        {"reason": "generic", "category": "error", "quantity": 1}
     ]
 
     # This event should arrive
