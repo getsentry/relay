@@ -30,7 +30,7 @@ expression: event
             31
           ],
           [
-            "/remains/*/*/",
+            "/remains/*/**",
             "s"
           ]
         ],

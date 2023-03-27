@@ -2232,7 +2232,7 @@ mod tests {
                 scrub_identifiers: true,
                 mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
-                    pattern: LazyGlob::new("/remains/*/*/".to_owned()),
+                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                     scope: RuleScope::default(),
                     redaction: RedactionRule::default(),
