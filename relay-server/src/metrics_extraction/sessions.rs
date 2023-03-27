@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
+use std::fmt::{self, Display};
 
-use relay_common::{UnixTimestamp, Uuid};
+use relay_common::{MetricUnit, UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricValue, SessionsKind, TypedMRI};
+use relay_metrics::{Metric, MetricType, MetricValue};
+
+use crate::metrics_extraction::TypedMRI;
 
 use super::utils::with_tag;
 

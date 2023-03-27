@@ -1,10 +1,12 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::Utc;
 use relay_common::{DataCategory, MetricUnit, UnixTimestamp};
-use relay_metrics::{MetricsContainer, TransactionsKind, TypedMRI};
+use relay_metrics::MetricsContainer;
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::metrics_extraction::transactions::TransactionsKind;
+use crate::metrics_extraction::TypedMRI;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]

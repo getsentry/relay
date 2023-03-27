@@ -1572,7 +1572,7 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match TypedMRI::parse(&key.metric_name) {
+        key.metric_name = match super::MetricResourceIdentifier::parse(&key.metric_name) {
             Ok(mri) => {
                 let mut metric_name = mri.to_string();
                 // do this so cost tracking still works accurately.

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
+use std::fmt::{self, Display};
 
-use relay_common::{SpanStatus, UnixTimestamp};
+use relay_common::{MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
@@ -8,10 +9,11 @@ use relay_general::protocol::{
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Measurementkind, Metric, MetricValue, TransactionsKind,
+    AggregatorConfig, DurationUnit, Metric, MetricType, MetricValue, ParseMetricError,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::TypedMRI;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
