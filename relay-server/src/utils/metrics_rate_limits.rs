@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::Utc;
 use relay_common::{DataCategory, MetricUnit, UnixTimestamp};
-use relay_metrics::{MetricResourceIdentifier, MetricsContainer, TransactionsKind};
+use relay_metrics::{MetricsContainer, TransactionsKind, TypedMRI};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -33,7 +33,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
-                let mri = match MetricResourceIdentifier::parse(metric.name()) {
+                let mri = match TypedMRI::parse(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
                         relay_log::error!("Invalid MRI: {}", metric.name());
@@ -43,8 +43,8 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
                 match mri {
                     // Keep all metircs that are not transaction related.
-                    MetricResourceIdentifier::Session(_) => None,
-                    MetricResourceIdentifier::Transaction(transaction) => match transaction {
+                    TypedMRI::Session(_) => None,
+                    TypedMRI::Transaction(transaction) => match transaction {
                         TransactionsKind::Duration(_) => {
                             // The "duration" metric is extracted exactly once for every processed
                             // transaction, so we can use it to count the number of transactions.

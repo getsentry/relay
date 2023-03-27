@@ -12,7 +12,7 @@ use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_log::LogError;
-use relay_metrics::{Bucket, BucketValue, MetricResourceIdentifier};
+use relay_metrics::{Bucket, BucketValue, TypedMRI};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
@@ -528,10 +528,10 @@ impl StoreService {
         organization_id: u64,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::parse(&message.name);
+        let mri = TypedMRI::parse(&message.name);
         let topic = match mri {
-            Ok(MetricResourceIdentifier::Transaction(_)) => KafkaTopic::MetricsTransactions,
-            Ok(MetricResourceIdentifier::Session(_)) => KafkaTopic::MetricsSessions,
+            Ok(TypedMRI::Transaction(_)) => KafkaTopic::MetricsTransactions,
+            Ok(TypedMRI::Session(_)) => KafkaTopic::MetricsSessions,
             Err(_) => {
                 relay_log::with_scope(
                     |scope| {

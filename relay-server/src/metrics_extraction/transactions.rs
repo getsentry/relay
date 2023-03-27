@@ -15,6 +15,121 @@ use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
+/// Enumerates the most common transaction-names, with a catch-all for any other names.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TransactionsKind<'a> {
+    User,
+    Duration(DurationUnit),
+    CountPerRootProject,
+    Breakdowns(&'a str),
+    Measurements {
+        kind: Measurementkind<'a>,
+        unit: MetricUnit,
+    },
+}
+
+impl<'a> TransactionsKind<'a> {
+    pub fn parse(name: &'a str, unit: MetricUnit) -> Result<Self, ParseMetricError> {
+        if let Some(remainder) = name.strip_prefix(Measurementkind::PREFIX) {
+            let kind = match remainder {
+                "frames_frozen" => Measurementkind::FramesFrozen,
+                "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
+                "frames_slow" => Measurementkind::FramesSlow,
+                "frames_slow_rate" => Measurementkind::FramesSlowRate,
+                "frames_total" => Measurementkind::FramesTotal,
+                "stall_percentage" => Measurementkind::StallPercentage,
+                "stall_total_time" => Measurementkind::StallTotalTime,
+                "lcp" => Measurementkind::Lcp,
+                s => Measurementkind::Other(s),
+            };
+            return Ok(Self::Measurements { kind, unit });
+        };
+
+        if let Some(remainder) = name.strip_prefix("breakdowns.") {
+            return Ok(Self::Breakdowns(remainder));
+        }
+
+        match name {
+            "duration" => match unit {
+                MetricUnit::Duration(unit) => Ok(Self::Duration(unit)),
+                _ => Err(ParseMetricError(())),
+            },
+            "user" => Ok(Self::User),
+            "count_per_root_project" => Ok(Self::CountPerRootProject),
+            _ => Err(ParseMetricError(())),
+        }
+    }
+
+    pub fn ty(&self) -> MetricType {
+        match self {
+            Self::Breakdowns(_) => MetricType::Distribution,
+            Self::CountPerRootProject => MetricType::Counter,
+            Self::Duration(_) => MetricType::Distribution,
+            Self::Measurements { .. } => MetricType::Distribution,
+            Self::User => MetricType::Set,
+        }
+    }
+
+    pub fn unit(&self) -> MetricUnit {
+        match self {
+            Self::Measurements { unit, .. } => *unit,
+            Self::Duration(unit) => MetricUnit::Duration(*unit),
+            Self::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
+            Self::User => MetricUnit::None,
+            Self::CountPerRootProject => MetricUnit::None,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Duration(_) => "duration".to_string(),
+            Self::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
+            Self::User => "user".to_string(),
+            Self::CountPerRootProject => "count_per_root_project".to_string(),
+            Self::Measurements { kind, .. } => format!("{kind}"),
+        }
+    }
+
+    pub fn to_mri_string(self) -> String {
+        TypedMRI::from(self).to_string()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Measurementkind<'a> {
+    FramesFrozen,
+    FramesFrozenRate,
+    FramesSlow,
+    FramesSlowRate,
+    FramesTotal,
+    StallPercentage,
+    StallTotalTime,
+    Lcp,
+    Other(&'a str),
+}
+
+impl<'a> Measurementkind<'a> {
+    const PREFIX: &'static str = "measurements.";
+}
+
+impl<'a> Display for Measurementkind<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(Self::PREFIX)?;
+
+        match self {
+            Self::FramesFrozen => write!(f, "frames_frozen"),
+            Self::FramesFrozenRate => write!(f, "frames_frozen_rate"),
+            Self::FramesSlow => write!(f, "frames_slow"),
+            Self::FramesSlowRate => write!(f, "frames_slow_rate"),
+            Self::FramesTotal => write!(f, "frames_total"),
+            Self::StallPercentage => write!(f, "stall_percentage"),
+            Self::StallTotalTime => write!(f, "stall_total_time"),
+            Self::Lcp => write!(f, "lcp"),
+            Self::Other(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 /// Error returned from [`extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ExtractMetricsError {
@@ -299,12 +414,12 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            metrics.push(Metric::new_mri(
+            metrics.push(Metric::new(
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Other(name),
                     unit: measurement.unit.value().copied().unwrap_or_default(),
                 }
-                .into(),
+                .to_mri_string(),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -333,9 +448,9 @@ fn extract_transaction_metrics_inner(
                         None => continue,
                     };
 
-                    metrics.push(Metric::new_mri(
+                    metrics.push(Metric::new(
                         TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}"))
-                            .into(),
+                            .to_mri_string(),
                         MetricValue::Distribution(value),
                         timestamp,
                         tags.clone(),
@@ -346,8 +461,8 @@ fn extract_transaction_metrics_inner(
     }
 
     // Duration
-    metrics.push(Metric::new_mri(
-        TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
+    metrics.push(Metric::new(
+        TransactionsKind::Duration(DurationUnit::MilliSecond).to_mri_string(),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags.clone(),
@@ -364,8 +479,8 @@ fn extract_transaction_metrics_inner(
     root_counter_tags.insert("decision".to_owned(), decision);
 
     // Count the transaction towards the root
-    sampling_metrics.push(Metric::new_mri(
-        TransactionsKind::CountPerRootProject.into(),
+    sampling_metrics.push(Metric::new(
+        TransactionsKind::CountPerRootProject.to_mri_string(),
         MetricValue::Counter(1.0),
         timestamp,
         root_counter_tags,
@@ -374,8 +489,8 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new_mri(
-                TransactionsKind::User.into(),
+            metrics.push(Metric::new(
+                TransactionsKind::User.to_mri_string(),
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags,
@@ -1164,12 +1279,12 @@ mod tests {
         metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
-            &[Metric::new_mri(
+            &[Metric::new(
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Lcp,
                     unit: MetricUnit::Duration(DurationUnit::MilliSecond)
                 }
-                .into(),
+                .to_mri_string(),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {

@@ -9,6 +9,7 @@ pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
     UnixTimestamp,
 };
+
 use serde::{Deserialize, Serialize};
 
 /// Type used for Counter metric
@@ -163,149 +164,6 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
-/// Enumerates the most common session-names.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SessionsKind {
-    Session,
-    User,
-    Error,
-}
-
-impl SessionsKind {
-    pub fn ty(&self) -> MetricType {
-        match self {
-            Self::Session => MetricType::Counter,
-            Self::Error => MetricType::Set,
-            Self::User => MetricType::Set,
-        }
-    }
-
-    pub fn unit(&self) -> MetricUnit {
-        MetricUnit::None
-    }
-}
-
-impl Display for SessionsKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Session => write!(f, "session"),
-            Self::User => write!(f, "user"),
-            Self::Error => write!(f, "error"),
-        }
-    }
-}
-
-/// Enumerates the most common transaction-names, with a catch-all for any other names.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TransactionsKind<'a> {
-    User,
-    Duration(DurationUnit),
-    CountPerRootProject,
-    Breakdowns(&'a str),
-    Measurements {
-        kind: Measurementkind<'a>,
-        unit: MetricUnit,
-    },
-}
-
-impl<'a> TransactionsKind<'a> {
-    pub fn parse(name: &'a str, unit: MetricUnit) -> Result<Self, ParseMetricError> {
-        if let Some(remainder) = name.strip_prefix(Measurementkind::PREFIX) {
-            let kind = match remainder {
-                "frames_frozen" => Measurementkind::FramesFrozen,
-                "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
-                "frames_slow" => Measurementkind::FramesSlow,
-                "frames_slow_rate" => Measurementkind::FramesSlowRate,
-                "frames_total" => Measurementkind::FramesTotal,
-                "stall_percentage" => Measurementkind::StallPercentage,
-                "stall_total_time" => Measurementkind::StallTotalTime,
-                "lcp" => Measurementkind::Lcp,
-                s => Measurementkind::Other(s),
-            };
-            return Ok(Self::Measurements { kind, unit });
-        };
-
-        if let Some(remainder) = name.strip_prefix("breakdowns.") {
-            return Ok(Self::Breakdowns(remainder));
-        }
-
-        match name {
-            "duration" => match unit {
-                MetricUnit::Duration(unit) => Ok(Self::Duration(unit)),
-                _ => Err(ParseMetricError(())),
-            },
-            "user" => Ok(Self::User),
-            "count_per_root_project" => Ok(Self::CountPerRootProject),
-            _ => Err(ParseMetricError(())),
-        }
-    }
-
-    pub fn ty(&self) -> MetricType {
-        match self {
-            Self::Breakdowns(_) => MetricType::Distribution,
-            Self::CountPerRootProject => MetricType::Counter,
-            Self::Duration(_) => MetricType::Distribution,
-            Self::Measurements { .. } => MetricType::Distribution,
-            Self::User => MetricType::Set,
-        }
-    }
-
-    pub fn unit(&self) -> MetricUnit {
-        match self {
-            Self::Measurements { unit, .. } => *unit,
-            Self::Duration(unit) => MetricUnit::Duration(*unit),
-            Self::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
-            Self::User => MetricUnit::None,
-            Self::CountPerRootProject => MetricUnit::None,
-        }
-    }
-
-    pub fn name(&self) -> String {
-        match self {
-            Self::Duration(_) => "duration".to_string(),
-            Self::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
-            Self::User => "user".to_string(),
-            Self::CountPerRootProject => "count_per_root_project".to_string(),
-            Self::Measurements { kind, .. } => format!("{kind}"),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measurementkind<'a> {
-    FramesFrozen,
-    FramesFrozenRate,
-    FramesSlow,
-    FramesSlowRate,
-    FramesTotal,
-    StallPercentage,
-    StallTotalTime,
-    Lcp,
-    Other(&'a str),
-}
-
-impl<'a> Measurementkind<'a> {
-    const PREFIX: &'static str = "measurements.";
-}
-
-impl<'a> Display for Measurementkind<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(Self::PREFIX)?;
-
-        match self {
-            Self::FramesFrozen => write!(f, "frames_frozen"),
-            Self::FramesFrozenRate => write!(f, "frames_frozen_rate"),
-            Self::FramesSlow => write!(f, "frames_slow"),
-            Self::FramesSlowRate => write!(f, "frames_slow_rate"),
-            Self::FramesTotal => write!(f, "frames_total"),
-            Self::StallPercentage => write!(f, "stall_percentage"),
-            Self::StallTotalTime => write!(f, "stall_total_time"),
-            Self::Lcp => write!(f, "lcp"),
-            Self::Other(s) => write!(f, "{}", s),
-        }
-    }
-}
-
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -321,119 +179,6 @@ impl<'a> Display for Measurementkind<'a> {
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
-pub enum MetricResourceIdentifier<'a> {
-    Transaction(TransactionsKind<'a>),
-    Session(SessionsKind),
-}
-
-pub trait MriTrait: Sized {
-    type Err;
-    fn ty(&self) -> MetricType;
-    fn namespace(&self) -> &str;
-    fn name(&self) -> &str;
-    fn unit(&self) -> MetricUnit;
-
-    fn parse(s: &str) -> Result<Self, Self::Err>;
-
-    fn as_string(&self) -> String {
-        format!(
-            "{}:{}/{}@{}",
-            self.ty(),
-            self.namespace(),
-            self.name(),
-            self.unit()
-        )
-    }
-}
-
-impl<'a> MetricResourceIdentifier<'a> {
-    pub fn ty(&self) -> MetricType {
-        match self {
-            Self::Transaction(t) => t.ty(),
-            Self::Session(s) => s.ty(),
-        }
-    }
-
-    pub fn namespace(&self) -> &str {
-        match self {
-            Self::Session(_) => "sessions",
-            Self::Transaction(_) => "transactions",
-        }
-    }
-
-    pub fn name(&self) -> String {
-        match self {
-            Self::Transaction(t) => t.name(),
-            Self::Session(s) => s.to_string(),
-        }
-    }
-
-    pub fn unit(&self) -> MetricUnit {
-        match self {
-            Self::Transaction(t) => t.unit(),
-            Self::Session(s) => s.unit(),
-        }
-    }
-
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn parse(s: &'a str) -> Result<Self, ParseMetricError> {
-        // Ignoring type since at the moment, the metric type is always inferred from the name.
-        // This might change in the future.
-        let (_, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-
-        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        let (ns, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-
-        Self::from_components(ns, name, unit)
-    }
-
-    pub fn from_components(
-        ns: &'a str,
-        name: &'a str,
-        unit: MetricUnit,
-    ) -> Result<Self, ParseMetricError> {
-        match ns {
-            "transactions" => Ok(Self::Transaction(TransactionsKind::parse(name, unit)?)),
-            "sessions" => {
-                let kind = match name {
-                    "user" => SessionsKind::User,
-                    "session" => SessionsKind::Session,
-                    "error" => SessionsKind::Error,
-                    _ => return Err(ParseMetricError(())),
-                };
-                Ok(Self::Session(kind))
-            }
-            _ => Err(ParseMetricError(())),
-        }
-    }
-}
-
-impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // `<ty>:<ns>/<name>@<unit>`
-        write!(
-            f,
-            "{}:{}/{}@{}",
-            self.ty(),
-            self.namespace(),
-            self.name(),
-            self.unit()
-        )
-    }
-}
-
-impl<'a> From<TransactionsKind<'a>> for MetricResourceIdentifier<'a> {
-    fn from(value: TransactionsKind<'a>) -> Self {
-        Self::Transaction(value)
-    }
-}
-
-impl From<SessionsKind> for MetricResourceIdentifier<'_> {
-    fn from(value: SessionsKind) -> Self {
-        Self::Session(value)
-    }
-}
 
 /// Validates a tag key.
 ///
@@ -661,14 +406,14 @@ impl Metric {
     ///
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
-    pub fn new_mri(
-        mri: MetricResourceIdentifier,
+    pub fn new(
+        name: String,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: mri.to_string(),
+            name,
             value,
             timestamp,
             tags,
@@ -689,9 +434,10 @@ impl Metric {
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
         let (ns, name) = name_and_namespace.split_once('/')?;
 
-        let mri = MetricResourceIdentifier::from_components(ns, name, unit).ok()?;
+        let mri = "sdfa"; //TypedMRI::from_components(ns, name, unit).ok()?;
+        todo!();
 
-        let mut metric = Self::new_mri(mri, value, timestamp, BTreeMap::new());
+        let mut metric = Self::new(mri.to_string(), value, timestamp, BTreeMap::new());
 
         for component in components {
             if let Some('#') = component.chars().next() {
@@ -894,14 +640,13 @@ mod tests {
         "###);
     }
 
-    /*
-        #[test]
-        fn test_parse_gauge() {
-            let s = "transactions/measurements.foo:42|g";
-            let timestamp = UnixTimestamp::from_secs(4711);
-            let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-            dbg!(&metric);
-            insta::assert_debug_snapshot!(metric, @r###"
+    #[test]
+    fn test_parse_gauge() {
+        let s = "transactions/measurements.foo:42|g";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        dbg!(&metric);
+        insta::assert_debug_snapshot!(metric, @r###"
             Metric {
                 name: "g:transactions/measurements.foo@none",
                 value: Gauge(
@@ -911,25 +656,26 @@ mod tests {
                 tags: {},
             }
             "###);
-        }
-    */
+    }
 
     #[test]
     fn test_parse_unit() {
         let s = "transactions/duration@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
+        todo!();
+        // let mri = TypedMRI::parse(&metric.name).unwrap();
+        //  assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
     fn test_parse_unit_regression() {
+        todo!();
         let s = "transactions/duration@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
+        //let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        //let mri = TypedMRI::parse(&metric.name).unwrap();
+        //assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]

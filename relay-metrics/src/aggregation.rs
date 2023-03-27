@@ -19,8 +19,8 @@ use tokio::time::Instant;
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
-    protocol, CounterType, DistributionType, GaugeType, Metric, MetricResourceIdentifier,
-    MetricType, MetricValue, MetricsContainer, SetType,
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricType, MetricValue,
+    MetricsContainer, SetType,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -1572,7 +1572,7 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+        key.metric_name = match TypedMRI::parse(&key.metric_name) {
             Ok(mri) => {
                 let mut metric_name = mri.to_string();
                 // do this so cost tracking still works accurately.
