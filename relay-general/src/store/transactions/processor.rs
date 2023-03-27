@@ -355,23 +355,24 @@ impl Processor for TransactionsProcessor<'_> {
                 &TransactionSource::Url | &TransactionSource::Sanitized
             ) {
                 scrub_identifiers(&mut event.transaction)?;
-                if self.name_config.mark_scrubbed_as_sanitized {
-                    // TODO(iker): we also mark transaction as sanitized after
-                    // applying renaming rules. Once we remove this feature
-                    // flag, relay should only mark transactions as sanitized
-                    // once.
-                    event
-                        .transaction_info
-                        .get_or_insert_with(Default::default)
-                        .source
-                        .set_value(Some(TransactionSource::Sanitized));
-                }
             }
 
             self.apply_transaction_rename_rule(
                 &mut event.transaction,
                 event.transaction_info.value_mut(),
             )?;
+
+            if !matches!(
+                event.get_transaction_source(),
+                &TransactionSource::Sanitized
+            ) && self.name_config.mark_scrubbed_as_sanitized
+            {
+                event
+                    .transaction_info
+                    .get_or_insert_with(Default::default)
+                    .source
+                    .set_value(Some(TransactionSource::Sanitized));
+            }
         }
 
         validate_transaction(event)?;
@@ -2198,6 +2199,49 @@ mod tests {
 
         // Annotate the snapshot instead of comparing transaction names, to also
         // make sure the event's _meta is correct.
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_scrub_identifiers_and_apply_rules() {
+        // Ensure rules are applied after scrubbing identifiers. Rules are only
+        // applied when `transaction.source="url"`, so this test ensures this
+        // value isn't set as part of identifier scrubbing.
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/*/".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
         assert_annotated_snapshot!(event);
     }
 }
