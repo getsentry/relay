@@ -6,6 +6,10 @@
 
 - Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
 
+**Features**:
+
+- Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+
 ## 23.3.1
 
 **Features**:
