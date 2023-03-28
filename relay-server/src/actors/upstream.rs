@@ -16,7 +16,8 @@ use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registrat
 use relay_config::{Config, Credentials, RelayMode};
 use relay_log::LogError;
 use relay_quotas::{
-    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
+    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
+    Scoping,
 };
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
@@ -82,11 +83,12 @@ impl UpstreamRateLimits {
         // If there are no new-style rate limits in the header, fall back to the `Retry-After`
         // header. Create a default rate limit that only applies to the current data category at the
         // most specific scope (Key).
+        // One example of such a generic rate limit is the anti-abuse nginx layer used by SaaS.
         if !rate_limits.is_limited() {
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
-                reason_code: None,
+                reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
             });
         }
