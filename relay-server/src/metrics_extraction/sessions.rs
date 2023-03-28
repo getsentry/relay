@@ -86,7 +86,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
         target.push(Metric::new(
-            MetricResourceIdentifier::from(SessionsKind::Session),
+            SessionsKind::Session.into(),
             MetricValue::Counter(session.total_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", "init"),
@@ -97,13 +97,13 @@ pub fn extract_session_metrics<T: SessionLike>(
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new(
-                MetricResourceIdentifier::from(SessionsKind::Error),
+                SessionsKind::Error.into(),
                 MetricValue::set_from_display(session_id),
                 timestamp,
                 tags.clone(),
             ),
             SessionErrored::Aggregated(count) => Metric::new(
-                MetricResourceIdentifier::from(SessionsKind::Session),
+                SessionsKind::Session.into(),
                 MetricValue::Counter(count as f64),
                 timestamp,
                 with_tag(&tags, "session.status", "errored_preaggr"),
@@ -112,7 +112,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new(
-                MetricResourceIdentifier::from(SessionsKind::User),
+                SessionsKind::User.into(),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", "errored"),
@@ -123,7 +123,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
         target.push(Metric::new(
-            MetricResourceIdentifier::from(SessionsKind::User),
+            SessionsKind::User.into(),
             MetricValue::set_from_str(distinct_id),
             timestamp,
             tags.clone(),
@@ -134,7 +134,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // sessions above.
     if session.abnormal_count() > 0 {
         target.push(Metric::new(
-            MetricResourceIdentifier::from(SessionsKind::Session),
+            SessionsKind::Session.into(),
             MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Abnormal),
@@ -151,7 +151,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 );
             }
             target.push(Metric::new(
-                MetricResourceIdentifier::from(SessionsKind::User),
+                SessionsKind::User.into(),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 tags_for_abnormal_session,
@@ -161,7 +161,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
     if session.crashed_count() > 0 {
         target.push(Metric::new(
-            MetricResourceIdentifier::from(SessionsKind::Session),
+            SessionsKind::Session.into(),
             MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Crashed),
@@ -169,7 +169,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new(
-                MetricResourceIdentifier::from(SessionsKind::User),
+                SessionsKind::User.into(),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", SessionStatus::Crashed),
