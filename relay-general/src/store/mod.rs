@@ -66,6 +66,8 @@ pub struct StoreConfig {
 
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
+
+    pub global_config_path: String,
 }
 
 /// The processor that normalizes events for store.

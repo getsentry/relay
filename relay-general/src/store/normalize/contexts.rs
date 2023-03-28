@@ -204,7 +204,8 @@ pub fn normalize_context(context: &mut Context) {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
-        _ => (),
+        Context::Device(device) => {}
+        _ => {}
     }
 }
 
