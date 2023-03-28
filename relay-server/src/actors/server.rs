@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::http::{header, HeaderValue};
-use axum::{middleware, ServiceExt};
+use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig, Server};
 use relay_config::Config;
 use relay_log::tower::NewSentryLayer;
@@ -107,7 +107,7 @@ impl Service for HttpServer {
         //  - Requests go from top to bottom
         //  - Responses go from bottom to top
         let middleware = ServiceBuilder::new()
-            .layer(middleware::from_fn(middlewares::metrics))
+            .layer(axum::middleware::from_fn(middlewares::metrics))
             .layer(CatchPanicLayer::custom(middlewares::handle_panic))
             .layer(SetResponseHeaderLayer::overriding(
                 header::SERVER,
@@ -116,6 +116,7 @@ impl Service for HttpServer {
             .layer(NewSentryLayer::new_from_top())
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
+            .map_request(middlewares::remove_empty_encoding)
             .layer(RequestDecompressionLayer::new());
 
         let router = crate::endpoints::routes(service.config())
