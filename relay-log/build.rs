@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+
 fn emit_release_var() -> Result<(), io::Error> {
     let cmd = Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -23,9 +24,10 @@ fn emit_release_var() -> Result<(), io::Error> {
 
     // This file is uploaded to the GoCD deployment bucket
     // for creating sentry releases.
-    let target_dir = env::var("CARGO_TARGET_DIR").unwrap();
-    let dest_path = Path::new(&target_dir).join("release-name");
-    let mut f = File::create(dest_path).unwrap();
+    let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let profile = env::var("PROFILE").unwrap();
+    let dest = Path::new(&cargo_manifest_dir).parent().unwrap().join("target").join(profile).join("release-name");
+    let mut f = File::create(dest).unwrap();
     write!(f, "relay@{version}+{revision}")?;
 
     Ok(())
