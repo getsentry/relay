@@ -4,7 +4,6 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-
 fn emit_release_var() -> Result<(), io::Error> {
     let cmd = Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -26,7 +25,12 @@ fn emit_release_var() -> Result<(), io::Error> {
     // for creating sentry releases.
     let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let profile = env::var("PROFILE").unwrap();
-    let dest = Path::new(&cargo_manifest_dir).parent().unwrap().join("target").join(profile).join("release-name");
+    let dest = Path::new(&cargo_manifest_dir)
+        .parent()
+        .unwrap()
+        .join("target")
+        .join(profile)
+        .join("release-name");
     let mut f = File::create(dest).unwrap();
     write!(f, "relay@{version}+{revision}")?;
 
