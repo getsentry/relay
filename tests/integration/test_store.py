@@ -137,7 +137,7 @@ def test_store_rate_limit(mini_sentry, relay):
             return "", 429, {"retry-after": "2"}
 
     # Disable outcomes so client report envelopes do not interfere with the events we are looking for
-    config = {"outcomes": {"emit_outcomes": False}}
+    config = {"outcomes": {"emit_outcomes": "as_client_reports"}}
     relay = relay(mini_sentry, config)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
@@ -149,6 +149,13 @@ def test_store_rate_limit(mini_sentry, relay):
     sleep(1)
     with pytest.raises(HTTPError):
         relay.send_event(project_id, {"message": "invalid"})
+
+    # Generated outcome has reason code 'generic':
+    outcome_envelope = mini_sentry.captured_events.get(timeout=1)
+    outcome = json.loads(outcome_envelope.items[0].payload.bytes)
+    assert outcome["rate_limited_events"] == [
+        {"reason": "generic", "category": "error", "quantity": 1}
+    ]
 
     # This event should arrive
     sleep(2)
