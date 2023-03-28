@@ -5,6 +5,7 @@
 **Features**
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Adds a model to device class mapping for iPhones. ([#1970](https://github.com/getsentry/relay/pull/1970))
 
 ## 23.3.1
 
