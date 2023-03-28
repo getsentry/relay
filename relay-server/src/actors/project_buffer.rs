@@ -3,6 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
@@ -298,18 +299,17 @@ impl BufferService {
                     );
 
                     // Flatten all the envelopes
-                    let envelopes = buf
-                        .into_iter()
-                        .flat_map(|(k, vals)| {
-                            vals.into_iter()
-                                .map(move |v| (k, v.into_envelope().to_vec()))
-                        })
-                        .collect::<Vec<_>>();
+                    let envelopes = buf.into_iter().flat_map(|(k, vals)| {
+                        vals.into_iter()
+                            .map(move |v| (k, v.into_envelope().to_vec()))
+                    });
 
                     // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
                     // here to prepare the chnunks which will be preparing the batch inserts.
-                    for chunk in envelopes.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3) {
-                        query_builder.push_values(chunk, |mut b, v| match &v.1 {
+                    let mut envelopes =
+                        stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+                    while let Some(chunk) = envelopes.next().await {
+                        query_builder.push_values(chunk.into_iter(), |mut b, v| match v.1 {
                             Ok(envelope_bytes) => {
                                 b.push_bind(v.0.own_key.to_string())
                                     .push_bind(v.0.sampling_key.to_string())
