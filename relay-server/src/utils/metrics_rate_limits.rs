@@ -1,13 +1,11 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::Utc;
-use relay_common::{DataCategory, MetricUnit, UnixTimestamp};
-use relay_metrics::MetricsContainer;
+use relay_common::{DataCategory, UnixTimestamp};
+use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::metrics_extraction::transactions::TransactionsKind;
-use crate::metrics_extraction::TypedMRI;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
@@ -36,7 +34,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
-                let mri = match TypedMRI::parse(metric.name()) {
+                let mri = match MetricResourceIdentifier::parse(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
                         relay_log::error!("Invalid MRI: {}", metric.name());
@@ -44,20 +42,20 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     }
                 };
 
-                match mri {
-                    // Keep all metircs that are not transaction related.
-                    TypedMRI::Session(_) => None,
-                    TypedMRI::Transaction(transaction) => match transaction {
-                        TransactionsKind::Duration(_) => {
-                            // The "duration" metric is extracted exactly once for every processed
-                            // transaction, so we can use it to count the number of transactions.
-                            let count = metric.len();
-                            Some(count)
-                        }
-                        // For any other metric in the transaction namespace, we check the limit with
-                        // quantity=0 so transactions are not double counted against the quota.
-                        _ => Some(0),
-                    },
+                // Keep all metrics that are not transaction related:
+                if mri.namespace != MetricNamespace::Transactions {
+                    return None;
+                }
+
+                if mri.name == "duration" {
+                    // The "duration" metric is extracted exactly once for every processed
+                    // transaction, so we can use it to count the number of transactions.
+                    let count = metric.len();
+                    Some(count)
+                } else {
+                    // For any other metric in the transaction namespace, we check the limit with
+                    // quantity=0 so transactions are not double counted against the quota.
+                    Some(0)
                 }
             })
             .collect();

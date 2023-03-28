@@ -5,9 +5,9 @@ use relay_common::{MetricUnit, UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricType, MetricValue};
-
-use crate::metrics_extraction::TypedMRI;
+use relay_metrics::{
+    Metric, MetricNamespace, MetricResourceIdentifier, MetricType, MetricValue, ParseMetricError,
+};
 
 use super::utils::with_tag;
 
@@ -19,20 +19,20 @@ pub enum SessionsKind {
     Error,
 }
 
-impl SessionsKind {
-    pub fn ty(&self) -> MetricType {
-        match self {
-            Self::Session => MetricType::Counter,
-            Self::Error => MetricType::Set,
-            Self::User => MetricType::Set,
-        }
-    }
+impl From<SessionsKind> for MetricResourceIdentifier {
+    fn from(value: SessionsKind) -> Self {
+        let ty = match value {
+            SessionsKind::Session => MetricType::Counter,
+            SessionsKind::Error => MetricType::Set,
+            SessionsKind::User => MetricType::Set,
+        };
 
-    pub fn unit(&self) -> MetricUnit {
-        MetricUnit::None
-    }
-    pub fn to_mri_string(self) -> String {
-        TypedMRI::from(self).to_string()
+        MetricResourceIdentifier::new(
+            ty,
+            MetricNamespace::Sessions,
+            value.to_string(),
+            MetricUnit::None,
+        )
     }
 }
 
@@ -86,7 +86,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
         target.push(Metric::new(
-            TypedMRI::from(SessionsKind::Session).to_string(),
+            MetricResourceIdentifier::from(SessionsKind::Session),
             MetricValue::Counter(session.total_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", "init"),
@@ -97,13 +97,13 @@ pub fn extract_session_metrics<T: SessionLike>(
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new(
-                SessionsKind::Error.to_mri_string(),
+                MetricResourceIdentifier::from(SessionsKind::Error),
                 MetricValue::set_from_display(session_id),
                 timestamp,
                 tags.clone(),
             ),
             SessionErrored::Aggregated(count) => Metric::new(
-                SessionsKind::Session.to_mri_string(),
+                MetricResourceIdentifier::from(SessionsKind::Session),
                 MetricValue::Counter(count as f64),
                 timestamp,
                 with_tag(&tags, "session.status", "errored_preaggr"),
@@ -112,7 +112,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new(
-                SessionsKind::User.to_mri_string(),
+                MetricResourceIdentifier::from(SessionsKind::User),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", "errored"),
@@ -123,7 +123,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
         target.push(Metric::new(
-            SessionsKind::User.to_mri_string(),
+            MetricResourceIdentifier::from(SessionsKind::User),
             MetricValue::set_from_str(distinct_id),
             timestamp,
             tags.clone(),
@@ -134,7 +134,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // sessions above.
     if session.abnormal_count() > 0 {
         target.push(Metric::new(
-            SessionsKind::Session.to_mri_string(),
+            MetricResourceIdentifier::from(SessionsKind::Session),
             MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Abnormal),
@@ -151,7 +151,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 );
             }
             target.push(Metric::new(
-                SessionsKind::User.to_mri_string(),
+                MetricResourceIdentifier::from(SessionsKind::User),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 tags_for_abnormal_session,
@@ -161,7 +161,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
     if session.crashed_count() > 0 {
         target.push(Metric::new(
-            SessionsKind::Session.to_mri_string(),
+            MetricResourceIdentifier::from(SessionsKind::Session),
             MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
             with_tag(&tags, "session.status", SessionStatus::Crashed),
@@ -169,7 +169,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new(
-                SessionsKind::User.to_mri_string(),
+                MetricResourceIdentifier::from(SessionsKind::User),
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
                 with_tag(&tags, "session.status", SessionStatus::Crashed),

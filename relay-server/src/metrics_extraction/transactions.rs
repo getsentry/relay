@@ -9,11 +9,11 @@ use relay_general::protocol::{
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricType, MetricValue, ParseMetricError,
+    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricType, MetricValue,
+    ParseMetricError, MRI,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::TypedMRI;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
@@ -30,8 +30,17 @@ pub enum TransactionsKind<'a> {
     },
 }
 
-impl<'a> TransactionsKind<'a> {
-    pub fn parse(name: &'a str, unit: MetricUnit) -> Result<Self, ParseMetricError> {
+impl<'a> MRI<'a> for TransactionsKind<'a> {
+    fn namespace(&self) -> relay_metrics::MetricNamespace {
+        MetricNamespace::Transactions
+    }
+
+    fn try_from_components(
+        ty: MetricType,
+        ns: relay_metrics::MetricNamespace,
+        name: &'a str,
+        unit: MetricUnit,
+    ) -> Result<Self, ParseMetricError> {
         if let Some(remainder) = name.strip_prefix(Measurementkind::PREFIX) {
             let kind = match remainder {
                 "frames_frozen" => Measurementkind::FramesFrozen,
@@ -62,7 +71,7 @@ impl<'a> TransactionsKind<'a> {
         }
     }
 
-    pub fn ty(&self) -> MetricType {
+    fn ty(&self) -> MetricType {
         match self {
             Self::Breakdowns(_) => MetricType::Distribution,
             Self::CountPerRootProject => MetricType::Counter,
@@ -72,7 +81,7 @@ impl<'a> TransactionsKind<'a> {
         }
     }
 
-    pub fn unit(&self) -> MetricUnit {
+    fn unit(&self) -> MetricUnit {
         match self {
             Self::Measurements { unit, .. } => *unit,
             Self::Duration(unit) => MetricUnit::Duration(*unit),
@@ -82,7 +91,7 @@ impl<'a> TransactionsKind<'a> {
         }
     }
 
-    pub fn name(&self) -> String {
+    fn name(&self) -> String {
         match self {
             Self::Duration(_) => "duration".to_string(),
             Self::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
@@ -90,10 +99,6 @@ impl<'a> TransactionsKind<'a> {
             Self::CountPerRootProject => "count_per_root_project".to_string(),
             Self::Measurements { kind, .. } => format!("{kind}"),
         }
-    }
-
-    pub fn to_mri_string(self) -> String {
-        TypedMRI::from(self).to_string()
     }
 }
 
@@ -420,8 +425,7 @@ fn extract_transaction_metrics_inner(
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Other(name),
                     unit: measurement.unit.value().copied().unwrap_or_default(),
-                }
-                .to_mri_string(),
+                },
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -451,8 +455,7 @@ fn extract_transaction_metrics_inner(
                     };
 
                     metrics.push(Metric::new(
-                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}"))
-                            .to_mri_string(),
+                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}")),
                         MetricValue::Distribution(value),
                         timestamp,
                         tags.clone(),
@@ -464,7 +467,7 @@ fn extract_transaction_metrics_inner(
 
     // Duration
     metrics.push(Metric::new(
-        TransactionsKind::Duration(DurationUnit::MilliSecond).to_mri_string(),
+        TransactionsKind::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags.clone(),
@@ -482,7 +485,7 @@ fn extract_transaction_metrics_inner(
 
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new(
-        TransactionsKind::CountPerRootProject.to_mri_string(),
+        TransactionsKind::CountPerRootProject,
         MetricValue::Counter(1.0),
         timestamp,
         root_counter_tags,
@@ -492,7 +495,7 @@ fn extract_transaction_metrics_inner(
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
             metrics.push(Metric::new(
-                TransactionsKind::User.to_mri_string(),
+                TransactionsKind::User,
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags,
@@ -1285,8 +1288,7 @@ mod tests {
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Lcp,
                     unit: MetricUnit::Duration(DurationUnit::MilliSecond)
-                }
-                .to_mri_string(),
+                },
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {
