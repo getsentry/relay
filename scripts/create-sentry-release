@@ -44,8 +44,12 @@ echo 'Uploading system symbols...'
 tar xf libs.tar
 sentry-cli upload-dif lib/x86_64-linux-gnu
 
-echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
-RELEASE="relay@${REVISION}"  # match RELEASE in relay_log::setup
+gsutil cp \
+  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/release-name" \
+  .
+
+RELEASE=$(<release-name)
+echo "Creating release ${RELEASE} and ${ENVIRONMENT} deploy in Sentry..."
 sentry-cli releases new "${RELEASE}"
 sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
 sentry-cli releases deploys "${RELEASE}" new -e "$ENVIRONMENT"
