@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 
-use axum::body::Bytes;
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::ErrorBoundary;

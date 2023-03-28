@@ -59,9 +59,8 @@ def test_legacy_store(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-@pytest.mark.parametrize("method_to_test", [("GET", False), ("POST", True)])
-def test_options_response(mini_sentry, relay, method_to_test):
-    method, should_succeed = method_to_test
+@pytest.mark.parametrize("method_to_test", ["GET", "POST"])
+def test_options_response(mini_sentry, relay, method):
     relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)

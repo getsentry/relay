@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::body::Bytes;
+use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;

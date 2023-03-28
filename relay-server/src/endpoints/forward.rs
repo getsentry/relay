@@ -8,11 +8,11 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use axum::body::Bytes;
 use axum::extract::DefaultBodyLimit;
 use axum::handler::Handler;
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use bytes::Bytes;
 use once_cell::sync::Lazy;
 use relay_config::Config;
 use relay_general::utils::GlobMatcher;

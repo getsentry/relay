@@ -1,11 +1,11 @@
 use std::convert::Infallible;
 
-use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Multipart};
 use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
+use bytes::Bytes;
 use futures::{future, FutureExt};
 use relay_config::Config;
 use relay_general::protocol::EventId;

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use axum::extract::Query;
 use axum::handler::Handler;
-use axum::response::IntoResponse;
+use axum::http::Request;
+use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
 use relay_common::ProjectKey;
@@ -154,10 +155,7 @@ fn predicate(Query(query): Query<VersionQuery>) -> bool {
     query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
 }
 
-pub async fn handle<B>(
-    state: ServiceState,
-    mut req: axum::http::Request<B>,
-) -> axum::response::Result<impl IntoResponse>
+pub async fn handle<B>(state: ServiceState, mut req: Request<B>) -> Result<impl IntoResponse>
 where
     B: axum::body::HttpBody + Send + 'static,
     B::Data: Send,
