@@ -1484,6 +1484,8 @@
 <a href="#1483" id="1483">1483</a>
 <a href="#1484" id="1484">1484</a>
 <a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1502,7 +1504,8 @@
 <span class="kw">use </span>relay_config::{Config, Credentials, RelayMode};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{
-    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
+    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
+    Scoping,
 };
 <span class="kw">use </span>relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
@@ -1568,11 +1571,12 @@
         <span class="comment">// If there are no new-style rate limits in the header, fall back to the `Retry-After`
         // header. Create a default rate limit that only applies to the current data category at the
         // most specific scope (Key).
+        // One example of such a generic rate limit is the anti-abuse nginx layer used by SaaS.
         </span><span class="kw">if </span>!rate_limits.is_limited() {
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
-                reason_code: <span class="prelude-val">None</span>,
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;generic&quot;</span>)),
                 retry_after: <span class="self">self</span>.retry_after,
             });
         }
