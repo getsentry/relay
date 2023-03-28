@@ -10,8 +10,8 @@ use sentry::integrations::log::SentryLogger;
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
 
-/// The release name used for production deploys.
-const RELEASE: &str = std::env!("RELAY_REVISION");
+/// The full release name including the Relay version and SHA.
+const RELEASE: &str = std::env!("RELAY_RELEASE");
 
 // Import CRATE_NAMES, which lists all crates in the workspace.
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));

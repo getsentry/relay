@@ -21,9 +21,6 @@ fn emit_release_var() -> Result<(), io::Error> {
     let revision = String::from_utf8_lossy(&cmd.stdout);
     println!("cargo:rustc-env=RELAY_RELEASE=relay@{version}+{revision}");
 
-    // This is used for production deploys.
-    println!("cargo:rustc-env=RELAY_REVISION=relay@{revision}");
-
     Ok(())
 }
 
