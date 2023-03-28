@@ -274,6 +274,7 @@ jobs:
     env:
       # GITHUB_SHA in pull requests points to the merge commit
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      GCR_IMG: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Download Docker Image
@@ -305,13 +306,13 @@ jobs:
       - name: Push to us.gcr.io and upload deployment assets
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
-          docker push "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
+          docker tag "$IMG_VERSIONED" "$GCR_IMG"
+          docker push "$GCR_IMG"
 
-          docker run --rm --entrypoint cat "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" -cf - /lib/x86_64-linux-gnu > libs.tar
-          docker run --rm --entrypoint cat "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}" /opt/release-name > release-name
+          docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "$GCR_IMG" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --entrypoint cat "$GCR_IMG" /opt/release-name > release-name
 
           gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip \
           "gs://dicd-team-devinfra-cd--relay/deployment-assets/${{ github.event.pull_request.head.sha || github.sha }}/"
