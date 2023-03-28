@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 95
 expression: SerializableAnnotated(&event)
 ---
 event_id: 498b1ef84dd242d4b265fcc39c42f744
