@@ -141,7 +141,7 @@ relay_common::impl_str_serde!(MetricType, "a metric type string");
 
 /// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
 #[derive(Clone, Copy, Debug)]
-pub struct ParseMetricError(());
+pub struct ParseMetricError(pub ());
 
 impl fmt::Display for ParseMetricError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -293,7 +293,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
 /// invalid.
-fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+pub fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !is_valid_name(name) {
