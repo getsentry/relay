@@ -168,7 +168,7 @@ impl UpdateRateLimits {
 /// Updates buffer index for [`ProjectKey`] with keys list of the [`QueueKey`]s.
 ///
 /// This message is sent from the project buffer in case of the error while fetching the data from
-/// the persistent buffer, ensuring that we stil have the index pointing to the keys, which could be found in the
+/// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
 pub struct UpdateBufferIndex {
     project_key: ProjectKey,
@@ -838,8 +838,6 @@ impl Service for ProjectCacheService {
             let buffer =
                 match BufferService::create(buffer_guard, project_cache, config.clone()).await {
                     Ok(buffer) => buffer.start(),
-                    // This should never happens, since on the startup Relay tries to create a DB and
-                    // run migrations, and it that fails the Relay will not start.
                     Err(err) => {
                         relay_log::error!("failed to start buffer service: {}", LogError(&err));
                         // NOTE: The process will exit with error if the buffer file could not be

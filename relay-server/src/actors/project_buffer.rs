@@ -252,12 +252,20 @@ impl BufferService {
         Ok(service)
     }
 
+    /// Checks the provided path and gets the size of the file this path points to.
+    fn estimate_buffer_size(path: Option<PathBuf>) -> Result<u64, BufferError> {
+        path.and_then(|path| std::fs::metadata(path).ok())
+            .map(|m| m.len())
+            .ok_or(BufferError::DatabaseSizeError(Error::from(
+                ErrorKind::NotFound,
+            )))
+    }
+
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
-            config,
             spool_config,
             ref mut buffer,
             ..
@@ -270,20 +278,13 @@ impl BufferService {
             max_memory_size,
         }) = spool_config
         {
+            let estimated_db_size =
+                Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
             // And if the count of in memory envelopes is over the defined max buffer size.
             if self.count_mem_envelopes > *max_memory_size as i64 {
                 // Reject all the enqueue requests if we exceed the max size of the buffer.
-                let db_file_path =
-                    config
-                        .cache_persistent_buffer_path()
-                        .ok_or(BufferError::DatabaseSizeError(Error::from(
-                            ErrorKind::NotFound,
-                        )))?;
-                let current_size = std::fs::metadata(db_file_path)
-                    .ok()
-                    .map_or(0, |meta| meta.len());
-                if current_size as usize > *max_disk_size {
-                    return Err(BufferError::Full(current_size));
+                if estimated_db_size as usize > *max_disk_size {
+                    return Err(BufferError::Full(estimated_db_size));
                 }
 
                 let buf = std::mem::take(buffer);
@@ -376,7 +377,7 @@ impl BufferService {
         db: &Pool<Sqlite>,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Option<QueueKey> {
+    ) -> Result<(), QueueKey> {
         loop {
             let envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
@@ -390,7 +391,7 @@ impl BufferService {
                     // If there is nothing left in the buffer for the current key, break
                     // the loop.
                     if envelopes.is_empty() {
-                        break None;
+                        break Ok(());
                     }
 
                     for envelope in envelopes {
@@ -399,7 +400,7 @@ impl BufferService {
                                 sender.send(managed_envelope).ok();
                             }
                             Err(err) => relay_log::error!(
-                                "failed to extractt envelope from the buffer: {}",
+                                "failed to extract envelope from the buffer: {}",
                                 LogError(&err)
                             ),
                         }
@@ -411,7 +412,7 @@ impl BufferService {
                         "failed to read the buffer stream from the disk: {}",
                         LogError(&err)
                     );
-                    break Some(key);
+                    break Err(key);
                 }
             }
         }
@@ -439,8 +440,8 @@ impl BufferService {
         // Persistent buffer is configured, lets try to get data from the disk.
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             while let Some(key) = keys.pop() {
-                // If the key is returned we must save it for the next iterration.
-                if let Some(key) = self.fetch_and_delete(db, key, &sender).await {
+                // If the error with a key is returned we must save it for the next iterration.
+                if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
                     unused_keys.insert(key);
                 }
             }
