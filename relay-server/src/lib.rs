@@ -300,8 +300,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         anyhow::Ok(service)
     })?;
 
-    // TODO(ja): Temporary workaround for dropping runtimes inside ServiceState. Dropping them
-    // within `main_runtime` causes panics.
+    // TODO: Temporary workaround for dropping runtimes inside ServiceState. Dropping them within
+    // `main_runtime` causes panics. Consider removing the internal runtimes in favor of
+    // spawn_blocking and improved resource management.
     drop(service);
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do

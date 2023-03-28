@@ -61,7 +61,7 @@ impl HttpServer {
         relay_log::info!("  listening on http://{}/", config.listen_addr());
 
         let http_config = HttpConfig::new()
-            .http1_half_close(false) // TODO(ja): Benchmark with `true`
+            .http1_half_close(false)
             .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
             .http1_writev(true)
             .http2_keep_alive_timeout(config.keepalive_timeout())
@@ -72,11 +72,6 @@ impl HttpServer {
             .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
             .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
             .build();
-
-        // TODO(ja): These are unsupported for now:
-        //     .maxconn(config.max_connections())
-        //     .maxconnrate(config.max_connection_rate())
-        //     .backlog(config.max_pending_connections())
 
         let handle = Handle::new();
         let server = axum_server::bind(config.listen_addr())

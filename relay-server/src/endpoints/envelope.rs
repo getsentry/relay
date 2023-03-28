@@ -92,8 +92,6 @@ where
             });
         }
 
-        // TODO(ja): Improve PartialMeta / RequestMeta to parse Auth and meta separately, then merge
-        // into RequestMeta.
         let partial_meta = request.extract_parts::<PartialMeta>().await?;
         let body: Bytes = request.extract().await?;
 

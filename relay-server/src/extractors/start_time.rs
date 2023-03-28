@@ -21,7 +21,6 @@ impl StartTime {
     }
 }
 
-// TODO(ja): Derive instead, but that requires to handle errors.
 #[axum::async_trait]
 impl<S> FromRequestParts<S> for StartTime
 where
