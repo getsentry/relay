@@ -362,10 +362,8 @@ impl Processor for TransactionsProcessor<'_> {
                 event.transaction_info.value_mut(),
             )?;
 
-            if !matches!(
-                event.get_transaction_source(),
-                &TransactionSource::Sanitized
-            ) && self.name_config.mark_scrubbed_as_sanitized
+            if matches!(event.get_transaction_source(), &TransactionSource::Url)
+                && self.name_config.mark_scrubbed_as_sanitized
             {
                 event
                     .transaction_info
