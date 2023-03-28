@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::str::FromStr;
 
 use relay_common::{MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
@@ -9,8 +10,8 @@ use relay_general::protocol::{
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricType, MetricValue,
-    ParseMetricError, MRI,
+    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricResourceIdentifier, MetricType,
+    MetricValue, ParseMetricError,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -19,28 +20,21 @@ use crate::utils::SamplingResult;
 
 /// Enumerates the most common transaction-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TransactionsKind<'a> {
+pub enum TransactionsKind {
     User,
     Duration(DurationUnit),
     CountPerRootProject,
-    Breakdowns(&'a str),
+    Breakdowns(String),
     Measurements {
-        kind: Measurementkind<'a>,
+        kind: Measurementkind,
         unit: MetricUnit,
     },
 }
 
-impl<'a> MRI<'a> for TransactionsKind<'a> {
-    fn namespace(&self) -> relay_metrics::MetricNamespace {
-        MetricNamespace::Transactions
-    }
-
-    fn try_from_components(
-        ty: MetricType,
-        ns: relay_metrics::MetricNamespace,
-        name: &'a str,
-        unit: MetricUnit,
-    ) -> Result<Self, ParseMetricError> {
+impl FromStr for TransactionsKind {
+    type Err = ParseMetricError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (_, _, name, unit) = MetricResourceIdentifier::parse_components(s)?;
         if let Some(remainder) = name.strip_prefix(Measurementkind::PREFIX) {
             let kind = match remainder {
                 "frames_frozen" => Measurementkind::FramesFrozen,
@@ -51,13 +45,13 @@ impl<'a> MRI<'a> for TransactionsKind<'a> {
                 "stall_percentage" => Measurementkind::StallPercentage,
                 "stall_total_time" => Measurementkind::StallTotalTime,
                 "lcp" => Measurementkind::Lcp,
-                s => Measurementkind::Other(s),
+                s => Measurementkind::Other(s.to_string()),
             };
             return Ok(Self::Measurements { kind, unit });
         };
 
         if let Some(remainder) = name.strip_prefix("breakdowns.") {
-            return Ok(Self::Breakdowns(remainder));
+            return Ok(Self::Breakdowns(remainder.to_string()));
         }
 
         match name {
@@ -70,40 +64,41 @@ impl<'a> MRI<'a> for TransactionsKind<'a> {
             _ => Err(ParseMetricError(())),
         }
     }
+}
 
-    fn ty(&self) -> MetricType {
-        match self {
-            Self::Breakdowns(_) => MetricType::Distribution,
-            Self::CountPerRootProject => MetricType::Counter,
-            Self::Duration(_) => MetricType::Distribution,
-            Self::Measurements { .. } => MetricType::Distribution,
-            Self::User => MetricType::Set,
-        }
-    }
+impl From<TransactionsKind> for MetricResourceIdentifier {
+    fn from(value: TransactionsKind) -> Self {
+        let ty = match value {
+            TransactionsKind::Breakdowns(_) => MetricType::Distribution,
+            TransactionsKind::CountPerRootProject => MetricType::Counter,
+            TransactionsKind::Duration(_) => MetricType::Distribution,
+            TransactionsKind::Measurements { .. } => MetricType::Distribution,
+            TransactionsKind::User => MetricType::Set,
+        };
+        let ns = MetricNamespace::Transactions;
 
-    fn unit(&self) -> MetricUnit {
-        match self {
-            Self::Measurements { unit, .. } => *unit,
-            Self::Duration(unit) => MetricUnit::Duration(*unit),
-            Self::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
-            Self::User => MetricUnit::None,
-            Self::CountPerRootProject => MetricUnit::None,
-        }
-    }
+        let unit = match value {
+            TransactionsKind::Measurements { unit, .. } => unit,
+            TransactionsKind::Duration(unit) => MetricUnit::Duration(unit),
+            TransactionsKind::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
+            TransactionsKind::User => MetricUnit::None,
+            TransactionsKind::CountPerRootProject => MetricUnit::None,
+        };
 
-    fn name(&self) -> String {
-        match self {
-            Self::Duration(_) => "duration".to_string(),
-            Self::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
-            Self::User => "user".to_string(),
-            Self::CountPerRootProject => "count_per_root_project".to_string(),
-            Self::Measurements { kind, .. } => format!("{kind}"),
-        }
+        let name = match value {
+            TransactionsKind::Duration(_) => "duration".to_string(),
+            TransactionsKind::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
+            TransactionsKind::User => "user".to_string(),
+            TransactionsKind::CountPerRootProject => "count_per_root_project".to_string(),
+            TransactionsKind::Measurements { kind, .. } => format!("{kind}"),
+        };
+
+        MetricResourceIdentifier::new(ty, ns, name, unit)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measurementkind<'a> {
+pub enum Measurementkind {
     FramesFrozen,
     FramesFrozenRate,
     FramesSlow,
@@ -112,14 +107,14 @@ pub enum Measurementkind<'a> {
     StallPercentage,
     StallTotalTime,
     Lcp,
-    Other(&'a str),
+    Other(String),
 }
 
-impl<'a> Measurementkind<'a> {
+impl Measurementkind {
     const PREFIX: &'static str = "measurements.";
 }
 
-impl<'a> Display for Measurementkind<'a> {
+impl<'a> Display for Measurementkind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(Self::PREFIX)?;
 
@@ -423,9 +418,10 @@ fn extract_transaction_metrics_inner(
 
             metrics.push(Metric::new(
                 TransactionsKind::Measurements {
-                    kind: Measurementkind::Other(name),
+                    kind: Measurementkind::Other(name.to_string()),
                     unit: measurement.unit.value().copied().unwrap_or_default(),
-                },
+                }
+                .into(),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags_for_measurement,
@@ -455,7 +451,8 @@ fn extract_transaction_metrics_inner(
                     };
 
                     metrics.push(Metric::new(
-                        TransactionsKind::Breakdowns(&format!("{breakdown}.{measurement_name}")),
+                        TransactionsKind::Breakdowns(format!("{breakdown}.{measurement_name}"))
+                            .into(),
                         MetricValue::Distribution(value),
                         timestamp,
                         tags.clone(),
@@ -467,7 +464,7 @@ fn extract_transaction_metrics_inner(
 
     // Duration
     metrics.push(Metric::new(
-        TransactionsKind::Duration(DurationUnit::MilliSecond),
+        TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
         MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
         timestamp,
         tags.clone(),
@@ -485,7 +482,7 @@ fn extract_transaction_metrics_inner(
 
     // Count the transaction towards the root
     sampling_metrics.push(Metric::new(
-        TransactionsKind::CountPerRootProject,
+        TransactionsKind::CountPerRootProject.into(),
         MetricValue::Counter(1.0),
         timestamp,
         root_counter_tags,
@@ -495,7 +492,7 @@ fn extract_transaction_metrics_inner(
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
             metrics.push(Metric::new(
-                TransactionsKind::User,
+                TransactionsKind::User.into(),
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags,
@@ -1288,7 +1285,8 @@ mod tests {
                 TransactionsKind::Measurements {
                     kind: Measurementkind::Lcp,
                     unit: MetricUnit::Duration(DurationUnit::MilliSecond)
-                },
+                }
+                .into(),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {

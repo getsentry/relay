@@ -240,6 +240,17 @@ impl MetricResourceIdentifier {
         }
     }
 
+    pub fn parse_components<'a>(
+        s: &'a str,
+    ) -> Result<(MetricType, MetricNamespace, &'a str, MetricUnit), ParseMetricError> {
+        let (ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
+
+        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+
+        let (ns, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+        Ok((ty.parse()?, ns.parse()?, name, unit))
+    }
+
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
@@ -487,7 +498,7 @@ pub struct Metric {
     pub tags: BTreeMap<String, String>,
 }
 
-impl<'a> Metric {
+impl Metric {
     /// Creates a new metric using the MRI naming format.
     ///
     /// See [`Metric::name`].
@@ -495,13 +506,13 @@ impl<'a> Metric {
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new(
-        name: impl MRI<'a>,
+        mri: MetricResourceIdentifier,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: name.to_mri_string(),
+            name: mri.to_string(),
             value,
             timestamp,
             tags,
@@ -652,73 +663,6 @@ impl Iterator for ParseMetrics<'_> {
 }
 
 impl FusedIterator for ParseMetrics<'_> {}
-
-pub trait MRI<'a>: Sized {
-    fn ty(&self) -> MetricType;
-
-    fn namespace(&self) -> MetricNamespace;
-
-    fn name(&self) -> String;
-
-    fn unit(&self) -> MetricUnit;
-
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    fn parse(s: &'a str) -> Result<Self, ParseMetricError> {
-        // Ignoring type since at the moment, the metric type is always inferred from the name.
-        // This might change in the future.
-        let (ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-
-        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        let (ns, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-
-        Self::try_from_components(ty.parse()?, ns.parse()?, name, unit)
-    }
-
-    fn try_from_components(
-        ty: MetricType,
-        ns: MetricNamespace,
-        name: &'a str,
-        unit: MetricUnit,
-    ) -> Result<Self, ParseMetricError>;
-
-    fn to_mri_string(&self) -> String {
-        format!(
-            "{}:{}/{}@{}",
-            self.ty(),
-            self.namespace(),
-            self.name(),
-            self.unit()
-        )
-    }
-}
-
-impl<'a> MRI<'a> for MetricResourceIdentifier {
-    fn ty(&self) -> MetricType {
-        self.ty
-    }
-
-    fn namespace(&self) -> MetricNamespace {
-        self.namespace
-    }
-
-    fn name(&self) -> String {
-        self.name.to_string()
-    }
-
-    fn unit(&self) -> MetricUnit {
-        self.unit
-    }
-
-    fn try_from_components(
-        ty: MetricType,
-        ns: MetricNamespace,
-        name: &'a str,
-        unit: MetricUnit,
-    ) -> Result<Self, ParseMetricError> {
-        Ok(Self::new(ty, ns, name.to_string(), unit))
-    }
-}
 
 #[cfg(test)]
 mod tests {
