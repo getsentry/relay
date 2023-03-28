@@ -240,17 +240,6 @@ impl MetricResourceIdentifier {
         }
     }
 
-    pub fn parse_components<'a>(
-        s: &'a str,
-    ) -> Result<(MetricType, MetricNamespace, &'a str, MetricUnit), ParseMetricError> {
-        let (ty, rest) = s.split_once(':').ok_or(ParseMetricError(()))?;
-
-        let (rest, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        let (ns, name) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        Ok((ty.parse()?, ns.parse()?, name, unit))
-    }
-
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;

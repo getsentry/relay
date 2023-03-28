@@ -25,45 +25,7 @@ pub enum TransactionsKind {
     Duration(DurationUnit),
     CountPerRootProject,
     Breakdowns(String),
-    Measurements {
-        kind: Measurementkind,
-        unit: MetricUnit,
-    },
-}
-
-impl FromStr for TransactionsKind {
-    type Err = ParseMetricError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (_, _, name, unit) = MetricResourceIdentifier::parse_components(s)?;
-        if let Some(remainder) = name.strip_prefix(Measurementkind::PREFIX) {
-            let kind = match remainder {
-                "frames_frozen" => Measurementkind::FramesFrozen,
-                "frames_frozen_rate" => Measurementkind::FramesFrozenRate,
-                "frames_slow" => Measurementkind::FramesSlow,
-                "frames_slow_rate" => Measurementkind::FramesSlowRate,
-                "frames_total" => Measurementkind::FramesTotal,
-                "stall_percentage" => Measurementkind::StallPercentage,
-                "stall_total_time" => Measurementkind::StallTotalTime,
-                "lcp" => Measurementkind::Lcp,
-                s => Measurementkind::Other(s.to_string()),
-            };
-            return Ok(Self::Measurements { kind, unit });
-        };
-
-        if let Some(remainder) = name.strip_prefix("breakdowns.") {
-            return Ok(Self::Breakdowns(remainder.to_string()));
-        }
-
-        match name {
-            "duration" => match unit {
-                MetricUnit::Duration(unit) => Ok(Self::Duration(unit)),
-                _ => Err(ParseMetricError(())),
-            },
-            "user" => Ok(Self::User),
-            "count_per_root_project" => Ok(Self::CountPerRootProject),
-            _ => Err(ParseMetricError(())),
-        }
-    }
+    Measurements { kind: String, unit: MetricUnit },
 }
 
 impl From<TransactionsKind> for MetricResourceIdentifier {
@@ -90,45 +52,10 @@ impl From<TransactionsKind> for MetricResourceIdentifier {
             TransactionsKind::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
             TransactionsKind::User => "user".to_string(),
             TransactionsKind::CountPerRootProject => "count_per_root_project".to_string(),
-            TransactionsKind::Measurements { kind, .. } => format!("{kind}"),
+            TransactionsKind::Measurements { kind, .. } => format!("measurements.{kind}"),
         };
 
         MetricResourceIdentifier::new(ty, ns, name, unit)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measurementkind {
-    FramesFrozen,
-    FramesFrozenRate,
-    FramesSlow,
-    FramesSlowRate,
-    FramesTotal,
-    StallPercentage,
-    StallTotalTime,
-    Lcp,
-    Other(String),
-}
-
-impl Measurementkind {
-    const PREFIX: &'static str = "measurements.";
-}
-
-impl<'a> Display for Measurementkind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(Self::PREFIX)?;
-
-        match self {
-            Self::FramesFrozen => write!(f, "frames_frozen"),
-            Self::FramesFrozenRate => write!(f, "frames_frozen_rate"),
-            Self::FramesSlow => write!(f, "frames_slow"),
-            Self::FramesSlowRate => write!(f, "frames_slow_rate"),
-            Self::FramesTotal => write!(f, "frames_total"),
-            Self::StallPercentage => write!(f, "stall_percentage"),
-            Self::StallTotalTime => write!(f, "stall_total_time"),
-            Self::Lcp => write!(f, "lcp"),
-            Self::Other(s) => write!(f, "{}", s),
-        }
     }
 }
 
@@ -418,7 +345,7 @@ fn extract_transaction_metrics_inner(
 
             metrics.push(Metric::new(
                 TransactionsKind::Measurements {
-                    kind: Measurementkind::Other(name.to_string()),
+                    kind: name.to_string(),
                     unit: measurement.unit.value().copied().unwrap_or_default(),
                 }
                 .into(),
@@ -1283,7 +1210,7 @@ mod tests {
             metrics,
             &[Metric::new(
                 TransactionsKind::Measurements {
-                    kind: Measurementkind::Lcp,
+                    kind: "lcp".to_string(),
                     unit: MetricUnit::Duration(DurationUnit::MilliSecond)
                 }
                 .into(),
