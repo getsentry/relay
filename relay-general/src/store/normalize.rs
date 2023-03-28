@@ -663,14 +663,16 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> P
 }
 
 // Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high, medium, or low.
-fn normalize_device_class(event: &mut Event) {
-    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
-    let tag_name = "device.class".to_owned();
-    // Remove any existing device.class tag set by the client, since this should only be set by relay.
-    tags.remove("device.class");
-    if let Some(contexts) = event.contexts.value() {
-        if let Some(device_class) = DeviceClass::from_contexts(contexts) {
-            tags.insert(tag_name, Annotated::new(device_class.to_string()));
+fn normalize_device_class(event: &mut Event, device_class_synthesis_config: bool) {
+    if device_class_synthesis_config {
+        let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        let tag_name = "device.class".to_owned();
+        // Remove any existing device.class tag set by the client, since this should only be set by relay.
+        tags.remove("device.class");
+        if let Some(contexts) = event.contexts.value() {
+            if let Some(device_class) = DeviceClass::from_contexts(contexts) {
+                tags.insert(tag_name, Annotated::new(device_class.to_string()));
+            }
         }
     }
 }
@@ -687,6 +689,7 @@ pub struct LightNormalizationConfig<'a> {
     pub normalize_user_agent: Option<bool>,
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
+    pub device_class_synthesis_config: bool,
 }
 
 pub fn light_normalize_event(
@@ -749,7 +752,7 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
-        normalize_device_class(event);
+        normalize_device_class(event, config.device_class_synthesis_config);
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
