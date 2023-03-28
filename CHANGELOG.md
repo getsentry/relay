@@ -5,6 +5,7 @@
 **Features**
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Use exposed device-class-synthesis feature flag to gate device.class synthesis in normalize. ([#1974](https://github.com/getsentry/relay/pull/1974))
 
 ## 23.3.1
 
