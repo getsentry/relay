@@ -23,9 +23,32 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use relay_system::{channel, Addr, Interface};
+use tokio::task::JoinHandle;
+
 /// Setup the test environment.
 ///
 ///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
 pub fn setup() {
     relay_log::init_test!();
+}
+
+/// Spawns a mock service that handles messages through a closure.
+pub fn mock_service<S, I, F>(name: &'static str, mut state: S, mut f: F) -> (Addr<I>, JoinHandle<S>)
+where
+    S: Send + 'static,
+    I: Interface,
+    F: FnMut(&mut S, I) + Send + 'static,
+{
+    let (addr, mut rx) = channel(name);
+
+    let handle = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            f(&mut state, msg);
+        }
+
+        state
+    });
+
+    (addr, handle)
 }

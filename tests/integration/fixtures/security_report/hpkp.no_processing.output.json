@@ -9,10 +9,9 @@
     "client_os": {
       "name": "Windows",
       "type": "os",
-      "version": "10"
+      "version": ">=10"
     }
   },
-
   "logentry": {
     "formatted": "Public key pinning validation failed for 'www.example.com'"
   },
@@ -29,9 +28,18 @@
     "url": "www.example.com"
   },
   "tags": [
-    ["hostname", "www.example.com"],
-    ["port", "443"],
-    ["include-subdomains", "false"]
+    [
+      "hostname",
+      "www.example.com"
+    ],
+    [
+      "port",
+      "443"
+    ],
+    [
+      "include-subdomains",
+      "false"
+    ]
   ],
   "hpkp": {
     "date_time": "2014-04-06T13:00:50+00:00",
@@ -50,5 +58,7 @@
       "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
     ]
   },
-  "user": { "ip_address": "127.0.0.1" }
+  "user": {
+    "ip_address": "127.0.0.1"
+  }
 }

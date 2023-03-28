@@ -7,7 +7,7 @@ use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
-use relay_system::{Addr, Service};
+use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
@@ -15,7 +15,7 @@ use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-use crate::actors::project_cache::{ProjectCache, ProjectCacheService};
+use crate::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
@@ -55,16 +55,6 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-}
-
-impl Registry {
-    /// Get the [`AggregatorService`] address from the registry.
-    ///
-    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
-    /// runtime and follow up refactoring of the dependencies.
-    pub fn aggregator() -> Addr<Aggregator> {
-        REGISTRY.get().unwrap().aggregator.clone()
-    }
 }
 
 impl fmt::Debug for Registry {
@@ -111,6 +101,7 @@ impl ServiceState {
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
+        let test_store = TestStoreService::new(config.clone()).start();
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -120,44 +111,10 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
-        #[allow(unused_mut)]
-        let mut envelope_manager = EnvelopeManagerService::new(config.clone());
 
-        #[cfg(feature = "processing")]
-        if config.processing_enabled() {
-            let rt = create_runtime("store-rt", 1);
-            let store = StoreService::create(config.clone())?.start_in(&rt);
-            envelope_manager.set_store_forwarder(store);
-            _store_runtime = Some(rt);
-        }
-
-        let envelope_manager = envelope_manager.start();
-        let test_store = TestStoreService::new(config.clone()).start();
-
-        let project_cache = ProjectCacheService::new(
-            config.clone(),
-            processor.clone(),
-            upstream_relay.clone(),
-            redis_pool,
-        )
-        .start_in(&project_runtime);
-
-        let health_check = HealthCheckService::new(config.clone()).start();
-        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
-
-        if let Some(aws_api) = config.aws_runtime_api() {
-            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                aws_extension.start();
-            }
-        }
-
-        let aggregator = AggregatorService::new(
-            config.aggregator_config().clone(),
-            Some(project_cache.clone().recipient()),
-        )
-        .start_in(&aggregator_runtime);
-
+        // Create an address for the `EnvelopeManagerService`, which can be injected into the
+        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
+        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
@@ -166,6 +123,67 @@ impl ServiceState {
         .start_in(&outcome_runtime);
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
+
+        let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        let processor = EnvelopeProcessorService::new(
+            config.clone(),
+            redis_pool.clone(),
+            envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
+            upstream_relay.clone(),
+        )?
+        .start();
+
+        let aggregator = AggregatorService::new(
+            config.aggregator_config().clone(),
+            Some(project_cache.clone().recipient()),
+        )
+        .start_in(&aggregator_runtime);
+
+        #[allow(unused_mut)]
+        let mut envelope_manager_service = EnvelopeManagerService::new(
+            config.clone(),
+            aggregator.clone(),
+            processor.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
+
+        #[cfg(feature = "processing")]
+        if config.processing_enabled() {
+            let rt = create_runtime("store-rt", 1);
+            let store = StoreService::create(config.clone())?.start_in(&rt);
+            envelope_manager_service.set_store_forwarder(store);
+            _store_runtime = Some(rt);
+        }
+
+        envelope_manager_service.spawn_handler(envelope_manager_rx);
+
+        // Keep all the services in one context.
+        let project_cache_services = Services::new(
+            aggregator.clone(),
+            processor.clone(),
+            envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
+            upstream_relay.clone(),
+        );
+        let guard = project_runtime.enter();
+        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
+            .spawn_handler(project_cache_rx);
+        drop(guard);
+
+        let health_check =
+            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
+                .start();
+        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
+
+        if let Some(aws_api) = config.aws_runtime_api() {
+            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
+                aws_extension.start();
+            }
+        }
 
         REGISTRY
             .set(Box::new(Registry {

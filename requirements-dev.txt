@@ -17,7 +17,7 @@ pytest==7.1.2
 PyYAML==6.0
 redis==3.4.1
 requests==2.28.1
-sentry_sdk==1.11.0
-werkzeug==2.2.2
+sentry_sdk==1.14.0
+werkzeug==2.2.3
 sentry-relay==0.8.15
 zstandard==0.18.0

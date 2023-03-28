@@ -73,14 +73,33 @@ impl FromUserAgentInfo for OsContext {
 
     fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let os = parse_os(user_agent);
+        let mut version = get_version(&os.major, &os.minor, &os.patch);
 
         if !is_known(&os.family) {
             return None;
         }
 
+        let name = os.family.into_owned();
+
+        // Since user-agent strings freeze the OS-version at windows 10 and mac os 10.15.7,
+        // we will indicate that the version may in reality be higher.
+        if name == "Windows" {
+            if let Some(v) = version.as_mut() {
+                if v == "10" {
+                    v.insert_str(0, ">=");
+                }
+            }
+        } else if name == "Mac OS X" {
+            if let Some(v) = version.as_mut() {
+                if v == "10.15.7" {
+                    v.insert_str(0, ">=");
+                }
+            }
+        }
+
         Some(Self {
-            name: Annotated::new(os.family.into_owned()),
-            version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
+            name: Annotated::new(name),
+            version: Annotated::from(version),
             ..OsContext::default()
         })
     }
@@ -191,7 +210,7 @@ OsContext {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_string().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
             )),
             Annotated::new((
                 Annotated::new("invalid header".to_string().into()),
@@ -210,7 +229,7 @@ OsContext {
         insta::assert_debug_snapshot!(os, @r###"
 OsContext {
     name: "Mac OS X",
-    version: "10.15.7",
+    version: "10.15.6",
     build: ~,
     kernel_version: ~,
     rooted: ~,
@@ -218,6 +237,42 @@ OsContext {
     other: {},
 }
         "###);
+    }
+
+    #[test]
+    fn test_indicate_frozen_os_windows() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        // Checks that the '>=' prefix is added.
+        assert_eq!(os.version.value().unwrap(), ">=10");
+    }
+
+    #[test]
+    fn test_indicate_frozen_os_mac() {
+        let headers = Headers({
+            let headers = vec![
+            Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+            )),
+        ];
+            PairList(headers)
+        });
+
+        let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        // Checks that the '>=' prefix is added.
+        assert_eq!(os.version.value().unwrap(), ">=10.15.7");
     }
 
     #[test]

@@ -8,7 +8,7 @@ use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::{Bucket, MergeBuckets};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -26,9 +26,8 @@ use crate::actors::upstream::{
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
-use crate::utils::EnvelopeContext;
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -128,8 +127,7 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Box<Envelope>,
-    pub envelope_context: EnvelopeContext,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Sends a client report to the upstream.
@@ -161,12 +159,6 @@ pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
     SendMetrics(SendMetrics),
-}
-
-impl EnvelopeManager {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().envelope_manager.clone()
-    }
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -206,15 +198,29 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
+    aggregator: Addr<Aggregator>,
+    enveloper_processor: Addr<EnvelopeProcessor>,
+    test_store: Addr<TestStore>,
+    upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<Store>>,
 }
 
 impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        aggregator: Addr<Aggregator>,
+        enveloper_processor: Addr<EnvelopeProcessor>,
+        test_store: Addr<TestStore>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
             config,
+            aggregator,
+            enveloper_processor,
+            test_store,
+            upstream_relay,
             #[cfg(feature = "processing")]
             store_forwarder: None,
         }
@@ -249,7 +255,7 @@ impl EnvelopeManagerService {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.config) {
-            TestStore::from_registry().send(Capture::accepted(envelope));
+            self.test_store.send(Capture::accepted(envelope));
             return Ok(());
         }
 
@@ -276,9 +282,9 @@ impl EnvelopeManagerService {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().send(SendRequest(request));
+            self.upstream_relay.send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
+            self.enveloper_processor.send(EncodeEnvelope::new(request));
         }
 
         match rx.await {
@@ -289,18 +295,17 @@ impl EnvelopeManagerService {
     }
 
     async fn handle_submit(&self, message: SubmitEnvelope) {
-        let SubmitEnvelope {
-            envelope,
-            mut envelope_context,
-        } = message;
+        let SubmitEnvelope { mut envelope } = message;
 
-        let scoping = envelope_context.scoping();
-        match self.submit_envelope(envelope, scoping, None).await {
+        let scoping = envelope.scoping();
+
+        let inner_envelope = envelope.take_envelope();
+        match self.submit_envelope(inner_envelope, scoping, None).await {
             Ok(_) => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
@@ -309,7 +314,7 @@ impl EnvelopeManagerService {
                     |scope| scope.set_tag("project_key", scoping.project_key),
                     || relay_log::error!("error sending envelope: {}", LogError(&error)),
                 );
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }
@@ -343,7 +348,8 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets));
+            self.aggregator
+                .send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 
