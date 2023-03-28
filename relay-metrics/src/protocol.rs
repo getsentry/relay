@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::{self, Display};
+use std::fmt;
 use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
@@ -9,104 +9,7 @@ pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
     UnixTimestamp,
 };
-
 use serde::{Deserialize, Serialize};
-
-/// The namespace of a metric.
-///
-/// Namespaces allow to identify the product entity that the metric got extracted from, and/or
-/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,
-/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce
-/// new metrics-based products.
-///
-/// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
-/// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
-/// Everything else is dropped both in the metrics aggregator and in the store service.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MetricNamespace {
-    /// Metrics extracted from sessions.
-    Sessions,
-    /// Metrics extracted from transaction events.
-    Transactions,
-    /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
-    /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
-    /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
-    /// this variant.
-    ///
-    /// Relay currently drops all metrics whose namespace ends up being deserialized as
-    /// `unsupported`. We may revise that in the future.
-    Unsupported,
-}
-
-impl std::str::FromStr for MetricNamespace {
-    type Err = ParseMetricError;
-
-    fn from_str(ns: &str) -> Result<Self, Self::Err> {
-        match ns {
-            "sessions" => Ok(MetricNamespace::Sessions),
-            "transactions" => Ok(MetricNamespace::Transactions),
-            _ => Ok(MetricNamespace::Unsupported),
-        }
-    }
-}
-
-/// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
-/// (excl. timestamp and tags).
-///
-/// For more information see [`Metric::name`].
-pub struct MetricResourceIdentifier<'a> {
-    /// The metric type.
-    pub ty: MetricType,
-    /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
-    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
-    /// the value `"custom"`.
-    pub namespace: MetricNamespace,
-    /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: &'a str,
-    /// The metric unit.
-    pub unit: MetricUnit,
-}
-
-impl<'a> MetricResourceIdentifier<'a> {
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
-        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
-        let ty = raw_ty.parse()?;
-
-        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
-
-        Ok(Self {
-            ty,
-            namespace: raw_namespace.parse()?,
-            name,
-            unit,
-        })
-    }
-}
-
-relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
-
-impl fmt::Display for MetricNamespace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricNamespace::Sessions => write!(f, "sessions"),
-            MetricNamespace::Transactions => write!(f, "transactions"),
-            MetricNamespace::Unsupported => write!(f, "unsupported"),
-        }
-    }
-}
-
-impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // `<ty>:<ns>/<name>@<unit>`
-        write!(
-            f,
-            "{}:{}/{}@{}",
-            self.ty, self.namespace, self.name, self.unit
-        )
-    }
-}
 
 /// Type used for Counter metric
 pub type CounterType = f64;
@@ -238,7 +141,7 @@ relay_common::impl_str_serde!(MetricType, "a metric type string");
 
 /// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
 #[derive(Clone, Copy, Debug)]
-pub struct ParseMetricError(pub ());
+pub struct ParseMetricError(());
 
 impl fmt::Display for ParseMetricError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -270,11 +173,100 @@ fn is_valid_name(name: &str) -> bool {
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MetricNamespace {
+    /// Metrics extracted from sessions.
+    Sessions,
+    /// Metrics extracted from transaction events.
+    Transactions,
+    /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
+    /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
+    /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
+    /// this variant.
+    ///
+    /// Relay currently drops all metrics whose namespace ends up being deserialized as
+    /// `unsupported`. We may revise that in the future.
+    Unsupported,
+}
+
+impl std::str::FromStr for MetricNamespace {
+    type Err = ParseMetricError;
+
+    fn from_str(ns: &str) -> Result<Self, Self::Err> {
+        match ns {
+            "sessions" => Ok(MetricNamespace::Sessions),
+            "transactions" => Ok(MetricNamespace::Transactions),
+            _ => Ok(MetricNamespace::Unsupported),
+        }
+    }
+}
+
+relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
+
+impl fmt::Display for MetricNamespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetricNamespace::Sessions => write!(f, "sessions"),
+            MetricNamespace::Transactions => write!(f, "transactions"),
+            MetricNamespace::Unsupported => write!(f, "unsupported"),
+        }
+    }
+}
 
 /// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
+pub struct MetricResourceIdentifier<'a> {
+    /// The metric type.
+    pub ty: MetricType,
+    /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
+    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
+    /// the value `"custom"`.
+    pub namespace: MetricNamespace,
+    /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
+    pub name: &'a str,
+    /// The metric unit.
+    pub unit: MetricUnit,
+}
+
+impl<'a> MetricResourceIdentifier<'a> {
+    fn new(ty: MetricType, namespace: MetricNamespace, name: &'a str, unit: MetricUnit) -> Self {
+        Self {
+            ty,
+            namespace,
+            name,
+            unit,
+        }
+    }
+
+    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
+        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
+        let ty = raw_ty.parse()?;
+
+        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+
+        Ok(Self {
+            ty,
+            namespace: raw_namespace.parse()?,
+            name,
+            unit,
+        })
+    }
+}
+
+impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // `<ty>:<ns>/<name>@<unit>`
+        write!(
+            f,
+            "{}:{}/{}@{}",
+            self.ty, self.namespace, self.name, self.unit
+        )
+    }
+}
 
 /// Validates a tag key.
 ///
@@ -295,6 +287,25 @@ pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
 /// stripped out.
 pub(crate) fn validate_tag_value(tag_value: &mut String) {
     tag_value.retain(|c| !c.is_ascii_control());
+}
+
+/// Parses the `name[@unit]` part of a metric string.
+///
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
+/// invalid.
+fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+    let mut components = string.split('@');
+    let name = components.next()?;
+    if !is_valid_name(name) {
+        return None;
+    }
+
+    let unit = match components.next() {
+        Some(s) => s.parse().ok()?,
+        None => MetricUnit::default(),
+    };
+
+    Some((name, unit))
 }
 
 /// Hashes the given set value.
@@ -330,25 +341,6 @@ fn parse_name_unit_value(string: &str, ty: MetricType) -> Option<(&str, MetricUn
     let (name, unit) = components.next().and_then(parse_name_unit)?;
     let value = components.next().and_then(|s| parse_value(s, ty))?;
     Some((name, unit, value))
-}
-
-/// Parses the `name[@unit]` part of a metric string.
-///
-/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
-/// invalid.
-pub fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
-    let mut components = string.split('@');
-    let name = components.next()?;
-    if !is_valid_name(name) {
-        return None;
-    }
-
-    let unit = match components.next() {
-        Some(s) => s.parse().ok()?,
-        None => MetricUnit::default(),
-    };
-
-    Some((name, unit))
 }
 
 /// Parses tags in the format `tag1,tag2:value`.
@@ -516,8 +508,6 @@ impl Metric {
         }
     }
 
-    // transactions/foo:42
-
     /// Parse statsd-compatible payload of format
     /// ```text
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
@@ -528,12 +518,16 @@ impl Metric {
         let name_value_str = components.next()?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
-        let (ns, name) = name_and_namespace.split_once('/')?;
+        let (raw_namespace, name) = name_and_namespace
+            .split_once('/')
+            .unwrap_or(("custom", string));
 
-        let mri = "sdfa"; //TypedMRI::from_components(ns, name, unit).ok()?;
-        todo!();
-
-        let mut metric = Self::new(mri.to_string(), value, timestamp, BTreeMap::new());
+        let mut metric = Self::new(
+            MetricResourceIdentifier::new(ty, raw_namespace.parse().ok()?, name, unit).to_string(),
+            value,
+            timestamp,
+            BTreeMap::new(),
+        );
 
         for component in components {
             if let Some('#') = component.chars().next() {
@@ -553,7 +547,7 @@ impl Metric {
     /// ```
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
-    /// let metric = Metric::parse(b"transactions/duration@millisecond:57|d", UnixTimestamp::now())
+    /// let metric = Metric::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -576,8 +570,8 @@ impl Metric {
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
     /// let data = br#"
-    /// transactions/duration@millisecond:57|d
-    /// transactions/count_per_root_project:1|c
+    /// endpoint.response_time@millisecond:57|d
+    /// endpoint.hits:1|c
     /// "#;
     ///
     /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
@@ -679,12 +673,12 @@ mod tests {
 
     #[test]
     fn test_parse_counter() {
-        let s = "transactions/count_per_root_project:42|c";
+        let s = "transactions/foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "c:transactions/count_per_root_project@none",
+            name: "c:transactions/foo@none",
             value: Counter(
                 42.0,
             ),
@@ -696,12 +690,12 @@ mod tests {
 
     #[test]
     fn test_parse_distribution() {
-        let s = "transactions/measurements.foo:17.5|d";
+        let s = "transactions/foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "d:transactions/measurements.foo@none",
+            name: "d:transactions/foo@none",
             value: Distribution(
                 17.5,
             ),
@@ -713,7 +707,7 @@ mod tests {
 
     #[test]
     fn test_parse_histogram() {
-        let s = "transactions/user:17.5|h"; // common alias for distribution
+        let s = "transactions/foo:17.5|h"; // common alias for distribution
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.value, MetricValue::Distribution(17.5));
@@ -721,12 +715,12 @@ mod tests {
 
     #[test]
     fn test_parse_set() {
-        let s = "transactions/user:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
+        let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "s:transactions/user@none",
+            name: "s:transactions/foo@none",
             value: Set(
                 4267882815,
             ),
@@ -738,45 +732,42 @@ mod tests {
 
     #[test]
     fn test_parse_gauge() {
-        let s = "transactions/measurements.foo:42|g";
+        let s = "transactions/foo:42|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        dbg!(&metric);
         insta::assert_debug_snapshot!(metric, @r###"
-            Metric {
-                name: "g:transactions/measurements.foo@none",
-                value: Gauge(
-                    42.0,
-                ),
-                timestamp: UnixTimestamp(4711),
-                tags: {},
-            }
-            "###);
+        Metric {
+            name: "g:transactions/foo@none",
+            value: Gauge(
+                42.0,
+            ),
+            timestamp: UnixTimestamp(4711),
+            tags: {},
+        }
+        "###);
     }
 
     #[test]
     fn test_parse_unit() {
-        let s = "transactions/duration@second:17.5|d";
+        let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        todo!();
-        // let mri = TypedMRI::parse(&metric.name).unwrap();
-        //  assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
     fn test_parse_unit_regression() {
-        todo!();
-        let s = "transactions/duration@s:17.5|d";
+        let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
-        //let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        //let mri = TypedMRI::parse(&metric.name).unwrap();
-        //assert_eq!(mri.unit(), MetricUnit::Duration(DurationUnit::Second));
+        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
     fn test_parse_tags() {
-        let s = "transactions/user:17.5|d|#foo,bar:baz";
+        let s = "transactions/foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric.tags, @r###"
@@ -868,7 +859,7 @@ mod tests {
 
     #[test]
     fn test_parse_all() {
-        let s = "transactions/user:42|c\ntransactions/user:17|c";
+        let s = "transactions/foo:42|c\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
@@ -880,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_crlf() {
-        let s = "transactions/count_per_root_project:42|c\r\ntransactions/user:17|c";
+        let s = "transactions/foo:42|c\r\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
@@ -892,7 +883,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_empty_lines() {
-        let s = "transactions/user:42|c\n\n\nbar:17|c";
+        let s = "transactions/foo:42|c\n\n\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
@@ -901,7 +892,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_trailing() {
-        let s = "transactions/user:42|c\nbar:17|c\n";
+        let s = "transactions/foo:42|c\nbar:17|c\n";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
