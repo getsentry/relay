@@ -81,6 +81,7 @@ impl RequestBuilder {
     }
 
     pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
+        // TODO: This clones data. Change the signature to require `Bytes` to prevent cloning.
         self.builder = self.builder.body(body.as_ref().to_vec());
         self.finish()
     }

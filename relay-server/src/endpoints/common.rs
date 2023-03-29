@@ -126,9 +126,6 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            // BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
-            //     HttpResponse::PayloadTooLarge().json(&body)
-            // }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.

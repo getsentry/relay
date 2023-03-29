@@ -151,10 +151,22 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-fn predicate(Query(query): Query<VersionQuery>) -> bool {
+/// Returns `true` if the `?version` query parameter is compatible with this implementation.
+fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
     query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
 }
 
+/// Endpoint handler for the project configs endpoint.
+///
+/// # Version Compatibility
+///
+/// This endpoint checks a `?version` query parameter for compatibility. If this implementation is
+/// compatible with the version requested by the client (downstream Relay), it runs the project
+/// config endpoint implementation. Otherwise, the request is forwarded to the upstream.
+///
+/// Relays can drop compatibility with old versions of the project config endpoint, for instance the
+/// initial version 1. However, Sentry's HTTP endpoint will retain compatibility for much longer to
+/// support old Relay versions.
 pub async fn handle<B>(state: ServiceState, mut req: Request<B>) -> Result<impl IntoResponse>
 where
     B: axum::body::HttpBody + Send + 'static,
@@ -162,7 +174,7 @@ where
     B::Error: Into<axum::BoxError>,
 {
     let data = req.extract_parts().await?;
-    Ok(if predicate(data) {
+    Ok(if is_compatible(data) {
         inner.call(req, state).await
     } else {
         forward::forward(state, req).await

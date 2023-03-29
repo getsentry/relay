@@ -83,6 +83,7 @@ pub fn expand_unreal_envelope(
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
+        // TODO: This clones data. Update symbolic to allow moving the bytes out.
         item.set_payload(content_type, file.data().to_owned());
         item.set_attachment_type(attachment_type);
         envelope.add_item(item);
