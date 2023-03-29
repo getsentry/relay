@@ -4,7 +4,7 @@
 
 **Breaking Changes**:
 
-This release carries major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
+This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
 
 Configuration:
 - SSL support has been dropped. As per [official guidelines](https://docs.sentry.io/product/relay/operating-guidelines/), Relay should be operated behind a reverse proxy, which can perform SSL termination.
@@ -27,6 +27,7 @@ Metrics:
 **Internal**:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
+- Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 
 ## 23.3.1
 
