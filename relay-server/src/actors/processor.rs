@@ -6,7 +6,7 @@ use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use brotli2::write::BrotliEncoder;
+use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -1164,13 +1164,13 @@ impl EnvelopeProcessorService {
                 match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
                     Ok(replay) => match replay.to_json() {
                         Ok(json) => {
-                            item.set_payload(ContentType::Json, json.as_bytes());
+                            item.set_payload(ContentType::Json, json);
                             ItemAction::Keep
                         }
                         Err(e) => {
                             relay_log::error!(
                                 "replay-event: failed to serialize replay with message {}",
-                                e
+                                LogError(&e)
                             );
                             ItemAction::Keep
                         }
@@ -1219,7 +1219,7 @@ impl EnvelopeProcessorService {
 
                 match parsed_recording {
                     Ok(recording) => {
-                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        item.set_payload(ContentType::OctetStream, recording);
                         ItemAction::Keep
                     }
                     Err(e) => {
@@ -2514,9 +2514,10 @@ impl EnvelopeProcessorService {
                 encoder.finish()?
             }
             HttpEncoding::Br => {
-                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                // Use default buffer size (via 0), medium quality (5), and the default lgwin (22).
+                let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
                 encoder.write_all(body.as_ref())?;
-                encoder.finish()?
+                encoder.into_inner()
             }
         };
         Ok(envelope_body)

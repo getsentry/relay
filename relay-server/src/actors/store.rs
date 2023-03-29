@@ -326,7 +326,7 @@ impl StoreService {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
             let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                payload: payload.slice(offset, offset + chunk_size),
+                payload: payload.slice(offset..offset + chunk_size),
                 event_id,
                 project_id,
                 id: id.clone(),
@@ -753,7 +753,7 @@ impl StoreService {
 
             let replay_recording_chunk_message =
                 KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
-                    payload: payload.slice(offset, offset + chunk_size),
+                    payload: payload.slice(offset..offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),
