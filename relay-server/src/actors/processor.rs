@@ -1851,6 +1851,8 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        use std::path::PathBuf;
+
         let ProcessEnvelopeState {
             ref mut event,
             ref project_state,
@@ -1870,6 +1872,9 @@ impl EnvelopeProcessorService {
                 envelope.meta().public_key()
             );
         }
+
+        let mut android_csv = PathBuf::from(self.config.path());
+        android_csv.push("android_models.csv");
 
         let store_config = StoreConfig {
             project_id: Some(state.project_id.value()),
@@ -1891,6 +1896,7 @@ impl EnvelopeProcessorService {
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
             client_hints: envelope.meta().client_hints().to_owned(),
+            android_csv,
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());

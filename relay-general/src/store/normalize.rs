@@ -981,7 +981,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        contexts::normalize_context(context);
+        contexts::normalize_context(context, &self.config);
         Ok(())
     }
 

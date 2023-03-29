@@ -1,5 +1,6 @@
 //! Utility code for sentry's internal store.
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -67,7 +68,8 @@ pub struct StoreConfig {
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
 
-    pub global_config_path: String,
+    /// A csv file that can map from android model number
+    pub android_csv: PathBuf,
 }
 
 /// The processor that normalizes events for store.

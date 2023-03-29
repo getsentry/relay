@@ -1,7 +1,11 @@
-use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::io::BufRead;
+
+use once_cell::sync::{Lazy, OnceCell};
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{Context, DeviceContext, OsContext, ResponseContext, RuntimeContext};
+use crate::store::StoreConfig;
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -199,12 +203,44 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
-pub fn normalize_context(context: &mut Context) {
+static ANDROID_MAP: OnceCell<HashMap<String, String>> = OnceCell::new();
+fn normalize_device_context(device: &mut Box<DeviceContext>, config: &StoreConfig) {
+    let mymap: Result<&HashMap<String, String>, std::io::Error> =
+        ANDROID_MAP.get_or_try_init(|| {
+            let file = std::fs::File::open(&config.android_csv)?;
+            let reader = std::io::BufReader::new(file);
+            let mut android_map: HashMap<String, String> = HashMap::new();
+
+            for line in reader.lines() {
+                let line = line?;
+                let columns: Vec<&str> = line.split(", ").collect();
+
+                if columns.len() >= 4 {
+                    let key = columns[3].to_string();
+                    let value = columns[1].to_string();
+                    android_map.insert(key, value);
+                }
+            }
+            Ok(android_map)
+        });
+
+    if let Ok(android_map) = mymap {
+        let key = device.as_ref().model.value();
+        if let Some(key) = key {
+            let val = android_map.get(key);
+            if let Some(val) = val {
+                device.model.set_value(Some(val.clone()));
+            }
+        }
+    }
+}
+
+pub fn normalize_context(context: &mut Context, config: &StoreConfig) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
-        Context::Device(device) => {}
+        Context::Device(device) => normalize_device_context(device, config),
         _ => {}
     }
 }
