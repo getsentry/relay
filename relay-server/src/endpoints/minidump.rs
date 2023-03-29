@@ -16,7 +16,6 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
-// use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
