@@ -12,7 +12,19 @@ publish = false
 
 [features]
 default = []
-processing = ["dep:minidump", "dep:relay-monitors", "dep:relay-profiling", "dep:symbolic-common", "dep:symbolic-unreal", "dep:zstd", "bytes/serde", "relay-config/processing", "relay-kafka/producer", "relay-quotas/redis", "relay-redis/impl"]
+processing = [
+    "dep:minidump",
+    "dep:relay-monitors",
+    "dep:relay-profiling",
+    "dep:symbolic-common",
+    "dep:symbolic-unreal",
+    "dep:zstd",
+    "bytes/serde",
+    "relay-config/processing",
+    "relay-kafka/producer",
+    "relay-quotas/redis",
+    "relay-redis/impl",
+]
 
 [dependencies]
 anyhow = "1.0.66"
