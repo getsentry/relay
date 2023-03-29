@@ -11,12 +11,14 @@ use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
+    #[serde(rename = "live")]
     Liveness,
     /// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
     /// it's both live/alive and not too busy).
+    #[serde(rename = "ready")]
     Readiness,
 }
 

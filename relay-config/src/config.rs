@@ -552,13 +552,6 @@ struct Limits {
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     query_timeout: u64,
-    /// The maximum number of connections to Relay that can be created at once.
-    max_connection_rate: usize,
-    /// The maximum number of pending connects to Relay. This corresponds to the backlog param of
-    /// `listen(2)` in POSIX.
-    max_pending_connections: i32,
-    /// The maximum number of open connections to Relay.
-    max_connections: usize,
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
@@ -587,9 +580,6 @@ impl Default for Limits {
             max_replay_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
-            max_connection_rate: 256,
-            max_pending_connections: 2048,
-            max_connections: 25_000,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
         }
@@ -1752,21 +1742,6 @@ impl Config {
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.query_timeout)
-    }
-
-    /// The maximum number of open connections to Relay.
-    pub fn max_connections(&self) -> usize {
-        self.values.limits.max_connections
-    }
-
-    /// The maximum number of connections to Relay that can be created at once.
-    pub fn max_connection_rate(&self) -> usize {
-        self.values.limits.max_connection_rate
-    }
-
-    /// The maximum number of pending connects to Relay.
-    pub fn max_pending_connections(&self) -> i32 {
-        self.values.limits.max_pending_connections
     }
 
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown

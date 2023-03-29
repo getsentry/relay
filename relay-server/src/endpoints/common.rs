@@ -1,12 +1,7 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
-use std::fmt::Write;
-use std::future::Future;
-
-use actix_web::error::PayloadError;
-use actix_web::http::{header, StatusCode};
-use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{App, HttpResponse};
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
@@ -23,9 +18,27 @@ use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
 
+#[derive(Clone, Copy, Debug, thiserror::Error)]
+#[error("the service is overloaded")]
+pub struct ServiceUnavailable;
+
+impl From<relay_system::SendError> for ServiceUnavailable {
+    fn from(_: relay_system::SendError) -> Self {
+        Self
+    }
+}
+
+impl IntoResponse for ServiceUnavailable {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorResponse::from_error(&self),
+        )
+            .into_response()
+    }
+}
+
 /// Error type for all store-like requests.
-///
-/// Functions returning this error must use [`handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
     #[error("could not schedule event processing")]
@@ -34,6 +47,9 @@ pub enum BadStoreRequest {
     #[error("empty request body")]
     EmptyBody,
 
+    #[error("invalid request body")]
+    InvalidBody(#[source] std::io::Error),
+
     #[error("invalid JSON data")]
     InvalidJson(#[source] serde_json::Error),
 
@@ -41,10 +57,13 @@ pub enum BadStoreRequest {
     InvalidMsgpack(#[source] rmp_serde::decode::Error),
 
     #[error("invalid event envelope")]
-    InvalidEnvelope(#[source] EnvelopeError),
+    InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(#[source] MultipartError),
+    InvalidMultipart(#[from] multer::Error),
+
+    #[error("invalid multipart data")]
+    InvalidMultipartAxum(#[from] MultipartError),
 
     #[error("invalid minidump")]
     InvalidMinidump,
@@ -58,8 +77,10 @@ pub enum BadStoreRequest {
     #[error("failed to queue envelope")]
     QueueFailed(#[from] BufferError),
 
-    #[error("failed to read request body")]
-    PayloadError(#[source] failure::Compat<PayloadError>),
+    #[error(
+        "envelope exceeded size limits (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
+    )]
+    Overflow,
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
@@ -70,8 +91,8 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 }
 
-impl BadStoreRequest {
-    fn into_response(self) -> HttpResponse {
+impl IntoResponse for BadStoreRequest {
+    fn into_response(self) -> axum::response::Response {
         let body = ApiErrorResponse::from_error(&self);
 
         let response = match &self {
@@ -86,30 +107,29 @@ impl BadStoreRequest {
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
-                HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-                    .header(header::RETRY_AFTER, retry_after_header)
-                    .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
-                    .json(&body)
+                let headers = [
+                    (header::RETRY_AFTER.as_str(), retry_after_header),
+                    (utils::RATE_LIMITS_HEADER, rate_limits_header),
+                ];
+
+                (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
-                HttpResponse::ServiceUnavailable().json(&body)
+                (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
             }
             BadStoreRequest::EventRejected(_) => {
                 // The event has been discarded, which is generally indicated with a 403 error.
                 // Originally, Sentry also used this status code for event filters, but these are
                 // now executed asynchronously in `EnvelopeProcessor`.
-                HttpResponse::Forbidden().json(&body)
-            }
-            BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
-                HttpResponse::PayloadTooLarge().json(&body)
+                (StatusCode::FORBIDDEN, body).into_response()
             }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
-                HttpResponse::BadRequest().json(&body)
+                (StatusCode::BAD_REQUEST, body).into_response()
             }
         };
 
@@ -119,12 +139,6 @@ impl BadStoreRequest {
         }
 
         response
-    }
-}
-
-impl From<PayloadError> for BadStoreRequest {
-    fn from(error: PayloadError) -> Self {
-        Self::PayloadError(failure::Fail::compat(error))
     }
 }
 
@@ -223,39 +237,6 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
     }
 
     Ok(None)
-}
-
-/// Creates a preconfigured CORS middleware builder for store requests.
-///
-/// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
-/// returns an App. This configures POST as allowed method, allows default sentry headers, and
-/// exposes the return headers.
-pub fn cors(app: App<ServiceState>) -> CorsBuilder<ServiceState> {
-    let mut builder = Cors::for_app(app);
-
-    builder
-        .allowed_methods(vec!["POST"])
-        .allowed_headers(vec![
-            "x-sentry-auth",
-            "x-requested-with",
-            "x-forwarded-for",
-            "origin",
-            "referer",
-            "accept",
-            "content-type",
-            "authentication",
-            "authorization",
-            "content-encoding",
-            "transfer-encoding",
-        ])
-        .expose_headers(vec![
-            "x-sentry-error",
-            "x-sentry-rate-limits",
-            "retry-after",
-        ])
-        .max_age(3600);
-
-    builder
 }
 
 /// Queues an envelope for processing.
@@ -361,7 +342,7 @@ pub async fn handle_envelope(
 
     if !utils::check_envelope_size_limits(state.config(), managed_envelope.envelope()) {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        return Err(PayloadError::Overflow.into());
+        return Err(BadStoreRequest::Overflow);
     }
 
     queue_envelope(managed_envelope, buffer_guard)?;
@@ -373,67 +354,25 @@ pub async fn handle_envelope(
     }
 }
 
-/// Creates a HttpResponse containing the textual representation of the given EventId
-pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
-    // Event id is set statically in the ingest path.
-    let id = id.unwrap_or_default();
-    debug_assert!(!id.is_nil());
+#[derive(Debug)]
+pub struct TextResponse(pub Option<EventId>);
 
-    // the minidump client expects the response to contain an event id as a hyphenated UUID
-    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(id.0.as_hyphenated().to_string())
-}
+impl IntoResponse for TextResponse {
+    fn into_response(self) -> axum::response::Response {
+        // Event id is set statically in the ingest path.
+        let EventId(id) = self.0.unwrap_or_default();
+        debug_assert!(!id.is_nil());
 
-/// A helper for creating Actix routes that are resilient against double-slashes
-///
-/// Write `normpath("api/store")` to create a route pattern that matches "/api/store/",
-/// "api//store", "api//store////", etc.
-pub fn normpath(route: &str) -> String {
-    let mut pattern = String::new();
-    for (i, segment) in route.trim_matches('/').split('/').enumerate() {
-        // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        let _ = write!(pattern, "/{{multislash{i}:/*}}{segment}");
+        // the minidump client expects the response to contain an event id as a hyphenated UUID
+        // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        let text = id.as_hyphenated().to_string();
+        text.into_response()
     }
-
-    if route.ends_with('/') {
-        pattern.push_str("{trailing_slash:/+}");
-    } else {
-        pattern.push_str("{trailing_slash:/*}");
-    }
-    pattern
-}
-
-/// Creates an actix-web async handler for a store endpoint.
-///
-/// This function is intended to be used in `with_async` on store-like endpoints. It takes an
-/// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
-/// resolve with an HTTP response.
-pub fn handler<F>(f: F) -> impl futures01::Future<Item = HttpResponse, Error = actix_web::Error>
-where
-    F: Future<Output = Result<HttpResponse, BadStoreRequest>>,
-{
-    futures::compat::Compat::new(Box::pin(async move {
-        Ok(f.await.unwrap_or_else(|e| e.into_response()))
-    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_normpath() {
-        assert_eq!(
-            normpath("/api/store/"),
-            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}"
-        );
-        assert_eq!(
-            normpath("/api/store"),
-            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
-        );
-    }
 
     #[test]
     fn test_minimal_empty_event() {
