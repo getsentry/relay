@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use axum::http::{header, HeaderValue};
 use axum::ServiceExt;
-use axum_server::{AddrIncomingConfig, Handle, HttpConfig, Server};
+use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
 use relay_log::tower::NewSentryLayer;
 use relay_system::{Controller, Service, Shutdown};
@@ -32,9 +32,8 @@ pub enum ServerError {
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
+    config: Arc<Config>,
     service: ServiceState,
-    server: Server,
-    handle: Handle,
 }
 
 /// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
@@ -47,8 +46,6 @@ const CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
-        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-
         // Inform the user about a removed feature.
         if config.tls_listen_addr().is_some()
             || config.tls_identity_password().is_some()
@@ -57,33 +54,7 @@ impl HttpServer {
             return Err(ServerError::TlsNotSupported);
         }
 
-        relay_log::info!("spawning http server");
-        relay_log::info!("  listening on http://{}/", config.listen_addr());
-
-        let http_config = HttpConfig::new()
-            .http1_half_close(false)
-            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
-            .http1_writev(true)
-            .http2_keep_alive_timeout(config.keepalive_timeout())
-            .build();
-
-        let addr_config = AddrIncomingConfig::new()
-            .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
-            .build();
-
-        let handle = Handle::new();
-        let server = axum_server::bind(config.listen_addr())
-            .http_config(http_config)
-            .addr_incoming_config(addr_config)
-            .handle(handle.clone());
-
-        Ok(Self {
-            service,
-            server,
-            handle,
-        })
+        Ok(Self { config, service })
     }
 }
 
@@ -91,11 +62,7 @@ impl Service for HttpServer {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
-        let Self {
-            service,
-            server,
-            handle,
-        } = self;
+        let Self { config, service } = self;
 
         // Build the router middleware into a single service which runs _after_ routing. Service
         // builder order defines layers added first will be called first. This means:
@@ -125,6 +92,28 @@ impl Service for HttpServer {
             .service(router)
             .into_make_service_with_connect_info::<SocketAddr>();
 
+        let http_config = HttpConfig::new()
+            .http1_half_close(false)
+            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
+            .http1_writev(true)
+            .http2_keep_alive_timeout(config.keepalive_timeout())
+            .build();
+
+        let addr_config = AddrIncomingConfig::new()
+            .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
+            .build();
+
+        let handle = Handle::new();
+        let server = axum_server::bind(config.listen_addr())
+            .http_config(http_config)
+            .addr_incoming_config(addr_config)
+            .handle(handle.clone());
+
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
+        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
         tokio::spawn(server.serve(app));
 
         tokio::spawn(async move {
