@@ -1,0 +1,63 @@
+use relay_common::EventType;
+use relay_general::protocol::Event;
+use relay_general::types::{ProcessingAction, RemarkType};
+use relay_statsd::metric;
+
+use crate::statsd::RelaySets;
+
+/// Log statsd metrics about transaction name modifications.
+///
+/// We have to look at event & meta before and after the modification is made,
+/// so we delegate to `f` in the middle of the function.
+pub fn log_transaction_name_metrics<F, R>(event: &Event, f: F) -> Result<R, ProcessingAction>
+where
+    F: Fn() -> Result<R, ProcessingAction>,
+{
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return f();
+    }
+
+    let old_source = event.get_transaction_source();
+    let old_name = event.transaction.value().unwrap_or_default();
+    let old_remarks = event.transaction.meta().iter_remarks().count();
+
+    let res = f();
+
+    let mut pattern_based_changes = false;
+    let mut rule_based_changes = false;
+    let remarks = event.transaction.meta().iter_remarks().skip(old_remarks);
+    for remark in remarks {
+        if remark.ty() == RemarkType::Substituted {
+            if remark.range().is_some() {
+                pattern_based_changes = true;
+            } else {
+                rule_based_changes = true;
+            }
+        }
+    }
+
+    let changes = match (pattern_based_changes, rule_based_changes) {
+        (true, true) => "both",
+        (true, false) => "pattern",
+        (false, true) => "rule",
+        (false, false) => "none",
+    };
+
+    let new_source = event.get_transaction_source();
+
+    relay_statsd::metric!(
+        counter(RelayCounters::TransactionNameChanges) += 1,
+        source_in = old_source,
+        changes = changes,
+        source_out = new_source,
+    );
+
+    relay_statsd::metric!(
+        set(RelaySets::TransactionNameChanges) = old_name,
+        source_in = old_source,
+        changes = changes,
+        source_out = new_source,
+    );
+
+    res
+}

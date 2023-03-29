@@ -485,6 +485,8 @@ pub enum RelayCounters {
     ///    See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
+    ///  - `change`: The mechanism that changed the transaction name.
+    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
     ///  - `source_out`: The source of the transaction name after normalization.
     TransactionNameChanges,
     /// Number of HTTP requests reaching Relay.
@@ -552,4 +554,21 @@ impl CounterMetric for RelayCounters {
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
         }
     }
+}
+
+/// Set metrics used by Relay.
+pub enum RelaySets {
+    /// The number of unique transaction names grouped by changes made to it.
+    ///
+    /// This metric is tagged with:
+    ///  - `source_in`: The source of the transaction name before normalization.
+    ///    See the [transaction source
+    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+    ///    for all valid values.
+    ///  - `change`: The mechanism that changed the transaction name.
+    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
+    ///  - `source_out`: The source of the transaction name after normalization.
+    ///
+    /// See also [`RelayCounters::TransactionNameChanges`].
+    TransactionNameChanges,
 }
