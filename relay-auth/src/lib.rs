@@ -208,7 +208,6 @@ impl SecretKey {
         let header_encoded = BASE64URL_NOPAD.encode(&header);
         header.push(b'\x00');
         header.extend_from_slice(data);
-        // TODO: Digest
         let sig = self.inner.sign(&header);
         let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
@@ -256,7 +255,6 @@ impl FromStr for SecretKey {
             ed25519_dalek::SigningKey::from_keypair_bytes(&keypair)
                 .map_err(|_| KeyParseError::BadKey)?
         } else if let Ok(secret_key) = bytes.try_into() {
-            // TODO: SHA512 digest
             ed25519_dalek::SigningKey::from_bytes(&secret_key)
         } else {
             return Err(KeyParseError::BadKey);
@@ -316,7 +314,6 @@ impl PublicKey {
         let mut to_verify = header.clone();
         to_verify.push(b'\x00');
         to_verify.extend_from_slice(data);
-        // TODO: Digest?
         if self.inner.verify(&to_verify, &sig).is_ok() {
             serde_json::from_slice(&header).ok()
         } else {
