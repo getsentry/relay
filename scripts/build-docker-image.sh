@@ -47,7 +47,7 @@ docker run \
     --user "$(id -u):$(id -g)" \
     -e TARGET="$BUILD_TARGET" \
     "$IMG_DEPS" \
-    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
+    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="processing,crash-handler"
 
 # Create a release image.
 docker buildx build \

@@ -5,6 +5,7 @@
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951))
+- Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 
 ## 0.8.19
 

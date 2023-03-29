@@ -344,8 +344,8 @@ impl BufferService {
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
-        let envelope_bytes_slice: &[u8] = row.try_get("envelope")?;
-        let envelope_bytes = bytes::Bytes::from(envelope_bytes_slice);
+        let envelope_row: Vec<u8> = row.try_get("envelope")?;
+        let envelope_bytes = bytes::Bytes::from(envelope_row);
         let envelope = Envelope::parse_bytes(envelope_bytes)?;
         let managed_envelope = self.buffer_guard.enter(envelope)?;
         Ok(managed_envelope)
