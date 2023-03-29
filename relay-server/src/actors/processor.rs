@@ -2583,7 +2583,7 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-    use relay_general::protocol::EventId;
+    use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
@@ -3324,7 +3324,7 @@ mod tests {
         );
     }
 
-    fn capture_test_event(transaction_name: &str) -> Vec<String> {
+    fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r###"
             {
@@ -3347,12 +3347,15 @@ mod tests {
             "###,
         )
         .unwrap();
-        event
+        let e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(Some(transaction_name.into()));
+
+        e.transaction_info
             .value_mut()
             .as_mut()
             .unwrap()
-            .transaction
-            .set_value(Some(transaction_name.into()));
+            .source
+            .set_value(Some(source));
 
         relay_statsd::with_capturing_test_client(|| {
             log_transaction_name_metrics(&mut event, |event| {
@@ -3379,7 +3382,7 @@ mod tests {
 
     #[test]
     fn test_log_transaction_metrics_none() {
-        let captures = capture_test_event("/nothing");
+        let captures = capture_test_event("/nothing", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
@@ -3389,7 +3392,7 @@ mod tests {
 
     #[test]
     fn test_log_transaction_metrics_rule() {
-        let captures = capture_test_event("/foo/john/denver");
+        let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
@@ -3399,7 +3402,7 @@ mod tests {
 
     #[test]
     fn test_log_transaction_metrics_pattern() {
-        let captures = capture_test_event("/something/12345");
+        let captures = capture_test_event("/something/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
@@ -3409,10 +3412,20 @@ mod tests {
 
     #[test]
     fn test_log_transaction_metrics_both() {
-        let captures = capture_test_event("/foo/john/12345");
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_no_match() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route",
         ]
         "###);
     }
