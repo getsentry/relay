@@ -1,13 +1,32 @@
+//! Authentication and crypto for Relay.
+//!
+//! This library contains the [`PublicKey`] and [`SecretKey`] types, which can be used to validate
+//! and sign traffic between Relays in authenticated endpoints. Additionally, Relays identify via a
+//! [`RelayId`], which is included in the request signature and headers.
+//!
+//! Relay uses Ed25519 at the moment. This is considered an implementation detail and is subject to
+//! change at any time. Do not rely on a specific signing mechanism.
+//!
+//! # Generating Credentials
+//!
+//! Use the [`generate_relay_id`] and [`generate_key_pair`] function to generate credentials:
+//!
+//! ```
+//! let relay_id = relay_auth::generate_relay_id();
+//! let (private_key, public_key) = relay_auth::generate_key_pair();
+//! ```
+
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
+
 use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
+use ed25519_dalek::{Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
 use rand::{thread_rng, RngCore};
@@ -154,31 +173,14 @@ impl Default for SignatureHeader {
     }
 }
 
-/// Represents the public key of an relay.
-///
-/// Public keys are based on ed25519 but this should be considered an
-/// implementation detail for now.  We only ever represent public keys
-/// on the wire as opaque ascii encoded strings of arbitrary format or length.
-#[derive(Clone)]
-pub struct PublicKey {
-    inner: ed25519_dalek::PublicKey,
-}
-
 /// Represents the secret key of an relay.
 ///
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
 /// on the wire as opaque ascii encoded strings of arbitrary format or length.
+#[derive(Clone)]
 pub struct SecretKey {
-    inner: ed25519_dalek::Keypair,
-}
-
-impl Clone for SecretKey {
-    fn clone(&self) -> SecretKey {
-        SecretKey {
-            inner: ed25519_dalek::Keypair::from_bytes(&self.inner.to_bytes()[..]).unwrap(),
-        }
-    }
+    inner: ed25519_dalek::SigningKey,
 }
 
 /// Represents the final registration.
@@ -206,7 +208,8 @@ impl SecretKey {
         let header_encoded = BASE64URL_NOPAD.encode(&header);
         header.push(b'\x00');
         header.extend_from_slice(data);
-        let sig = self.inner.sign::<Sha512>(&header);
+        // TODO: Digest
+        let sig = self.inner.sign(&header);
         let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
@@ -234,7 +237,7 @@ impl SecretKey {
 
 impl PartialEq for SecretKey {
     fn eq(&self, other: &SecretKey) -> bool {
-        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
+        self.inner.to_keypair_bytes() == other.inner.to_keypair_bytes()
     }
 }
 
@@ -249,29 +252,30 @@ impl FromStr for SecretKey {
             _ => return Err(KeyParseError::BadEncoding),
         };
 
-        Ok(SecretKey {
-            inner: if bytes.len() == 64 {
-                ed25519_dalek::Keypair::from_bytes(&bytes).map_err(|_| KeyParseError::BadKey)?
-            } else {
-                let secret = ed25519_dalek::SecretKey::from_bytes(&bytes)
-                    .map_err(|_| KeyParseError::BadKey)?;
-                let public = ed25519_dalek::PublicKey::from_secret::<Sha512>(&secret);
-                ed25519_dalek::Keypair { secret, public }
-            },
-        })
+        let inner = if let Ok(keypair) = bytes.as_slice().try_into() {
+            ed25519_dalek::SigningKey::from_keypair_bytes(&keypair)
+                .map_err(|_| KeyParseError::BadKey)?
+        } else if let Ok(secret_key) = bytes.try_into() {
+            // TODO: SHA512 digest
+            ed25519_dalek::SigningKey::from_bytes(&secret_key)
+        } else {
+            return Err(KeyParseError::BadKey);
+        };
+
+        Ok(SecretKey { inner })
     }
 }
 
 impl fmt::Display for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
-            write!(f, "{}", BASE64URL_NOPAD.encode(&self.inner.to_bytes()))
-        } else {
             write!(
                 f,
                 "{}",
-                BASE64URL_NOPAD.encode(&self.inner.secret.to_bytes())
+                BASE64URL_NOPAD.encode(&self.inner.to_keypair_bytes())
             )
+        } else {
+            write!(f, "{}", BASE64URL_NOPAD.encode(&self.inner.to_bytes()))
         }
     }
 }
@@ -284,6 +288,16 @@ impl fmt::Debug for SecretKey {
 
 relay_common::impl_str_serde!(SecretKey, "a secret key");
 
+/// Represents the public key of an relay.
+///
+/// Public keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
+#[derive(Clone, Eq, PartialEq)]
+pub struct PublicKey {
+    inner: ed25519_dalek::VerifyingKey,
+}
+
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
@@ -293,7 +307,7 @@ impl PublicKey {
             Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()?,
             None => return None,
         };
-        let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes).ok()?;
+        let sig = ed25519_dalek::Signature::from_slice(&sig_bytes).ok()?;
 
         let header = match iter.next() {
             Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?,
@@ -302,7 +316,8 @@ impl PublicKey {
         let mut to_verify = header.clone();
         to_verify.push(b'\x00');
         to_verify.extend_from_slice(data);
-        if self.inner.verify::<Sha512>(&to_verify, &sig).is_ok() {
+        // TODO: Digest?
+        if self.inner.verify(&to_verify, &sig).is_ok() {
             serde_json::from_slice(&header).ok()
         } else {
             None
@@ -355,26 +370,21 @@ impl PublicKey {
     }
 }
 
-impl PartialEq for PublicKey {
-    fn eq(&self, other: &PublicKey) -> bool {
-        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
-    }
-}
-
-impl Eq for PublicKey {}
-
 impl FromStr for PublicKey {
     type Err = KeyParseError;
 
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
-        let bytes = match BASE64URL_NOPAD.decode(s.as_bytes()) {
-            Ok(bytes) => bytes,
-            _ => return Err(KeyParseError::BadEncoding),
+        let Ok(bytes) = BASE64URL_NOPAD.decode(s.as_bytes()) else {
+            return Err(KeyParseError::BadEncoding)
         };
-        Ok(PublicKey {
-            inner: ed25519_dalek::PublicKey::from_bytes(&bytes)
+
+        let inner = match bytes.try_into() {
+            Ok(bytes) => ed25519_dalek::VerifyingKey::from_bytes(&bytes)
                 .map_err(|_| KeyParseError::BadKey)?,
-        })
+            Err(_) => return Err(KeyParseError::BadKey),
+        };
+
+        Ok(PublicKey { inner })
     }
 }
 
@@ -399,9 +409,9 @@ pub fn generate_relay_id() -> RelayId {
 
 /// Generates a secret + public key pair.
 pub fn generate_key_pair() -> (SecretKey, PublicKey) {
-    let mut csprng = OsRng::new().unwrap();
-    let kp = ed25519_dalek::Keypair::generate::<Sha512, _>(&mut csprng);
-    let pk = ed25519_dalek::PublicKey::from_bytes(&kp.public.as_bytes()[..]).unwrap();
+    let mut csprng = OsRng;
+    let kp = ed25519_dalek::SigningKey::generate(&mut csprng);
+    let pk = kp.verifying_key();
     (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
@@ -429,7 +439,7 @@ pub struct SignedRegisterState(String);
 impl SignedRegisterState {
     /// Creates an Hmac instance for signing the `RegisterState`.
     fn mac(secret: &[u8]) -> Hmac<Sha512> {
-        Hmac::new_varkey(secret).expect("HMAC takes variable keys")
+        Hmac::new_from_slice(secret).expect("HMAC takes variable keys")
     }
 
     /// Signs the given `RegisterState` and serializes it into a single string.
@@ -438,8 +448,8 @@ impl SignedRegisterState {
         let token = BASE64URL_NOPAD.encode(json.as_bytes());
 
         let mut mac = Self::mac(secret);
-        mac.input(token.as_bytes());
-        let signature = BASE64URL_NOPAD.encode(&mac.result().code());
+        mac.update(token.as_bytes());
+        let signature = BASE64URL_NOPAD.encode(&mac.finalize().into_bytes());
 
         Self(format!("{token}:{signature}"))
     }
@@ -470,8 +480,9 @@ impl SignedRegisterState {
             .map_err(|_| UnpackError::BadEncoding)?;
 
         let mut mac = Self::mac(secret);
-        mac.input(token.as_bytes());
-        mac.verify(&code).map_err(|_| UnpackError::BadSignature)?;
+        mac.update(token.as_bytes());
+        mac.verify_slice(&code)
+            .map_err(|_| UnpackError::BadSignature)?;
 
         let json = BASE64URL_NOPAD
             .decode(token.as_bytes())
