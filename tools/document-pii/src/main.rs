@@ -39,12 +39,16 @@ fn extract_pii_fields(source: &str) -> syn::Result<Vec<String>> {
     let mut pii_fields = Vec::new();
 
     for item in ast.items {
-        if let syn::Item::Struct(ItemStruct { ident, fields, .. }) = item {
-            for field in fields {
-                if has_pii_true(&field) {
-                    pii_fields.push(format!("{}.{}", ident, field.ident.unwrap()));
+        match item {
+            syn::Item::Struct(ItemStruct { ident, fields, .. }) => {
+                for field in fields {
+                    if has_pii_true(&field) {
+                        pii_fields.push(format!("{}.{}", ident, field.ident.unwrap()));
+                    }
                 }
             }
+            syn::Item::Enum(_) => {}
+            _ => {}
         }
     }
 
