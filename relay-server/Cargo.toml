@@ -12,19 +12,7 @@ publish = false
 
 [features]
 default = []
-processing = [
-    "dep:minidump",
-    "dep:relay-monitors",
-    "dep:relay-profiling",
-    "dep:symbolic-common",
-    "dep:symbolic-unreal",
-    "dep:zstd",
-    "bytes/serde",
-    "relay-config/processing",
-    "relay-kafka/producer",
-    "relay-quotas/redis",
-    "relay-redis/impl",
-]
+processing = ["dep:minidump", "dep:relay-monitors", "dep:relay-profiling", "dep:symbolic-common", "dep:symbolic-unreal", "dep:zstd", "bytes/serde", "relay-config/processing", "relay-kafka/producer", "relay-quotas/redis", "relay-redis/impl"]
 
 [dependencies]
 anyhow = "1.0.66"
@@ -78,6 +66,8 @@ tower-http = { version = "0.4.0", default-features = false, features = ["catch-p
 tracing = "0.1.37"
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
+schemafy = "0.6.0"
+sentry-kafka-schemas = { version = "0.0.17", path = "../../sentry-kafka-schemas" }
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

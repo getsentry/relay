@@ -1,7 +1,6 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
-use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -16,6 +15,7 @@ use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifi
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
+use sentry_kafka_schemas::schema_types::ingest_metrics_v1;
 use serde::ser::Error;
 use serde::Serialize;
 
@@ -526,7 +526,7 @@ impl StoreService {
     fn send_metric_message(
         &self,
         organization_id: u64,
-        message: MetricKafkaMessage,
+        message: ingest_metrics_v1::IngestMetric,
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
@@ -563,12 +563,23 @@ impl StoreService {
         let payload = item.payload();
 
         for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
-            let flat_value = match bucket.value {
-                BucketValue::Distribution(d) => {
-                    MetricKafkaValue::Distribution(d.iter_values().collect())
-                }
-                BucketValue::Counter(c) => MetricKafkaValue::Counter(c),
-                BucketValue::Set(s) => MetricKafkaValue::Set(s),
+            let (flat_type, flat_value) = match bucket.value {
+                BucketValue::Distribution(value) => (
+                    ingest_metrics_v1::IngestMetricType::D,
+                    ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
+                        value.iter_values().collect(),
+                    ),
+                ),
+                BucketValue::Counter(value) => (
+                    ingest_metrics_v1::IngestMetricType::C,
+                    ingest_metrics_v1::IngestMetricValue::NumberMetricValue(value),
+                ),
+                BucketValue::Set(values) => (
+                    ingest_metrics_v1::IngestMetricType::S,
+                    ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
+                        values.into_iter().map(f64::from).collect(),
+                    ),
+                ),
                 BucketValue::Gauge(_) => {
                     // gauges are currently unsupported by the rest of the system.
                     relay_log::with_scope(
@@ -582,16 +593,20 @@ impl StoreService {
                     continue;
                 }
             };
+
             self.send_metric_message(
                 org_id,
-                MetricKafkaMessage {
-                    org_id,
-                    project_id: project_id.value(),
+                ingest_metrics_v1::IngestMetric {
+                    // TODO: multiple unsafe conversions from u64 to i64
+                    org_id: org_id.try_into().unwrap(),
+                    project_id: project_id.value().try_into().unwrap(),
                     name: bucket.name,
+                    type_: flat_type,
                     value: flat_value,
-                    timestamp: bucket.timestamp.as_secs(),
-                    tags: bucket.tags,
-                    retention_days: retention,
+                    timestamp: bucket.timestamp.as_secs().try_into().unwrap(),
+                    // TODO: slow (conversion from btreemap to hashmap)
+                    tags: bucket.tags.into_iter().collect(),
+                    retention_days: retention.into(),
                 },
             )?;
         }
@@ -1047,30 +1062,6 @@ struct SessionKafkaMessage {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type", content = "value")]
-enum MetricKafkaValue {
-    #[serde(rename = "c")]
-    Counter(f64),
-    #[serde(rename = "d")]
-    Distribution(Vec<f64>),
-    #[serde(rename = "s")]
-    Set(BTreeSet<u32>),
-    // gauges are not implemented upstream, therefore we cannot send them for now.
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct MetricKafkaMessage {
-    org_id: u64,
-    project_id: u64,
-    name: String,
-    #[serde(flatten)]
-    value: MetricKafkaValue,
-    timestamp: u64,
-    tags: BTreeMap<String, String>,
-    retention_days: u16,
-}
-
-#[derive(Clone, Debug, Serialize)]
 struct ProfileKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
@@ -1101,7 +1092,7 @@ enum KafkaMessage {
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
-    Metric(MetricKafkaMessage),
+    Metric(ingest_metrics_v1::IngestMetric),
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
