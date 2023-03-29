@@ -165,7 +165,7 @@ impl UpdateRateLimits {
     }
 }
 
-/// Updates buffer index for [`ProjectKey`] with keys list of the [`QueueKey`]s.
+/// Updates the buffer index for [`ProjectKey`] with the [`QueueKey`] keys.
 ///
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the

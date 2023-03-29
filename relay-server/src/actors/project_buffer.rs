@@ -370,8 +370,7 @@ impl BufferService {
     /// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
     /// managed envelopes and send to back into processing pipeline.
     ///
-    /// If the error happens in delete/fetch phase, the key is returned to the index and will be
-    /// re-tried later again.
+    /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
     async fn fetch_and_delete(
         &self,
         db: &Pool<Sqlite>,
