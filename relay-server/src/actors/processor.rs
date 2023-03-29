@@ -21,8 +21,9 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, Replay, ReplayContext, ReplayError, SecurityReportType,
+    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport,
+    Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1759,6 +1760,15 @@ impl EnvelopeProcessorService {
         // In processing mode, also write metrics into the event. Most metrics have already been
         // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
+            if let Some(dsc) = envelope.dsc() {
+                if let Some(replay_id) = dsc.replay_id {
+                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                    contexts.add(SentryContext::Replay(Box::new(ReplayContext {
+                        replay_id: Annotated::new(relay_general::protocol::EventId(replay_id)),
+                    })));
+                }
+            }
+
             let mut metrics = std::mem::take(&mut state.metrics);
 
             let attachment_size = envelope
@@ -2580,9 +2590,10 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_common::{Dsn, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode, TraceUserContext};
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
 
@@ -2967,6 +2978,55 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    #[tokio::test]
+    async fn test_replay_id_added_from_dsc() {
+        let processor = create_test_processor(Default::default());
+        let event_id = protocol::EventId::new();
+
+        let dsn: Dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        let test_dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            release: None,
+            environment: None,
+            user: TraceUserContext {
+                user_segment: "vip".to_string(),
+                user_id: "me".to_string(),
+            },
+            public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
+            replay_id: Some(Uuid::new_v4()),
+        };
+
+        envelope.set_dsc(test_dsc);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, r###"{"foo": "bar"}"###);
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        let item = new_envelope.items().next().unwrap();
+        println!("{:?}", item);
     }
 
     #[tokio::test]
