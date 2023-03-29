@@ -28,6 +28,7 @@ Metrics:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 
 ## 23.3.1
 
