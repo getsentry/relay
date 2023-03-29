@@ -2225,7 +2225,7 @@ impl EnvelopeProcessorService {
             is_renormalize: false,
         };
 
-        log_transaction_name_metrics(state.event, || {
+        log_transaction_name_metrics(&state.event, || {
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
                 relay_general::store::light_normalize_event(&mut state.event, config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -2583,6 +2583,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use insta::assert_debug_snapshot;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
@@ -2590,6 +2591,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::actors::store;
     use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
@@ -3322,6 +3324,38 @@ mod tests {
             outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
             Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
         );
+    }
+
+    #[test]
+    fn test_log_transaction_metrics() {
+        let processor = create_test_processor(Default::default());
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "transaction",
+                "transaction": "/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source" "url"
+                }
+            }
+            "###,
+        )
+        .unwrap();
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            log_transaction_name_metrics(event.value().unwrap(), || store::light_normalize_event())
+                .unwrap();
+        });
+        insta::assert_debug_snapshot!(captures, @"");
     }
 
     /// This is a stand-in test to assert panicking behavior for spawn_blocking.

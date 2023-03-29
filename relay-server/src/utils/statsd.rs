@@ -1,24 +1,32 @@
+use std::hash::{Hash, Hasher};
+
 use relay_common::EventType;
 use relay_general::protocol::Event;
-use relay_general::types::{ProcessingAction, RemarkType};
-use relay_statsd::metric;
+use relay_general::types::{Annotated, ProcessingAction, RemarkType};
 
-use crate::statsd::RelaySets;
+use crate::statsd::{RelayCounters, RelaySets};
 
 /// Log statsd metrics about transaction name modifications.
 ///
 /// We have to look at event & meta before and after the modification is made,
 /// so we delegate to `f` in the middle of the function.
-pub fn log_transaction_name_metrics<F, R>(event: &Event, f: F) -> Result<R, ProcessingAction>
+pub fn log_transaction_name_metrics<F, R>(
+    event: &Annotated<Event>,
+    f: F,
+) -> Result<R, ProcessingAction>
 where
     F: Fn() -> Result<R, ProcessingAction>,
 {
+    let Some(event) = event.value_mut() else {
+        return f();
+    };
+
     if event.ty.value() != Some(&EventType::Transaction) {
         return f();
     }
 
     let old_source = event.get_transaction_source();
-    let old_name = event.transaction.value().unwrap_or_default();
+    let old_name = event.transaction.as_str().unwrap_or_default();
     let old_remarks = event.transaction.meta().iter_remarks().count();
 
     let res = f();
@@ -47,16 +55,20 @@ where
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,
-        source_in = old_source,
+        source_in = old_source.as_str(),
         changes = changes,
-        source_out = new_source,
+        source_out = new_source.as_str(),
     );
 
     relay_statsd::metric!(
-        set(RelaySets::TransactionNameChanges) = old_name,
-        source_in = old_source,
+        set(RelaySets::TransactionNameChanges) = {
+            let mut hasher = fnv::FnvHasher::default();
+            std::hash::Hash::hash(old_name, &mut hasher);
+            hasher.finish() as i64 // 2-complement
+        },
+        source_in = old_source.as_str(),
         changes = changes,
-        source_out = new_source,
+        source_out = new_source.as_str(),
     );
 
     res
