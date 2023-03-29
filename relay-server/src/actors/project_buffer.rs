@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
@@ -279,10 +280,11 @@ impl BufferService {
             max_memory_size,
         }) = spool_config
         {
-            let estimated_db_size =
-                Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
             // And if the count of in memory envelopes is over the defined max buffer size.
             if self.count_mem_envelopes > *max_memory_size as i64 {
+                let estimated_db_size =
+                    Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
+
                 // Reject all the enqueue requests if we exceed the max size of the buffer.
                 if estimated_db_size as usize > *max_disk_size {
                     return Err(BufferError::Full(estimated_db_size));
@@ -378,40 +380,40 @@ impl BufferService {
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
     ) -> Result<(), QueueKey> {
         loop {
-            let envelopes = sqlx::query(
+            let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
-            .fetch_all(db);
+            .fetch(db).peekable();
 
-            match envelopes.await {
-                Ok(envelopes) => {
-                    // If there is nothing left in the buffer for the current key, break
-                    // the loop.
-                    if envelopes.is_empty() {
-                        break Ok(());
+            // Stream is empty, we can break the loop, since we read everything by now.
+            if Pin::new(&mut envelopes).peek().await.is_none() {
+                return Ok(());
+            }
+
+            while let Some(envelope) = envelopes.next().await {
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+
+                    // Bail if there are errors in the stream.
+                    Err(err) => {
+                        relay_log::error!(
+                            "failed to read the buffer stream from the disk: {}",
+                            LogError(&err)
+                        );
+                        return Err(key);
                     }
+                };
 
-                    for envelope in envelopes {
-                        match self.extract_envelope(envelope) {
-                            Ok(managed_envelope) => {
-                                sender.send(managed_envelope).ok();
-                            }
-                            Err(err) => relay_log::error!(
-                                "failed to extract envelope from the buffer: {}",
-                                LogError(&err)
-                            ),
-                        }
+                match self.extract_envelope(envelope) {
+                    Ok(managed_envelope) => {
+                        sender.send(managed_envelope).ok();
                     }
-                }
-
-                Err(err) => {
-                    relay_log::error!(
-                        "failed to read the buffer stream from the disk: {}",
+                    Err(err) => relay_log::error!(
+                        "failed to extract envelope from the buffer: {}",
                         LogError(&err)
-                    );
-                    break Err(key);
+                    ),
                 }
             }
         }
