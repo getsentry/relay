@@ -288,7 +288,7 @@ impl fmt::Debug for SecretKey {
 
 relay_common::impl_str_serde!(SecretKey, "a secret key");
 
-/// Represents the public key of an relay.
+/// Represents the public key of a relay.
 ///
 /// Public keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
