@@ -361,7 +361,7 @@ impl Processor for TransactionsProcessor<'_> {
                 }
             }
 
-            if self.name_config.rules.len() > 0 {
+            if !self.name_config.rules.is_empty() {
                 self.apply_transaction_rename_rule(
                     &mut event.transaction,
                     event.transaction_info.value_mut(),
