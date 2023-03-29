@@ -2200,37 +2200,36 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let config = LightNormalizationConfig {
-            client_ip: client_ipaddr.as_ref(),
-            user_agent: RawUserAgentInfo {
-                user_agent: request_meta.user_agent(),
-                client_hints: request_meta.client_hints().as_deref(),
-            },
-            received_at: Some(state.managed_envelope.received_at()),
-            max_secs_in_past: Some(self.config.max_secs_in_past()),
-            max_secs_in_future: Some(self.config.max_secs_in_future()),
-            measurements_config: state.project_state.config.measurements.as_ref(),
-            breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
-            normalize_user_agent: Some(true),
-            transaction_name_config: TransactionNameConfig {
-                scrub_identifiers: state
-                    .project_state
-                    .has_feature(Feature::TransactionNameNormalize),
-                mark_scrubbed_as_sanitized: state
-                    .project_state
-                    .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
-                rules: &state.project_state.config.tx_name_rules,
-            },
+        log_transaction_name_metrics(&mut state.event, |event| {
+            let config = LightNormalizationConfig {
+                client_ip: client_ipaddr.as_ref(),
+                user_agent: RawUserAgentInfo {
+                    user_agent: request_meta.user_agent(),
+                    client_hints: request_meta.client_hints().as_deref(),
+                },
+                received_at: Some(state.managed_envelope.received_at()),
+                max_secs_in_past: Some(self.config.max_secs_in_past()),
+                max_secs_in_future: Some(self.config.max_secs_in_future()),
+                measurements_config: state.project_state.config.measurements.as_ref(),
+                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                normalize_user_agent: Some(true),
+                transaction_name_config: TransactionNameConfig {
+                    scrub_identifiers: state
+                        .project_state
+                        .has_feature(Feature::TransactionNameNormalize),
+                    mark_scrubbed_as_sanitized: state
+                        .project_state
+                        .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
+                    rules: &state.project_state.config.tx_name_rules,
+                },
 
-            is_renormalize: false,
-        };
+                is_renormalize: false,
+            };
 
-        log_transaction_name_metrics(&state.event, || {
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_general::store::light_normalize_event(&mut state.event, config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)?;
-            });
-            Ok(())
+                relay_general::store::light_normalize_event(event, config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)
+            })
         })?;
 
         Ok(())
@@ -2586,6 +2585,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
+    use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
@@ -3328,7 +3328,6 @@ mod tests {
 
     #[test]
     fn test_log_transaction_metrics() {
-        let processor = create_test_processor(Default::default());
         let mut event = Annotated::<Event>::from_json(
             r###"
             {
@@ -3345,17 +3344,38 @@ mod tests {
                     }
                 },
                 "transaction_info": {
-                    "source" "url"
+                    "source": "url"
                 }
             }
             "###,
         )
         .unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
-            log_transaction_name_metrics(event.value().unwrap(), || store::light_normalize_event())
-                .unwrap();
+            log_transaction_name_metrics(&mut event, |event| {
+                let config = LightNormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        scrub_identifiers: true,
+                        mark_scrubbed_as_sanitized: false,
+                        rules: &[TransactionNameRule {
+                            pattern: LazyGlob::new("/foo/*/**".to_owned()),
+                            expiry: DateTime::<Utc>::MAX_UTC,
+                            scope: RuleScope::default(),
+                            redaction: RedactionRule::Replace {
+                                substitution: "*".to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                relay_general::store::light_normalize_event(event, config)
+            })
+            .unwrap();
         });
-        insta::assert_debug_snapshot!(captures, @"");
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+        ]
+        "###);
     }
 
     /// This is a stand-in test to assert panicking behavior for spawn_blocking.
