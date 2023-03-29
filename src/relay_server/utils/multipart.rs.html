@@ -295,157 +295,13 @@
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
 <a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::io;
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::error::PayloadError;
-<span class="kw">use </span>actix_web::{multipart, HttpMessage, HttpRequest};
-<span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures::compat::Future01CompatExt;
-<span class="kw">use </span>futures01::{Async, Future, Poll, Stream};
+<span class="kw">use </span>axum::extract::multipart::{Field, Multipart};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::DecodingPayload;
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-
-<span class="attr">#[derive(Debug, thiserror::Error)]
-</span><span class="kw">pub enum </span>MultipartError {
-    <span class="attr">#[error(<span class="string">&quot;payload reached its size limit&quot;</span>)]
-    </span>Overflow,
-
-    <span class="attr">#[error(<span class="string">&quot;{0}&quot;</span>)]
-    </span>InvalidMultipart(actix_web::error::MultipartError),
-}
-
-<span class="doccomment">/// A wrapper around an actix payload that always ends with a newline.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>TerminatedPayload {
-    inner: DecodingPayload,
-    end: <span class="prelude-ty">Option</span>&lt;Bytes&gt;,
-}
-
-<span class="kw">impl </span>TerminatedPayload {
-    <span class="kw">pub fn </span>new(payload: DecodingPayload) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            inner: payload,
-            end: <span class="prelude-val">Some</span>(Bytes::from_static(<span class="string">b&quot;\r\n&quot;</span>)),
-        }
-    }
-}
-
-<span class="kw">impl </span>Stream <span class="kw">for </span>TerminatedPayload {
-    <span class="kw">type </span>Item = Bytes;
-    <span class="kw">type </span>Error = PayloadError;
-
-    <span class="attr">#[inline]
-    </span><span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="prelude-ty">Option</span>&lt;Bytes&gt;, PayloadError&gt; {
-        <span class="kw">match </span><span class="self">self</span>.inner.poll() {
-            <span class="prelude-val">Ok</span>(Async::Ready(<span class="prelude-val">None</span>)) =&gt; <span class="prelude-val">Ok</span>(Async::Ready(<span class="self">self</span>.end.take())),
-            poll =&gt; poll,
-        }
-    }
-}
 
 <span class="doccomment">/// Type used for encoding string lengths.
 </span><span class="kw">type </span>Len = u32;
@@ -535,12 +391,8 @@
         entry.to_writer(<span class="kw-2">&amp;mut </span><span class="self">self</span>.data);
     }
 
-    <span class="kw">pub fn </span>into_item(<span class="self">self</span>) -&gt; Item {
-        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::FormData);
-        <span class="comment">// Content type is Text (since it is not a json object but multiple
-        // json arrays serialized one after the other.
-        </span>item.set_payload(ContentType::Text, <span class="self">self</span>.data);
-        item
+    <span class="kw">pub fn </span>into_inner(<span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+        <span class="self">self</span>.data
     }
 }
 
@@ -570,82 +422,6 @@
     </span>}
 }
 
-<span class="doccomment">/// Reads data from a multipart field (coming from a HttpRequest).
-///
-/// This function returns `None` on overflow. The caller needs to coerce this into an appropriate
-/// error. This function does not error directly on overflow to allow consuming the full stream.
-</span><span class="kw">pub fn </span>consume_field&lt;S&gt;(
-    field: multipart::Field&lt;S&gt;,
-    max_size: usize,
-) -&gt; ResponseFuture&lt;Vec&lt;u8&gt;, MultipartError&gt;
-<span class="kw">where
-    </span>S: Stream&lt;Item = Bytes, Error = PayloadError&gt; + <span class="lifetime">&#39;static</span>,
-{
-    <span class="kw">let </span>future = field.map_err(MultipartError::InvalidMultipart).fold(
-        Vec::with_capacity(<span class="number">512</span>),
-        <span class="kw">move </span>|<span class="kw-2">mut </span>body, chunk| {
-            <span class="kw">if </span>(body.len() + chunk.len()) &gt; max_size {
-                <span class="prelude-val">Err</span>(MultipartError::Overflow)
-            } <span class="kw">else </span>{
-                body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
-                <span class="prelude-val">Ok</span>(body)
-            }
-        },
-    );
-
-    Box::new(future)
-}
-
-<span class="kw">fn </span>consume_item(
-    <span class="kw-2">mut </span>content: MultipartItems,
-    item: multipart::MultipartItem&lt;TerminatedPayload&gt;,
-) -&gt; ResponseFuture&lt;MultipartItems, MultipartError&gt; {
-    <span class="kw">let </span>field = <span class="kw">match </span>item {
-        multipart::MultipartItem::Nested(nested) =&gt; <span class="kw">return </span>consume_stream(content, nested),
-        multipart::MultipartItem::Field(field) =&gt; field,
-    };
-
-    <span class="kw">let </span>content_type = field.content_type().to_string();
-    <span class="kw">let </span>content_disposition = field.content_disposition();
-
-    <span class="kw">let </span>future = consume_field(field, content.remaining_size).map(<span class="kw">move </span>|data| {
-        content.remaining_size -= data.len();
-
-        <span class="kw">let </span>field_name = content_disposition.as_ref().and_then(|d| d.get_name());
-        <span class="kw">let </span>file_name = content_disposition.as_ref().and_then(|d| d.get_filename());
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(file_name) = file_name {
-            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-            item.set_attachment_type((<span class="kw-2">*</span>content.infer_type)(field_name));
-            item.set_payload(content_type.into(), data);
-            item.set_filename(file_name);
-            content.items.push(item);
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(field_name) = field_name {
-            <span class="comment">// Ensure to decode this safely to match Django&#39;s POST data behavior. This allows us to
-            // process sentry event payloads even if they contain invalid encoding.
-            </span><span class="kw">let </span>string = String::from_utf8_lossy(<span class="kw-2">&amp;</span>data);
-            content.form_data.append(field_name, <span class="kw-2">&amp;</span>string);
-        } <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;multipart content without name or file_name&quot;</span>);
-        }
-
-        content
-    });
-
-    Box::new(future)
-}
-
-<span class="kw">fn </span>consume_stream(
-    content: MultipartItems,
-    stream: multipart::Multipart&lt;TerminatedPayload&gt;,
-) -&gt; ResponseFuture&lt;MultipartItems, MultipartError&gt; {
-    <span class="kw">let </span>future = stream
-        .map_err(MultipartError::InvalidMultipart)
-        .fold(content, consume_item);
-
-    Box::new(future)
-}
-
 <span class="doccomment">/// Looks for a multipart boundary at the beginning of the data
 /// and returns it as a `&amp;str` if it is found
 ///
@@ -669,68 +445,80 @@
         </span>.and_then(|slice| std::str::from_utf8(<span class="kw-2">&amp;</span>slice[<span class="number">2</span>..]).ok())
 }
 
-<span class="doccomment">/// Internal structure used when constructing Envelopes to maintain a cap on the content size
-</span><span class="kw">pub struct </span>MultipartItems {
-    <span class="comment">// Items of the envelope under construction.
-    </span>items: Items,
-    <span class="comment">// Keeps track of how much bigger is this envelope allowed to grow.
-    </span>remaining_size: usize,
-    <span class="comment">// Collect all form data in here.
-    </span>form_data: FormDataWriter,
-    <span class="attr">#[allow(clippy::type_complexity)]
-    </span>infer_type: Box&lt;<span class="kw">dyn </span>Fn(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType&gt;,
+<span class="attr">#[derive(Debug, thiserror::Error)]
+</span><span class="kw">pub enum </span>MultipartError {
+    <span class="attr">#[error(<span class="string">&quot;field exceeded the size limit&quot;</span>)]
+    </span>FieldSizeExceeded,
+    <span class="attr">#[error(transparent)]
+    </span>Raw(<span class="attr">#[from] </span>axum::extract::multipart::MultipartError),
 }
 
-<span class="kw">impl </span>MultipartItems {
-    <span class="kw">pub fn </span>new(max_size: usize) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            items: Items::new(),
-            remaining_size: max_size,
-            form_data: FormDataWriter::new(),
-            infer_type: Box::new(|<span class="kw">_</span>| AttachmentType::default()),
+<span class="kw">async fn </span>field_data&lt;<span class="lifetime">&#39;a</span>&gt;(field: <span class="kw-2">&amp;mut </span>Field&lt;<span class="lifetime">&#39;a</span>&gt;, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, MultipartError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>body = Vec::new();
+
+    <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = field.chunk().<span class="kw">await</span><span class="question-mark">? </span>{
+        <span class="kw">if </span>body.len() + chunk.len() &gt; limit {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(MultipartError::FieldSizeExceeded);
+        }
+        body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
+    }
+
+    <span class="prelude-val">Ok</span>(body)
+}
+
+<span class="kw">pub async fn </span>multipart_items&lt;F&gt;(
+    <span class="kw-2">mut </span>multipart: Multipart,
+    item_limit: usize,
+    <span class="kw-2">mut </span>infer_type: F,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Items, MultipartError&gt;
+<span class="kw">where
+    </span>F: FnMut(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType,
+{
+    <span class="kw">let </span><span class="kw-2">mut </span>items = Items::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>form_data = FormDataWriter::new();
+
+    <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>field) = multipart.next_field().<span class="kw">await</span><span class="question-mark">? </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(file_name) = field.file_name() {
+            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
+            item.set_attachment_type(infer_type(field.name()));
+            item.set_filename(file_name);
+            <span class="kw">let </span>content_type = <span class="kw">match </span>field.content_type() {
+                <span class="prelude-val">Some</span>(string) =&gt; string.into(),
+                <span class="prelude-val">None </span>=&gt; ContentType::OctetStream,
+            };
+            <span class="comment">// Extract the body after the immutable borrow on `file_name` is gone.
+            </span>item.set_payload(content_type, field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>);
+            items.push(item);
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(field_name) = field.name().map(str::to_owned) {
+            <span class="kw">let </span>data = field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="comment">// Ensure to decode this safely to match Django&#39;s POST data behavior. This allows us to
+            // process sentry event payloads even if they contain invalid encoding.
+            </span><span class="kw">let </span>string = String::from_utf8_lossy(<span class="kw-2">&amp;</span>data);
+            form_data.append(<span class="kw-2">&amp;</span>field_name, <span class="kw-2">&amp;</span>string);
+        } <span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;multipart content without name or file_name&quot;</span>);
         }
     }
 
-    <span class="kw">pub fn </span>infer_attachment_type&lt;F&gt;(<span class="kw-2">mut </span><span class="self">self</span>, f: F) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>F: Fn(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType + <span class="lifetime">&#39;static</span>,
-    {
-        <span class="self">self</span>.infer_type = Box::new(f);
-        <span class="self">self
-    </span>}
+    <span class="kw">let </span>form_data = form_data.into_inner();
+    <span class="kw">if </span>!form_data.is_empty() {
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::FormData);
+        <span class="comment">// Content type is Text (since it is not a json object but multiple
+        // json arrays serialized one after the other.
+        </span>item.set_payload(ContentType::Text, form_data);
+        items.push(item);
+    }
 
-    <span class="kw">pub async fn </span>handle_request(
-        <span class="self">self</span>,
-        request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Items, MultipartError&gt; {
-        <span class="comment">// Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
-        // causes keep-alive streams to break. Instead, rely on the middleware to consume the
-        // stream. This can happen, for instance, when the boundary is malformed.
-        </span><span class="kw">let </span>boundary = <span class="kw">match </span>multipart::Multipart::boundary(request.headers()) {
-            <span class="prelude-val">Ok</span>(boundary) =&gt; boundary,
-            <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(MultipartError::InvalidMultipart(error)),
-        };
-
-        <span class="kw">let </span>payload = TerminatedPayload::new(DecodingPayload::new(request, <span class="self">self</span>.remaining_size));
-        <span class="kw">let </span>multipart = multipart::Multipart::new(<span class="prelude-val">Ok</span>(boundary), payload);
-
-        <span class="kw">let </span>future = consume_stream(<span class="self">self</span>, multipart).and_then(|multipart| {
-            <span class="kw">let </span><span class="kw-2">mut </span>items = multipart.items;
-
-            <span class="kw">let </span>form_data = multipart.form_data.into_item();
-            <span class="kw">if </span>!form_data.is_empty() {
-                items.push(form_data);
-            }
-
-            <span class="prelude-val">Ok</span>(items)
-        });
-
-        future.compat().<span class="kw">await
-    </span>}
+    <span class="prelude-val">Ok</span>(items)
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>axum::body::Full;
+    <span class="kw">use </span>axum::extract::FromRequest;
+    <span class="kw">use </span>axum::http::Request;
+    <span class="kw">use </span>bytes::Bytes;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
@@ -760,10 +548,7 @@
         writer.append(<span class="string">&quot;bar&quot;</span>, <span class="string">&quot;&quot;</span>);
         writer.append(<span class="string">&quot;blub&quot;</span>, <span class="string">&quot;blub&quot;</span>);
 
-        <span class="kw">let </span>item = writer.into_item();
-        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::FormData);
-
-        <span class="kw">let </span>payload = item.payload();
+        <span class="kw">let </span>payload = writer.into_inner();
         <span class="kw">let </span>iter = FormDataIter::new(<span class="kw-2">&amp;</span>payload);
         <span class="kw">let </span>entries: Vec&lt;<span class="kw">_</span>&gt; = iter.collect();
 
@@ -780,13 +565,30 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_formdata() {
         <span class="kw">let </span>writer = FormDataWriter::new();
-        <span class="kw">let </span>item = writer.into_item();
+        <span class="kw">let </span>payload = writer.into_inner();
 
-        <span class="kw">let </span>payload = item.payload();
         <span class="kw">let </span>iter = FormDataIter::new(<span class="kw-2">&amp;</span>payload);
         <span class="kw">let </span>entries: Vec&lt;<span class="kw">_</span>&gt; = iter.collect();
 
         <span class="macro">assert_eq!</span>(entries, <span class="macro">vec!</span>[]);
+    }
+
+    <span class="doccomment">/// Regression test for multipart payloads without a trailing newline.
+    </span><span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>missing_trailing_newline() -&gt; anyhow::Result&lt;()&gt; {
+        <span class="kw">let </span>data = <span class="string">&quot;--X-BOUNDARY\r\nContent-Disposition: form-data; \
+        name=\&quot;my_text_field\&quot;\r\n\r\nabcd\r\n--X-BOUNDARY--&quot;</span>; <span class="comment">// No trailing newline
+
+        </span><span class="kw">let </span>request = Request::builder()
+            .header(<span class="string">&quot;content-type&quot;</span>, <span class="string">&quot;multipart/form-data; boundary=X-BOUNDARY&quot;</span>)
+            .body(Full::new(Bytes::from(data)))
+            .unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>multipart = Multipart::from_request(request, <span class="kw-2">&amp;</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="macro">assert!</span>(multipart.next_field().<span class="kw">await</span><span class="question-mark">?</span>.is_some());
+        <span class="macro">assert!</span>(multipart.next_field().<span class="kw">await</span><span class="question-mark">?</span>.is_none());
+
+        <span class="prelude-val">Ok</span>(())
     }
 }
 </code></pre></div>

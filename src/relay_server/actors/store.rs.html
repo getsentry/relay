@@ -1610,7 +1610,7 @@
             <span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size();
             <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
             <span class="kw">let </span>attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                payload: payload.slice(offset, offset + chunk_size),
+                payload: payload.slice(offset..offset + chunk_size),
                 event_id,
                 project_id,
                 id: id.clone(),
@@ -2037,7 +2037,7 @@
 
             <span class="kw">let </span>replay_recording_chunk_message =
                 KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
-                    payload: payload.slice(offset, offset + chunk_size),
+                    payload: payload.slice(offset..offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),

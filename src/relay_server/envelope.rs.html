@@ -2825,7 +2825,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>items = Items::new();
 
         <span class="kw">while </span>offset &lt; bytes.len() {
-            <span class="kw">let </span>(item, item_size) = <span class="self">Self</span>::parse_item(bytes.slice_from(offset))<span class="question-mark">?</span>;
+            <span class="kw">let </span>(item, item_size) = <span class="self">Self</span>::parse_item(bytes.slice(offset..))<span class="question-mark">?</span>;
             offset += item_size;
             items.push(item);
         }
@@ -2868,7 +2868,7 @@
             },
         };
 
-        <span class="kw">let </span>payload = bytes.slice(payload_start, payload_end);
+        <span class="kw">let </span>payload = bytes.slice(payload_start..payload_end);
         <span class="kw">let </span>item = Item { headers, payload };
 
         <span class="prelude-val">Ok</span>((item, payload_end + <span class="number">1</span>))

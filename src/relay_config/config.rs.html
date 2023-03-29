@@ -1900,31 +1900,6 @@
 <a href="#1899" id="1899">1899</a>
 <a href="#1900" id="1900">1900</a>
 <a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
-<a href="#1903" id="1903">1903</a>
-<a href="#1904" id="1904">1904</a>
-<a href="#1905" id="1905">1905</a>
-<a href="#1906" id="1906">1906</a>
-<a href="#1907" id="1907">1907</a>
-<a href="#1908" id="1908">1908</a>
-<a href="#1909" id="1909">1909</a>
-<a href="#1910" id="1910">1910</a>
-<a href="#1911" id="1911">1911</a>
-<a href="#1912" id="1912">1912</a>
-<a href="#1913" id="1913">1913</a>
-<a href="#1914" id="1914">1914</a>
-<a href="#1915" id="1915">1915</a>
-<a href="#1916" id="1916">1916</a>
-<a href="#1917" id="1917">1917</a>
-<a href="#1918" id="1918">1918</a>
-<a href="#1919" id="1919">1919</a>
-<a href="#1920" id="1920">1920</a>
-<a href="#1921" id="1921">1921</a>
-<a href="#1922" id="1922">1922</a>
-<a href="#1923" id="1923">1923</a>
-<a href="#1924" id="1924">1924</a>
-<a href="#1925" id="1925">1925</a>
-<a href="#1926" id="1926">1926</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2479,13 +2454,6 @@
     <span class="doccomment">/// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     </span>query_timeout: u64,
-    <span class="doccomment">/// The maximum number of connections to Relay that can be created at once.
-    </span>max_connection_rate: usize,
-    <span class="doccomment">/// The maximum number of pending connects to Relay. This corresponds to the backlog param of
-    /// `listen(2)` in POSIX.
-    </span>max_pending_connections: i32,
-    <span class="doccomment">/// The maximum number of open connections to Relay.
-    </span>max_connections: usize,
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     </span>shutdown_timeout: u64,
@@ -2514,9 +2482,6 @@
             max_replay_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_thread_count: num_cpus::get(),
             query_timeout: <span class="number">30</span>,
-            max_connection_rate: <span class="number">256</span>,
-            max_pending_connections: <span class="number">2048</span>,
-            max_connections: <span class="number">25_000</span>,
             shutdown_timeout: <span class="number">10</span>,
             keepalive_timeout: <span class="number">5</span>,
         }
@@ -3679,21 +3644,6 @@
     <span class="doccomment">/// The maximum number of seconds a query is allowed to take across retries.
     </span><span class="kw">pub fn </span>query_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.limits.query_timeout)
-    }
-
-    <span class="doccomment">/// The maximum number of open connections to Relay.
-    </span><span class="kw">pub fn </span>max_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.limits.max_connections
-    }
-
-    <span class="doccomment">/// The maximum number of connections to Relay that can be created at once.
-    </span><span class="kw">pub fn </span>max_connection_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.limits.max_connection_rate
-    }
-
-    <span class="doccomment">/// The maximum number of pending connects to Relay.
-    </span><span class="kw">pub fn </span>max_pending_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i32 {
-        <span class="self">self</span>.values.limits.max_pending_connections
     }
 
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown

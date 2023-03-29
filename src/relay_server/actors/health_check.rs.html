@@ -139,6 +139,8 @@
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -152,12 +154,14 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
 
 <span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, serde::Deserialize)]
 </span><span class="kw">pub enum </span>IsHealthy {
     <span class="doccomment">/// Check if the Relay is alive at all.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;live&quot;</span>)]
     </span>Liveness,
     <span class="doccomment">/// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
     /// it&#39;s both live/alive and not too busy).
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;ready&quot;</span>)]
     </span>Readiness,
 }
 

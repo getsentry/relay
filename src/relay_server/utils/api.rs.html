@@ -74,9 +74,17 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 
+<span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Represents an action requested by the Upstream sent in an error message.
@@ -116,7 +124,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>from_error&lt;E: Error&gt;(error: <span class="kw-2">&amp;</span>E) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>from_error&lt;E: Error + <span class="question-mark">?</span>Sized&gt;(error: <span class="kw-2">&amp;</span>E) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>detail = <span class="prelude-val">Some</span>(error.to_string());
 
         <span class="kw">let </span><span class="kw-2">mut </span>causes = Vec::new();
@@ -149,5 +157,11 @@
 }
 
 <span class="kw">impl </span>Error <span class="kw">for </span>ApiErrorResponse {}
+
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>ApiErrorResponse {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
+        axum::Json(<span class="self">self</span>).into_response()
+    }
+}
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

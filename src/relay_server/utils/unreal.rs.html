@@ -425,6 +425,7 @@
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
 <a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
 </pre><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::{
@@ -510,7 +511,8 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
-        item.set_payload(content_type, file.data());
+        <span class="comment">// TODO: This clones data. Update symbolic to allow moving the bytes out.
+        </span>item.set_payload(content_type, file.data().to_owned());
         item.set_attachment_type(attachment_type);
         envelope.add_item(item);
     }

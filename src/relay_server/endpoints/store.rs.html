@@ -138,38 +138,83 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Handles event store requests.
 
-</span><span class="kw">use </span>actix_web::http::Method;
-<span class="kw">use </span>actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
-<span class="kw">use </span>bytes::{Bytes, BytesMut};
-<span class="kw">use </span>relay_general::protocol::EventId;
-<span class="kw">use </span>serde::Serialize;
+</span><span class="kw">use </span>std::io::{<span class="self">self</span>, Read};
 
-<span class="kw">use </span><span class="kw">crate</span>::body;
+<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Query};
+<span class="kw">use </span>axum::http::header;
+<span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>data_encoding::BASE64;
+<span class="kw">use </span>flate2::bufread::ZlibDecoder;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="comment">// Transparent 1x1 gif
-// See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
-</span><span class="kw">static </span>PIXEL: <span class="kw-2">&amp;</span>[u8] =
-    <span class="string">b&quot;GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;&quot;</span>;
+<span class="doccomment">/// Decodes a base64-encoded zlib compressed request body.
+///
+/// If the body is not encoded with base64 or not zlib-compressed, this function returns the body
+/// without modification.
+///
+/// If the body exceeds the given `limit` during streaming or decompression, an error is returned.
+</span><span class="kw">fn </span>decode_bytes(body: Bytes, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, io::Error&gt; {
+    <span class="kw">if </span>body.is_empty() || body.starts_with(<span class="string">b&quot;{&quot;</span>) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(body);
+    }
 
-<span class="doccomment">/// Parses a full `Envelope` request body.
-</span><span class="kw">fn </span>parse_envelope(meta: RequestMeta, data: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="comment">// Use `parse_request` here to ensure that we&#39;re merging available request headers into the
-    // envelope&#39;s headers.
-    </span>Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
+    <span class="comment">// TODO: Switch to a streaming decoder
+    // see https://github.com/alicemaz/rust-base64/pull/56
+    </span><span class="kw">let </span>binary_body = BASE64
+        .decode(body.as_ref())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))<span class="question-mark">?</span>;
+
+    <span class="kw">if </span>binary_body.starts_with(<span class="string">b&quot;{&quot;</span>) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(binary_body.into());
+    }
+
+    <span class="kw">let </span><span class="kw-2">mut </span>decode_stream = ZlibDecoder::new(binary_body.as_slice()).take(limit <span class="kw">as </span>u64);
+    <span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[];
+    decode_stream.read_to_end(<span class="kw-2">&amp;mut </span>bytes)<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(Bytes::from(bytes))
 }
 
-<span class="doccomment">/// Parses a JSON event body into an `Envelope`.
+<span class="doccomment">/// Parses an event body into an `Envelope`.
+///
+/// If the body is encoded with base64 or zlib, it will be transparently decoded.
 </span><span class="kw">fn </span>parse_event(
+    <span class="kw-2">mut </span>body: Bytes,
     meta: RequestMeta,
-    content_type: ContentType,
-    <span class="kw-2">mut </span>data: Bytes,
+    config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+    <span class="comment">// The body may be zlib compressed and encoded as base64. Decode it transparently if this is the
+    // case.
+    </span>body = decode_bytes(body, config.max_event_size()).map_err(BadStoreRequest::InvalidBody)<span class="question-mark">?</span>;
+    <span class="kw">if </span>body.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+    }
+
     <span class="comment">// Python clients are well known to send crappy JSON in the Sentry world.  The reason
     // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
     // server could deal with this but we cannot.  To work around this issue, we run a basic
@@ -181,22 +226,22 @@
     });
 
     <span class="kw">if </span>is_legacy_python_json {
-        <span class="kw">let </span><span class="kw-2">mut </span>data_mut = BytesMut::from(data);
+        <span class="kw">let </span><span class="kw-2">mut </span>data_mut = body.to_vec();
         json_forensics::translate_slice(<span class="kw-2">&amp;mut </span>data_mut[..]);
-        data = data_mut.freeze();
+        body = data_mut.into();
     }
 
     <span class="comment">// Ensure that the event has a UUID. It will be returned from this message and from the
     // incoming store request. To uncouple it from the workload on the processing workers, this
     // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
     // is invalid, processing can be skipped altogether.
-    </span><span class="kw">let </span>minimal = common::minimal_event_from_json(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>minimal = common::minimal_event_from_json(<span class="kw-2">&amp;</span>body)<span class="question-mark">?</span>;
 
-    <span class="comment">// Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event
-    // type. The processing queue expects those in an explicit item.
+    <span class="comment">// Old SDKs used to send transactions to the store endpoint with an explicit `Transaction`
+    // event type. The processing queue expects those in an explicit item.
     </span><span class="kw">let </span>item_type = ItemType::from_event_type(minimal.ty);
     <span class="kw">let </span><span class="kw-2">mut </span>event_item = Item::new(item_type);
-    event_item.set_payload(content_type, data);
+    event_item.set_payload(ContentType::Json, body);
 
     <span class="kw">let </span>event_id = minimal.id.unwrap_or_else(EventId::new);
     <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
@@ -205,77 +250,60 @@
     <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">async fn </span>extract_envelope(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-    meta: RequestMeta,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
-    <span class="kw">let </span>data = body::store_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
-
-    <span class="kw">if </span>data.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
-    }
-
-    <span class="comment">// If the content type is missing, assume &quot;application/json&quot;.
-    </span><span class="kw">let </span>content_type = <span class="kw">match </span>request.content_type() {
-        content_type <span class="kw">if </span>content_type.is_empty() =&gt; ContentType::Json,
-        content_type =&gt; ContentType::from(content_type),
-    };
-
-    <span class="kw">match </span>content_type {
-        ContentType::Envelope =&gt; parse_envelope(meta, data),
-        <span class="kw">_ </span>=&gt; parse_event(meta, content_type, data),
-    }
-}
-
 <span class="attr">#[derive(Serialize)]
-</span><span class="kw">struct </span>StoreResponse {
+</span><span class="kw">struct </span>PostResponse {
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
 }
 
 <span class="doccomment">/// Handler for the JSON event store endpoint.
-///
-/// This simply delegates to `store_event` which does all the work.
-/// `handle_store_event` is an adaptor for `store_event` which cannot
-/// be used directly as a request handler since not all of its arguments
-/// implement the FromRequest trait.
-</span><span class="kw">async fn </span>store_event(
+</span><span class="kw">async fn </span>handle_post(
+    state: ServiceState,
     meta: RequestMeta,
-    request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span>id = common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    content_type: RawContentType,
+    body: Bytes,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = <span class="kw">match </span>content_type.as_ref() {
+        envelope::CONTENT_TYPE =&gt; Envelope::parse_request(body, meta)<span class="question-mark">?</span>,
+        <span class="kw">_ </span>=&gt; parse_event(body, meta, state.config())<span class="question-mark">?</span>,
+    };
 
-    <span class="prelude-val">Ok</span>(<span class="kw">match </span>request.method() {
-        <span class="kw-2">&amp;</span>Method::GET =&gt; HttpResponse::Ok().content_type(<span class="string">&quot;image/gif&quot;</span>).body(PIXEL),
-        <span class="kw">_ </span>=&gt; HttpResponse::Ok().json(StoreResponse { id }),
-    })
+    <span class="kw">let </span>id = common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(axum::Json(PostResponse { id }).into_response())
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    common::cors(app)
-        <span class="comment">// Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
-        // in their URL handling. Since actix does not normalize such paths, allow any number of
-        // slashes. The trailing slash can also be omitted, optionally.
-        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/store/&quot;</span>), |r| {
-            r.name(<span class="string">&quot;store-default&quot;</span>);
-            r.post()
-                .with_async(|m, r| common::handler(store_event(m, r)));
-            r.get()
-                .with_async(|m, r| common::handler(store_event(m, r)));
-        })
-        <span class="comment">// Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
-        // will use `ProjectKeyLookup` to map the public key to a project id before handling the
-        // request.
-        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/store/&quot;</span>), |r| {
-            r.name(<span class="string">&quot;store-legacy&quot;</span>);
-            r.post()
-                .with_async(|m, r| common::handler(store_event(m, r)));
-            r.get()
-                .with_async(|m, r| common::handler(store_event(m, r)));
-        })
-        .register()
+<span class="doccomment">/// Query params of the GET store endpoint.
+</span><span class="attr">#[derive(Debug, Deserialize)]
+</span><span class="kw">struct </span>GetQuery {
+    sentry_data: String,
+}
+
+<span class="comment">// Transparent 1x1 gif
+// See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
+</span><span class="kw">static </span>PIXEL: <span class="kw-2">&amp;</span>[u8] =
+    <span class="string">b&quot;GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;&quot;</span>;
+
+<span class="doccomment">/// Handler for the GET event store endpoint.
+///
+/// In this version, the event payload is sent in a `sentry_data` query parameter. The response is a
+/// transparent pixel GIF.
+</span><span class="kw">async fn </span>handle_get(
+    state: ServiceState,
+    meta: RequestMeta,
+    Query(query): Query&lt;GetQuery&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = parse_event(query.sentry_data.into(), meta, state.config())<span class="question-mark">?</span>;
+    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(([(header::CONTENT_TYPE, <span class="string">&quot;image/gif&quot;</span>)], PIXEL))
+}
+
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    (post(handle_post).get(handle_get)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

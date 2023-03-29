@@ -102,31 +102,17 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::actix::<span class="kw-2">*</span>;
-<span class="kw">use </span>actix_web::http::StatusCode;
-<span class="kw">use </span>actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
+</pre><pre class="rust"><code><span class="kw">use </span>axum::extract::rejection::BytesRejection;
+<span class="kw">use </span>axum::extract::FromRequest;
+<span class="kw">use </span>axum::http::{Request, StatusCode};
+<span class="kw">use </span>axum::response::{IntoResponse, Response};
+<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_auth::{RelayId, UnpackError};
 <span class="kw">use </span>relay_config::RelayInfo;
-<span class="kw">use </span>relay_log::Hub;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, RelayCache};
-<span class="kw">use </span><span class="kw">crate</span>::body;
-<span class="kw">use </span><span class="kw">crate</span>::middlewares::ActixWebHubExt;
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
-
-<span class="doccomment">/// Maximum size of a JSON request body.
-</span><span class="kw">const </span>MAX_JSON_SIZE: usize = <span class="number">262_144</span>;
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SignedJson&lt;T&gt; {
@@ -135,27 +121,33 @@
 }
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
-</span><span class="kw">enum </span>SignatureError {
+</span><span class="kw">pub enum </span>SignatureError {
     <span class="attr">#[error(<span class="string">&quot;invalid relay signature&quot;</span>)]
     </span>BadSignature(<span class="attr">#[source] </span>UnpackError),
     <span class="attr">#[error(<span class="string">&quot;missing header: {0}&quot;</span>)]
     </span>MissingHeader(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
     <span class="attr">#[error(<span class="string">&quot;malformed header: {0}&quot;</span>)]
     </span>MalformedHeader(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
-    <span class="attr">#[error(<span class="string">&quot;Unknown relay id&quot;</span>)]
+    <span class="attr">#[error(<span class="string">&quot;unknown relay id&quot;</span>)]
     </span>UnknownRelay,
+    <span class="attr">#[error(transparent)]
+    </span>MalformedBody(<span class="attr">#[from] </span>BytesRejection),
     <span class="attr">#[error(<span class="string">&quot;invalid JSON data&quot;</span>)]
-    </span>InvalidJson(<span class="attr">#[source] </span>serde_json::Error),
+    </span>InvalidJson(<span class="attr">#[from] </span>serde_json::Error),
+    <span class="attr">#[error(<span class="string">&quot;internal system is overloaded&quot;</span>)]
+    </span>ServiceUnavailable(<span class="attr">#[from] </span>relay_system::SendError),
 }
 
-<span class="kw">impl </span>ResponseError <span class="kw">for </span>SignatureError {
-    <span class="kw">fn </span>error_response(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; HttpResponse {
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>SignatureError {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; Response {
         <span class="kw">let </span>status = <span class="kw">match </span><span class="self">self </span>{
             SignatureError::InvalidJson(<span class="kw">_</span>) =&gt; StatusCode::BAD_REQUEST,
+            SignatureError::MalformedBody(<span class="kw">_</span>) =&gt; StatusCode::BAD_REQUEST,
+            SignatureError::ServiceUnavailable(<span class="kw">_</span>) =&gt; StatusCode::SERVICE_UNAVAILABLE,
             <span class="kw">_ </span>=&gt; StatusCode::UNAUTHORIZED,
         };
 
-        HttpResponse::build(status).json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_error(<span class="self">self</span>))
+        (status, ApiErrorResponse::from_error(<span class="kw-2">&amp;</span><span class="self">self</span>)).into_response()
     }
 }
 
@@ -168,8 +160,8 @@
     }
 }
 
-<span class="kw">fn </span>get_header&lt;<span class="lifetime">&#39;a</span>, S&gt;(
-    request: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HttpRequest&lt;S&gt;,
+<span class="kw">fn </span>get_header&lt;<span class="lifetime">&#39;a</span>, B&gt;(
+    request: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Request&lt;B&gt;,
     name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, SignatureError&gt; {
     <span class="kw">let </span>value = request
@@ -182,43 +174,35 @@
         .map_err(|<span class="kw">_</span>| SignatureError::MalformedHeader(name))
 }
 
-<span class="kw">async fn </span>signed_json&lt;T, S&gt;(request: HttpRequest&lt;S&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;SignedJson&lt;T&gt;, Error&gt;
+<span class="attr">#[axum::async_trait]
+</span><span class="kw">impl</span>&lt;T, S, B&gt; FromRequest&lt;S, B&gt; <span class="kw">for </span>SignedJson&lt;T&gt;
 <span class="kw">where
     </span>T: DeserializeOwned,
+    B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+    S: Send + Sync,
 {
-    <span class="kw">let </span>relay_id = get_header(<span class="kw-2">&amp;</span>request, <span class="string">&quot;x-sentry-relay-id&quot;</span>)<span class="question-mark">?
-        </span>.parse::&lt;RelayId&gt;()
-        .map_err(|<span class="kw">_</span>| SignatureError::MalformedHeader(<span class="string">&quot;x-sentry-relay-id&quot;</span>))<span class="question-mark">?</span>;
+    <span class="kw">type </span>Rejection = SignatureError;
 
-    Hub::from_request(<span class="kw-2">&amp;</span>request).configure_scope(|scope| {
-        <span class="comment">// Dump out header value even if not string
-        </span>scope.set_tag(<span class="string">&quot;relay_id&quot;</span>, relay_id.to_string());
-    });
+    <span class="kw">async fn </span>from_request(request: Request&lt;B&gt;, state: <span class="kw-2">&amp;</span>S) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+        <span class="kw">let </span>relay_id = get_header(<span class="kw-2">&amp;</span>request, <span class="string">&quot;x-sentry-relay-id&quot;</span>)<span class="question-mark">?
+            </span>.parse::&lt;RelayId&gt;()
+            .map_err(|<span class="kw">_</span>| SignatureError::MalformedHeader(<span class="string">&quot;x-sentry-relay-id&quot;</span>))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>signature = get_header(<span class="kw-2">&amp;</span>request, <span class="string">&quot;x-sentry-relay-signature&quot;</span>)<span class="question-mark">?</span>.to_owned();
+        <span class="comment">// Track the relay header value even if is not a string.
+        </span>relay_log::configure_scope(|s| s.set_tag(<span class="string">&quot;relay_id&quot;</span>, relay_id.to_string()));
 
-    <span class="kw">let </span>relay = RelayCache::from_registry()
-        .send(GetRelay { relay_id })
-        .<span class="kw">await
-        </span>.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">?
-        </span>.ok_or(SignatureError::UnknownRelay)<span class="question-mark">?</span>;
+        <span class="kw">let </span>signature = get_header(<span class="kw-2">&amp;</span>request, <span class="string">&quot;x-sentry-relay-signature&quot;</span>)<span class="question-mark">?</span>.to_owned();
 
-    <span class="kw">let </span>body = body::request_body(<span class="kw-2">&amp;</span>request, MAX_JSON_SIZE).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>relay = RelayCache::from_registry()
+            .send(GetRelay { relay_id })
+            .<span class="kw">await</span><span class="question-mark">?
+            </span>.ok_or(SignatureError::UnknownRelay)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>inner = relay
-        .public_key
-        .unpack(<span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>)
-        .map_err(SignatureError::from)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(SignedJson { inner, relay })
-}
-
-<span class="kw">impl</span>&lt;T: DeserializeOwned + <span class="lifetime">&#39;static</span>&gt; FromRequest&lt;ServiceState&gt; <span class="kw">for </span>SignedJson&lt;T&gt; {
-    <span class="kw">type </span>Config = ();
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ResponseFuture&lt;<span class="self">Self</span>, Error&gt;;
-
-    <span class="kw">fn </span>from_request(req: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;, _cfg: <span class="kw-2">&amp;</span><span class="self">Self</span>::Config) -&gt; <span class="self">Self</span>::Result {
-        Box::new(signed_json(req.clone()).boxed_local().compat())
+        <span class="kw">let </span>body = Bytes::from_request(request, state).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>inner = relay.public_key.unpack(<span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(SignedJson { inner, relay })
     }
 }
 </code></pre></div>

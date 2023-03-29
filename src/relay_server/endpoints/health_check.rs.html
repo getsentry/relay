@@ -26,58 +26,32 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A simple health check endpoint for the relay.
 
-</span><span class="kw">use </span>actix_web::{App, Error, HttpResponse};
-<span class="kw">use </span>futures::TryFutureExt;
+</span><span class="kw">use </span>axum::extract::Path;
+<span class="kw">use </span>axum::http::StatusCode;
+<span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, IsHealthy};
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="attr">#[derive(Serialize)]
 </span><span class="kw">struct </span>Status {
     is_healthy: bool,
 }
 
-<span class="kw">async fn </span>health_check(message: IsHealthy) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, Error&gt; {
-    <span class="prelude-val">Ok</span>(<span class="kw">match </span>HealthCheck::from_registry().send(message).<span class="kw">await </span>{
-        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; HttpResponse::Ok().json(Status { is_healthy: <span class="bool-val">true </span>}),
-        <span class="kw">_ </span>=&gt; HttpResponse::ServiceUnavailable().json(Status { is_healthy: <span class="bool-val">false </span>}),
-    })
+<span class="kw">pub async fn </span>handle(Path(kind): Path&lt;IsHealthy&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+    <span class="kw">match </span>HealthCheck::from_registry().send(kind).<span class="kw">await </span>{
+        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; (StatusCode::OK, axum::Json(Status { is_healthy: <span class="bool-val">true </span>})),
+        <span class="kw">_ </span>=&gt; (
+            StatusCode::SERVICE_UNAVAILABLE,
+            axum::Json(Status { is_healthy: <span class="bool-val">false </span>}),
+        ),
+    }
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    app.resource(<span class="string">&quot;/api/relay/healthcheck/ready/&quot;</span>, |r| {
-        r.name(<span class="string">&quot;internal-healthcheck-ready&quot;</span>);
-        r.get()
-            .with_async(|()| Box::pin(health_check(IsHealthy::Readiness)).compat());
-    })
-    .resource(<span class="string">&quot;/api/relay/healthcheck/live/&quot;</span>, |r| {
-        r.name(<span class="string">&quot;internal-healthcheck-live&quot;</span>);
-        r.get()
-            .with_async(|()| Box::pin(health_check(IsHealthy::Liveness)).compat());
-    })
-    <span class="comment">// live check is also used to check network connectivity by downstream relays.
-    // It must have the same url as Sentry (hence two urls doing the same thing)
-    </span>.resource(<span class="string">&quot;/api/0/relays/live/&quot;</span>, |r| {
-        r.name(<span class="string">&quot;external-healthcheck-live&quot;</span>);
-        r.get()
-            .with_async(|()| Box::pin(health_check(IsHealthy::Liveness)).compat());
-    })
-}
+<span class="kw">pub async fn </span>handle_live() -&gt; <span class="kw">impl </span>IntoResponse {
+    handle(Path(IsHealthy::Liveness)).<span class="kw">await
+</span>}
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

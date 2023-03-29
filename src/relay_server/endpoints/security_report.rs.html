@@ -96,114 +96,102 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Endpoints for security reports.
 
-</span><span class="kw">use </span>actix_web::{pred, App, HttpMessage, HttpRequest, HttpResponse, Query, Request};
+</span><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Query};
+<span class="kw">use </span>axum::http::StatusCode;
+<span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::EventId;
 <span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{Mime, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="attr">#[derive(Debug, Deserialize)]
-</span><span class="kw">struct </span>SecurityReportParams {
+</span><span class="kw">struct </span>SecurityReportQuery {
     sentry_release: <span class="prelude-ty">Option</span>&lt;String&gt;,
     sentry_environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">async fn </span>extract_envelope(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+<span class="attr">#[derive(Debug, FromRequest)]
+#[from_request(state(ServiceState))]
+</span><span class="kw">struct </span>SecurityReportParams {
     meta: RequestMeta,
-    params: SecurityReportParams,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
-    <span class="kw">let </span>data = body::store_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="attr">#[from_request(via(Query))]
+    </span>query: SecurityReportQuery,
+    body: Bytes,
+}
 
-    <span class="kw">if </span>data.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+<span class="kw">impl </span>SecurityReportParams {
+    <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+        <span class="kw">let </span><span class="self">Self </span>{ meta, query, body } = <span class="self">self</span>;
+
+        <span class="kw">if </span>body.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
+        report_item.set_payload(ContentType::Json, body);
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = query.sentry_release {
+            report_item.set_header(<span class="string">&quot;sentry_release&quot;</span>, sentry_release);
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = query.sentry_environment {
+            report_item.set_header(<span class="string">&quot;sentry_environment&quot;</span>, sentry_environment);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+        envelope.add_item(report_item);
+
+        <span class="prelude-val">Ok</span>(envelope)
     }
+}
 
-    <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
-    report_item.set_payload(ContentType::Json, data);
+<span class="kw">fn </span>is_security_mime(mime: Mime) -&gt; bool {
+    <span class="kw">let </span>ty = mime.type_().as_str();
+    <span class="kw">let </span>subty = mime.subtype().as_str();
+    <span class="kw">let </span>suffix = mime.suffix().map(|suffix| suffix.as_str());
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = params.sentry_release {
-        report_item.set_header(<span class="string">&quot;sentry_release&quot;</span>, sentry_release);
-    }
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = params.sentry_environment {
-        report_item.set_header(<span class="string">&quot;sentry_environment&quot;</span>, sentry_environment);
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-    envelope.add_item(report_item);
-
-    <span class="prelude-val">Ok</span>(envelope)
+    <span class="macro">matches!</span>(
+        (ty, subty, suffix),
+        (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;json&quot;</span>, <span class="prelude-val">None</span>)
+            | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;csp-report&quot;</span>, <span class="prelude-val">None</span>)
+            | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-ct-report&quot;</span>, <span class="prelude-val">None</span>)
+            | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-ct-report&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;json&quot;</span>))
+            | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-staple-report&quot;</span>, <span class="prelude-val">None</span>)
+    )
 }
 
 <span class="doccomment">/// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-</span><span class="kw">async fn </span>store_security_report(
-    meta: RequestMeta,
-    request: HttpRequest&lt;ServiceState&gt;,
-    params: Query&lt;SecurityReportParams&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta, params.into_inner()).<span class="kw">await</span><span class="question-mark">?</span>;
-    common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(HttpResponse::Ok().finish())
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>SecurityReportFilter;
-
-<span class="kw">impl </span>pred::Predicate&lt;ServiceState&gt; <span class="kw">for </span>SecurityReportFilter {
-    <span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, request: <span class="kw-2">&amp;</span>Request, <span class="kw">_</span>: <span class="kw-2">&amp;</span>ServiceState) -&gt; bool {
-        <span class="kw">let </span>mime_type = <span class="kw">match </span>request.mime_type() {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(mime)) =&gt; mime,
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="bool-val">false</span>,
-        };
-
-        <span class="kw">let </span>ty = mime_type.type_().as_str();
-        <span class="kw">let </span>subty = mime_type.subtype().as_str();
-        <span class="kw">let </span>suffix = mime_type.suffix().map(|suffix| suffix.as_str());
-
-        <span class="macro">matches!</span>(
-            (ty, subty, suffix),
-            (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;json&quot;</span>, <span class="prelude-val">None</span>)
-                | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;csp-report&quot;</span>, <span class="prelude-val">None</span>)
-                | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-ct-report&quot;</span>, <span class="prelude-val">None</span>)
-                | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-ct-report&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;json&quot;</span>))
-                | (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;expect-staple-report&quot;</span>, <span class="prelude-val">None</span>)
-        )
+</span><span class="kw">async fn </span>handle(
+    state: ServiceState,
+    mime: Mime,
+    params: SecurityReportParams,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">if </span>!is_security_mime(mime) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
+
+    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
+    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(().into_response())
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    common::cors(app)
-        <span class="comment">// Default security endpoint
-        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/security/&quot;</span>), |r| {
-            r.name(<span class="string">&quot;store-security-report&quot;</span>);
-            r.post()
-                .filter(SecurityReportFilter)
-                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-        })
-        <span class="comment">// Legacy security endpoint
-        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/csp-report/&quot;</span>), |r| {
-            r.name(<span class="string">&quot;store-csp-report&quot;</span>);
-            r.post()
-                .filter(SecurityReportFilter)
-                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-        })
-        .register()
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

@@ -19,22 +19,17 @@
 <a href="#18" id="18">18</a>
 <a href="#19" id="19">19</a>
 <a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{App, HttpResponse};
+</pre><pre class="rust"><code><span class="kw">use </span>axum::http::StatusCode;
+<span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_config::EmitOutcomes;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::{CurrentServiceState, SignedJson};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="kw">fn </span>send_outcomes(state: CurrentServiceState, body: SignedJson&lt;SendOutcomes&gt;) -&gt; HttpResponse {
+<span class="kw">pub async fn </span>handle(state: ServiceState, body: SignedJson&lt;SendOutcomes&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
     <span class="kw">if </span>!body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
-        <span class="kw">return </span>HttpResponse::Forbidden().finish();
+        <span class="kw">return </span>StatusCode::FORBIDDEN.into_response();
     }
 
     <span class="kw">let </span>producer = OutcomeProducer::from_registry();
@@ -42,14 +37,7 @@
         producer.send(outcome);
     }
 
-    HttpResponse::Accepted().json(SendOutcomesResponse {})
-}
-
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    app.resource(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, |r| {
-        r.name(<span class="string">&quot;relay-outcomes&quot;</span>);
-        r.post().with(send_outcomes);
-    })
+    (StatusCode::ACCEPTED, axum::Json(SendOutcomesResponse {})).into_response()
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

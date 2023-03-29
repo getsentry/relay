@@ -656,30 +656,28 @@
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
 <a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::net::IpAddr;
+</pre><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::net::{IpAddr, SocketAddr};
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::Instant;
 
-<span class="kw">use </span>actix_web::dev::AsyncResult;
-<span class="kw">use </span>actix_web::http::header;
-<span class="kw">use </span>actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>futures::TryFutureExt;
+<span class="kw">use </span>axum::extract::rejection::PathRejection;
+<span class="kw">use </span>axum::extract::{ConnectInfo, FromRequestParts, Path};
+<span class="kw">use </span>axum::http::header::{<span class="self">self</span>, AsHeaderName};
+<span class="kw">use </span>axum::http::request::Parts;
+<span class="kw">use </span>axum::http::StatusCode;
+<span class="kw">use </span>axum::response::{IntoResponse, Response};
+<span class="kw">use </span>axum::RequestPartsExt;
 <span class="kw">use </span>relay_common::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
-    ProjectKey, Scheme,
+    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
 };
 <span class="kw">use </span>relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::body;
-<span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
-<span class="kw">use </span><span class="kw">crate</span>::middlewares::StartTime;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{ForwardedFor, StartTime};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
@@ -699,7 +697,7 @@
     </span>BadEnvelopeAuth(<span class="attr">#[source] </span>serde_json::Error),
 
     <span class="attr">#[error(<span class="string">&quot;bad project path parameter&quot;</span>)]
-    </span>BadProject(<span class="attr">#[from] </span>ParseProjectIdError),
+    </span>BadProject(<span class="attr">#[from] </span>PathRejection),
 
     <span class="attr">#[error(<span class="string">&quot;bad x-sentry-auth header&quot;</span>)]
     </span>BadAuth(<span class="attr">#[from] </span>ParseAuthError),
@@ -708,19 +706,25 @@
     </span>BadPublicKey(<span class="attr">#[from] </span>ParseProjectKeyError),
 }
 
-<span class="kw">impl </span>ResponseError <span class="kw">for </span>BadEventMeta {
-    <span class="kw">fn </span>error_response(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; HttpResponse {
-        <span class="kw">let </span><span class="kw-2">mut </span>builder = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<span class="kw">impl </span>From&lt;Infallible&gt; <span class="kw">for </span>BadEventMeta {
+    <span class="kw">fn </span>from(infallible: Infallible) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>infallible {}
+    }
+}
+
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>BadEventMeta {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; Response {
+        <span class="kw">let </span>code = <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::MissingAuth
             | <span class="self">Self</span>::MultipleAuth
             | <span class="self">Self</span>::BadAuth(<span class="kw">_</span>)
-            | <span class="self">Self</span>::BadEnvelopeAuth(<span class="kw">_</span>) =&gt; HttpResponse::Unauthorized(),
+            | <span class="self">Self</span>::BadEnvelopeAuth(<span class="kw">_</span>) =&gt; StatusCode::UNAUTHORIZED,
             <span class="self">Self</span>::UnsupportedProtocolVersion(<span class="kw">_</span>) | <span class="self">Self</span>::BadProject(<span class="kw">_</span>) | <span class="self">Self</span>::BadPublicKey(<span class="kw">_</span>) =&gt; {
-                HttpResponse::BadRequest()
+                StatusCode::BAD_REQUEST
             }
         };
 
-        builder.json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_error(<span class="self">self</span>))
+        (code, ApiErrorResponse::from_error(<span class="kw-2">&amp;</span><span class="self">self</span>)).into_response()
     }
 }
 
@@ -1018,32 +1022,13 @@
     }
 }
 
-<span class="kw">pub type </span>PartialMeta = RequestMeta&lt;<span class="prelude-ty">Option</span>&lt;PartialDsn&gt;&gt;;
+<span class="doccomment">/// Request information without required authentication parts.
+///
+/// This is identical to [`RequestMeta`] with the exception that the DSN, used to authenticate, is
+/// optional.
+</span><span class="kw">pub type </span>PartialMeta = RequestMeta&lt;<span class="prelude-ty">Option</span>&lt;PartialDsn&gt;&gt;;
 
 <span class="kw">impl </span>PartialMeta {
-    <span class="doccomment">/// Extracts header information except for auth info.
-    </span><span class="kw">fn </span>from_headers&lt;S&gt;(request: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>ua = RawUserAgentInfo::default();
-
-        <span class="kw">for </span>(key, value) <span class="kw">in </span>request.headers() {
-            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
-        }
-
-        RequestMeta {
-            dsn: <span class="prelude-val">None</span>,
-            version: default_version(),
-            client: <span class="prelude-val">None</span>,
-            origin: parse_header_url(request, header::ORIGIN)
-                .or_else(|| parse_header_url(request, header::REFERER)),
-            remote_addr: request.peer_addr().map(|peer| peer.ip()),
-            forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: ua.user_agent,
-            no_cache: <span class="bool-val">false</span>,
-            start_time: StartTime::extract(request).into_inner(),
-            client_hints: ua.client_hints,
-        }
-    }
-
     <span class="doccomment">/// Returns a reference to the DSN.
     ///
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
@@ -1087,14 +1072,50 @@
     }
 }
 
-<span class="kw">fn </span>get_auth_header&lt;<span class="lifetime">&#39;a</span>, S&gt;(req: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HttpRequest&lt;S&gt;, header_name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; {
-    req.headers()
+<span class="attr">#[axum::async_trait]
+</span><span class="kw">impl</span>&lt;S&gt; FromRequestParts&lt;S&gt; <span class="kw">for </span>PartialMeta
+<span class="kw">where
+    </span>S: Send + Sync,
+{
+    <span class="kw">type </span>Rejection = Infallible;
+
+    <span class="kw">async fn </span>from_request_parts(parts: <span class="kw-2">&amp;mut </span>Parts, state: <span class="kw-2">&amp;</span>S) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ua = RawUserAgentInfo::default();
+        <span class="kw">for </span>(key, value) <span class="kw">in </span><span class="kw-2">&amp;</span>parts.headers {
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
+        <span class="prelude-val">Ok</span>(RequestMeta {
+            dsn: <span class="prelude-val">None</span>,
+            version: default_version(),
+            client: <span class="prelude-val">None</span>,
+            origin: parse_header_url(parts, header::ORIGIN)
+                .or_else(|| parse_header_url(parts, header::REFERER)),
+            remote_addr: ConnectInfo::&lt;SocketAddr&gt;::from_request_parts(parts, state)
+                .<span class="kw">await
+                </span>.map(|ConnectInfo(peer)| peer.ip())
+                .ok(),
+            forwarded_for: ForwardedFor::from_request_parts(parts, state)
+                .<span class="kw">await</span><span class="question-mark">?
+                </span>.into_inner(),
+            user_agent: ua.user_agent,
+            no_cache: <span class="bool-val">false</span>,
+            start_time: StartTime::from_request_parts(parts, state)
+                .<span class="kw">await</span><span class="question-mark">?
+                </span>.into_inner(),
+            client_hints: ua.client_hints,
+        })
+    }
+}
+
+<span class="kw">fn </span>get_auth_header(req: <span class="kw-2">&amp;</span>Parts, header_name: <span class="kw">impl </span>AsHeaderName) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    req.headers
         .get(header_name)
         .and_then(|x| x.to_str().ok())
         .filter(|h| h.len() &gt;= <span class="number">7 </span>&amp;&amp; h[..<span class="number">7</span>].eq_ignore_ascii_case(<span class="string">&quot;sentry &quot;</span>))
 }
 
-<span class="kw">fn </span>auth_from_request&lt;S&gt;(req: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Auth, BadEventMeta&gt; {
+<span class="kw">fn </span>auth_from_parts(req: <span class="kw-2">&amp;</span>Parts, path_key: <span class="prelude-ty">Option</span>&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Auth, BadEventMeta&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>auth = <span class="prelude-val">None</span>;
 
     <span class="comment">// try to extract authentication info from http header &quot;x-sentry-auth&quot;
@@ -1103,7 +1124,7 @@
     }
 
     <span class="comment">// try to extract authentication info from http header &quot;authorization&quot;
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(header) = get_auth_header(req, <span class="string">&quot;authorization&quot;</span>) {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(header) = get_auth_header(req, header::AUTHORIZATION) {
         <span class="kw">if </span>auth.is_some() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MultipleAuth);
         }
@@ -1112,7 +1133,7 @@
     }
 
     <span class="comment">// try to extract authentication info from URL query_param .../?sentry_...=&lt;key&gt;...
-    </span><span class="kw">let </span>query = req.query_string();
+    </span><span class="kw">let </span>query = req.uri.query().unwrap_or_default();
     <span class="kw">if </span>query.contains(<span class="string">&quot;sentry_&quot;</span>) {
         <span class="kw">if </span>auth.is_some() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MultipleAuth);
@@ -1122,7 +1143,7 @@
     }
 
     <span class="comment">// try to extract authentication info from URL path segment .../{sentry_key}/...
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_key) = req.match_info().get(<span class="string">&quot;sentry_key&quot;</span>) {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_key) = path_key {
         <span class="kw">if </span>auth.is_some() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MultipleAuth);
         }
@@ -1136,8 +1157,8 @@
     auth.ok_or(BadEventMeta::MissingAuth)
 }
 
-<span class="kw">fn </span>parse_header_url&lt;T&gt;(req: <span class="kw-2">&amp;</span>HttpRequest&lt;T&gt;, header: header::HeaderName) -&gt; <span class="prelude-ty">Option</span>&lt;Url&gt; {
-    req.headers()
+<span class="kw">fn </span>parse_header_url(req: <span class="kw-2">&amp;</span>Parts, header: <span class="kw">impl </span>AsHeaderName) -&gt; <span class="prelude-ty">Option</span>&lt;Url&gt; {
+    req.headers
         .get(header)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.parse::&lt;Url&gt;().ok())
@@ -1147,28 +1168,48 @@
         })
 }
 
-<span class="kw">impl </span>FromRequest&lt;ServiceState&gt; <span class="kw">for </span>RequestMeta {
-    <span class="kw">type </span>Config = ();
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, BadEventMeta&gt;;
+<span class="doccomment">/// Path parameters containing authentication information for store endpoints.
+///
+/// These parameters implement part of the authentication mechanism. For more information, see
+/// [`RequestMeta`].
+</span><span class="attr">#[derive(Debug, serde::Deserialize)]
+</span><span class="kw">struct </span>StorePath {
+    <span class="doccomment">/// The numeric identifier of the Sentry project.
+    ///
+    /// This parameter is part of the store endpoint paths, which are generally located under
+    /// `/api/:project_id/*`. By default, all store endpoints have the project ID in the path. To
+    /// resolve the project and associated information, Relay actually uses the DSN&#39;s
+    /// [`ProjectKey`]. During ingestion, the stated project ID from the URI path is validated
+    /// against information resolved from the upstream.
+    ///
+    /// The legacy endpoint (`/api/store/`) does not have the project ID. In this case, Relay skips
+    /// ID validation during ingestion.
+    </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
 
-    <span class="kw">fn </span>from_request(request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;, _cfg: <span class="kw-2">&amp;</span><span class="self">Self</span>::Config) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>auth = auth_from_request(request)<span class="question-mark">?</span>;
-        <span class="kw">let </span>partial_meta = PartialMeta::from_headers(request);
+    <span class="doccomment">/// The DSN&#39;s public key, also referred to as project key.
+    ///
+    /// Some endpoints require this key in the path. On all other endpoints, the key is either sent
+    /// as header or query parameter.
+    </span>sentry_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
 
-        <span class="kw">let </span>project_id = <span class="kw">match </span>request.match_info().get(<span class="string">&quot;project&quot;</span>) {
-            <span class="comment">// The project_id was declared in the URL. Use it directly.
-            </span><span class="prelude-val">Some</span>(s) =&gt; <span class="prelude-val">Some</span>(s.parse()<span class="question-mark">?</span>),
+<span class="attr">#[axum::async_trait]
+</span><span class="kw">impl </span>FromRequestParts&lt;ServiceState&gt; <span class="kw">for </span>RequestMeta {
+    <span class="kw">type </span>Rejection = BadEventMeta;
 
-            <span class="comment">// The legacy endpoint (/api/store) was hit without a project id. Fetch the project
-            // id from the key lookup. Since this is the uncommon case, block the request until the
-            // project id is here.
-            </span><span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
-        };
+    <span class="kw">async fn </span>from_request_parts(
+        parts: <span class="kw-2">&amp;mut </span>Parts,
+        state: <span class="kw-2">&amp;</span>ServiceState,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+        <span class="kw">let </span>Path(store_path): Path&lt;StorePath&gt; =
+            parts.extract().<span class="kw">await</span>.map_err(BadEventMeta::BadProject)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>config = request.state().config();
-        <span class="kw">let </span>upstream = config.upstream_descriptor();
-
+        <span class="kw">let </span>auth = auth_from_parts(parts, store_path.sentry_key)<span class="question-mark">?</span>;
+        <span class="kw">let </span>partial_meta = parts.extract::&lt;PartialMeta&gt;().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>(public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>config = state.config();
+        <span class="kw">let </span>upstream = config.upstream_descriptor();
 
         <span class="kw">let </span>dsn = PartialDsn {
             scheme: upstream.scheme(),
@@ -1176,7 +1217,7 @@
             host: upstream.host().to_owned(),
             port: upstream.port(),
             path: String::new(),
-            project_id,
+            project_id: store_path.project_id,
         };
 
         <span class="comment">// For now, we only handle &lt;= v8 and drop everything else
@@ -1202,53 +1243,6 @@
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
         })
-    }
-}
-
-<span class="doccomment">/// A wrapper type for [`RequestMeta`] that considers envelope headers in the first line of the
-/// request body.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>EnvelopeMeta {
-    request_meta: RequestMeta,
-}
-
-<span class="kw">impl </span>EnvelopeMeta {
-    <span class="kw">const </span>MAX_HEADER_SIZE: usize = <span class="number">2048</span>;
-
-    <span class="kw">fn </span>new(request_meta: RequestMeta) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ request_meta }
-    }
-
-    <span class="doccomment">/// Returns the request meta data.
-    </span><span class="kw">pub fn </span>into_inner(<span class="self">self</span>) -&gt; RequestMeta {
-        <span class="self">self</span>.request_meta
-    }
-}
-
-<span class="kw">async fn </span>extract_envelope_meta(
-    request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;EnvelopeMeta, actix_web::Error&gt; {
-    <span class="kw">let </span>result = RequestMeta::extract(<span class="kw-2">&amp;</span>request).map(EnvelopeMeta::new);
-    <span class="kw">if </span>!<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadEventMeta::MissingAuth)) {
-        <span class="kw">return </span>result.map_err(|e| e.into());
-    }
-
-    <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(json)) = body::peek_line(<span class="kw-2">&amp;</span>request, EnvelopeMeta::MAX_HEADER_SIZE).<span class="kw">await else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(actix_web::Error::from(BadEventMeta::MissingAuth));
-    };
-
-    <span class="kw">let </span>request_meta = serde_json::from_slice(<span class="kw-2">&amp;</span>json).map_err(BadEventMeta::BadEnvelopeAuth)<span class="question-mark">?</span>;
-    <span class="kw">let </span>partial_meta = PartialMeta::from_headers(<span class="kw-2">&amp;</span>request);
-    <span class="prelude-val">Ok</span>(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-}
-
-<span class="kw">impl </span>FromRequest&lt;ServiceState&gt; <span class="kw">for </span>EnvelopeMeta {
-    <span class="kw">type </span>Config = ();
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= AsyncResult&lt;<span class="self">Self</span>, actix_web::Error&gt;;
-
-    <span class="kw">fn </span>from_request(request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;, _config: <span class="kw-2">&amp;</span><span class="self">Self</span>::Config) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>future = extract_envelope_meta(request.clone());
-        AsyncResult::future(Box::new(Box::pin(future).compat()))
     }
 }
 

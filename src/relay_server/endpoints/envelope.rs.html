@@ -50,30 +50,199 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Handles envelope store requests.
 
-</span><span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
+</span><span class="kw">use </span>std::convert::Infallible;
+
+<span class="kw">use </span>axum::extract::rejection::BytesRejection;
+<span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest};
+<span class="kw">use </span>axum::http::Request;
+<span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>axum::{Json, RequestExt};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::EventId;
 <span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::extractors::{EnvelopeMeta, RequestMeta};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{BadEventMeta, PartialMeta, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="kw">async fn </span>extract_envelope(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-    meta: RequestMeta,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>max_payload_size = request.state().config().max_envelope_size();
-    <span class="kw">let </span>data = body::store_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="doccomment">/// Aggregate rejection thrown when extracting [`EnvelopeParams`].
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>BadEnvelopeParams {
+    EventMeta(BadEventMeta),
+    InvalidBody(BytesRejection),
+}
 
-    <span class="kw">if </span>data.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+<span class="kw">impl </span>From&lt;BadEventMeta&gt; <span class="kw">for </span>BadEnvelopeParams {
+    <span class="kw">fn </span>from(value: BadEventMeta) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::EventMeta(value)
     }
+}
 
-    Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
+<span class="kw">impl </span>From&lt;BytesRejection&gt; <span class="kw">for </span>BadEnvelopeParams {
+    <span class="kw">fn </span>from(value: BytesRejection) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::InvalidBody(value)
+    }
+}
+
+<span class="kw">impl </span>From&lt;Infallible&gt; <span class="kw">for </span>BadEnvelopeParams {
+    <span class="kw">fn </span>from(value: Infallible) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value {}
+    }
+}
+
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>BadEnvelopeParams {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
+        <span class="kw">match </span><span class="self">self </span>{
+            BadEnvelopeParams::EventMeta(inner) =&gt; inner.into_response(),
+            BadEnvelopeParams::InvalidBody(inner) =&gt; inner.into_response(),
+        }
+    }
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>EnvelopeParams {
+    meta: RequestMeta,
+    body: Bytes,
+}
+
+<span class="kw">impl </span>EnvelopeParams {
+    <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+        <span class="kw">let </span><span class="self">Self </span>{ meta, body } = <span class="self">self</span>;
+
+        <span class="kw">if </span>body.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+        }
+
+        <span class="prelude-val">Ok</span>(Envelope::parse_request(body, meta)<span class="question-mark">?</span>)
+    }
+}
+
+<span class="attr">#[axum::async_trait]
+</span><span class="kw">impl</span>&lt;B&gt; FromRequest&lt;ServiceState, B&gt; <span class="kw">for </span>EnvelopeParams
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    <span class="kw">type </span>Rejection = BadEnvelopeParams;
+
+    <span class="kw">async fn </span>from_request(
+        <span class="kw-2">mut </span>request: Request&lt;B&gt;,
+        state: <span class="kw-2">&amp;</span>ServiceState,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+        <span class="kw">let </span>result = request.extract_parts_with_state(state).<span class="kw">await</span>;
+
+        <span class="kw">if </span>!<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadEventMeta::MissingAuth)) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+                meta: result<span class="question-mark">?</span>,
+                body: request.extract().<span class="kw">await</span><span class="question-mark">?</span>,
+            });
+        }
+
+        <span class="kw">let </span>partial_meta = request.extract_parts::&lt;PartialMeta&gt;().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>body: Bytes = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="kw">let </span>line = body
+            .splitn(<span class="number">2</span>, |b| <span class="kw-2">*</span>b == <span class="string">b&#39;\n&#39;</span>)
+            .next()
+            .ok_or(BadEventMeta::MissingAuth)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>request_meta = serde_json::from_slice(line).map_err(BadEventMeta::BadEnvelopeAuth)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            meta: partial_meta.copy_to(request_meta),
+            body,
+        })
+    }
 }
 
 <span class="attr">#[derive(Serialize)]
@@ -83,23 +252,22 @@
 }
 
 <span class="doccomment">/// Handler for the envelope store endpoint.
-</span><span class="kw">async fn </span>store_envelope(
-    envelope_meta: EnvelopeMeta,
-    request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, envelope_meta.into_inner()).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">let </span>id = common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(HttpResponse::Ok().json(StoreResponse { id }))
+</span><span class="kw">async fn </span>handle(
+    state: ServiceState,
+    params: EnvelopeParams,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
+    <span class="kw">let </span>id = common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(Json(StoreResponse { id }))
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    common::cors(app)
-        .resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/envelope/&quot;</span>), |r| {
-            r.name(<span class="string">&quot;store-envelope&quot;</span>);
-            r.post()
-                .with_async(|e, r| common::handler(store_envelope(e, r)));
-        })
-        .register()
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

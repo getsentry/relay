@@ -123,6 +123,7 @@
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
 </pre><pre class="rust"><code><span class="doccomment">//! &lt;p align=&quot;center&quot;&gt;
 //!   &lt;img src=&quot;https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true&quot; alt=&quot;Relay&quot; width=&quot;480&quot;&gt;
 //! &lt;/p&gt;
@@ -146,9 +147,10 @@
 //!
 //! # Feature Flags
 //!
-//! - `ssl` _(default)_: Enables SSL support using `native-tls`.
 //! - `processing`: Includes event ingestion and processing functionality. This should only be
 //!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.
+//! - `crash-handler`: Allows native crash reporting for segfaults and out-of-memory situations when
+//!   internal error reporting to Sentry is enabled.
 //!
 //! # Workspace Crates
 //!

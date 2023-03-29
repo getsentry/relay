@@ -1477,15 +1477,6 @@
 <a href="#1476" id="1476">1476</a>
 <a href="#1477" id="1477">1477</a>
 <a href="#1478" id="1478">1478</a>
-<a href="#1479" id="1479">1479</a>
-<a href="#1480" id="1480">1480</a>
-<a href="#1481" id="1481">1481</a>
-<a href="#1482" id="1482">1482</a>
-<a href="#1483" id="1483">1483</a>
-<a href="#1484" id="1484">1484</a>
-<a href="#1485" id="1485">1485</a>
-<a href="#1486" id="1486">1486</a>
-<a href="#1487" id="1487">1487</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1932,11 +1923,7 @@
         <span class="self">self</span>.query.route()
     }
 
-    <span class="kw">fn </span>build(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        config: <span class="kw-2">&amp;</span>Config,
-        <span class="kw-2">mut </span>builder: RequestBuilder,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
         <span class="comment">// Memoize the serialized body and signature for retries.
         </span><span class="kw">let </span>credentials = config.credentials().ok_or(HttpError::NoCredentials)<span class="question-mark">?</span>;
         <span class="kw">let </span>(body, signature) = <span class="self">self
@@ -1951,9 +1938,10 @@
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() <span class="kw">as </span>u64
         );
 
-        builder.header(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, signature.as_bytes());
-        builder.header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>);
-        builder.body(<span class="kw-2">&amp;</span>body)
+        builder
+            .header(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, signature.as_bytes())
+            .header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>)
+            .body(<span class="kw-2">&amp;</span>body)
     }
 
     <span class="kw">fn </span>respond(
@@ -2209,12 +2197,8 @@
         <span class="kw">let </span>reqwest = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
-            <span class="comment">// In actix-web client this option could be set on a per-request basis.  In reqwest
-            // this option can only be set per-client. For non-forwarded upstream requests that is
-            // desirable, so we have it enabled.
-            //
-            // In the forward endpoint, this means that content negotiation is done twice, and the
-            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            <span class="comment">// In the forward endpoint, this means that content negotiation is done twice, and the
+            // response body is first decompressed by the client, then re-compressed by the server.
             </span>.gzip(<span class="bool-val">true</span>)
             .trust_dns(<span class="bool-val">true</span>)
             .build()
@@ -2243,14 +2227,12 @@
                 .http_host_header()
                 .unwrap_or_else(|| <span class="self">self</span>.config.upstream_descriptor().host());
 
-            <span class="kw">let </span>method = request.method();
-
-            <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(<span class="self">self</span>.reqwest.request(method, url));
-            builder.header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
+            <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(<span class="self">self</span>.reqwest.request(request.method(), url))
+                .header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
 
             <span class="kw">if </span>request.set_relay_id() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(credentials) = <span class="self">self</span>.config.credentials() {
-                    builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
+                    builder = builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
                 }
             }
 

@@ -427,76 +427,10 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
-</span><span class="kw">use </span>std::fmt::Write;
-<span class="kw">use </span>std::future::Future;
-
-<span class="kw">use </span>actix_web::error::PayloadError;
-<span class="kw">use </span>actix_web::http::{header, StatusCode};
-<span class="kw">use </span>actix_web::middleware::cors::{Cors, CorsBuilder};
-<span class="kw">use </span>actix_web::{App, HttpResponse};
+</span><span class="kw">use </span>axum::http::{header, StatusCode};
+<span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::RateLimits;
@@ -513,9 +447,27 @@
     <span class="self">self</span>, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
 
+<span class="attr">#[derive(Clone, Copy, Debug, thiserror::Error)]
+#[error(<span class="string">&quot;the service is overloaded&quot;</span>)]
+</span><span class="kw">pub struct </span>ServiceUnavailable;
+
+<span class="kw">impl </span>From&lt;relay_system::SendError&gt; <span class="kw">for </span>ServiceUnavailable {
+    <span class="kw">fn </span>from(<span class="kw">_</span>: relay_system::SendError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self
+    </span>}
+}
+
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>ServiceUnavailable {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorResponse::from_error(<span class="kw-2">&amp;</span><span class="self">self</span>),
+        )
+            .into_response()
+    }
+}
+
 <span class="doccomment">/// Error type for all store-like requests.
-///
-/// Functions returning this error must use [`handler`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BadStoreRequest {
     <span class="attr">#[error(<span class="string">&quot;could not schedule event processing&quot;</span>)]
@@ -524,6 +476,9 @@
     <span class="attr">#[error(<span class="string">&quot;empty request body&quot;</span>)]
     </span>EmptyBody,
 
+    <span class="attr">#[error(<span class="string">&quot;invalid request body&quot;</span>)]
+    </span>InvalidBody(<span class="attr">#[source] </span>std::io::Error),
+
     <span class="attr">#[error(<span class="string">&quot;invalid JSON data&quot;</span>)]
     </span>InvalidJson(<span class="attr">#[source] </span>serde_json::Error),
 
@@ -531,10 +486,13 @@
     </span>InvalidMsgpack(<span class="attr">#[source] </span>rmp_serde::decode::Error),
 
     <span class="attr">#[error(<span class="string">&quot;invalid event envelope&quot;</span>)]
-    </span>InvalidEnvelope(<span class="attr">#[source] </span>EnvelopeError),
+    </span>InvalidEnvelope(<span class="attr">#[from] </span>EnvelopeError),
 
     <span class="attr">#[error(<span class="string">&quot;invalid multipart data&quot;</span>)]
-    </span>InvalidMultipart(<span class="attr">#[source] </span>MultipartError),
+    </span>InvalidMultipart(<span class="attr">#[from] </span>multer::Error),
+
+    <span class="attr">#[error(<span class="string">&quot;invalid multipart data&quot;</span>)]
+    </span>InvalidMultipartAxum(<span class="attr">#[from] </span>MultipartError),
 
     <span class="attr">#[error(<span class="string">&quot;invalid minidump&quot;</span>)]
     </span>InvalidMinidump,
@@ -548,8 +506,10 @@
     <span class="attr">#[error(<span class="string">&quot;failed to queue envelope&quot;</span>)]
     </span>QueueFailed(<span class="attr">#[from] </span>BufferError),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to read request body&quot;</span>)]
-    </span>PayloadError(<span class="attr">#[source] </span>failure::Compat&lt;PayloadError&gt;),
+    <span class="attr">#[error(
+        <span class="string">&quot;envelope exceeded size limits (https://develop.sentry.dev/sdk/envelopes/#size-limits)&quot;
+    </span>)]
+    </span>Overflow,
 
     <span class="attr">#[error(
         <span class="string">&quot;Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information.&quot;
@@ -560,8 +520,8 @@
     </span>EventRejected(DiscardReason),
 }
 
-<span class="kw">impl </span>BadStoreRequest {
-    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; HttpResponse {
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>BadStoreRequest {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
         <span class="kw">let </span>body = ApiErrorResponse::from_error(<span class="kw-2">&amp;</span><span class="self">self</span>);
 
         <span class="kw">let </span>response = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
@@ -576,30 +536,29 @@
                 <span class="comment">// For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
-                </span>HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-                    .header(header::RETRY_AFTER, retry_after_header)
-                    .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
-                    .json(<span class="kw-2">&amp;</span>body)
+                </span><span class="kw">let </span>headers = [
+                    (header::RETRY_AFTER.as_str(), retry_after_header),
+                    (utils::RATE_LIMITS_HEADER, rate_limits_header),
+                ];
+
+                (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// These errors indicate that something&#39;s wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
-                </span>HttpResponse::ServiceUnavailable().json(<span class="kw-2">&amp;</span>body)
+                </span>(StatusCode::SERVICE_UNAVAILABLE, body).into_response()
             }
             BadStoreRequest::EventRejected(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// The event has been discarded, which is generally indicated with a 403 error.
                 // Originally, Sentry also used this status code for event filters, but these are
                 // now executed asynchronously in `EnvelopeProcessor`.
-                </span>HttpResponse::Forbidden().json(<span class="kw-2">&amp;</span>body)
-            }
-            BadStoreRequest::PayloadError(e) <span class="kw">if </span><span class="macro">matches!</span>(e.get_ref(), PayloadError::Overflow) =&gt; {
-                HttpResponse::PayloadTooLarge().json(<span class="kw-2">&amp;</span>body)
+                </span>(StatusCode::FORBIDDEN, body).into_response()
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="comment">// In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client&#39;s fault.
-                </span>HttpResponse::BadRequest().json(<span class="kw-2">&amp;</span>body)
+                </span>(StatusCode::BAD_REQUEST, body).into_response()
             }
         };
 
@@ -609,12 +568,6 @@
         }
 
         response
-    }
-}
-
-<span class="kw">impl </span>From&lt;PayloadError&gt; <span class="kw">for </span>BadStoreRequest {
-    <span class="kw">fn </span>from(error: PayloadError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::PayloadError(failure::Fail::compat(error))
     }
 }
 
@@ -713,39 +666,6 @@
     }
 
     <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-}
-
-<span class="doccomment">/// Creates a preconfigured CORS middleware builder for store requests.
-///
-/// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
-/// returns an App. This configures POST as allowed method, allows default sentry headers, and
-/// exposes the return headers.
-</span><span class="kw">pub fn </span>cors(app: App&lt;ServiceState&gt;) -&gt; CorsBuilder&lt;ServiceState&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>builder = Cors::for_app(app);
-
-    builder
-        .allowed_methods(<span class="macro">vec!</span>[<span class="string">&quot;POST&quot;</span>])
-        .allowed_headers(<span class="macro">vec!</span>[
-            <span class="string">&quot;x-sentry-auth&quot;</span>,
-            <span class="string">&quot;x-requested-with&quot;</span>,
-            <span class="string">&quot;x-forwarded-for&quot;</span>,
-            <span class="string">&quot;origin&quot;</span>,
-            <span class="string">&quot;referer&quot;</span>,
-            <span class="string">&quot;accept&quot;</span>,
-            <span class="string">&quot;content-type&quot;</span>,
-            <span class="string">&quot;authentication&quot;</span>,
-            <span class="string">&quot;authorization&quot;</span>,
-            <span class="string">&quot;content-encoding&quot;</span>,
-            <span class="string">&quot;transfer-encoding&quot;</span>,
-        ])
-        .expose_headers(<span class="macro">vec!</span>[
-            <span class="string">&quot;x-sentry-error&quot;</span>,
-            <span class="string">&quot;x-sentry-rate-limits&quot;</span>,
-            <span class="string">&quot;retry-after&quot;</span>,
-        ])
-        .max_age(<span class="number">3600</span>);
-
-    builder
 }
 
 <span class="doccomment">/// Queues an envelope for processing.
@@ -851,7 +771,7 @@
 
     <span class="kw">if </span>!utils::check_envelope_size_limits(state.config(), managed_envelope.envelope()) {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        <span class="kw">return </span><span class="prelude-val">Err</span>(PayloadError::Overflow.into());
+        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::Overflow);
     }
 
     queue_envelope(managed_envelope, buffer_guard)<span class="question-mark">?</span>;
@@ -863,67 +783,25 @@
     }
 }
 
-<span class="doccomment">/// Creates a HttpResponse containing the textual representation of the given EventId
-</span><span class="kw">pub fn </span>create_text_event_id_response(id: <span class="prelude-ty">Option</span>&lt;EventId&gt;) -&gt; HttpResponse {
-    <span class="comment">// Event id is set statically in the ingest path.
-    </span><span class="kw">let </span>id = id.unwrap_or_default();
-    <span class="macro">debug_assert!</span>(!id.is_nil());
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>TextResponse(<span class="kw">pub </span><span class="prelude-ty">Option</span>&lt;EventId&gt;);
 
-    <span class="comment">// the minidump client expects the response to contain an event id as a hyphenated UUID
-    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    </span>HttpResponse::Ok()
-        .content_type(<span class="string">&quot;text/plain&quot;</span>)
-        .body(id.<span class="number">0</span>.as_hyphenated().to_string())
-}
+<span class="kw">impl </span>IntoResponse <span class="kw">for </span>TextResponse {
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
+        <span class="comment">// Event id is set statically in the ingest path.
+        </span><span class="kw">let </span>EventId(id) = <span class="self">self</span>.<span class="number">0</span>.unwrap_or_default();
+        <span class="macro">debug_assert!</span>(!id.is_nil());
 
-<span class="doccomment">/// A helper for creating Actix routes that are resilient against double-slashes
-///
-/// Write `normpath(&quot;api/store&quot;)` to create a route pattern that matches &quot;/api/store/&quot;,
-/// &quot;api//store&quot;, &quot;api//store////&quot;, etc.
-</span><span class="kw">pub fn </span>normpath(route: <span class="kw-2">&amp;</span>str) -&gt; String {
-    <span class="kw">let </span><span class="kw-2">mut </span>pattern = String::new();
-    <span class="kw">for </span>(i, segment) <span class="kw">in </span>route.trim_matches(<span class="string">&#39;/&#39;</span>).split(<span class="string">&#39;/&#39;</span>).enumerate() {
-        <span class="comment">// Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        </span><span class="kw">let _ </span>= <span class="macro">write!</span>(pattern, <span class="string">&quot;/{{multislash{i}:/*}}{segment}&quot;</span>);
+        <span class="comment">// the minidump client expects the response to contain an event id as a hyphenated UUID
+        // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        </span><span class="kw">let </span>text = id.as_hyphenated().to_string();
+        text.into_response()
     }
-
-    <span class="kw">if </span>route.ends_with(<span class="string">&#39;/&#39;</span>) {
-        pattern.push_str(<span class="string">&quot;{trailing_slash:/+}&quot;</span>);
-    } <span class="kw">else </span>{
-        pattern.push_str(<span class="string">&quot;{trailing_slash:/*}&quot;</span>);
-    }
-    pattern
-}
-
-<span class="doccomment">/// Creates an actix-web async handler for a store endpoint.
-///
-/// This function is intended to be used in `with_async` on store-like endpoints. It takes an
-/// asynchronous endpoint handler and returns an actix-web compatible legacy future that will always
-/// resolve with an HTTP response.
-</span><span class="kw">pub fn </span>handler&lt;F&gt;(f: F) -&gt; <span class="kw">impl </span>futures01::Future&lt;Item = HttpResponse, Error = actix_web::Error&gt;
-<span class="kw">where
-    </span>F: Future&lt;Output = <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt;&gt;,
-{
-    futures::compat::Compat::new(Box::pin(<span class="kw">async move </span>{
-        <span class="prelude-val">Ok</span>(f.<span class="kw">await</span>.unwrap_or_else(|e| e.into_response()))
-    }))
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_normpath() {
-        <span class="macro">assert_eq!</span>(
-            normpath(<span class="string">&quot;/api/store/&quot;</span>),
-            <span class="string">&quot;/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}&quot;
-        </span>);
-        <span class="macro">assert_eq!</span>(
-            normpath(<span class="string">&quot;/api/store&quot;</span>),
-            <span class="string">&quot;/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}&quot;
-        </span>);
-    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_minimal_empty_event() {

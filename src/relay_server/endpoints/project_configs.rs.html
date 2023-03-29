@@ -181,20 +181,22 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
-<span class="kw">use </span>actix::MailboxError;
-<span class="kw">use </span>actix_web::{App, Error, FromRequest, Json};
-<span class="kw">use </span>futures::{future, TryFutureExt};
+<span class="kw">use </span>axum::extract::Query;
+<span class="kw">use </span>axum::handler::Handler;
+<span class="kw">use </span>axum::http::Request;
+<span class="kw">use </span>axum::response::{IntoResponse, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>axum::{Json, RequestExt};
+<span class="kw">use </span>futures::future;
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::forward;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
@@ -214,33 +216,8 @@
 <span class="doccomment">/// Helper to deserialize the `version` query parameter.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize)]
 </span><span class="kw">struct </span>VersionQuery {
-    version: u16,
-}
-
-<span class="kw">impl </span>VersionQuery {
-    <span class="kw">fn </span>from_request(req: <span class="kw-2">&amp;</span>actix_web::Request) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>query = req.uri().query().unwrap_or(<span class="string">&quot;&quot;</span>);
-        serde_urlencoded::from_str::&lt;VersionQuery&gt;(query).unwrap_or(VersionQuery { version: <span class="number">0 </span>})
-    }
-}
-
-<span class="kw">impl</span>&lt;S&gt; FromRequest&lt;S&gt; <span class="kw">for </span>VersionQuery {
-    <span class="kw">type </span>Config = ();
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="self">Self</span>;
-
-    <span class="kw">fn </span>from_request(req: <span class="kw-2">&amp;</span>actix_web::HttpRequest&lt;S&gt;, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Config) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">Self</span>::from_request(req)
-    }
-}
-
-<span class="doccomment">/// Checks for a specific `version` query parameter.
-</span><span class="kw">struct </span>VersionPredicate;
-
-<span class="kw">impl</span>&lt;S&gt; actix_web::pred::Predicate&lt;S&gt; <span class="kw">for </span>VersionPredicate {
-    <span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, req: <span class="kw-2">&amp;</span>actix_web::Request, <span class="kw">_</span>: <span class="kw-2">&amp;</span>S) -&gt; bool {
-        <span class="kw">let </span>query = VersionQuery::from_request(req);
-        query.version &gt;= ENDPOINT_V2 &amp;&amp; query.version &lt;= ENDPOINT_V3
-    }
+    <span class="attr">#[serde(default)]
+    </span>version: u16,
 }
 
 <span class="doccomment">/// The type returned for each requested project config.
@@ -298,18 +275,17 @@
     </span>no_cache: bool,
 }
 
-<span class="kw">async fn </span>get_project_configs(
+<span class="kw">async fn </span>inner(
+    Query(version): Query&lt;VersionQuery&gt;,
     body: SignedJson&lt;GetProjectStatesRequest&gt;,
-    version: VersionQuery,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Json&lt;GetProjectStatesResponseWrapper&gt;, Error&gt; {
-    <span class="kw">let </span>relay = body.relay;
-    <span class="kw">let </span>request = body.inner;
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
+    <span class="kw">let </span>SignedJson { inner, relay } = body;
 
-    <span class="kw">let </span>no_cache = request.no_cache;
-    <span class="kw">let </span>keys_len = request.public_keys.len();
+    <span class="kw">let </span>no_cache = inner.no_cache;
+    <span class="kw">let </span>keys_len = inner.public_keys.len();
 
     <span class="comment">// Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    </span><span class="kw">let </span>valid_keys = request.public_keys.into_iter().filter_map(|e| e.ok());
+    </span><span class="kw">let </span>valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     <span class="kw">let </span>futures = valid_keys.map(|project_key| <span class="kw">async move </span>{
         <span class="kw">let </span>state_result = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
             ProjectCache::from_registry()
@@ -329,7 +305,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
 
     <span class="kw">for </span>(project_key, state_result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
-        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">? </span><span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result<span class="question-mark">? </span><span class="kw">else </span>{
             pending.push(project_key);
             <span class="kw">continue</span>;
         };
@@ -343,7 +319,7 @@
                 .contains(<span class="kw-2">&amp;</span>relay.public_key);
 
         <span class="kw">if </span>has_access {
-            <span class="kw">let </span>full = relay.internal &amp;&amp; request.full_config;
+            <span class="kw">let </span>full = relay.internal &amp;&amp; inner.full_config;
             <span class="kw">let </span>wrapper = ProjectStateWrapper::new((<span class="kw-2">*</span>project_state).clone(), full);
             configs.insert(project_key, <span class="prelude-val">Some</span>(wrapper));
         } <span class="kw">else </span>{
@@ -358,16 +334,34 @@
     <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    app.resource(<span class="string">&quot;/api/0/relays/projectconfigs/&quot;</span>, |r| {
-        r.name(<span class="string">&quot;relay-projectconfigs&quot;</span>);
-        r.post()
-            .filter(VersionPredicate)
-            .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
+<span class="doccomment">/// Returns `true` if the `?version` query parameter is compatible with this implementation.
+</span><span class="kw">fn </span>is_compatible(Query(query): Query&lt;VersionQuery&gt;) -&gt; bool {
+    query.version &gt;= ENDPOINT_V2 &amp;&amp; query.version &lt;= ENDPOINT_V3
+}
 
-        <span class="comment">// Forward all unsupported versions to the upstream.
-        </span>r.post().f(<span class="kw">crate</span>::endpoints::forward::forward_compat);
-    })
+<span class="doccomment">/// Endpoint handler for the project configs endpoint.
+///
+/// # Version Compatibility
+///
+/// This endpoint checks a `?version` query parameter for compatibility. If this implementation is
+/// compatible with the version requested by the client (downstream Relay), it runs the project
+/// config endpoint implementation. Otherwise, the request is forwarded to the upstream.
+///
+/// Relays can drop compatibility with old versions of the project config endpoint, for instance the
+/// initial version 1. However, Sentry&#39;s HTTP endpoint will retain compatibility for much longer to
+/// support old Relay versions.
+</span><span class="kw">pub async fn </span>handle&lt;B&gt;(state: ServiceState, <span class="kw-2">mut </span>req: Request&lt;B&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    <span class="kw">let </span>data = req.extract_parts().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(<span class="kw">if </span>is_compatible(data) {
+        inner.call(req, state).<span class="kw">await
+    </span>} <span class="kw">else </span>{
+        forward::forward(state, req).<span class="kw">await
+    </span>})
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

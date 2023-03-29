@@ -53,59 +53,61 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::http::Method;
-<span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
+<a href="#55" id="55">55</a>
+</pre><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Multipart, Path};
+<span class="kw">use </span>axum::http::StatusCode;
+<span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<span class="kw">use </span><span class="kw">crate</span>::utils::MultipartItems;
+<span class="kw">use </span><span class="kw">crate</span>::utils;
+
+<span class="attr">#[derive(Debug, Deserialize)]
+</span><span class="kw">struct </span>AttachmentPath {
+    event_id: EventId,
+}
 
 <span class="kw">async fn </span>extract_envelope(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
     meta: RequestMeta,
+    path: AttachmentPath,
+    multipart: Multipart,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>event_id = request
-        .match_info()
-        .get(<span class="string">&quot;event_id&quot;</span>)
-        .unwrap_or_default()
-        .parse::&lt;EventId&gt;()
-        .map_err(|<span class="kw">_</span>| BadStoreRequest::InvalidEventId)<span class="question-mark">?</span>;
+    <span class="kw">let </span>max_size = config.max_attachment_size();
+    <span class="kw">let </span>items = utils::multipart_items(multipart, max_size, |<span class="kw">_</span>| AttachmentType::default()).<span class="kw">await</span><span class="question-mark">?</span>;
 
-    <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
-    <span class="kw">let </span>items = MultipartItems::new(max_payload_size)
-        .handle_request(request)
-        .<span class="kw">await
-        </span>.map_err(BadStoreRequest::InvalidMultipart)<span class="question-mark">?</span>;
-
-    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(path.event_id), meta);
     <span class="kw">for </span>item <span class="kw">in </span>items {
         envelope.add_item(item);
     }
     <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">async fn </span>store_attachment(
+<span class="kw">async fn </span>handle(
+    state: ServiceState,
     meta: RequestMeta,
-    request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
-    common::handle_envelope(request.state(), envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(HttpResponse::Created().finish())
+    Path(path): Path&lt;AttachmentPath&gt;,
+    multipart: Multipart,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = extract_envelope(state.config(), meta, path, multipart).<span class="kw">await</span><span class="question-mark">?</span>;
+    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(StatusCode::CREATED)
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    <span class="kw">let </span>url_pattern = common::normpath(<span class="string">r&quot;/api/{project:\d+}/events/{event_id:[\w-]+}/attachments/&quot;</span>);
-
-    common::cors(app)
-        .resource(<span class="kw-2">&amp;</span>url_pattern, |r| {
-            r.name(<span class="string">&quot;store-attachment&quot;</span>);
-            r.method(Method::POST)
-                .with_async(|r, m| common::handler(store_attachment(r, m)));
-        })
-        .register()
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send + Into&lt;Bytes&gt;,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

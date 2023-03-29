@@ -26,6 +26,9 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
 </pre><pre class="rust"><code><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 
 <span class="doccomment">/// Name of the event attachment.
@@ -53,5 +56,8 @@
 <span class="doccomment">/// The default retention for events if the server does not specify a value in project
 /// configurations.
 </span><span class="kw">pub const </span>DEFAULT_EVENT_RETENTION: u16 = <span class="number">90</span>;
+
+<span class="doccomment">/// Maximum size of JSON request bodies.
+</span><span class="kw">pub const </span>MAX_JSON_SIZE: usize = <span class="number">262_144</span>;
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

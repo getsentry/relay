@@ -413,9 +413,6 @@
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
@@ -497,7 +494,10 @@
         <span class="string">&quot;envelope&quot;
     </span>}
 
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Config, <span class="kw-2">mut </span>builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Config, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="kw">let </span>envelope_body = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_body;
+        <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() <span class="kw">as </span>u64);
+
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_meta;
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
@@ -505,15 +505,9 @@
             .header_opt(<span class="string">&quot;User-Agent&quot;</span>, meta.user_agent())
             .header(<span class="string">&quot;X-Sentry-Auth&quot;</span>, meta.auth_header())
             .header(<span class="string">&quot;X-Forwarded-For&quot;</span>, meta.forwarded_for())
-            .header(<span class="string">&quot;Content-Type&quot;</span>, envelope::CONTENT_TYPE);
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(partition_key) = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_key {
-            builder.header(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, partition_key);
-        }
-
-        <span class="kw">let </span>envelope_body = <span class="self">self</span>.envelope_body.clone();
-        <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() <span class="kw">as </span>u64);
-        builder.body(envelope_body)
+            .header(<span class="string">&quot;Content-Type&quot;</span>, envelope::CONTENT_TYPE)
+            .header_opt(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="self">self</span>.partition_key.as_ref())
+            .body(envelope_body)
     }
 
     <span class="kw">fn </span>respond(

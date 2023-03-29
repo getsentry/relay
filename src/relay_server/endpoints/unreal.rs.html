@@ -64,70 +64,94 @@
 <a href="#63" id="63">63</a>
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
-</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{App, HttpRequest, HttpResponse};
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+</pre><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Query};
+<span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::body;
 <span class="kw">use </span><span class="kw">crate</span>::constants::UNREAL_USER_HEADER;
-<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="kw">async fn </span>extract_envelope(
-    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
-    meta: RequestMeta,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>user_id = request.query().get(<span class="string">&quot;UserID&quot;</span>).cloned();
-    <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
-
-    <span class="kw">let </span>data = body::request_body(request, max_payload_size).<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">if </span>data.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UnrealReport);
-    item.set_payload(ContentType::OctetStream, data);
-    envelope.add_item(item);
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user_id {
-        envelope.set_header(UNREAL_USER_HEADER, user_id);
-    }
-
-    <span class="prelude-val">Ok</span>(envelope)
+<span class="attr">#[derive(Debug, Deserialize)]
+</span><span class="kw">struct </span>UnrealQuery {
+    <span class="attr">#[serde(rename = <span class="string">&quot;UserID&quot;</span>)]
+    </span>user_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">async fn </span>store_unreal(
+<span class="attr">#[derive(Debug, FromRequest)]
+#[from_request(state(ServiceState))]
+</span><span class="kw">struct </span>UnrealParams {
     meta: RequestMeta,
-    request: HttpRequest&lt;ServiceState&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = extract_envelope(<span class="kw-2">&amp;</span>request, meta).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="attr">#[from_request(via(Query))]
+    </span>query: UnrealQuery,
+    data: Bytes,
+}
+
+<span class="kw">impl </span>UnrealParams {
+    <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
+        <span class="kw">let </span><span class="self">Self </span>{ meta, query, data } = <span class="self">self</span>;
+
+        <span class="kw">if </span>data.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UnrealReport);
+        item.set_payload(ContentType::OctetStream, data);
+        envelope.add_item(item);
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = query.user_id {
+            envelope.set_header(UNREAL_USER_HEADER, user_id);
+        }
+
+        <span class="prelude-val">Ok</span>(envelope)
+    }
+}
+
+<span class="kw">async fn </span>handle(
+    state: ServiceState,
+    params: UnrealParams,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
     <span class="kw">let </span>id = envelope.event_id();
 
     <span class="comment">// Never respond with a 429 since clients often retry these
-    </span><span class="kw">match </span>common::handle_envelope(request.state(), envelope).<span class="kw">await </span>{
+    </span><span class="kw">match </span>common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await </span>{
         <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
         <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
     };
 
     <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t
     // care about it.
-    </span><span class="prelude-val">Ok</span>(common::create_text_event_id_response(id))
+    </span><span class="prelude-val">Ok</span>(TextResponse(id))
 }
 
-<span class="kw">pub fn </span>configure_app(app: App&lt;ServiceState&gt;) -&gt; App&lt;ServiceState&gt; {
-    common::cors(app)
-        .resource(
-            <span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),
-            |r| {
-                r.name(<span class="string">&quot;store-unreal&quot;</span>);
-                r.post()
-                    .with_async(|m, r| common::handler(store_unreal(m, r)));
-            },
-        )
-        .register()
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

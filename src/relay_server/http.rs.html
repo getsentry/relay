@@ -143,26 +143,7 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-</pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.
+</pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with HTTP clients.
 ///!
 ///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be
 ///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
@@ -175,8 +156,8 @@
 </span><span class="kw">use </span>std::io;
 
 <span class="kw">use </span>relay_config::HttpEncoding;
-<span class="attr">#[doc(inline)]
-</span><span class="kw">pub use </span>reqwest::StatusCode;
+<span class="kw">use </span>reqwest::header::{HeaderMap, HeaderValue};
+<span class="kw">pub use </span>reqwest::StatusCode;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
@@ -224,10 +205,8 @@
     }
 
     <span class="doccomment">/// Add a new header, not replacing existing ones.
-    </span><span class="kw">pub fn </span>header(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;, value: <span class="kw">impl </span>AsRef&lt;[u8]&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        take_mut::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder, |b| {
-            b.header(key.as_ref(), value.as_ref())
-        });
+    </span><span class="kw">pub fn </span>header(<span class="kw-2">mut </span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;, value: <span class="kw">impl </span>AsRef&lt;[u8]&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.builder = <span class="self">self</span>.builder.header(key.as_ref(), value.as_ref());
         <span class="self">self
     </span>}
 
@@ -235,29 +214,21 @@
     ///
     /// If the value is `Some`, the header is added. If the value is `None`, headers are not
     /// changed.
-    </span><span class="kw">pub fn </span>header_opt(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        key: <span class="kw">impl </span>AsRef&lt;str&gt;,
-        value: <span class="prelude-ty">Option</span>&lt;<span class="kw">impl </span>AsRef&lt;[u8]&gt;&gt;,
-    ) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>header_opt(<span class="kw-2">mut </span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;, value: <span class="prelude-ty">Option</span>&lt;<span class="kw">impl </span>AsRef&lt;[u8]&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = value {
-            take_mut::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder, |b| {
-                b.header(key.as_ref(), value.as_ref())
-            });
+            <span class="self">self</span>.builder = <span class="self">self</span>.builder.header(key.as_ref(), value.as_ref());
         }
         <span class="self">self
     </span>}
 
-    <span class="kw">pub fn </span>body&lt;B: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">mut </span><span class="self">self</span>, body: B) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
-        <span class="self">self</span>.builder = <span class="self">self</span>.builder.body(body.as_ref().to_vec());
-        <span class="self">self</span>.finish()
+    <span class="kw">pub fn </span>content_encoding(<span class="self">self</span>, encoding: HttpEncoding) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.header_opt(<span class="string">&quot;content-encoding&quot;</span>, encoding.name())
     }
 
-    <span class="kw">pub fn </span>content_encoding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, encoding: HttpEncoding) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="kw">match </span>encoding.name() {
-            <span class="prelude-val">Some</span>(name) =&gt; <span class="self">self</span>.header(<span class="string">&quot;Content-Encoding&quot;</span>, name),
-            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>,
-        }
+    <span class="kw">pub fn </span>body&lt;B: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">mut </span><span class="self">self</span>, body: B) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="comment">// TODO: This clones data. Change the signature to require `Bytes` to prevent cloning.
+        </span><span class="self">self</span>.builder = <span class="self">self</span>.builder.body(body.as_ref().to_vec());
+        <span class="self">self</span>.finish()
     }
 }
 
@@ -269,14 +240,9 @@
     }
 
     <span class="kw">pub async fn </span>consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), HttpError&gt; {
-        <span class="comment">// Consume the request payload such that the underlying connection returns to a
-        // &quot;clean state&quot;.
-        //
-        // We do not understand if this is strictly necessary for reqwest. It was ported
-        // from actix-web where it was clearly necessary to un-break keepalive connections,
-        // but no testcase has been written for this and we are unsure on how to reproduce
-        // outside of prod. I (markus) have not found code in reqwest that would explicitly
-        // deal with this.
+        <span class="comment">// Consume the request payload such that the underlying connection returns to a &quot;clean
+        // state&quot; and can be reused by the client. This is explicitly required, see:
+        // https://github.com/seanmonstar/reqwest/issues/1272#issuecomment-839813308
         </span><span class="kw">while </span><span class="self">self</span>.<span class="number">0</span>.chunk().<span class="kw">await</span><span class="question-mark">?</span>.is_some() {}
         <span class="prelude-val">Ok</span>(())
     }
@@ -294,12 +260,8 @@
             .collect()
     }
 
-    <span class="kw">pub fn </span>clone_headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;(String, Vec&lt;u8&gt;)&gt; {
-        <span class="self">self</span>.<span class="number">0
-            </span>.headers()
-            .iter()
-            .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
-            .collect()
+    <span class="kw">pub fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>HeaderMap&lt;HeaderValue&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.headers()
     }
 
     <span class="kw">pub async fn </span>bytes(<span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, HttpError&gt; {

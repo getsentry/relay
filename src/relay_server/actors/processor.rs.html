@@ -3355,6 +3355,7 @@
 <a href="#3354" id="3354">3354</a>
 <a href="#3355" id="3355">3355</a>
 <a href="#3356" id="3356">3356</a>
+<a href="#3357" id="3357">3357</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3363,7 +3364,7 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use </span>brotli2::write::BrotliEncoder;
+<span class="kw">use </span>brotli::CompressorWriter <span class="kw">as </span>BrotliEncoder;
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
@@ -4521,13 +4522,13 @@
                 <span class="kw">match </span><span class="self">self</span>.process_replay_event(<span class="kw-2">&amp;</span>item.payload(), config, client_addr, user_agent) {
                     <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
                         <span class="prelude-val">Ok</span>(json) =&gt; {
-                            item.set_payload(ContentType::Json, json.as_bytes());
+                            item.set_payload(ContentType::Json, json);
                             ItemAction::Keep
                         }
                         <span class="prelude-val">Err</span>(e) =&gt; {
                             <span class="macro">relay_log::error!</span>(
                                 <span class="string">&quot;replay-event: failed to serialize replay with message {}&quot;</span>,
-                                e
+                                LogError(<span class="kw-2">&amp;</span>e)
                             );
                             ItemAction::Keep
                         }
@@ -4576,7 +4577,7 @@
 
                 <span class="kw">match </span>parsed_recording {
                     <span class="prelude-val">Ok</span>(recording) =&gt; {
-                        item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        item.set_payload(ContentType::OctetStream, recording);
                         ItemAction::Keep
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -5871,10 +5872,11 @@
                 encoder.finish()<span class="question-mark">?
             </span>}
             HttpEncoding::Br =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>encoder = BrotliEncoder::new(Vec::new(), <span class="number">5</span>);
+                <span class="comment">// Use default buffer size (via 0), medium quality (5), and the default lgwin (22).
+                </span><span class="kw">let </span><span class="kw-2">mut </span>encoder = BrotliEncoder::new(Vec::new(), <span class="number">0</span>, <span class="number">5</span>, <span class="number">22</span>);
                 encoder.write_all(body.as_ref())<span class="question-mark">?</span>;
-                encoder.finish()<span class="question-mark">?
-            </span>}
+                encoder.into_inner()
+            }
         };
         <span class="prelude-val">Ok</span>(envelope_body)
     }
