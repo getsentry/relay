@@ -31,7 +31,7 @@ build-linux-release: setup-git ## build linux release of the relay
 .PHONY: build-linux-release
 
 collect-source-bundle: setup-git ## copy the built relay binary to current folder and collects debug bundles
-	mv target/${TARGET}/release/release-name .
+	mv target/${TARGET}/release/release-name ./release-name
 	mv target/${TARGET}/release/relay ./relay-bin
 	zip relay-debug.zip target/${TARGET}/release/relay.debug
 	sentry-cli --version
