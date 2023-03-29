@@ -356,7 +356,8 @@ impl Processor for TransactionsProcessor<'_> {
                 event.get_transaction_source(),
                 &TransactionSource::Url | &TransactionSource::Sanitized
             ) {
-                if scrub_identifiers(&mut event.transaction).map_or(false, |scrubbed| scrubbed) {
+                let scrubbed_identifiers = scrub_identifiers(&mut event.transaction);
+                if scrubbed_identifiers.map_or(false, |scrubbed| scrubbed) {
                     sanitize_transaction = true;
                 }
             }
