@@ -94,6 +94,7 @@
 //! ```
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 mod android;
 mod cocoa;
@@ -126,15 +127,18 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError> {
+pub fn expand_profile(
+    payload: &[u8],
+    tags: BTreeMap<String, String>,
+) -> Result<(EventId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => return Err(err),
     };
     let processed_payload = match profile.version {
-        Version::V1 => parse_sample_profile(payload),
+        Version::V1 => parse_sample_profile(payload, tags),
         Version::Unknown => match profile.platform.as_str() {
-            "android" => parse_android_profile(payload),
+            "android" => parse_android_profile(payload, tags),
             "cocoa" => parse_cocoa_profile(payload),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
@@ -165,12 +169,12 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        assert!(expand_profile(payload).is_ok());
+        assert!(expand_profile(payload, BTreeMap::new()).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
-        assert!(expand_profile(payload).is_ok());
+        assert!(expand_profile(payload, BTreeMap::new()).is_ok());
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
@@ -69,6 +69,9 @@ struct AndroidProfile {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    tags: BTreeMap<String, String>,
 }
 
 impl AndroidProfile {
@@ -160,8 +163,12 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     Ok(profile)
 }
 
-pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile = parse_profile(payload)?;
+pub fn parse_android_profile(
+    payload: &[u8],
+    tags: BTreeMap<String, String>,
+) -> Result<Vec<u8>, ProfileError> {
+    let mut profile = parse_profile(payload)?;
+    profile.tags = tags;
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
@@ -211,13 +218,13 @@ mod tests {
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_android_profile(&(data.unwrap())[..]).is_ok());
+        assert!(parse_android_profile(&(data.unwrap())[..], BTreeMap::new()).is_ok());
     }
 
     #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
-        let data = parse_android_profile(payload);
+        let data = parse_android_profile(payload, BTreeMap::new());
         assert!(data.is_err());
     }
 
@@ -225,7 +232,7 @@ mod tests {
     fn test_remove_invalid_events() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
-        let data = parse_android_profile(payload);
+        let data = parse_android_profile(payload, BTreeMap::new());
         assert!(data.is_err());
     }
 

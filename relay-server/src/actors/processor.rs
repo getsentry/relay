@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 use std::io::Write;
 use std::net;
@@ -15,7 +15,9 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
+use relay_dynamic_config::{
+    ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig, TransactionMetricsConfig,
+};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -58,7 +60,9 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
+use crate::metrics_extraction::transactions::{
+    extract_transaction_metrics, extract_universal_tags, ExtractMetricsError,
+};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -1080,52 +1084,68 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok((profile_id, payload)) => {
-                    if payload.len() <= self.config.max_profile_size() {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
-                                    profile_id: Annotated::new(profile_id),
-                                })));
+            ItemType::Profile => {
+                let tags: BTreeMap<String, String> = match state.event.value() {
+                    Some(event) => extract_universal_tags(
+                        event,
+                        &TransactionMetricsConfig {
+                            version: 1,
+                            extract_custom_tags: BTreeSet::from(["device.class".to_string()]),
+                            ..Default::default()
+                        },
+                    ),
+                    _ => BTreeMap::new(),
+                };
+
+                match relay_profiling::expand_profile(&item.payload(), tags) {
+                    Ok((profile_id, payload)) => {
+                        if payload.len() <= self.config.max_profile_size() {
+                            if let Some(event) = state.event.value_mut() {
+                                if event.ty.value() == Some(&EventType::Transaction) {
+                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                    contexts.add(SentryContext::Profile(Box::new(
+                                        ProfileContext {
+                                            profile_id: Annotated::new(profile_id),
+                                        },
+                                    )));
+                                }
                             }
+                            item.set_payload(ContentType::Json, payload);
+                            ItemAction::Keep
+                        } else {
+                            if let Some(event) = state.event.value_mut() {
+                                if event.ty.value() == Some(&EventType::Transaction) {
+                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                    contexts.remove(ProfileContext::default_key());
+                                }
+                            }
+                            ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
+                            )))
                         }
-                        item.set_payload(ContentType::Json, payload);
-                        ItemAction::Keep
-                    } else {
+                    }
+                    Err(err) => {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
                                 let contexts = event.contexts.get_or_insert_with(Contexts::new);
                                 contexts.remove(ProfileContext::default_key());
                             }
                         }
+
+                        match err {
+                            relay_profiling::ProfileError::InvalidJson(_) => {
+                                relay_log::warn!("invalid profile: {}", LogError(&err));
+                            }
+                            _ => relay_log::debug!("invalid profile: {}", err),
+                        };
                         ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(
-                                relay_profiling::ProfileError::ExceedSizeLimit,
-                            ),
+                            relay_profiling::discard_reason(err),
                         )))
                     }
                 }
-                Err(err) => {
-                    if let Some(event) = state.event.value_mut() {
-                        if event.ty.value() == Some(&EventType::Transaction) {
-                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                            contexts.remove(ProfileContext::default_key());
-                        }
-                    }
-
-                    match err {
-                        relay_profiling::ProfileError::InvalidJson(_) => {
-                            relay_log::warn!("invalid profile: {}", LogError(&err));
-                        }
-                        _ => relay_log::debug!("invalid profile: {}", err),
-                    };
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(err),
-                    )))
-                }
-            },
+            }
             _ => ItemAction::Keep,
         });
     }

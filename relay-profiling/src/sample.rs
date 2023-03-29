@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use relay_general::protocol::{Addr, EventId};
@@ -161,6 +161,9 @@ struct SampleProfile {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    tags: BTreeMap<String, String>,
 }
 
 impl SampleProfile {
@@ -315,8 +318,12 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     Ok(profile)
 }
 
-pub fn parse_sample_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile = parse_profile(payload)?;
+pub fn parse_sample_profile(
+    payload: &[u8],
+    tags: BTreeMap<String, String>,
+) -> Result<Vec<u8>, ProfileError> {
+    let mut profile = parse_profile(payload)?;
+    profile.tags = tags;
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
@@ -336,7 +343,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let profile = parse_sample_profile(payload);
+        let profile = parse_sample_profile(payload, BTreeMap::new());
         assert!(profile.is_ok());
     }
 
@@ -372,6 +379,7 @@ mod tests {
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
             measurements: None,
+            tags: BTreeMap::new(),
         }
     }
 
@@ -559,7 +567,7 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = parse_sample_profile(&payload[..]);
+        let data = parse_sample_profile(&payload[..], BTreeMap::new());
 
         assert!(data.is_err());
     }
