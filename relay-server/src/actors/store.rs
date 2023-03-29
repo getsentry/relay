@@ -1,7 +1,7 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -563,14 +563,33 @@ impl StoreService {
         let payload = item.payload();
 
         for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+            let flat_value = match bucket.value {
+                BucketValue::Distribution(d) => {
+                    MetricKafkaValue::Distribution(d.iter_values().collect())
+                }
+                BucketValue::Counter(c) => MetricKafkaValue::Counter(c),
+                BucketValue::Set(s) => MetricKafkaValue::Set(s),
+                BucketValue::Gauge(_) => {
+                    // gauges are currently unsupported by the rest of the system.
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_extra("metric_message.name", bucket.name.into());
+                        },
+                        || {
+                            relay_log::error!("attempted to produce Gauge");
+                        },
+                    );
+                    continue;
+                }
+            };
             self.send_metric_message(
                 org_id,
                 MetricKafkaMessage {
                     org_id,
-                    project_id,
+                    project_id: project_id.value(),
                     name: bucket.name,
-                    value: bucket.value,
-                    timestamp: bucket.timestamp,
+                    value: flat_value,
+                    timestamp: bucket.timestamp.as_secs(),
                     tags: bucket.tags,
                     retention_days: retention,
                 },
@@ -1028,13 +1047,25 @@ struct SessionKafkaMessage {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", content = "value")]
+enum MetricKafkaValue {
+    #[serde(rename = "c")]
+    Counter(f64),
+    #[serde(rename = "d")]
+    Distribution(Vec<f64>),
+    #[serde(rename = "s")]
+    Set(BTreeSet<u32>),
+    // gauges are not implemented upstream, therefore we cannot send them for now.
+}
+
+#[derive(Clone, Debug, Serialize)]
 struct MetricKafkaMessage {
     org_id: u64,
-    project_id: ProjectId,
+    project_id: u64,
     name: String,
     #[serde(flatten)]
-    value: BucketValue,
-    timestamp: UnixTimestamp,
+    value: MetricKafkaValue,
+    timestamp: u64,
     tags: BTreeMap<String, String>,
     retention_days: u16,
 }
