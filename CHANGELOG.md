@@ -6,6 +6,10 @@
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
 
+**Internal**:
+
+- Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+
 ## 23.3.1
 
 **Features**:
