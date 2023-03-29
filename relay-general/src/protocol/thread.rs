@@ -69,6 +69,21 @@ impl Empty for ThreadId {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct LockReason {
+    #[metastructure(field = "type", required = "true")]
+    pub ty: Annotated<u64>,
+    #[metastructure(skip_serialization = "empty")]
+    pub address: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
+    pub package_name: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
+    pub class_name: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
+    pub thread_id: Annotated<ThreadId>,
+}
+
 /// A process thread of an event.
 ///
 /// The Threads Interface specifies threads that were running at the time an event happened. These threads can also contain stack traces.
@@ -128,6 +143,10 @@ pub struct Thread {
     #[metastructure(skip_serialization = "empty")]
     pub state: Annotated<String>,
 
+    /// Lock object that is blocking the thread
+    #[metastructure(skip_serialization = "empty")]
+    pub lock_reason: Annotated<LockReason>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -183,6 +202,7 @@ mod tests {
             current: Annotated::new(true),
             main: Annotated::new(true),
             state: Annotated::new("RUNNABLE".to_string()),
+            lock_reason: Annotated::empty(),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -201,6 +221,54 @@ mod tests {
     fn test_thread_default_values() {
         let json = "{}";
         let thread = Annotated::new(Thread::default());
+
+        assert_eq!(thread, Annotated::from_json(json).unwrap());
+        assert_eq!(json, thread.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_thread_lock_reason() {
+        // stack traces are tested separately
+        let json = r#"{
+  "id": 42,
+  "name": "myname",
+  "crashed": true,
+  "current": true,
+  "main": true,
+  "state": "BLOCKED",
+  "lock_reason": {
+    "type": 1,
+    "package_name": "android.database.sqlite",
+    "class_name": "SQLiteConnection",
+    "thread_id": 2
+  },
+  "other": "value"
+}"#;
+        let thread = Annotated::new(Thread {
+            id: Annotated::new(ThreadId::Int(42)),
+            name: Annotated::new("myname".to_string()),
+            stacktrace: Annotated::empty(),
+            raw_stacktrace: Annotated::empty(),
+            crashed: Annotated::new(true),
+            current: Annotated::new(true),
+            main: Annotated::new(true),
+            state: Annotated::new("BLOCKED".to_string()),
+            lock_reason: Annotated::new(LockReason {
+                ty: Annotated::new(1),
+                address: Annotated::empty(),
+                package_name: Annotated::new("android.database.sqlite".to_string()),
+                class_name: Annotated::new("SQLiteConnection".to_string()),
+                thread_id: Annotated::new(ThreadId::Int(2)),
+            }),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
         assert_eq!(thread, Annotated::from_json(json).unwrap());
         assert_eq!(json, thread.to_json_pretty().unwrap());
