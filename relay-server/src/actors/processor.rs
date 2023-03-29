@@ -2582,7 +2582,6 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
@@ -2591,7 +2590,6 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-    use crate::actors::store;
     use crate::extractors::RequestMeta;
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
@@ -3326,13 +3324,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_log_transaction_metrics() {
+    fn capture_test_event(transaction_name: &str) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r###"
             {
                 "type": "transaction",
-                "transaction": "/",
+                "transaction": "/foo/",
                 "timestamp": 946684810.0,
                 "start_timestamp": 946684800.0,
                 "contexts": {
@@ -3350,7 +3347,14 @@ mod tests {
             "###,
         )
         .unwrap();
-        let captures = relay_statsd::with_capturing_test_client(|| {
+        event
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .transaction
+            .set_value(Some(transaction_name.into()));
+
+        relay_statsd::with_capturing_test_client(|| {
             log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
@@ -3370,10 +3374,45 @@ mod tests {
                 relay_general::store::light_normalize_event(event, config)
             })
             .unwrap();
-        });
+        })
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_none() {
+        let captures = capture_test_event("/nothing");
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_rule() {
+        let captures = capture_test_event("/foo/john/denver");
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_pattern() {
+        let captures = capture_test_event("/something/12345");
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_both() {
+        let captures = capture_test_event("/foo/john/12345");
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized",
         ]
         "###);
     }

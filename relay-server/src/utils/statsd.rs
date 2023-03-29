@@ -1,5 +1,3 @@
-use std::hash::{Hash, Hasher};
-
 use relay_common::EventType;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, RemarkType};
@@ -14,23 +12,20 @@ pub fn log_transaction_name_metrics<F, R>(event: &mut Annotated<Event>, mut f: F
 where
     F: FnMut(&mut Annotated<Event>) -> R,
 {
-    let old_source;
-    let old_remarks;
-    {
-        let Some(inner) = event.value() else {
+    let Some(inner) = event.value() else {
             return f(event);
         };
 
-        if inner.ty.value() != Some(&EventType::Transaction) {
-            return f(event);
-        }
-
-        old_source = inner.get_transaction_source().to_string();
-        old_remarks = inner.transaction.meta().iter_remarks().count();
+    if inner.ty.value() != Some(&EventType::Transaction) {
+        return f(event);
     }
+
+    let old_source = inner.get_transaction_source().to_string();
+    let old_remarks = inner.transaction.meta().iter_remarks().count();
 
     let res = f(event);
 
+    // Need to reborrow event so the reference's lifetime does not overlap with `f`:
     let Some(inner) = event.value() else {
         return res;
     };
