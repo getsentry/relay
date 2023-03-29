@@ -3571,7 +3571,7 @@ dependencies = [
 [[package]]
 name = "sentry-kafka-schemas"
 version = "0.0.17"
-source = "git+https://github.com/getsentry/sentry-kafka-schemas?branch=feat/rust-types#717f1827616c5447594aa04645044cc6e0e5e8d7"
+source = "git+https://github.com/getsentry/sentry-kafka-schemas?branch=feat/rust-types#cf24ee2b2ff7ef44274cfebdc406c2a0624afca8"
 dependencies = [
  "prettyplease",
  "regress",
