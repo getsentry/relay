@@ -704,7 +704,7 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor =
             transactions::TransactionsProcessor::new(config.transaction_name_config);
-        transactions_processor.process_event(event, meta, ProcessingState::root())?;
+        transactions_processor.process_event(event, meta, ProcessingState::root());
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;

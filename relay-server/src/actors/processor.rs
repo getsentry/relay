@@ -62,8 +62,8 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope,
-    SamplingResult,
+    self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -2225,10 +2225,13 @@ impl EnvelopeProcessorService {
             is_renormalize: false,
         };
 
-        metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            relay_general::store::light_normalize_event(&mut state.event, config)
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
-        });
+        log_transaction_name_metrics(state.event, || {
+            metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+                relay_general::store::light_normalize_event(&mut state.event, config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)?;
+            });
+            Ok(())
+        })?;
 
         Ok(())
     }
