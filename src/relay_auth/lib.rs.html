@@ -896,16 +896,43 @@
 <a href="#895" id="895">895</a>
 <a href="#896" id="896">896</a>
 <a href="#897" id="897">897</a>
-</pre><pre class="rust"><code><span class="attr">#![doc(
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+</pre><pre class="rust"><code><span class="doccomment">//! Authentication and crypto for Relay.
+//!
+//! This library contains the [`PublicKey`] and [`SecretKey`] types, which can be used to validate
+//! and sign traffic between Relays in authenticated endpoints. Additionally, Relays identify via a
+//! [`RelayId`], which is included in the request signature and headers.
+//!
+//! Relay uses Ed25519 at the moment. This is considered an implementation detail and is subject to
+//! change at any time. Do not rely on a specific signing mechanism.
+//!
+//! # Generating Credentials
+//!
+//! Use the [`generate_relay_id`] and [`generate_key_pair`] function to generate credentials:
+//!
+//! ```
+//! let relay_id = relay_auth::generate_relay_id();
+//! let (private_key, public_key) = relay_auth::generate_key_pair();
+//! ```
+
+</span><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
-#![allow(clippy::derive_partial_eq_without_eq)]
+
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
 <span class="kw">use </span>data_encoding::BASE64URL_NOPAD;
+<span class="kw">use </span>ed25519_dalek::{Signer, Verifier};
 <span class="kw">use </span>hmac::{Hmac, Mac};
 <span class="kw">use </span>rand::rngs::OsRng;
 <span class="kw">use </span>rand::{thread_rng, RngCore};
@@ -1052,31 +1079,14 @@
     }
 }
 
-<span class="doccomment">/// Represents the public key of an relay.
-///
-/// Public keys are based on ed25519 but this should be considered an
-/// implementation detail for now.  We only ever represent public keys
-/// on the wire as opaque ascii encoded strings of arbitrary format or length.
-</span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>PublicKey {
-    inner: ed25519_dalek::PublicKey,
-}
-
 <span class="doccomment">/// Represents the secret key of an relay.
 ///
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
 /// on the wire as opaque ascii encoded strings of arbitrary format or length.
+</span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>SecretKey {
-    inner: ed25519_dalek::Keypair,
-}
-
-<span class="kw">impl </span>Clone <span class="kw">for </span>SecretKey {
-    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SecretKey {
-        SecretKey {
-            inner: ed25519_dalek::Keypair::from_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..]).unwrap(),
-        }
-    }
+    inner: ed25519_dalek::SigningKey,
 }
 
 <span class="doccomment">/// Represents the final registration.
@@ -1104,7 +1114,7 @@
         <span class="kw">let </span>header_encoded = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>header);
         header.push(<span class="string">b&#39;\x00&#39;</span>);
         header.extend_from_slice(data);
-        <span class="kw">let </span>sig = <span class="self">self</span>.inner.sign::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>header);
+        <span class="kw">let </span>sig = <span class="self">self</span>.inner.sign(<span class="kw-2">&amp;</span>header);
         <span class="kw">let </span><span class="kw-2">mut </span>sig_encoded = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>sig.to_bytes());
         sig_encoded.push(<span class="string">&#39;.&#39;</span>);
         sig_encoded.push_str(<span class="kw-2">&amp;</span>header_encoded);
@@ -1132,7 +1142,7 @@
 
 <span class="kw">impl </span>PartialEq <span class="kw">for </span>SecretKey {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>SecretKey) -&gt; bool {
-        <span class="self">self</span>.inner.to_bytes()[..] == other.inner.to_bytes()[..]
+        <span class="self">self</span>.inner.to_keypair_bytes() == other.inner.to_keypair_bytes()
     }
 }
 
@@ -1147,29 +1157,29 @@
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
         };
 
-        <span class="prelude-val">Ok</span>(SecretKey {
-            inner: <span class="kw">if </span>bytes.len() == <span class="number">64 </span>{
-                ed25519_dalek::Keypair::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?
-            </span>} <span class="kw">else </span>{
-                <span class="kw">let </span>secret = ed25519_dalek::SecretKey::from_bytes(<span class="kw-2">&amp;</span>bytes)
-                    .map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?</span>;
-                <span class="kw">let </span>public = ed25519_dalek::PublicKey::from_secret::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>secret);
-                ed25519_dalek::Keypair { secret, public }
-            },
-        })
+        <span class="kw">let </span>inner = <span class="kw">if let </span><span class="prelude-val">Ok</span>(keypair) = bytes.as_slice().try_into() {
+            ed25519_dalek::SigningKey::from_keypair_bytes(<span class="kw-2">&amp;</span>keypair)
+                .map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?
+        </span>} <span class="kw">else if let </span><span class="prelude-val">Ok</span>(secret_key) = bytes.try_into() {
+            ed25519_dalek::SigningKey::from_bytes(<span class="kw-2">&amp;</span>secret_key)
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadKey);
+        };
+
+        <span class="prelude-val">Ok</span>(SecretKey { inner })
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>SecretKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span>f.alternate() {
-            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()))
-        } <span class="kw">else </span>{
             <span class="macro">write!</span>(
                 f,
                 <span class="string">&quot;{}&quot;</span>,
-                BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.secret.to_bytes())
+                BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_keypair_bytes())
             )
+        } <span class="kw">else </span>{
+            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()))
         }
     }
 }
@@ -1182,6 +1192,16 @@
 
 <span class="macro">relay_common::impl_str_serde!</span>(SecretKey, <span class="string">&quot;a secret key&quot;</span>);
 
+<span class="doccomment">/// Represents the public key of a relay.
+///
+/// Public keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
+</span><span class="attr">#[derive(Clone, Eq, PartialEq)]
+</span><span class="kw">pub struct </span>PublicKey {
+    inner: ed25519_dalek::VerifyingKey,
+}
+
 <span class="kw">impl </span>PublicKey {
     <span class="doccomment">/// Verifies the signature and returns the embedded signature
     /// header.
@@ -1191,7 +1211,7 @@
             <span class="prelude-val">Some</span>(sig_encoded) =&gt; BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
-        <span class="kw">let </span>sig = ed25519_dalek::Signature::from_bytes(<span class="kw-2">&amp;</span>sig_bytes).ok()<span class="question-mark">?</span>;
+        <span class="kw">let </span>sig = ed25519_dalek::Signature::from_slice(<span class="kw-2">&amp;</span>sig_bytes).ok()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>header = <span class="kw">match </span>iter.next() {
             <span class="prelude-val">Some</span>(header_encoded) =&gt; BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
@@ -1200,7 +1220,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>to_verify = header.clone();
         to_verify.push(<span class="string">b&#39;\x00&#39;</span>);
         to_verify.extend_from_slice(data);
-        <span class="kw">if </span><span class="self">self</span>.inner.verify::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>to_verify, <span class="kw-2">&amp;</span>sig).is_ok() {
+        <span class="kw">if </span><span class="self">self</span>.inner.verify(<span class="kw-2">&amp;</span>to_verify, <span class="kw-2">&amp;</span>sig).is_ok() {
             serde_json::from_slice(<span class="kw-2">&amp;</span>header).ok()
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1253,26 +1273,21 @@
     }
 }
 
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>PublicKey {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PublicKey) -&gt; bool {
-        <span class="self">self</span>.inner.to_bytes()[..] == other.inner.to_bytes()[..]
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>PublicKey {}
-
 <span class="kw">impl </span>FromStr <span class="kw">for </span>PublicKey {
     <span class="kw">type </span><span class="prelude-val">Err </span>= KeyParseError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PublicKey, KeyParseError&gt; {
-        <span class="kw">let </span>bytes = <span class="kw">match </span>BASE64URL_NOPAD.decode(s.as_bytes()) {
-            <span class="prelude-val">Ok</span>(bytes) =&gt; bytes,
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(bytes) = BASE64URL_NOPAD.decode(s.as_bytes()) <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding)
         };
-        <span class="prelude-val">Ok</span>(PublicKey {
-            inner: ed25519_dalek::PublicKey::from_bytes(<span class="kw-2">&amp;</span>bytes)
+
+        <span class="kw">let </span>inner = <span class="kw">match </span>bytes.try_into() {
+            <span class="prelude-val">Ok</span>(bytes) =&gt; ed25519_dalek::VerifyingKey::from_bytes(<span class="kw-2">&amp;</span>bytes)
                 .map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?</span>,
-        })
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadKey),
+        };
+
+        <span class="prelude-val">Ok</span>(PublicKey { inner })
     }
 }
 
@@ -1297,9 +1312,9 @@
 
 <span class="doccomment">/// Generates a secret + public key pair.
 </span><span class="kw">pub fn </span>generate_key_pair() -&gt; (SecretKey, PublicKey) {
-    <span class="kw">let </span><span class="kw-2">mut </span>csprng = OsRng::new().unwrap();
-    <span class="kw">let </span>kp = ed25519_dalek::Keypair::generate::&lt;Sha512, <span class="kw">_</span>&gt;(<span class="kw-2">&amp;mut </span>csprng);
-    <span class="kw">let </span>pk = ed25519_dalek::PublicKey::from_bytes(<span class="kw-2">&amp;</span>kp.public.as_bytes()[..]).unwrap();
+    <span class="kw">let </span><span class="kw-2">mut </span>csprng = OsRng;
+    <span class="kw">let </span>kp = ed25519_dalek::SigningKey::generate(<span class="kw-2">&amp;mut </span>csprng);
+    <span class="kw">let </span>pk = kp.verifying_key();
     (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
@@ -1327,7 +1342,7 @@
 <span class="kw">impl </span>SignedRegisterState {
     <span class="doccomment">/// Creates an Hmac instance for signing the `RegisterState`.
     </span><span class="kw">fn </span>mac(secret: <span class="kw-2">&amp;</span>[u8]) -&gt; Hmac&lt;Sha512&gt; {
-        Hmac::new_varkey(secret).expect(<span class="string">&quot;HMAC takes variable keys&quot;</span>)
+        Hmac::new_from_slice(secret).expect(<span class="string">&quot;HMAC takes variable keys&quot;</span>)
     }
 
     <span class="doccomment">/// Signs the given `RegisterState` and serializes it into a single string.
@@ -1336,8 +1351,8 @@
         <span class="kw">let </span>token = BASE64URL_NOPAD.encode(json.as_bytes());
 
         <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
-        mac.input(token.as_bytes());
-        <span class="kw">let </span>signature = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>mac.result().code());
+        mac.update(token.as_bytes());
+        <span class="kw">let </span>signature = BASE64URL_NOPAD.encode(<span class="kw-2">&amp;</span>mac.finalize().into_bytes());
 
         <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{token}:{signature}&quot;</span>))
     }
@@ -1368,8 +1383,9 @@
             .map_err(|<span class="kw">_</span>| UnpackError::BadEncoding)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
-        mac.input(token.as_bytes());
-        mac.verify(<span class="kw-2">&amp;</span>code).map_err(|<span class="kw">_</span>| UnpackError::BadSignature)<span class="question-mark">?</span>;
+        mac.update(token.as_bytes());
+        mac.verify_slice(<span class="kw-2">&amp;</span>code)
+            .map_err(|<span class="kw">_</span>| UnpackError::BadSignature)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>json = BASE64URL_NOPAD
             .decode(token.as_bytes())
