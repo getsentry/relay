@@ -206,7 +206,7 @@ mod tests {
   "status": "ok",
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
-  "origin": "auto",
+  "origin": "auto.http",
   "other": "value",
   "type": "trace"
 }"#;
@@ -218,7 +218,7 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
-            origin: Annotated::new("auto".to_owned()),
+            origin: Annotated::new("auto.http".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(

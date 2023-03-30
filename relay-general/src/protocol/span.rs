@@ -74,7 +74,7 @@ mod tests {
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
-  "origin": "auto"
+  "origin": "auto.http"
 }"#;
 
         let span = Annotated::new(Span {
@@ -88,7 +88,7 @@ mod tests {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
-            origin: Annotated::new("auto".to_owned()),
+            origin: Annotated::new("auto.http".to_owned()),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());
