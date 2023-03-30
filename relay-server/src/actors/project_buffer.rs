@@ -429,8 +429,6 @@ impl BufferService {
             sender,
         } = message;
 
-        let mut unused_keys = BTreeSet::new();
-
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
                 self.count_mem_envelopes -= 1;
@@ -440,14 +438,15 @@ impl BufferService {
 
         // Persistent buffer is configured, lets try to get data from the disk.
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
+            let mut unused_keys = BTreeSet::new();
+
             while let Some(key) = keys.pop() {
                 // If the error with a key is returned we must save it for the next iterration.
                 if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
                     unused_keys.insert(key);
                 }
             }
-            if !keys.is_empty() || !unused_keys.is_empty() {
-                unused_keys.extend(keys);
+            if !unused_keys.is_empty() {
                 self.project_cache
                     .send(UpdateBufferIndex::new(project_key, unused_keys))
             }
@@ -522,6 +521,12 @@ impl Drop for BufferService {
         if count > 0 {
             if let Err(err) = self.try_spool() {
                 relay_log::error!("failed to spool {} on shutdown: {}", count, LogError(&err));
+            }
+
+            // The buffer must be empty by now, report the error otherwise.
+            let count: usize = self.buffer.values().map(|v| v.len()).sum();
+            if count > 0 {
+                relay_log::error!("dropped {} envelopes", count);
             }
         }
     }
