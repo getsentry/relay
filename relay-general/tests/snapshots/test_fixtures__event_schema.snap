@@ -3276,9 +3276,11 @@ expression: "relay_general::protocol::event_json_schema()"
             },
             "origin": {
               "description": "The origin of the trace indicates what created the trace.",
+              "default": null,
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "null"
                 }
               ]
             }
