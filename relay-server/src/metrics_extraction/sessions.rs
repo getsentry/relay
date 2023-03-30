@@ -7,10 +7,7 @@ use relay_general::protocol::{
 };
 use relay_metrics::{
     CounterType, Metric, MetricNamespace, MetricResourceIdentifier, MetricType, MetricValue,
-    ParseMetricError,
 };
-
-use super::utils::with_tag;
 
 /// Enumerates the most common session-names.
 #[derive(Clone, Debug, PartialEq)]
@@ -175,12 +172,12 @@ impl From<SessionsSessionTags> for BTreeMap<String, String> {
 
 impl From<SessionsKind> for Metric {
     fn from(value: SessionsKind) -> Self {
-        let mri = MetricResourceIdentifier::new(
-            value.ty(),
-            MetricNamespace::Sessions,
-            value.to_string(),
-            MetricUnit::None,
-        );
+        let mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace: MetricNamespace::Sessions,
+            name: value.to_string(),
+            unit: MetricUnit::None,
+        };
 
         let (value, timestamp, tags) = match value {
             SessionsKind::Error {

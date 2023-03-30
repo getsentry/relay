@@ -1,6 +1,4 @@
 use std::collections::BTreeMap;
-use std::fmt::{self, Display};
-use std::str::FromStr;
 
 use relay_common::{MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
@@ -11,7 +9,7 @@ use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
     AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricResourceIdentifier, MetricType,
-    MetricValue, ParseMetricError,
+    MetricValue,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -37,7 +35,7 @@ impl From<TransactionsKind> for MetricResourceIdentifier {
             TransactionsKind::Measurements { .. } => MetricType::Distribution,
             TransactionsKind::User => MetricType::Set,
         };
-        let ns = MetricNamespace::Transactions;
+        let namespace = MetricNamespace::Transactions;
 
         let unit = match value {
             TransactionsKind::Measurements { unit, .. } => unit,
@@ -55,7 +53,12 @@ impl From<TransactionsKind> for MetricResourceIdentifier {
             TransactionsKind::Measurements { kind, .. } => format!("measurements.{kind}"),
         };
 
-        MetricResourceIdentifier::new(ty, ns, name, unit)
+        MetricResourceIdentifier {
+            ty,
+            namespace,
+            name,
+            unit,
+        }
     }
 }
 

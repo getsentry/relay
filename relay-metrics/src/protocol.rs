@@ -231,15 +231,6 @@ pub struct MetricResourceIdentifier {
 }
 
 impl MetricResourceIdentifier {
-    pub fn new(ty: MetricType, namespace: MetricNamespace, name: String, unit: MetricUnit) -> Self {
-        Self {
-            ty,
-            namespace,
-            name,
-            unit,
-        }
-    }
-
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
@@ -523,7 +514,12 @@ impl Metric {
             .unwrap_or(("custom", string));
 
         let mut metric = Self::new(
-            MetricResourceIdentifier::new(ty, raw_namespace.parse().ok()?, name.to_string(), unit),
+            MetricResourceIdentifier {
+                ty,
+                namespace: raw_namespace.parse().ok()?,
+                name: name.to_string(),
+                unit,
+            },
             value,
             timestamp,
             BTreeMap::new(),
