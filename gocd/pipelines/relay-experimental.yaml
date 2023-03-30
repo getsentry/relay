@@ -50,10 +50,9 @@ pipelines:
                     sentryio \
                     "us.gcr.io/sentryio/relay"
 
-      - deploy-production:
+      - deploy-experimental:
           approval:
             type: manual
-            allow_only_on_success: true
           fetch_materials: true
 
           jobs:
@@ -75,23 +74,9 @@ pipelines:
               timeout: 1200
               elastic_profile_id: relay
               tasks:
-                # deploy_if_production=true covers experimental ("canary") as well.
                 - script: |
                     /devinfra/scripts/k8s/k8stunnel \
                     && /devinfra/scripts/k8s/k8sdeploy.py \
-                    --label-selector="service=relay,deploy_if_production=true" \
+                    --label-selector="service=relay,deploy_if_canary=true" \
                     --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"
-
-      - promote-to-pops:
-          # Manually completes this pipeline run.
-          # This will trigger relay-pop deployments.
-          approval:
-            type: manual
-            allow_only_on_success: true
-          jobs:
-            deploy:
-              elastic_profile_id: relay
-              tasks:
-                - exec:
-                    command: true
