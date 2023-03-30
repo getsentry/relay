@@ -82,6 +82,10 @@ pub struct LockReason {
     pub class_name: Annotated<String>,
     #[metastructure(skip_serialization = "empty")]
     pub thread_id: Annotated<ThreadId>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
 }
 
 /// A process thread of an event.
