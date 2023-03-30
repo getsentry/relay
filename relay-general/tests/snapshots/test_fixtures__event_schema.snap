@@ -2673,12 +2673,10 @@ expression: "relay_general::protocol::event_json_schema()"
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "replay_id"
-          ],
           "properties": {
             "replay_id": {
               "description": " The replay ID.",
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/EventId"
