@@ -23,6 +23,7 @@ Metrics:
 **Features**:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
 
 **Internal**:
 

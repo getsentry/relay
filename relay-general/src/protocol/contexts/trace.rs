@@ -102,6 +102,9 @@ pub struct TraceContext {
     /// should not ever send this value.
     pub client_sample_rate: Annotated<f64>,
 
+    /// The origin of the trace indicates what created the trace.
+    pub origin: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -203,6 +206,7 @@ mod tests {
   "status": "ok",
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
+  "origin": "auto",
   "other": "value",
   "type": "trace"
 }"#;
@@ -214,6 +218,7 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
+            origin: Annotated::new("auto".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(

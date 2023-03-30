@@ -47,6 +47,9 @@ pub struct Span {
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
+    /// The origin of the trace indicates what created the trace.
+    pub origin: Annotated<String>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -70,7 +73,8 @@ mod tests {
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "status": "ok"
+  "status": "ok",
+  "origin": "auto"
 }"#;
 
         let span = Annotated::new(Span {
@@ -84,6 +88,7 @@ mod tests {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
+            origin: Annotated::new("auto".to_owned()),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());
