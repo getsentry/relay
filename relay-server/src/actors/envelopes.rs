@@ -79,7 +79,10 @@ impl UpstreamRequest for SendEnvelope {
         "envelope"
     }
 
-    fn build(&mut self, _: &Config, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
+        let envelope_body = &self.envelope_body;
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -87,15 +90,9 @@ impl UpstreamRequest for SendEnvelope {
             .header_opt("User-Agent", meta.user_agent())
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
-            .header("Content-Type", envelope::CONTENT_TYPE);
-
-        if let Some(partition_key) = &self.partition_key {
-            builder.header("X-Sentry-Relay-Shard", partition_key);
-        }
-
-        let envelope_body = self.envelope_body.clone();
-        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
-        builder.body(envelope_body)
+            .header("Content-Type", envelope::CONTENT_TYPE)
+            .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .body(envelope_body)
     }
 
     fn respond(

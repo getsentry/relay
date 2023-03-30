@@ -16,7 +16,8 @@ use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registrat
 use relay_config::{Config, Credentials, RelayMode};
 use relay_log::LogError;
 use relay_quotas::{
-    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
+    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
+    Scoping,
 };
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
@@ -82,11 +83,12 @@ impl UpstreamRateLimits {
         // If there are no new-style rate limits in the header, fall back to the `Retry-After`
         // header. Create a default rate limit that only applies to the current data category at the
         // most specific scope (Key).
+        // One example of such a generic rate limit is the anti-abuse nginx layer used by SaaS.
         if !rate_limits.is_limited() {
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
-                reason_code: None,
+                reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
             });
         }
@@ -442,11 +444,7 @@ where
         self.query.route()
     }
 
-    fn build(
-        &mut self,
-        config: &Config,
-        mut builder: RequestBuilder,
-    ) -> Result<Request, HttpError> {
+    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
         // Memoize the serialized body and signature for retries.
         let credentials = config.credentials().ok_or(HttpError::NoCredentials)?;
         let (body, signature) = self
@@ -461,9 +459,10 @@ where
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
         );
 
-        builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
-        builder.header(header::CONTENT_TYPE, b"application/json");
-        builder.body(&body)
+        builder
+            .header("X-Sentry-Relay-Signature", signature.as_bytes())
+            .header(header::CONTENT_TYPE, b"application/json")
+            .body(&body)
     }
 
     fn respond(
@@ -719,12 +718,8 @@ impl SharedClient {
         let reqwest = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
-            // In actix-web client this option could be set on a per-request basis.  In reqwest
-            // this option can only be set per-client. For non-forwarded upstream requests that is
-            // desirable, so we have it enabled.
-            //
             // In the forward endpoint, this means that content negotiation is done twice, and the
-            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
             .trust_dns(true)
             .build()
@@ -753,14 +748,12 @@ impl SharedClient {
                 .http_host_header()
                 .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-            let method = request.method();
-
-            let mut builder = RequestBuilder::reqwest(self.reqwest.request(method, url));
-            builder.header("Host", host_header.as_bytes());
+            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url))
+                .header("Host", host_header.as_bytes());
 
             if request.set_relay_id() {
                 if let Some(credentials) = self.config.credentials() {
-                    builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+                    builder = builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
                 }
             }
 

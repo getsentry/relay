@@ -1,7 +1,10 @@
+use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use once_cell::race::OnceBox;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
@@ -80,7 +83,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 }
 
 /// Server state.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
@@ -222,5 +225,14 @@ impl ServiceState {
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
         &self.buffer_guard
+    }
+}
+
+#[axum::async_trait]
+impl FromRequestParts<Self> for ServiceState {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(_: &mut Parts, state: &Self) -> Result<Self, Self::Rejection> {
+        Ok(state.clone())
     }
 }

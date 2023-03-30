@@ -10,8 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
-default = ["ssl"]
-ssl = ["relay-server/ssl"]
+default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
 

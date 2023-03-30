@@ -1,4 +1,4 @@
-///! Abstractions for dealing with either actix-web client structs or reqwest structs.
+///! Abstractions for dealing with HTTP clients.
 ///!
 ///! All of it is implemented as enums because if they were traits, they'd have to be boxed to be
 ///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
@@ -11,7 +11,7 @@
 use std::io;
 
 use relay_config::HttpEncoding;
-#[doc(inline)]
+use reqwest::header::{HeaderMap, HeaderValue};
 pub use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 
@@ -60,10 +60,8 @@ impl RequestBuilder {
     }
 
     /// Add a new header, not replacing existing ones.
-    pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
-        take_mut::take(&mut self.builder, |b| {
-            b.header(key.as_ref(), value.as_ref())
-        });
+    pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
+        self.builder = self.builder.header(key.as_ref(), value.as_ref());
         self
     }
 
@@ -71,29 +69,21 @@ impl RequestBuilder {
     ///
     /// If the value is `Some`, the header is added. If the value is `None`, headers are not
     /// changed.
-    pub fn header_opt(
-        &mut self,
-        key: impl AsRef<str>,
-        value: Option<impl AsRef<[u8]>>,
-    ) -> &mut Self {
+    pub fn header_opt(mut self, key: impl AsRef<str>, value: Option<impl AsRef<[u8]>>) -> Self {
         if let Some(value) = value {
-            take_mut::take(&mut self.builder, |b| {
-                b.header(key.as_ref(), value.as_ref())
-            });
+            self.builder = self.builder.header(key.as_ref(), value.as_ref());
         }
         self
     }
 
-    pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
-        self.builder = self.builder.body(body.as_ref().to_vec());
-        self.finish()
+    pub fn content_encoding(self, encoding: HttpEncoding) -> Self {
+        self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
-        match encoding.name() {
-            Some(name) => self.header("Content-Encoding", name),
-            None => self,
-        }
+    pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
+        // TODO: This clones data. Change the signature to require `Bytes` to prevent cloning.
+        self.builder = self.builder.body(body.as_ref().to_vec());
+        self.finish()
     }
 }
 
@@ -105,14 +95,9 @@ impl Response {
     }
 
     pub async fn consume(&mut self) -> Result<(), HttpError> {
-        // Consume the request payload such that the underlying connection returns to a
-        // "clean state".
-        //
-        // We do not understand if this is strictly necessary for reqwest. It was ported
-        // from actix-web where it was clearly necessary to un-break keepalive connections,
-        // but no testcase has been written for this and we are unsure on how to reproduce
-        // outside of prod. I (markus) have not found code in reqwest that would explicitly
-        // deal with this.
+        // Consume the request payload such that the underlying connection returns to a "clean
+        // state" and can be reused by the client. This is explicitly required, see:
+        // https://github.com/seanmonstar/reqwest/issues/1272#issuecomment-839813308
         while self.0.chunk().await?.is_some() {}
         Ok(())
     }
@@ -130,12 +115,8 @@ impl Response {
             .collect()
     }
 
-    pub fn clone_headers(&self) -> Vec<(String, Vec<u8>)> {
-        self.0
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
-            .collect()
+    pub fn headers(&self) -> &HeaderMap<HeaderValue> {
+        self.0.headers()
     }
 
     pub async fn bytes(self, limit: usize) -> Result<Vec<u8>, HttpError> {

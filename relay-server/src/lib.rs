@@ -254,7 +254,6 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 mod actors;
-mod body;
 mod constants;
 mod endpoints;
 mod envelope;
@@ -273,7 +272,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use relay_config::Config;
-use relay_system::Controller;
+use relay_system::{Controller, Service};
 
 use crate::actors::server::HttpServer;
 use crate::service::ServiceState;
@@ -293,12 +292,18 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    main_runtime.block_on(async {
+    let service = main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        HttpServer::start(config.clone(), ServiceState::start(config)?).await?;
+        let service = ServiceState::start(config.clone())?;
+        HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
-        anyhow::Ok(())
+        anyhow::Ok(service)
     })?;
+
+    // TODO: Temporary workaround for dropping runtimes inside ServiceState. Dropping them within
+    // `main_runtime` causes panics. Consider removing the internal runtimes in favor of
+    // spawn_blocking and improved resource management.
+    drop(service);
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to
