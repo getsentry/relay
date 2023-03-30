@@ -14,7 +14,7 @@ pipelines:
       relay_repo:
         git: git@github.com:getsentry/relay.git
         shallow_clone: true
-        branch: master
+        branch: gocd # TODO: REVERT! ###############################################################
         destination: relay
       # Relay PoPs can't be deployed until the relay deploy pipeline reaches
       # the promote-to-pops stage.
