@@ -2599,7 +2599,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-    use relay_common::{Dsn, Uuid};
+
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
@@ -2613,7 +2613,10 @@ mod tests {
     use crate::utils::Semaphore as TestSemaphore;
 
     #[cfg(feature = "processing")]
-    use relay_sampling::TraceUserContext;
+    use {
+        relay_common::{Dsn, Uuid},
+        relay_sampling::TraceUserContext,
+    };
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
