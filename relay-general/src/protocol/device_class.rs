@@ -1,4 +1,6 @@
 use crate::types::Annotated;
+use once_cell::sync::Lazy;
+use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::protocol::{Context, Contexts};
@@ -18,7 +20,7 @@ impl DeviceClass {
             if let Some(family) = device.family.value() {
                 if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
                     if let Some(model) = device.model.value() {
-                        return device_model_to_class(model);
+                        return APPLE_DEVICE_MODEL_TO_CLASS_MAP.get(model.as_str()).cloned();
                     }
                     return None;
                 } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
@@ -46,73 +48,56 @@ impl fmt::Display for DeviceClass {
     }
 }
 
-const LOW_PERFORMANCE_APPLE_DEVICES: [&str; 18] = [
-    "iPhone1,1",
-    "iPhone1,2",
-    "iPhone2,1",
-    "iPhone3,1",
-    "iPhone3,2",
-    "iPhone3,3",
-    "iPhone4,1",
-    "iPhone5,1",
-    "iPhone5,2",
-    "iPhone5,3",
-    "iPhone5,4",
-    "iPhone6,1",
-    "iPhone6,2",
-    "iPhone7,1",
-    "iPhone7,2",
-    "iPhone8,1",
-    "iPhone8,2",
-    "iPhone8,4",
-];
-const MEDIUM_PERFORMANCE_APPLE_DEVICES: [&str; 18] = [
-    "iPhone9,1",
-    "iPhone9,3",
-    "iPhone9,2",
-    "iPhone9,4",
-    "iPhone10,1",
-    "iPhone10,4",
-    "iPhone10,2",
-    "iPhone10,5",
-    "iPhone10,3",
-    "iPhone10,6",
-    "iPhone11,8",
-    "iPhone11,2",
-    "iPhone11,4",
-    "iPhone11,6",
-    "iPhone12,1",
-    "iPhone12,3",
-    "iPhone12,5",
-    "iPhone12,8",
-];
-const HIGH_PERFORMANCE_APPLE_DEVICES: [&str; 13] = [
-    "iPhone13,1",
-    "iPhone13,2",
-    "iPhone13,3",
-    "iPhone13,4",
-    "iPhone14,4",
-    "iPhone14,5",
-    "iPhone14,2",
-    "iPhone14,3",
-    "iPhone14,6",
-    "iPhone14,7",
-    "iPhone14,8",
-    "iPhone15,2",
-    "iPhone15,3",
-];
-
-fn device_model_to_class(device_model: &str) -> Option<DeviceClass> {
-    match device_model {
-        device_model if HIGH_PERFORMANCE_APPLE_DEVICES.contains(&device_model) => {
-            Some(DeviceClass::HIGH)
-        }
-        device_model if MEDIUM_PERFORMANCE_APPLE_DEVICES.contains(&device_model) => {
-            Some(DeviceClass::MEDIUM)
-        }
-        device_model if LOW_PERFORMANCE_APPLE_DEVICES.contains(&device_model) => {
-            Some(DeviceClass::LOW)
-        }
-        _ => None,
-    }
-}
+static APPLE_DEVICE_MODEL_TO_CLASS_MAP: Lazy<BTreeMap<&str, DeviceClass>> = Lazy::new(|| {
+    let mut map = BTreeMap::new();
+    map.insert("iPhone1,1", DeviceClass::LOW);
+    map.insert("iPhone1,2", DeviceClass::LOW);
+    map.insert("iPhone2,1", DeviceClass::LOW);
+    map.insert("iPhone3,1", DeviceClass::LOW);
+    map.insert("iPhone3,2", DeviceClass::LOW);
+    map.insert("iPhone3,3", DeviceClass::LOW);
+    map.insert("iPhone4,1", DeviceClass::LOW);
+    map.insert("iPhone5,1", DeviceClass::LOW);
+    map.insert("iPhone5,2", DeviceClass::LOW);
+    map.insert("iPhone5,3", DeviceClass::LOW);
+    map.insert("iPhone5,4", DeviceClass::LOW);
+    map.insert("iPhone6,1", DeviceClass::LOW);
+    map.insert("iPhone6,2", DeviceClass::LOW);
+    map.insert("iPhone7,1", DeviceClass::LOW);
+    map.insert("iPhone7,2", DeviceClass::LOW);
+    map.insert("iPhone8,1", DeviceClass::LOW);
+    map.insert("iPhone8,2", DeviceClass::LOW);
+    map.insert("iPhone8,4", DeviceClass::LOW);
+    map.insert("iPhone9,1", DeviceClass::MEDIUM);
+    map.insert("iPhone9,3", DeviceClass::MEDIUM);
+    map.insert("iPhone9,2", DeviceClass::MEDIUM);
+    map.insert("iPhone9,4", DeviceClass::MEDIUM);
+    map.insert("iPhone10,1", DeviceClass::MEDIUM);
+    map.insert("iPhone10,4", DeviceClass::MEDIUM);
+    map.insert("iPhone10,2", DeviceClass::MEDIUM);
+    map.insert("iPhone10,5", DeviceClass::MEDIUM);
+    map.insert("iPhone10,3", DeviceClass::MEDIUM);
+    map.insert("iPhone10,6", DeviceClass::MEDIUM);
+    map.insert("iPhone11,8", DeviceClass::MEDIUM);
+    map.insert("iPhone11,2", DeviceClass::MEDIUM);
+    map.insert("iPhone11,4", DeviceClass::MEDIUM);
+    map.insert("iPhone11,6", DeviceClass::MEDIUM);
+    map.insert("iPhone12,1", DeviceClass::MEDIUM);
+    map.insert("iPhone12,3", DeviceClass::MEDIUM);
+    map.insert("iPhone12,5", DeviceClass::MEDIUM);
+    map.insert("iPhone12,8", DeviceClass::MEDIUM);
+    map.insert("iPhone13,1", DeviceClass::HIGH);
+    map.insert("iPhone13,2", DeviceClass::HIGH);
+    map.insert("iPhone13,3", DeviceClass::HIGH);
+    map.insert("iPhone13,4", DeviceClass::HIGH);
+    map.insert("iPhone14,4", DeviceClass::HIGH);
+    map.insert("iPhone14,5", DeviceClass::HIGH);
+    map.insert("iPhone14,2", DeviceClass::HIGH);
+    map.insert("iPhone14,3", DeviceClass::HIGH);
+    map.insert("iPhone14,6", DeviceClass::HIGH);
+    map.insert("iPhone14,7", DeviceClass::HIGH);
+    map.insert("iPhone14,8", DeviceClass::HIGH);
+    map.insert("iPhone15,2", DeviceClass::HIGH);
+    map.insert("iPhone15,3", DeviceClass::HIGH);
+    map
+});
