@@ -2022,6 +2022,59 @@ expression: "relay_general::protocol::event_json_schema()"
         "fatal"
       ]
     },
+    "LockReason": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "address": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "class_name": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "package_name": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "thread_id": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "LogEntry": {
       "description": " A log entry message.\n\n A log message is similar to the `message` attribute on the event itself but\n can additionally hold optional parameters.\n\n ```json\n {\n   \"message\": {\n     \"message\": \"My raw message with interpreted strings like %s\",\n     \"params\": [\"this\"]\n   }\n }\n ```\n\n ```json\n {\n   \"message\": {\n     \"message\": \"My raw message with interpreted strings like {foo}\",\n     \"params\": {\"foo\": \"this\"}\n   }\n }\n ```",
       "anyOf": [
@@ -3120,6 +3173,18 @@ expression: "relay_general::protocol::event_json_schema()"
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lock_reason": {
+              "description": " Lock object that is blocking the thread",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LockReason"
                 },
                 {
                   "type": "null"
