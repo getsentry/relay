@@ -10,7 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-chrono = "0.4.11"
+chrono = { version = "0.4.24", default-features = false, features = ["std"] }
 rand = "0.8.5"
 rand_pcg = "0.3.1"
 relay-common = { path = "../relay-common" }
