@@ -47,7 +47,7 @@ impl BufferGuard {
 
     /// Reserves resources for processing an envelope in Relay.
     ///
-    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
+    /// Returns `Ok(ManagedEnvelope)` on success, which internally holds a handle to the reserved
     /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
     /// be reused by a subsequent call to `enter`.
     ///

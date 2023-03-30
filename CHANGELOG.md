@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+
 **Breaking Changes**:
 
 This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
@@ -37,6 +41,9 @@ Metrics:
 - Indicate if OS-version may be frozen with '>=' prefix. ([#1945](https://github.com/getsentry/relay/pull/1945))
 - Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
 - Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
+
+**Internal**:
+
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951)))
 

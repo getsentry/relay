@@ -165,6 +165,7 @@ impl ServiceState {
 
         // Keep all the services in one context.
         let project_cache_services = Services::new(
+            buffer.clone(),
             aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
