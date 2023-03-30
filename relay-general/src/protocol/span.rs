@@ -47,7 +47,7 @@ pub struct Span {
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
-    /// The origin of the trace indicates what created the trace.
+    /// The origin of the span indicates what created the span.
     pub origin: Annotated<String>,
 
     // TODO remove retain when the api stabilizes
