@@ -21,9 +21,10 @@
 //!
 //! # Feature Flags
 //!
-//! - `ssl` _(default)_: Enables SSL support using `native-tls`.
 //! - `processing`: Includes event ingestion and processing functionality. This should only be
 //!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.
+//! - `crash-handler`: Allows native crash reporting for segfaults and out-of-memory situations when
+//!   internal error reporting to Sentry is enabled.
 //!
 //! # Workspace Crates
 //!

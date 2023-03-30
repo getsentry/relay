@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 export RELAY_PYTHON_VERSION := python3
-export RELAY_FEATURES := ssl
+export RELAY_FEATURES :=
 
 all: check test ## run all checks and tests
 .PHONY: all
@@ -20,11 +20,11 @@ build: setup-git ## build relay with all features enabled without debug info
 .PHONY: build
 
 release: setup-git ## build production binary of the relay with debug info
-	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
+	@cd relay && cargo +stable build --release --locked $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES})
 .PHONY: release
 
 build-linux-release: setup-git ## build linux release of the relay
-	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	cd relay && cargo build --release --locked $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -147,10 +147,6 @@ setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured
 
 setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
 .PHONY: setup-venv
-
-devserver: ## run an auto-reloading development server
-	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
-.PHONY: devserver
 
 clean-target-dir:
 	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \

@@ -113,8 +113,6 @@ jobs:
 
       - name: Run Cargo Tests
         run: cargo test --workspace
-        env:
-          RUSTFLAGS: -Dwarnings
 
   test_all:
     timeout-minutes: 15

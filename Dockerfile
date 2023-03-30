@@ -37,7 +37,7 @@ WORKDIR /work
 
 FROM relay-deps AS relay-builder
 
-ARG RELAY_FEATURES=ssl,processing,crash-handler
+ARG RELAY_FEATURES=processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY . .
