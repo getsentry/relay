@@ -1,13 +1,15 @@
 use crate::protocol::EventId;
-use crate::types::Annotated;
+use crate::types::{Annotated, Object, Value};
 
 /// Replay context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ReplayContext {
     /// The replay ID.
-    #[metastructure(required = "true")]
     pub replay_id: Annotated<EventId>,
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = "true")]
+    pub other: Object<Value>,
 }
 
 impl ReplayContext {
@@ -30,6 +32,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Replay(Box::new(ReplayContext {
             replay_id: Annotated::new(EventId("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap())),
+            other: Object::default(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
@@ -44,6 +47,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Replay(Box::new(ReplayContext {
             replay_id: Annotated::new(EventId("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap())),
+            other: Object::default(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());

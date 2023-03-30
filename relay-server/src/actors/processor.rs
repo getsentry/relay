@@ -2178,6 +2178,7 @@ impl EnvelopeProcessorService {
                     let contexts = event.contexts.get_or_insert_with(Contexts::new);
                     contexts.add(SentryContext::Replay(Box::new(ReplayContext {
                         replay_id: Annotated::new(relay_general::protocol::EventId(replay_id)),
+                        other: Object::default(),
                     })));
                 }
             }
