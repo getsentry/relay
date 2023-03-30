@@ -563,52 +563,11 @@ impl StoreService {
         let payload = item.payload();
 
         for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
-            let (flat_type, flat_value) = match bucket.value {
-                BucketValue::Distribution(value) => (
-                    ingest_metrics_v1::IngestMetricType::D,
-                    ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
-                        value.iter_values().collect(),
-                    ),
-                ),
-                BucketValue::Counter(value) => (
-                    ingest_metrics_v1::IngestMetricType::C,
-                    ingest_metrics_v1::IngestMetricValue::NumberMetricValue(value),
-                ),
-                BucketValue::Set(values) => (
-                    ingest_metrics_v1::IngestMetricType::S,
-                    ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
-                        values.into_iter().map(f64::from).collect(),
-                    ),
-                ),
-                BucketValue::Gauge(_) => {
-                    // gauges are currently unsupported by the rest of the system.
-                    relay_log::with_scope(
-                        |scope| {
-                            scope.set_extra("metric_message.name", bucket.name.into());
-                        },
-                        || {
-                            relay_log::error!("attempted to produce Gauge");
-                        },
-                    );
-                    continue;
-                }
-            };
-
-            self.send_metric_message(
-                org_id,
-                ingest_metrics_v1::IngestMetric {
-                    // TODO: multiple unsafe conversions from u64 to i64
-                    org_id: org_id.try_into().unwrap(),
-                    project_id: project_id.value().try_into().unwrap(),
-                    name: bucket.name,
-                    type_: flat_type,
-                    value: flat_value,
-                    timestamp: bucket.timestamp.as_secs().try_into().unwrap(),
-                    // TODO: slow (conversion from btreemap to hashmap)
-                    tags: bucket.tags.into_iter().collect(),
-                    retention_days: retention.into(),
-                },
-            )?;
+            if let Some(message) =
+                construct_kafka_metric_message(org_id, project_id, bucket, retention)
+            {
+                self.send_metric_message(org_id, message)?;
+            }
         }
 
         Ok(())
@@ -1040,6 +999,53 @@ struct UserReportKafkaMessage {
     // Used for KafkaMessage::key
     #[serde(skip)]
     event_id: EventId,
+}
+
+fn construct_kafka_metric_message(
+    org_id: u64,
+    project_id: ProjectId,
+    bucket: Bucket,
+    retention: u16,
+) -> Option<ingest_metrics_v1::IngestMetric> {
+    let (flat_type, flat_value) = match bucket.value {
+        BucketValue::Distribution(value) => (
+            ingest_metrics_v1::IngestMetricType::D,
+            ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(value.iter_values().collect()),
+        ),
+        BucketValue::Counter(value) => (
+            ingest_metrics_v1::IngestMetricType::C,
+            ingest_metrics_v1::IngestMetricValue::NumberMetricValue(value),
+        ),
+        BucketValue::Set(values) => (
+            ingest_metrics_v1::IngestMetricType::S,
+            ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
+                values.into_iter().map(f64::from).collect(),
+            ),
+        ),
+        BucketValue::Gauge(_) => {
+            // gauges are currently unsupported by the rest of the system.
+            relay_log::with_scope(
+                |scope| {
+                    scope.set_extra("metric_message.name", bucket.name.into());
+                },
+                || {
+                    relay_log::error!("attempted to produce Gauge");
+                },
+            );
+            return None;
+        }
+    };
+
+    Some(ingest_metrics_v1::IngestMetric {
+        org_id,
+        project_id: project_id.value(),
+        name: bucket.name,
+        type_: flat_type,
+        value: flat_value,
+        timestamp: bucket.timestamp.as_secs(),
+        tags: bucket.tags,
+        retention_days: retention,
+    })
 }
 
 #[derive(Clone, Debug, Serialize)]
