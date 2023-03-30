@@ -18,7 +18,7 @@ pipelines:
       relay_repo:
         git: git@github.com:getsentry/relay.git
         shallow_clone: true
-        branch: gocd # TODO: REVERT! ###############################################################
+        branch: master
         destination: relay
 
     stages:
