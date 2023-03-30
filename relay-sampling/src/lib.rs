@@ -1164,7 +1164,7 @@ pub struct DynamicSamplingContext {
     /// user object).
     #[serde(flatten, default)]
     pub user: TraceUserContext,
-    /// if the event occured during a session replay, the associated replay_id is added to the DSC
+    /// If the event occurred during a session replay, the associated replay_id is added to the DSC.
     pub replay_id: Option<Uuid>,
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
