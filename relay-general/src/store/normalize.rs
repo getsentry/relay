@@ -750,6 +750,8 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
+
+        // TODO: Consider moving to store normalization
         if config.device_class_synthesis_config {
             normalize_device_class(event);
         }
