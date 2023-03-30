@@ -2602,7 +2602,7 @@ mod tests {
     use relay_common::{Dsn, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::EventId;
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode, TraceUserContext};
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
 
@@ -2611,6 +2611,9 @@ mod tests {
     use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
+
+    #[cfg(feature = "processing")]
+    use relay_sampling::TraceUserContext;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
