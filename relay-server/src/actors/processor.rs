@@ -1757,19 +1757,9 @@ impl EnvelopeProcessorService {
         // event id. To be defensive, we always overwrite to ensure consistency.
         event.id = Annotated::new(event_id);
 
+        // In processing mode, also write metrics into the event. Most metrics have already been
+        // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
-            // add the replay_id to the event's context if it exists on the DSC
-            if let Some(dsc) = envelope.dsc() {
-                if let Some(replay_id) = dsc.replay_id {
-                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                    contexts.add(SentryContext::Replay(Box::new(ReplayContext {
-                        replay_id: Annotated::new(relay_general::protocol::EventId(replay_id)),
-                    })));
-                }
-            }
-
-            // In processing mode, also write metrics into the event. Most metrics have already been
-            // collected at this state, except for the combined size of all attachments.
             let mut metrics = std::mem::take(&mut state.metrics);
 
             let attachment_size = envelope
@@ -2178,6 +2168,22 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    #[cfg(feature = "processing")]
+    /// Adds data from the DSC onto the event, only replay_id for now.
+    fn enrich_event_with_dsc(&self, state: &mut ProcessEnvelopeState) {
+        let envelope = state.managed_envelope.envelope_mut();
+
+        if let Some(event) = state.event.value_mut() {
+            if let Some(dsc) = envelope.dsc() {
+                if let Some(replay_id) = dsc.replay_id {
+                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                    contexts.add(SentryContext::Replay(Box::new(ReplayContext {
+                        replay_id: Annotated::new(relay_general::protocol::EventId(replay_id)),
+                    })));
+                }
+            }
+        }
+    }
     /// Run dynamic sampling rules to see if we keep the envelope or remove it.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         state.sampling_result = utils::should_keep_event(
@@ -2273,6 +2279,7 @@ impl EnvelopeProcessorService {
             if_processing!({
                 self.process_unreal(state)?;
                 self.create_placeholders(state);
+                self.enrich_event_with_dsc(state);
             });
 
             self.finalize_event(state)?;
@@ -3046,7 +3053,7 @@ mod tests {
 
         let contexts = event.contexts.into_value().unwrap();
         let replay_context = contexts.get("replay").unwrap();
-        let replay_str = replay_id.to_string().replace("-", "");
+        let replay_str = replay_id.to_string().replace('-', "");
         let output = format!(r#"{{"replay_id":"{replay_str}","type":"replay"}}"#);
         assert_eq!(output, replay_context.to_json().unwrap());
     }
