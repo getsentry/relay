@@ -12,15 +12,8 @@ use relay_metrics::{
 
 use super::utils::with_tag;
 
-struct FooSession {
-    // type of session with its associated data
-    kind: SessionsKind,
-    // Data in common with all sessionkinds
-    common: CommonSession,
-}
-
 /// Enumerates the most common session-names.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SessionsKind {
     Session {
         counter: CounterType,
@@ -33,22 +26,32 @@ pub enum SessionsKind {
         tags: SessionsUserTags,
     },
     Error {
-        id: String,
+        id: Uuid,
         timestamp: UnixTimestamp,
+        tags: SessionsErrorTags,
     },
 }
 
+impl SessionsKind {
+    fn ty(&self) -> MetricType {
+        match self {
+            SessionsKind::Session { .. } => MetricType::Counter,
+            SessionsKind::Error { .. } => MetricType::Set,
+            SessionsKind::User { .. } => MetricType::Set,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionsErrorTags {
-    status: SessionStatus,
     release: String,
     environment: Option<String>,
     sdk: Option<String>,
 }
 
 impl SessionsErrorTags {
-    fn new(status: SessionStatus, common: (String, Option<String>, Option<String>)) -> Self {
+    fn new(common: (String, Option<String>, Option<String>)) -> Self {
         Self {
-            status,
             release: common.0,
             environment: common.1,
             sdk: common.2,
@@ -56,6 +59,7 @@ impl SessionsErrorTags {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionsSessionTags {
     status: SessionStatus,
     release: String,
@@ -74,8 +78,9 @@ impl SessionsSessionTags {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionsUserTags {
-    status: SessionStatus,
+    status: Option<SessionStatus>,
     abnormal_mechanism: Option<String>,
     release: String,
     environment: Option<String>,
@@ -83,7 +88,10 @@ pub struct SessionsUserTags {
 }
 
 impl SessionsUserTags {
-    fn new(status: SessionStatus, common: (String, Option<String>, Option<String>)) -> Self {
+    fn new(
+        status: Option<SessionStatus>,
+        common: (String, Option<String>, Option<String>),
+    ) -> Self {
         Self {
             status,
             abnormal_mechanism: None,
@@ -93,7 +101,7 @@ impl SessionsUserTags {
         }
     }
     fn with_abnormal(
-        status: SessionStatus,
+        status: Option<SessionStatus>,
         abnormal_mechanism: String,
         common: (String, Option<String>, Option<String>),
     ) -> Self {
@@ -103,35 +111,108 @@ impl SessionsUserTags {
     }
 }
 
-impl From<FooSession> for Metric {
-    fn from(value: SessionsKind) -> Self {
-        todo!()
+impl From<SessionsUserTags> for BTreeMap<String, String> {
+    fn from(value: SessionsUserTags) -> Self {
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(status) = value.status {
+            map.insert("session.status".to_string(), status.to_string());
+        }
+
+        if let Some(abnormal_mechanism) = value.abnormal_mechanism {
+            map.insert("abnormal_mechanism".to_string(), abnormal_mechanism);
+        }
+
+        map.insert("release".to_string(), value.release);
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".into(), environment);
+        }
+
+        if let Some(sdk) = value.sdk {
+            map.insert("sdk".to_string(), sdk);
+        }
+
+        map
     }
 }
 
-impl From<SessionsKind> for MetricResourceIdentifier {
-    fn from(value: SessionsKind) -> Self {
-        let ty = match value {
-            SessionsKind::Session => MetricType::Counter,
-            SessionsKind::Error => MetricType::Set,
-            SessionsKind::User => MetricType::Set,
-        };
+impl From<SessionsErrorTags> for BTreeMap<String, String> {
+    fn from(value: SessionsErrorTags) -> Self {
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
 
-        MetricResourceIdentifier::new(
-            ty,
+        map.insert("release".to_string(), value.release);
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".into(), environment);
+        }
+
+        if let Some(sdk) = value.sdk {
+            map.insert("sdk".to_string(), sdk);
+        }
+
+        map
+    }
+}
+
+impl From<SessionsSessionTags> for BTreeMap<String, String> {
+    fn from(value: SessionsSessionTags) -> Self {
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
+        map.insert("session.status".to_string(), value.status.to_string());
+
+        map.insert("release".to_string(), value.release);
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".into(), environment);
+        }
+
+        if let Some(sdk) = value.sdk {
+            map.insert("sdk".to_string(), sdk);
+        }
+
+        map
+    }
+}
+
+impl From<SessionsKind> for Metric {
+    fn from(value: SessionsKind) -> Self {
+        let mri = MetricResourceIdentifier::new(
+            value.ty(),
             MetricNamespace::Sessions,
             value.to_string(),
             MetricUnit::None,
-        )
+        );
+
+        let (value, timestamp, tags) = match value {
+            SessionsKind::Error {
+                id,
+                timestamp,
+                tags,
+            } => (MetricValue::set_from_display(id), timestamp, tags.into()),
+            SessionsKind::User {
+                distinct_id,
+                timestamp,
+                tags,
+            } => (
+                MetricValue::set_from_display(distinct_id),
+                timestamp,
+                tags.into(),
+            ),
+            SessionsKind::Session {
+                counter,
+                timestamp,
+                tags,
+            } => (MetricValue::Counter(counter), timestamp, tags.into()),
+        };
+        Metric::new(mri, value, timestamp, tags)
     }
 }
 
 impl Display for SessionsKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Session => write!(f, "session"),
-            Self::User => write!(f, "user"),
-            Self::Error => write!(f, "error"),
+            Self::Session { .. } => write!(f, "session"),
+            Self::User { .. } => write!(f, "user"),
+            Self::Error { .. } => write!(f, "error"),
         }
     }
 }
@@ -163,9 +244,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     };
 
-    let mut tags = BTreeMap::new();
-
-    let environment = attributes.environment;
+    let environment = attributes.environment.clone();
     let sdk = client.map(|s| s.to_owned());
     let release = attributes.release.clone();
 
@@ -174,28 +253,30 @@ pub fn extract_session_metrics<T: SessionLike>(
 
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
-    /*
     if session.total_count() > 0 {
-        target.push(Metric::new(
-            SessionsKind::Session.into(),
-            MetricValue::Counter(session.total_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", "init"),
-        ));
+        target.push(
+            SessionsKind::Session {
+                counter: session.total_count() as f64,
+                timestamp,
+                tags: SessionsSessionTags::new(
+                    SessionStatus::Unknown("init".to_string()),
+                    common_session_tags.clone(),
+                ),
+            }
+            .into(),
+        );
     }
-    */
 
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
-            SessionErrored::Individual(session_id) => SessionsKind::Error {},
-
-            /*  Metric::new(
-                SessionsKind::Error.into(),
-                MetricValue::set_from_display(session_id),
+            SessionErrored::Individual(session_id) => SessionsKind::Error {
+                id: session_id,
                 timestamp,
-                tags.clone(),
-            ), */
+                tags: SessionsErrorTags::new(common_session_tags.clone()),
+            }
+            .into(),
+
             SessionErrored::Aggregated(count) => SessionsKind::Session {
                 counter: count as f64,
                 timestamp,
@@ -210,10 +291,10 @@ pub fn extract_session_metrics<T: SessionLike>(
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(
                 SessionsKind::User {
-                    distinct_id,
+                    distinct_id: distinct_id.clone(),
                     timestamp,
                     tags: SessionsUserTags::new(
-                        SessionStatus::Errored,
+                        Some(SessionStatus::Errored),
                         common_session_tags.clone(),
                     ),
                 }
@@ -224,80 +305,74 @@ pub fn extract_session_metrics<T: SessionLike>(
         // For session updates without errors, we collect the user without a session.status tag.
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
-        target.push(Metric::new(
-            SessionsKind::User.into(),
-            MetricValue::set_from_str(distinct_id),
-            timestamp,
-            tags.clone(),
-        ));
+        target.push(
+            SessionsKind::User {
+                distinct_id: distinct_id.clone(),
+                timestamp,
+                tags: SessionsUserTags::new(None, common_session_tags.clone()),
+            }
+            .into(),
+        )
     }
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(Metric::new(
-            SessionsKind::Session.into(),
-            MetricValue::Counter(session.abnormal_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", SessionStatus::Abnormal),
-        ));
+        target.push(
+            SessionsKind::Session {
+                counter: session.abnormal_count() as f64,
+                timestamp,
+                tags: SessionsSessionTags::new(
+                    SessionStatus::Abnormal,
+                    common_session_tags.clone(),
+                ),
+            }
+            .into(),
+        );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            let mut tags_for_abnormal_session =
-                with_tag(&tags, "session.status", SessionStatus::Abnormal);
             let tags = if extract_abnormal_mechanism
                 && session.abnormal_mechanism() != AbnormalMechanism::None
             {
-                tags_for_abnormal_session.insert(
-                    "abnormal_mechanism".to_owned(),
-                    session.abnormal_mechanism().to_string(),
-                );
                 SessionsUserTags::with_abnormal(
-                    SessionStatus::Abnormal,
+                    Some(SessionStatus::Abnormal),
                     session.abnormal_mechanism().to_string(),
                     common_session_tags.clone(),
                 )
             } else {
-                SessionsUserTags::new(SessionStatus::Abnormal, common_session_tags.clone())
+                SessionsUserTags::new(Some(SessionStatus::Abnormal), common_session_tags.clone())
             };
-            target.push(Metric::new(
-                SessionsKind::User.into(),
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                tags_for_abnormal_session,
-            ));
+            target.push(
+                SessionsKind::User {
+                    distinct_id: distinct_id.clone(),
+                    timestamp,
+                    tags,
+                }
+                .into(),
+            )
         }
     }
 
     if session.crashed_count() > 0 {
-        target.push(Metric::new(
-            SessionsKind::Session.into(),
-            MetricValue::Counter(session.crashed_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", SessionStatus::Crashed),
-        ));
+        target.push(
+            SessionsKind::Session {
+                counter: session.crashed_count() as f64,
+                timestamp,
+                tags: SessionsSessionTags::new(SessionStatus::Crashed, common_session_tags.clone()),
+            }
+            .into(),
+        );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(
                 SessionsKind::User {
-                    distinct_id,
+                    distinct_id: distinct_id.clone(),
                     timestamp,
-                    tags: SessionsUserTags::new(SessionStatus::Crashed, common_session_tags),
+                    tags: SessionsUserTags::new(Some(SessionStatus::Crashed), common_session_tags),
                 }
                 .into(),
             );
         }
-
-        /*
-        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new(
-                SessionsKind::User.into(),
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                with_tag(&tags, "session.status", SessionStatus::Crashed),
-            ));
-        }
-        */
     }
 }
 
