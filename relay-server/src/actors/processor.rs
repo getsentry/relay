@@ -2990,6 +2990,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "processing")]
     async fn test_replay_id_added_from_dsc() {
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
