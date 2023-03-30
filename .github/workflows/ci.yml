@@ -273,7 +273,6 @@ jobs:
       # GITHUB_SHA in pull requests points to the merge commit
       REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
-      GCR_IMG: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Download Docker Image
@@ -302,21 +301,11 @@ jobs:
         run: |
           gcloud auth configure-docker us.gcr.io
 
-      - name: Push to us.gcr.io and upload deployment assets
+      - name: Push to us.gcr.io
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "$GCR_IMG"
-          docker push "$GCR_IMG"
-
-          docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "$GCR_IMG" -cf - /lib/x86_64-linux-gnu > libs.tar
-
-          VERSION="$(docker run --rm "$GCR_IMG" --version | cut -d' ' -f2)"
-          echo "relay@$VERSION+$REVISION" > release-name
-
-          gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-          "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:$REVISION"
+          docker push "us.gcr.io/sentryio/relay:$REVISION"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'
@@ -324,6 +313,19 @@ jobs:
           set -euxo pipefail
           docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:nightly"
           docker push "us.gcr.io/sentryio/relay:nightly"
+
+      - name: Upload gocd deployment assets
+        run: |
+          set -euxo pipefail
+          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d' ' -f2)"
+          echo "relay@$VERSION+$REVISION" > release-name
+
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > libs.tar
+
+          gsutil -m cp ./release-name ./libs.tar ./relay-debug.zip ./relay.src.zip \
+          "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/"
 
   test_integration:
     name: Integration Tests
