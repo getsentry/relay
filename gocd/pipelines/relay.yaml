@@ -44,11 +44,6 @@ pipelines:
                     "Test (windows-latest)" \
                     "Test All Features (ubuntu-latest)" \
                     "Push GCR Docker Image"
-                - script: |
-                    /devinfra/scripts/checks/googlecloud/checkcloudbuild.py \
-                    ${GO_REVISION_RELAY_REPO} \
-                    sentryio \
-                    "us.gcr.io/sentryio/relay"
 
       - deploy-production:
           approval:
