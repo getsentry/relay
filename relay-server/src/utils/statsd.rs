@@ -13,8 +13,8 @@ where
     F: FnMut(&mut Annotated<Event>) -> R,
 {
     let Some(inner) = event.value() else {
-            return f(event);
-        };
+        return f(event);
+    };
 
     if inner.ty.value() != Some(&EventType::Transaction) {
         return f(event);
