@@ -237,6 +237,7 @@
 <a href="#236" id="236">236</a>
 <a href="#237" id="237">237</a>
 <a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -404,6 +405,7 @@
 
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = Services::new(
+            buffer.clone(),
             aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
