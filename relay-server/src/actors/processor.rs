@@ -2982,7 +2982,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_replay_id_added_from_dsc() {
-        let processor = create_test_processor(Default::default());
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": false,
+            },
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+        let processor = create_test_processor(config);
         let event_id = protocol::EventId::new();
 
         let dsn: Dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2992,6 +3003,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
+        let replay_id = Uuid::new_v4();
         let test_dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             release: None,
@@ -3004,7 +3016,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             other: BTreeMap::new(),
-            replay_id: Some(Uuid::new_v4()),
+            replay_id: Some(replay_id),
         };
 
         envelope.set_dsc(test_dsc);
@@ -3026,7 +3038,16 @@ mod tests {
         let new_envelope = ctx.envelope();
 
         let item = new_envelope.items().next().unwrap();
-        println!("{:?}", item);
+
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+
+        let contexts = event.contexts.into_value().unwrap();
+        let replay_context = contexts.get("replay").unwrap();
+        let replay_str = replay_id.to_string().replace("-", "");
+        let output = format!(r#"{{"replay_id":"{replay_str}","type":"replay"}}"#);
+        assert_eq!(output, replay_context.to_json().unwrap());
     }
 
     #[tokio::test]
