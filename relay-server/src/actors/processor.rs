@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::net;
@@ -15,9 +15,7 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig, TransactionMetricsConfig,
-};
+use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -43,12 +41,15 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
+    crate::metrics_extraction::transactions::extract_universal_tags,
     crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
+    relay_dynamic_config::TransactionMetricsConfig,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    std::collections::BTreeSet,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -60,9 +61,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::{
-    extract_transaction_metrics, extract_universal_tags, ExtractMetricsError,
-};
+use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
