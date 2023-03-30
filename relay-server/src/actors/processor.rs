@@ -1757,9 +1757,8 @@ impl EnvelopeProcessorService {
         // event id. To be defensive, we always overwrite to ensure consistency.
         event.id = Annotated::new(event_id);
 
-        // In processing mode, also write metrics into the event. Most metrics have already been
-        // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
+            // add the replay_id to the event's context if it exists on the DSC
             if let Some(dsc) = envelope.dsc() {
                 if let Some(replay_id) = dsc.replay_id {
                     let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -1769,6 +1768,8 @@ impl EnvelopeProcessorService {
                 }
             }
 
+            // In processing mode, also write metrics into the event. Most metrics have already been
+            // collected at this state, except for the combined size of all attachments.
             let mut metrics = std::mem::take(&mut state.metrics);
 
             let attachment_size = envelope
