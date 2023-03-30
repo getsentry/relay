@@ -132,11 +132,13 @@ fn traverse_items(items: &[Item], path: &str, mut paths: Vec<String>) -> Vec<Str
 
                 for field in &item_struct.fields {
                     let nested_items = get_nested_types(&field.ty);
-                    paths = traverse_items(
-                        &nested_items,
-                        &format!("{}.{}", new_path, field.ident.as_ref().unwrap()),
-                        paths,
-                    );
+                    if field.ident.as_ref().is_some() {
+                        paths = traverse_items(
+                            &nested_items,
+                            &format!("{}.{}", new_path, field.ident.as_ref().unwrap()),
+                            paths,
+                        );
+                    }
                 }
             }
             Item::Enum(item_enum) => {
@@ -157,11 +159,13 @@ fn traverse_items(items: &[Item], path: &str, mut paths: Vec<String>) -> Vec<Str
 
                     for field in &variant.fields {
                         let nested_items = get_nested_types(&field.ty);
-                        paths = traverse_items(
-                            &nested_items,
-                            &format!("{}.{}", variant_path, field.ident.as_ref().unwrap()),
-                            paths,
-                        );
+                        if field.ident.as_ref().is_some() {
+                            paths = traverse_items(
+                                &nested_items,
+                                &format!("{}.{}", variant_path, field.ident.as_ref().unwrap()),
+                                paths,
+                            );
+                        }
                     }
                 }
             }
