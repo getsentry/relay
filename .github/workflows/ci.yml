@@ -271,6 +271,7 @@ jobs:
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
       GCR_IMG: us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -290,12 +291,12 @@ jobs:
           workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
           service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
 
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v1'
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v1"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
-          version: '>= 390.0.0'
+          version: ">= 390.0.0"
 
       - name: Configure docker
         run: |
@@ -310,12 +311,12 @@ jobs:
           docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --entrypoint cat "$GCR_IMG" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "$GCR_IMG" -cf - /lib/x86_64-linux-gnu > libs.tar
-          docker run --rm --entrypoint cat "$GCR_IMG" /opt/release-name > release-name
 
-          gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip \
-          "gs://dicd-team-devinfra-cd--relay/deployment-assets/${{ github.event.pull_request.head.sha || github.sha }}/"
-          gsutil -m cp ./release-name \
-          "gs://dicd-team-devinfra-cd--relay/deployment-assets/${{ github.event.pull_request.head.sha || github.sha }}/"
+          VERSION="$(docker run --rm "$GCR_IMG" --version | cut -d' ' -f2)"
+          echo "relay@$VERSION+$REVISION" > release-name
+
+          gsutil -m cp ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
+          "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'

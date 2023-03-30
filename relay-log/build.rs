@@ -21,21 +21,6 @@ fn emit_release_var() -> Result<(), io::Error> {
     let revision = String::from_utf8_lossy(&cmd.stdout);
     println!("cargo:rustc-env=RELAY_RELEASE=relay@{version}+{revision}");
 
-    // This file is uploaded to the GoCD deployment bucket
-    // for creating sentry releases.
-    let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let target = env::var("TARGET").unwrap();
-    let profile = env::var("PROFILE").unwrap();
-    let dest = Path::new(&cargo_manifest_dir)
-        .parent()
-        .unwrap()
-        .join("target")
-        .join(target)
-        .join(profile)
-        .join("release-name");
-    let mut f = File::create(dest).unwrap();
-    write!(f, "relay@{version}+{revision}")?;
-
     Ok(())
 }
 

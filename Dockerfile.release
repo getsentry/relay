@@ -21,7 +21,7 @@ WORKDIR /work
 EXPOSE 3000
 
 COPY ./relay-bin /bin/relay
-COPY relay-debug.zip relay.src.zip release-name /opt/
+COPY relay-debug.zip relay.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]

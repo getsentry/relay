@@ -11,15 +11,10 @@
 set -eu
 
 REVISION="${1:-}"
-ENVIRONMENT="${2:-}"
 GITHUB_PROJECT="getsentry/relay"
 
 if [ -z "${REVISION}" ]; then
   echo 'No revision specified' && exit 1
-fi
-
-if [ -z "${ENVIRONMENT}" ]; then
-  echo 'No environment specified' && exit 1
 fi
 
 if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
@@ -32,6 +27,7 @@ fi
 
 echo 'Downloading debug info, source bundle, system symbols...'
 gsutil cp \
+  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/release-name" \
   "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/relay-debug.zip" \
   "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/relay.src.zip" \
   "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/libs.tar" \
@@ -44,14 +40,10 @@ echo 'Uploading system symbols...'
 tar xf libs.tar
 sentry-cli upload-dif lib/x86_64-linux-gnu
 
-gsutil cp \
-  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/release-name" \
-  .
-
-RELEASE=$(<release-name)
-echo "Creating release ${RELEASE} and ${ENVIRONMENT} deploy in Sentry..."
+RELEASE=$(< ./release-name)
+echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
 sentry-cli releases new "${RELEASE}"
 sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
-sentry-cli releases deploys "${RELEASE}" new -e "$ENVIRONMENT"
+sentry-cli releases deploys "${RELEASE}" new -e production
 sentry-cli releases finalize "${RELEASE}"
 echo 'Deploy created.'
