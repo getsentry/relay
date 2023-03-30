@@ -1129,7 +1129,7 @@ impl Envelope {
         let mut items = Items::new();
 
         while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            let (item, item_size) = Self::parse_item(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
         }
@@ -1172,7 +1172,7 @@ impl Envelope {
             },
         };
 
-        let payload = bytes.slice(payload_start, payload_end);
+        let payload = bytes.slice(payload_start..payload_end);
         let item = Item { headers, payload };
 
         Ok((item, payload_end + 1))
