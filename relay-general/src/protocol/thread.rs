@@ -263,6 +263,7 @@ mod tests {
                 package_name: Annotated::new("android.database.sqlite".to_string()),
                 class_name: Annotated::new("SQLiteConnection".to_string()),
                 thread_id: Annotated::new(ThreadId::Int(2)),
+                other: Default::default(),
             }),
             other: {
                 let mut map = Map::new();
