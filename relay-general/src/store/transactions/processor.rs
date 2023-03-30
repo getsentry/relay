@@ -350,16 +350,15 @@ impl Processor for TransactionsProcessor<'_> {
         if self.name_config.scrub_identifiers {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            let mut sanitize_transaction = false;
+            let mut sanitized = false;
 
             if matches!(
                 event.get_transaction_source(),
                 &TransactionSource::Url | &TransactionSource::Sanitized
             ) {
-                let scrubbed_identifiers = scrub_identifiers(&mut event.transaction);
-                if scrubbed_identifiers.map_or(false, |scrubbed| scrubbed) {
-                    sanitize_transaction = true;
-                }
+                scrub_identifiers(&mut event.transaction)?.then(|| {
+                    sanitized = true;
+                });
             }
 
             if !self.name_config.rules.is_empty() {
@@ -368,11 +367,11 @@ impl Processor for TransactionsProcessor<'_> {
                     event.transaction_info.value_mut(),
                 )?;
 
-                sanitize_transaction = true;
+                sanitized = true;
             }
 
-            if matches!(event.get_transaction_source(), &TransactionSource::Url)
-                && sanitize_transaction
+            if sanitized
+                && matches!(event.get_transaction_source(), &TransactionSource::Url)
                 && self.name_config.mark_scrubbed_as_sanitized
             {
                 event
