@@ -27,10 +27,10 @@ fi
 
 echo 'Downloading debug info, source bundle, system symbols...'
 gsutil cp \
-  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/release-name" \
-  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/relay-debug.zip" \
-  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/relay.src.zip" \
-  "gs://dicd-team-devinfra-cd--relay/release-assets/${REVISION}/libs.tar" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/release-name" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay-debug.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay.src.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/libs.tar" \
   .
 
 echo 'Uploading debug information and source bundle...'
