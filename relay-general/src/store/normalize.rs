@@ -2772,7 +2772,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 1000.into(),
+                        model: "iPhone8,4".to_string().into(),
                         ..Default::default()
                     })))),
                 );
@@ -2804,7 +2804,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 2000.into(),
+                        model: "iPhone12,8".to_string().into(),
                         ..Default::default()
                     })))),
                 );
@@ -2836,7 +2836,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 3000.into(),
+                        model: "iPhone15,3".to_string().into(),
                         ..Default::default()
                     })))),
                 );
