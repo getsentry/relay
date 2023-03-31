@@ -47,7 +47,8 @@ pipelines:
 
       - deploy-experimental:
           approval:
-            type: manual
+            type: success
+            allow_only_on_success: true
           fetch_materials: true
 
           jobs:
