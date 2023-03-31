@@ -458,6 +458,16 @@ pub enum RelayCounters {
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
     EventTransactionSource,
+    /// The number of transaction events processed grouped by transaction name modifications.
+    /// This metric is tagged with:
+    ///  - `source_in`: The source of the transaction name before normalization.
+    ///    See the [transaction source
+    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+    ///    for all valid values.
+    ///  - `change`: The mechanism that changed the transaction name.
+    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
+    ///  - `source_out`: The source of the transaction name after normalization.
+    TransactionNameChanges,
     /// Number of HTTP requests reaching Relay.
     Requests,
     /// Number of completed HTTP requests.
@@ -515,6 +525,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::EventTransactionSource => "event.transaction_source",
+            RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",

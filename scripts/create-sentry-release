@@ -43,7 +43,8 @@ sentry-cli upload-dif lib/x86_64-linux-gnu
 RELEASE=$(< ./release-name)
 echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
 sentry-cli releases new "${RELEASE}"
-sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
+# NOTE: Disabled until the repository is properly configured in Sentry
+# sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
 sentry-cli releases deploys "${RELEASE}" new -e production
 sentry-cli releases finalize "${RELEASE}"
 echo 'Deploy created.'
