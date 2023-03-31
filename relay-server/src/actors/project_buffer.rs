@@ -263,6 +263,58 @@ impl BufferService {
             )))
     }
 
+    /// Saves the provided buffer to the disk.
+    ///
+    /// It returns an error if the spooling failed.
+    async fn do_spool(
+        db: Pool<Sqlite>,
+        buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
+    ) -> Result<(), BufferError> {
+        // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
+        // Once we started spooling our in-memory buffer, the dequeue from the disk
+        // will be blocked till this operations either fails, or commits.
+        sqlx::query("BEGIN").execute(&db).await?;
+
+        // A builder type for constructing queries at runtime.
+        // This by default creates a prepared sql statement, which is cached and
+        // re-used for sequential queries.
+        let mut query_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
+
+        // Flatten all the envelopes
+        let envelopes = buffer.into_iter().flat_map(|(k, vals)| {
+            vals.into_iter()
+                .map(move |v| (k, v.into_envelope().to_vec()))
+        });
+
+        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+        // here to prepare the chnunks which will be preparing the batch inserts.
+        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+        while let Some(chunk) = envelopes.next().await {
+            query_builder.push_values(chunk.into_iter(), |mut b, (key, value)| match value {
+                Ok(value) => {
+                    b.push_bind(key.own_key.to_string())
+                        .push_bind(key.sampling_key.to_string())
+                        .push_bind(value);
+                }
+                Err(err) => {
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err))
+                }
+            });
+            query_builder.build().execute(&db).await?;
+            // Reset the builder to initial state set by `QueryBuilder::new` function,
+            // so it can be reused for another chunk.
+            query_builder.reset();
+        }
+
+        // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
+        // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
+        // TODO: re-try failed commit?
+        sqlx::query("COMMIT").execute(&db).await?;
+
+        Ok(())
+    }
+
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
@@ -296,62 +348,11 @@ impl BufferService {
 
                 // spawn the task to enqueue the entire buffer
                 tokio::spawn(async move {
-                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
-                    // Once we started spooling our in-memory buffer, the dequeue from the disk
-                    // will be blocked till this operations either fails, or commits.
-                    if let Err(err) = sqlx::query("BEGIN").execute(&db).await {
-                        relay_log::error!("failed to initiate a transaction: {}", LogError(&err));
-                    }
-
-                    // A builder type for constructing queries at runtime.
-                    // This by default creates a prepared sql statement, which is cached and
-                    // re-used for sequential queries.
-                    let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-                        "INSERT INTO envelopes (own_key, sampling_key, envelope) ",
-                    );
-
-                    // Flatten all the envelopes
-                    let envelopes = buf.into_iter().flat_map(|(k, vals)| {
-                        vals.into_iter()
-                            .map(move |v| (k, v.into_envelope().to_vec()))
-                    });
-
-                    // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-                    // here to prepare the chnunks which will be preparing the batch inserts.
-                    let mut envelopes =
-                        stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-                    while let Some(chunk) = envelopes.next().await {
-                        query_builder.push_values(chunk.into_iter(), |mut b, v| match v.1 {
-                            Ok(envelope_bytes) => {
-                                b.push_bind(v.0.own_key.to_string())
-                                    .push_bind(v.0.sampling_key.to_string())
-                                    .push_bind(envelope_bytes);
-                            }
-                            Err(err) => {
-                                relay_log::error!(
-                                    "failed to serialize the envelope: {}",
-                                    LogError(&err)
-                                )
-                            }
-                        });
-
-                        let query = query_builder.build();
-                        if let Err(err) = query.execute(&db).await {
-                            relay_log::error!(
-                                "failed to buffer envelopes to disk: {}",
-                                LogError(&err)
-                            )
-                        }
-                        // Reset the builder to initial state set by `QueryBuilder::new` function,
-                        // so it can be reused for another chunk.
-                        query_builder.reset();
-                    }
-
-                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
-                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
-                    // TODO: re-try failed commit?
-                    if let Err(err) = sqlx::query("COMMIT").execute(&db).await {
-                        relay_log::error!("failed to commit a transaction: {}", LogError(&err));
+                    if let Err(err) = Self::do_spool(db, buf).await {
+                        relay_log::error!(
+                            "failed to spool memory buffer to the disk: {}",
+                            LogError(&err)
+                        );
                     }
                 });
             }
