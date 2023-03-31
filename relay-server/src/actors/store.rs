@@ -1010,16 +1010,19 @@ fn construct_kafka_metric_message(
     let (flat_type, flat_value) = match bucket.value {
         BucketValue::Distribution(value) => (
             ingest_metrics_v1::IngestMetricType::D,
-            ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(value.iter_values().collect()),
+            ingest_metrics_v1::IngestMetricValue::DistributionMetricValue(
+                value.iter_values().collect(),
+            ),
         ),
         BucketValue::Counter(value) => (
             ingest_metrics_v1::IngestMetricType::C,
-            ingest_metrics_v1::IngestMetricValue::NumberMetricValue(value),
+            ingest_metrics_v1::IngestMetricValue::CounterMetricValue(value),
         ),
         BucketValue::Set(values) => (
             ingest_metrics_v1::IngestMetricType::S,
-            ingest_metrics_v1::IngestMetricValue::NumbersMetricValue(
-                values.into_iter().map(f64::from).collect(),
+            ingest_metrics_v1::IngestMetricValue::SetMetricValue(
+                // convert from BTreeSet to Vec
+                values.into_iter().collect(),
             ),
         ),
         BucketValue::Gauge(_) => {
