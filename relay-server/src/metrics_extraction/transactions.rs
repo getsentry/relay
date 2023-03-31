@@ -8,8 +8,8 @@ use relay_general::protocol::{
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricResourceIdentifier, MetricType,
-    MetricValue,
+    AggregatorConfig, CounterType, DistributionType, DurationUnit, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricType, MetricValue,
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -17,39 +17,459 @@ use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
 /// Enumerates the most common transaction-names, with a catch-all for any other names.
+#[derive(Clone, Debug, PartialEq)]
+enum TransactionsKind {
+    User {
+        value: String,
+        timestamp: UnixTimestamp,
+        tags: TransactionsUserTags,
+    },
+    Duration {
+        unit: DurationUnit,
+        value: DistributionType,
+        timestamp: UnixTimestamp,
+        tags: TransactionsDurationTags,
+    },
+    CountPerRootProject {
+        value: CounterType,
+        timestamp: UnixTimestamp,
+        tags: TransactionsCPRTags,
+    },
+    Breakdowns {
+        name: String,
+        timestamp: UnixTimestamp,
+        value: DistributionType,
+        tags: TransactionsBreakdownTags,
+    },
+    Measurements {
+        kind: String,
+        value: DistributionType,
+        timestamp: UnixTimestamp,
+        unit: MetricUnit,
+        tags: TransactionsMeasurementTags,
+    },
+}
+
+impl From<TransactionsKind> for Metric {
+    fn from(value: TransactionsKind) -> Self {
+        let mri: MetricResourceIdentifier = value.clone().into();
+
+        let (value, timestamp, tags) = match value {
+            TransactionsKind::User {
+                value,
+                timestamp,
+                tags,
+            } => (MetricValue::set_from_str(&value), timestamp, tags.into()),
+            TransactionsKind::Breakdowns {
+                timestamp,
+                value,
+                tags,
+                ..
+            } => (MetricValue::Distribution(value), timestamp, tags.into()),
+            TransactionsKind::CountPerRootProject {
+                value,
+                timestamp,
+                tags,
+            } => (MetricValue::Counter(value), timestamp, tags.into()),
+            TransactionsKind::Duration {
+                unit,
+                value,
+                timestamp,
+                tags,
+            } => (MetricValue::Distribution(value), timestamp, tags.into()),
+            TransactionsKind::Measurements {
+                kind,
+                value,
+                timestamp,
+                unit,
+                tags,
+            } => (MetricValue::Distribution(value), timestamp, tags.into()),
+        };
+
+        Metric::new(mri, value, timestamp, tags)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TransactionsKind {
-    User,
-    Duration(DurationUnit),
-    CountPerRootProject,
-    Breakdowns(String),
-    Measurements { kind: String, unit: MetricUnit },
+struct TransactionsMeasurementTags {
+    measurement_rating: Option<String>,
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+
+impl TransactionsMeasurementTags {
+    fn new(measurement_rating: Option<String>, universal_tags: UniversalTags) -> Self {
+        Self {
+            measurement_rating,
+            release: universal_tags.release,
+            dist: universal_tags.dist,
+            environment: universal_tags.environment,
+            transaction: universal_tags.transaction,
+            platform: universal_tags.platform,
+            transaction_status: universal_tags.transaction_status,
+            transaction_op: universal_tags.transaction_op,
+            http_method: universal_tags.http_method,
+            other: universal_tags.other,
+        }
+    }
+}
+
+impl From<TransactionsMeasurementTags> for BTreeMap<String, String> {
+    fn from(value: TransactionsMeasurementTags) -> Self {
+        let mut map = value.other;
+
+        if let Some(measurement_rating) = value.measurement_rating {
+            map.insert(
+                "measurement_rating".to_string(),
+                measurement_rating.to_string(),
+            );
+        }
+
+        if let Some(release) = value.release {
+            map.insert("release".to_string(), release.to_string());
+        }
+
+        if let Some(dist) = value.dist {
+            map.insert("dist".to_string(), dist.to_string());
+        }
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".to_string(), environment.to_string());
+        }
+
+        if let Some(transaction) = value.transaction {
+            map.insert("transaction".to_string(), transaction.to_string());
+        }
+        if let Some(platform) = value.platform {
+            map.insert("platform".to_string(), platform.to_string());
+        }
+        if let Some(transaction_status) = value.transaction_status {
+            map.insert(
+                "transaction.status".to_string(),
+                transaction_status.to_string(),
+            );
+        }
+        if let Some(transaction_op) = value.transaction_op {
+            map.insert("transaction.op".to_string(), transaction_op.to_string());
+        }
+        if let Some(http_method) = value.http_method {
+            map.insert("http.method".to_string(), http_method.to_string());
+        }
+
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TransactionsBreakdownTags {
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+
+impl TransactionsBreakdownTags {
+    fn new(universal_tags: UniversalTags) -> Self {
+        Self {
+            release: universal_tags.release,
+            dist: universal_tags.dist,
+            environment: universal_tags.environment,
+            transaction: universal_tags.transaction,
+            platform: universal_tags.platform,
+            transaction_status: universal_tags.transaction_status,
+            transaction_op: universal_tags.transaction_op,
+            http_method: universal_tags.http_method,
+            other: universal_tags.other,
+        }
+    }
+}
+
+impl From<TransactionsBreakdownTags> for BTreeMap<String, String> {
+    fn from(value: TransactionsBreakdownTags) -> Self {
+        let mut map = value.other;
+
+        if let Some(release) = value.release {
+            map.insert("release".to_string(), release.to_string());
+        }
+
+        if let Some(dist) = value.dist {
+            map.insert("dist".to_string(), dist.to_string());
+        }
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".to_string(), environment.to_string());
+        }
+
+        if let Some(transaction) = value.transaction {
+            map.insert("transaction".to_string(), transaction.to_string());
+        }
+        if let Some(platform) = value.platform {
+            map.insert("platform".to_string(), platform.to_string());
+        }
+        if let Some(transaction_status) = value.transaction_status {
+            map.insert(
+                "transaction.status".to_string(),
+                transaction_status.to_string(),
+            );
+        }
+        if let Some(transaction_op) = value.transaction_op {
+            map.insert("transaction.op".to_string(), transaction_op.to_string());
+        }
+        if let Some(http_method) = value.http_method {
+            map.insert("http.method".to_string(), http_method.to_string());
+        }
+
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TransactionsCPRTags {
+    decision: String,
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+
+impl TransactionsCPRTags {
+    fn new(decision: &SamplingResult, universal_tags: UniversalTags) -> Self {
+        let decision = match decision {
+            SamplingResult::Keep => "keep".to_owned(),
+            SamplingResult::Drop(_) => "drop".to_owned(),
+        };
+        Self {
+            decision,
+            release: universal_tags.release,
+            dist: universal_tags.dist,
+            environment: universal_tags.environment,
+            transaction: universal_tags.transaction,
+            platform: universal_tags.platform,
+            transaction_status: universal_tags.transaction_status,
+            transaction_op: universal_tags.transaction_op,
+            http_method: universal_tags.http_method,
+            other: universal_tags.other,
+        }
+    }
+}
+
+impl From<TransactionsCPRTags> for BTreeMap<String, String> {
+    fn from(value: TransactionsCPRTags) -> Self {
+        let mut map = value.other;
+
+        map.insert("decision".to_string(), value.decision);
+
+        if let Some(release) = value.release {
+            map.insert("release".to_string(), release.to_string());
+        }
+
+        if let Some(dist) = value.dist {
+            map.insert("dist".to_string(), dist.to_string());
+        }
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".to_string(), environment.to_string());
+        }
+
+        if let Some(transaction) = value.transaction {
+            map.insert("transaction".to_string(), transaction.to_string());
+        }
+        if let Some(platform) = value.platform {
+            map.insert("platform".to_string(), platform.to_string());
+        }
+        if let Some(transaction_status) = value.transaction_status {
+            map.insert(
+                "transaction.status".to_string(),
+                transaction_status.to_string(),
+            );
+        }
+        if let Some(transaction_op) = value.transaction_op {
+            map.insert("transaction.op".to_string(), transaction_op.to_string());
+        }
+        if let Some(http_method) = value.http_method {
+            map.insert("http.method".to_string(), http_method.to_string());
+        }
+
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TransactionsDurationTags {
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+impl TransactionsDurationTags {
+    fn new(universal_tags: UniversalTags) -> Self {
+        Self {
+            release: universal_tags.release,
+            dist: universal_tags.dist,
+            environment: universal_tags.environment,
+            transaction: universal_tags.transaction,
+            platform: universal_tags.platform,
+            transaction_status: universal_tags.transaction_status,
+            transaction_op: universal_tags.transaction_op,
+            http_method: universal_tags.http_method,
+            other: universal_tags.other,
+        }
+    }
+}
+
+impl From<TransactionsDurationTags> for BTreeMap<String, String> {
+    fn from(value: TransactionsDurationTags) -> Self {
+        let mut map = value.other;
+
+        if let Some(release) = value.release {
+            map.insert("release".to_string(), release.to_string());
+        }
+
+        if let Some(dist) = value.dist {
+            map.insert("dist".to_string(), dist.to_string());
+        }
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".to_string(), environment.to_string());
+        }
+
+        if let Some(transaction) = value.transaction {
+            map.insert("transaction".to_string(), transaction.to_string());
+        }
+        if let Some(platform) = value.platform {
+            map.insert("platform".to_string(), platform.to_string());
+        }
+        if let Some(transaction_status) = value.transaction_status {
+            map.insert(
+                "transaction.status".to_string(),
+                transaction_status.to_string(),
+            );
+        }
+        if let Some(transaction_op) = value.transaction_op {
+            map.insert("transaction.op".to_string(), transaction_op.to_string());
+        }
+        if let Some(http_method) = value.http_method {
+            map.insert("http.method".to_string(), http_method.to_string());
+        }
+
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TransactionsUserTags {
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+
+impl TransactionsUserTags {
+    fn new(universal_tags: UniversalTags) -> Self {
+        Self {
+            release: universal_tags.release,
+            dist: universal_tags.dist,
+            environment: universal_tags.environment,
+            transaction: universal_tags.transaction,
+            platform: universal_tags.platform,
+            transaction_status: universal_tags.transaction_status,
+            transaction_op: universal_tags.transaction_op,
+            http_method: universal_tags.http_method,
+            other: universal_tags.other,
+        }
+    }
+}
+
+impl From<TransactionsUserTags> for BTreeMap<String, String> {
+    fn from(value: TransactionsUserTags) -> Self {
+        let mut map = value.other;
+
+        if let Some(release) = value.release {
+            map.insert("release".to_string(), release.to_string());
+        }
+
+        if let Some(dist) = value.dist {
+            map.insert("dist".to_string(), dist.to_string());
+        }
+
+        if let Some(environment) = value.environment {
+            map.insert("environment".to_string(), environment.to_string());
+        }
+
+        if let Some(transaction) = value.transaction {
+            map.insert("transaction".to_string(), transaction.to_string());
+        }
+        if let Some(platform) = value.platform {
+            map.insert("platform".to_string(), platform.to_string());
+        }
+        if let Some(transaction_status) = value.transaction_status {
+            map.insert(
+                "transaction.status".to_string(),
+                transaction_status.to_string(),
+            );
+        }
+        if let Some(transaction_op) = value.transaction_op {
+            map.insert("transaction.op".to_string(), transaction_op.to_string());
+        }
+        if let Some(http_method) = value.http_method {
+            map.insert("http.method".to_string(), http_method.to_string());
+        }
+
+        map
+    }
 }
 
 impl From<TransactionsKind> for MetricResourceIdentifier {
     fn from(value: TransactionsKind) -> Self {
         let ty = match value {
-            TransactionsKind::Breakdowns(_) => MetricType::Distribution,
-            TransactionsKind::CountPerRootProject => MetricType::Counter,
-            TransactionsKind::Duration(_) => MetricType::Distribution,
+            TransactionsKind::Breakdowns { .. } => MetricType::Distribution,
+            TransactionsKind::CountPerRootProject { .. } => MetricType::Counter,
+            TransactionsKind::Duration { .. } => MetricType::Distribution,
             TransactionsKind::Measurements { .. } => MetricType::Distribution,
-            TransactionsKind::User => MetricType::Set,
+            TransactionsKind::User { .. } => MetricType::Set,
         };
         let namespace = MetricNamespace::Transactions;
 
         let unit = match value {
             TransactionsKind::Measurements { unit, .. } => unit,
-            TransactionsKind::Duration(unit) => MetricUnit::Duration(unit),
-            TransactionsKind::Breakdowns(_) => MetricUnit::Duration(DurationUnit::MilliSecond),
-            TransactionsKind::User => MetricUnit::None,
-            TransactionsKind::CountPerRootProject => MetricUnit::None,
+            TransactionsKind::Duration { unit, .. } => MetricUnit::Duration(unit),
+            TransactionsKind::Breakdowns { .. } => MetricUnit::Duration(DurationUnit::MilliSecond),
+            TransactionsKind::User { .. } => MetricUnit::None,
+            TransactionsKind::CountPerRootProject { .. } => MetricUnit::None,
         };
 
         let name = match value {
-            TransactionsKind::Duration(_) => "duration".to_string(),
-            TransactionsKind::Breakdowns(breakdown) => format!("breakdowns.{breakdown}"),
-            TransactionsKind::User => "user".to_string(),
-            TransactionsKind::CountPerRootProject => "count_per_root_project".to_string(),
+            TransactionsKind::Duration { .. } => "duration".to_string(),
+            TransactionsKind::Breakdowns { name, .. } => format!("breakdowns.{name}"),
+            TransactionsKind::User { .. } => "user".to_string(),
+            TransactionsKind::CountPerRootProject { .. } => "count_per_root_project".to_string(),
             TransactionsKind::Measurements { kind, .. } => format!("measurements.{kind}"),
         };
 
@@ -205,23 +625,33 @@ fn get_transaction_name(
     name
 }
 
+#[derive(Default, Clone)]
+struct UniversalTags {
+    release: Option<String>,
+    dist: Option<String>,
+    environment: Option<String>,
+    transaction: Option<String>,
+    platform: Option<String>,
+    transaction_status: Option<String>,
+    transaction_op: Option<String>,
+    http_method: Option<String>,
+    other: BTreeMap<String, String>,
+}
+
 /// These are the tags that are added to all extracted metrics.
-fn extract_universal_tags(
-    event: &Event,
-    config: &TransactionMetricsConfig,
-) -> BTreeMap<String, String> {
-    let mut tags = BTreeMap::new();
+fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> UniversalTags {
+    let mut tags = UniversalTags::default();
     if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
+        tags.release = release.to_owned().into();
     }
     if let Some(dist) = event.dist.value() {
-        tags.insert("dist".to_owned(), dist.clone());
+        tags.dist = dist.clone().into();
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
+        tags.environment = environment.to_owned().into();
     }
     if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert("transaction".to_owned(), transaction_name);
+        tags.transaction = transaction_name.into();
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -232,19 +662,19 @@ fn extract_universal_tags(
         Some(platform) if store::is_valid_platform(platform) => platform,
         _ => "other",
     };
-    tags.insert("platform".to_owned(), platform.to_owned());
+    tags.platform = platform.to_owned().into();
 
     if let Some(trace_context) = get_trace_context(event) {
         let status = extract_transaction_status(trace_context);
-        tags.insert("transaction.status".to_owned(), status.to_string());
+        tags.transaction_status = status.to_string().into();
 
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert("transaction.op".to_owned(), op);
+            tags.transaction_op = op.into();
         }
     }
 
     if let Some(http_method) = extract_http_method(event) {
-        tags.insert("http.method".to_owned(), http_method);
+        tags.http_method = http_method.into();
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -256,7 +686,7 @@ fn extract_universal_tags(
                     let (key, value) = entry.as_pair();
                     if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
                         if custom_tags.contains(key) {
-                            tags.insert(key.to_owned(), value.to_owned());
+                            tags.other.insert(key.to_owned(), value.to_owned());
                         }
                     }
                 }
@@ -341,21 +771,18 @@ fn extract_transaction_metrics_inner(
                 None => continue,
             };
 
-            let mut tags_for_measurement = tags.clone();
-            if let Some(rating) = get_measurement_rating(name, value) {
-                tags_for_measurement.insert("measurement_rating".to_owned(), rating);
-            }
+            let rating = get_measurement_rating(name, value);
 
-            metrics.push(Metric::new(
+            metrics.push(
                 TransactionsKind::Measurements {
                     kind: name.to_string(),
+                    value,
+                    timestamp,
                     unit: measurement.unit.value().copied().unwrap_or_default(),
+                    tags: TransactionsMeasurementTags::new(rating, tags.clone()),
                 }
                 .into(),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags_for_measurement,
-            ));
+            );
         }
     }
 
@@ -379,54 +806,66 @@ fn extract_transaction_metrics_inner(
                         Some(value) => *value,
                         None => continue,
                     };
-
-                    metrics.push(Metric::new(
-                        TransactionsKind::Breakdowns(format!("{breakdown}.{measurement_name}"))
-                            .into(),
-                        MetricValue::Distribution(value),
-                        timestamp,
-                        tags.clone(),
-                    ));
+                    metrics.push(
+                        TransactionsKind::Breakdowns {
+                            name: format!("{breakdown}.{measurement_name}"),
+                            timestamp,
+                            value,
+                            tags: TransactionsBreakdownTags::new(tags.clone()),
+                        }
+                        .into(),
+                    );
                 }
             }
         }
     }
 
     // Duration
-    metrics.push(Metric::new(
-        TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
-        MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-        timestamp,
-        tags.clone(),
-    ));
+    metrics.push(
+        TransactionsKind::Duration {
+            unit: DurationUnit::MilliSecond,
+            value: relay_common::chrono_to_positive_millis(end - start),
+            timestamp,
+            tags: TransactionsDurationTags::new(tags.clone()),
+        }
+        .into(),
+    );
 
-    let mut root_counter_tags = BTreeMap::new();
+    /*
+        metrics.push(Metric::new(
+            TransactionsKind::Duration(DurationUnit::MilliSecond).into(),
+            MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
+            timestamp,
+            tags.clone(),
+        ));
+    */
+
+    let mut root_counter_tags = TransactionsCPRTags::new(sampling_result, tags.clone());
     if let Some(name) = transaction_from_dsc {
-        root_counter_tags.insert("transaction".to_owned(), name.to_owned());
+        root_counter_tags.transaction = transaction_from_dsc.map(|t| t.to_owned());
     }
-    let decision = match sampling_result {
-        SamplingResult::Keep => "keep".to_owned(),
-        SamplingResult::Drop(_) => "drop".to_owned(),
-    };
-    root_counter_tags.insert("decision".to_owned(), decision);
 
     // Count the transaction towards the root
-    sampling_metrics.push(Metric::new(
-        TransactionsKind::CountPerRootProject.into(),
-        MetricValue::Counter(1.0),
-        timestamp,
-        root_counter_tags,
-    ));
+    sampling_metrics.push(
+        TransactionsKind::CountPerRootProject {
+            value: 1.0,
+            timestamp,
+            tags: root_counter_tags,
+        }
+        .into(),
+    );
 
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new(
-                TransactionsKind::User.into(),
-                MetricValue::set_from_str(&value),
-                timestamp,
-                tags,
-            ));
+            metrics.push(
+                TransactionsKind::User {
+                    value,
+                    timestamp,
+                    tags: TransactionsUserTags::new(tags),
+                }
+                .into(),
+            );
         }
     }
 
@@ -1209,24 +1648,22 @@ mod tests {
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
+        let mut tags = extract_universal_tags(&event.value().unwrap(), &config);
+        tags.other
+            .insert("satisfaction".to_owned(), "frustrated".to_owned());
+        tags.platform = Some("other".to_string());
+        let measurement_tags = TransactionsMeasurementTags::new(Some("good".to_string()), tags);
+
         assert_eq!(
             metrics,
-            &[Metric::new(
-                TransactionsKind::Measurements {
-                    kind: "lcp".to_string(),
-                    unit: MetricUnit::Duration(DurationUnit::MilliSecond)
-                }
-                .into(),
-                MetricValue::Distribution(41.0),
-                UnixTimestamp::from_secs(1619420402),
-                {
-                    let mut tags = BTreeMap::new();
-                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
-                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
-                    tags.insert("platform".to_owned(), "other".to_owned());
-                    tags
-                }
-            )]
+            &[TransactionsKind::Measurements {
+                kind: "lcp".to_string(),
+                value: 41.0,
+                timestamp: UnixTimestamp::from_secs(1619420402),
+                unit: MetricUnit::Duration(DurationUnit::MicroSecond),
+                tags: measurement_tags
+            }
+            .into()]
         );
     }
 
