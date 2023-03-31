@@ -3228,6 +3228,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "origin": {
+              "description": " The origin of the trace indicates what created the trace.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "parent_span_id": {
               "description": " The ID of the span enclosing this span.",
               "default": null,
@@ -3271,16 +3279,6 @@ expression: "relay_general::protocol::event_json_schema()"
                 },
                 {
                   "type": "null"
-                }
-              ]
-            },
-            "origin": {
-              "description": "The origin of the trace indicates what created the trace.",
-              "default": null,
-              "anyOf": [
-                {
-                  "type": "string",
-                  "null"
                 }
               ]
             }
