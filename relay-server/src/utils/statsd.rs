@@ -1,8 +1,11 @@
+use std::hash::Hasher;
+
+use fnv::FnvHasher;
 use relay_common::EventType;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, RemarkType};
 
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelaySets};
 
 /// Log statsd metrics about transaction name modifications.
 ///
@@ -20,6 +23,14 @@ where
         return f(event);
     }
 
+    // Create a hash of the old name so we can track it in a set metric:
+
+    let old_name = {
+        let old_name = inner.transaction.as_str().unwrap_or_default();
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(old_name, &mut hasher);
+        hasher.finish() as i64 // 2-complement
+    };
     let old_source = inner.get_transaction_source().to_string();
     let old_remarks = inner.transaction.meta().iter_remarks().count();
 
@@ -54,6 +65,12 @@ where
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,
+        source_in = old_source.as_str(),
+        changes = changes,
+        source_out = new_source.as_str(),
+    );
+    relay_statsd::metric!(
+        set(RelaySets::TransactionNameChanges) = old_name,
         source_in = old_source.as_str(),
         changes = changes,
         source_out = new_source.as_str(),
