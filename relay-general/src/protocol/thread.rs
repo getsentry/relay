@@ -1,9 +1,11 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{RawStacktrace, Stacktrace};
 use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 
 /// Represents a thread id.
@@ -69,11 +71,101 @@ impl Empty for ThreadId {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+
+pub enum LockReasonType {
+    Locked = 1,
+    Waiting = 2,
+    Sleeping = 4,
+    Blocked = 8,
+}
+
+impl LockReasonType {
+    fn from_android_lock_reason_type(value: u64) -> Option<LockReasonType> {
+        Some(match value {
+            1 => LockReasonType::Locked,
+            2 => LockReasonType::Waiting,
+            4 => LockReasonType::Sleeping,
+            8 => LockReasonType::Blocked,
+            _ => return None,
+        })
+    }
+}
+
+impl fmt::Display for LockReasonType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            LockReasonType::Locked => write!(f, "locked"),
+            LockReasonType::Waiting => write!(f, "waiting"),
+            LockReasonType::Sleeping => write!(f, "sleeping"),
+            LockReasonType::Blocked => write!(f, "blocked"),
+        }
+    }
+}
+
+impl Empty for LockReasonType {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl FromValue for LockReasonType {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::U64(val)), mut meta) => {
+                match LockReasonType::from_android_lock_reason_type(val) {
+                    Some(value) => Annotated(Some(value), meta),
+                    None => {
+                        meta.add_error(ErrorKind::InvalidData);
+                        meta.set_original_value(Some(val));
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            Annotated(Some(Value::I64(val)), mut meta) => {
+                match LockReasonType::from_android_lock_reason_type(val as u64) {
+                    Some(value) => Annotated(Some(value), meta),
+                    None => {
+                        meta.add_error(ErrorKind::InvalidData);
+                        meta.set_original_value(Some(val));
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("lock reason type"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+impl IntoValue for LockReasonType {
+    fn into_value(self) -> Value {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
+    }
+}
+
+impl ProcessValue for LockReasonType {}
+
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct LockReason {
     #[metastructure(field = "type", required = "true")]
-    pub ty: Annotated<u64>,
+    pub ty: Annotated<LockReasonType>,
     #[metastructure(skip_serialization = "empty")]
     pub address: Annotated<String>,
     #[metastructure(skip_serialization = "empty")]
@@ -231,9 +323,9 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_lock_reason() {
+    fn test_thread_lock_reason_roundtrip() {
         // stack traces are tested separately
-        let json = r#"{
+        let input = r#"{
   "id": 42,
   "name": "myname",
   "crashed": true,
@@ -258,7 +350,7 @@ mod tests {
             main: Annotated::new(true),
             state: Annotated::new("BLOCKED".to_string()),
             lock_reason: Annotated::new(LockReason {
-                ty: Annotated::new(1),
+                ty: Annotated::new(LockReasonType::Locked),
                 address: Annotated::empty(),
                 package_name: Annotated::new("android.database.sqlite".to_string()),
                 class_name: Annotated::new("SQLiteConnection".to_string()),
@@ -275,7 +367,23 @@ mod tests {
             },
         });
 
-        assert_eq!(thread, Annotated::from_json(json).unwrap());
-        assert_eq!(json, thread.to_json_pretty().unwrap());
+        assert_eq!(thread, Annotated::from_json(input).unwrap());
+
+        let output = r#"{
+  "id": 42,
+  "name": "myname",
+  "crashed": true,
+  "current": true,
+  "main": true,
+  "state": "BLOCKED",
+  "lock_reason": {
+    "type": "locked",
+    "package_name": "android.database.sqlite",
+    "class_name": "SQLiteConnection",
+    "thread_id": 2
+  },
+  "other": "value"
+}"#;
+        assert_eq!(output, thread.to_json_pretty().unwrap());
     }
 }

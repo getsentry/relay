@@ -2063,16 +2063,27 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "type": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LockReasonType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "additionalProperties": false
         }
+      ]
+    },
+    "LockReasonType": {
+      "type": "string",
+      "enum": [
+        "locked",
+        "waiting",
+        "sleeping",
+        "blocked"
       ]
     },
     "LogEntry": {
