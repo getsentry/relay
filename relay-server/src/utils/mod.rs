@@ -11,6 +11,7 @@ mod retry;
 mod semaphore;
 mod sizes;
 mod sleep_handle;
+mod statsd;
 
 #[cfg(feature = "processing")]
 mod native;
@@ -32,5 +33,6 @@ pub use self::retry::*;
 pub use self::semaphore::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
+pub use self::statsd::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
