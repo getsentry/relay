@@ -18,8 +18,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
       - name: Build in Docker
-        run: scripts/docker-build-linux.sh
+        run: |
+          TOOLCHAIN=$(cargo version | awk '{print $2}')
+          scripts/docker-build-linux.sh "$TOOLCHAIN"
         env:
           BUILD_ARCH: x86_64
           RELAY_FEATURES:
