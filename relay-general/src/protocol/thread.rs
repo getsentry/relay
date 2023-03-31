@@ -72,8 +72,8 @@ impl Empty for ThreadId {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 
 pub enum LockReasonType {
     Locked = 1,
