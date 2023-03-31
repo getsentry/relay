@@ -267,14 +267,9 @@ impl BufferService {
     ///
     /// It returns an error if the spooling failed.
     async fn do_spool(
-        db: Pool<Sqlite>,
+        db: &Pool<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
-        // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
-        // Once we started spooling our in-memory buffer, the dequeue from the disk
-        // will be blocked till this operations either fails, or commits.
-        sqlx::query("BEGIN").execute(&db).await?;
-
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
@@ -301,17 +296,11 @@ impl BufferService {
                     relay_log::error!("failed to serialize the envelope: {}", LogError(&err))
                 }
             });
-            query_builder.build().execute(&db).await?;
+            query_builder.build().execute(db).await?;
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
         }
-
-        // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
-        // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
-        // TODO: re-try failed commit?
-        sqlx::query("COMMIT").execute(&db).await?;
-
         Ok(())
     }
 
@@ -348,15 +337,31 @@ impl BufferService {
 
                 // spawn the task to enqueue the entire buffer
                 tokio::spawn(async move {
-                    if let Err(err) = Self::do_spool(db, buf).await {
+                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
+                    // Once we started spooling our in-memory buffer, the dequeue from the disk
+                    // will be blocked till this operations either fails, or commits.
+                    if let Err(err) = sqlx::query("BEGIN").execute(&db).await {
+                        relay_log::error!("failed to start a transaction: {}", LogError(&err));
+                        return;
+                    }
+
+                    if let Err(err) = Self::do_spool(&db, buf).await {
                         relay_log::error!(
                             "failed to spool memory buffer to the disk: {}",
                             LogError(&err)
                         );
                     }
+
+                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
+                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
+                    // TODO: re-try failed commit?
+                    if let Err(err) = sqlx::query("COMMIT").execute(&db).await {
+                        relay_log::error!("failed to commit: {}", LogError(&err));
+                    }
                 });
             }
         }
+
         Ok(())
     }
 
