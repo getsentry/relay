@@ -10,6 +10,7 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
+use sqlx::pool::PoolConnection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
@@ -267,7 +268,7 @@ impl BufferService {
     ///
     /// It returns an error if the spooling failed.
     async fn do_spool(
-        db: &Pool<Sqlite>,
+        db: &mut PoolConnection<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
         // A builder type for constructing queries at runtime.
@@ -296,7 +297,7 @@ impl BufferService {
                     relay_log::error!("failed to serialize the envelope: {}", LogError(&err))
                 }
             });
-            query_builder.build().execute(db).await?;
+            query_builder.build().execute(&mut *db).await?;
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
@@ -331,34 +332,36 @@ impl BufferService {
                     return Err(BufferError::Full(estimated_db_size));
                 }
 
-                let buf = std::mem::take(buffer);
-                let db = db.clone();
-                self.count_mem_envelopes = 0;
+                // All the operations must be done inside of the same connection.
+                if let Some(mut connection) = db.try_acquire() {
+                    let buf = std::mem::take(buffer);
+                    self.count_mem_envelopes = 0;
 
-                // spawn the task to enqueue the entire buffer
-                tokio::spawn(async move {
-                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
-                    // Once we started spooling our in-memory buffer, the dequeue from the disk
-                    // will be blocked till this operations either fails, or commits.
-                    if let Err(err) = sqlx::query("BEGIN").execute(&db).await {
-                        relay_log::error!("failed to start a transaction: {}", LogError(&err));
-                        return;
-                    }
+                    // spawn the task to enqueue the entire buffer
+                    tokio::spawn(async move {
+                        // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
+                        // Once we started spooling our in-memory buffer, the dequeue from the disk
+                        // will be blocked till this operations either fails, or commits.
+                        if let Err(err) = sqlx::query("BEGIN").execute(&mut connection).await {
+                            relay_log::error!("failed to start a transaction: {}", LogError(&err));
+                            return;
+                        }
 
-                    if let Err(err) = Self::do_spool(&db, buf).await {
-                        relay_log::error!(
-                            "failed to spool memory buffer to the disk: {}",
-                            LogError(&err)
-                        );
-                    }
+                        if let Err(err) = Self::do_spool(&mut connection, buf).await {
+                            relay_log::error!(
+                                "failed to spool memory buffer to the disk: {}",
+                                LogError(&err)
+                            );
+                        }
 
-                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
-                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
-                    // TODO: re-try failed commit?
-                    if let Err(err) = sqlx::query("COMMIT").execute(&db).await {
-                        relay_log::error!("failed to commit: {}", LogError(&err));
-                    }
-                });
+                        // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
+                        // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
+                        // TODO: re-try failed commit?
+                        if let Err(err) = sqlx::query("COMMIT").execute(&mut connection).await {
+                            relay_log::error!("failed to commit: {}", LogError(&err));
+                        }
+                    });
+                }
             }
         }
 
