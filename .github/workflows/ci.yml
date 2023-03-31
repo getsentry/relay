@@ -217,6 +217,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}-${{ matrix.arch }}
@@ -225,7 +228,9 @@ jobs:
         if: matrix.arch == 'arm64'
 
       - name: Build
-        run: ./scripts/build-docker-image.sh "$ARCH"
+        run: |
+          TOOLCHAIN=$(cargo version | awk '{print $2}')
+          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN"
 
       - name: Export Docker Image
         run: docker save -o relay-docker-image.tgz $IMG_VERSIONED
