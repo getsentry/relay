@@ -132,7 +132,7 @@ impl std::str::FromStr for MetricType {
             "h" | "d" | "ms" => Self::Distribution,
             "s" => Self::Set,
             "g" => Self::Gauge,
-            _ => return Err(ParseMetricError(())),
+            _ => return Err(ParseMetricError),
         })
     }
 }
@@ -141,7 +141,7 @@ relay_common::impl_str_serde!(MetricType, "a metric type string");
 
 /// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
 #[derive(Clone, Copy, Debug)]
-pub struct ParseMetricError(pub ());
+pub struct ParseMetricError;
 
 impl fmt::Display for ParseMetricError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -233,11 +233,11 @@ pub struct MetricResourceIdentifier {
 impl MetricResourceIdentifier {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &str) -> Result<Self, ParseMetricError> {
-        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
+        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError)?;
         let ty = raw_ty.parse()?;
 
-        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError)?;
+        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError)?;
 
         Ok(Self {
             ty,
@@ -284,7 +284,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
 /// invalid.
-pub fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !is_valid_name(name) {
@@ -547,8 +547,8 @@ impl Metric {
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
-        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
+        let string = std::str::from_utf8(slice).or(Err(ParseMetricError))?;
+        Self::parse_str(string, timestamp).ok_or(ParseMetricError)
     }
 
     /// Parses a set of metric values from the raw protocol.
@@ -637,11 +637,11 @@ impl Iterator for ParseMetrics<'_> {
 
             let string = match std::str::from_utf8(current) {
                 Ok(string) => string.strip_suffix('\r').unwrap_or(string),
-                Err(_) => return Some(Err(ParseMetricError(()))),
+                Err(_) => return Some(Err(ParseMetricError)),
             };
 
             if !string.is_empty() {
-                return Some(Metric::parse_str(string, self.timestamp).ok_or(ParseMetricError(())));
+                return Some(Metric::parse_str(string, self.timestamp).ok_or(ParseMetricError));
             }
         }
     }
