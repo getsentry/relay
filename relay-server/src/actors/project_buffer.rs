@@ -296,6 +296,16 @@ impl BufferService {
 
                 // spawn the task to enqueue the entire buffer
                 tokio::spawn(async move {
+                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
+                    // Once we started spooling our in-memory buffer, the dequeue from the disk
+                    // will be blocked till this operations either fails, or commits.
+                    if let Err(err) = sqlx::query("BEGIN").execute(&db).await {
+                        relay_log::error!("failed to initiate a transaction: {}", LogError(&err));
+                    }
+
+                    // A builder type for constructing queries at runtime.
+                    // This by default creates a prepared sql statement, which is cached and
+                    // re-used for sequential queries.
                     let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
                         "INSERT INTO envelopes (own_key, sampling_key, envelope) ",
                     );
@@ -335,6 +345,13 @@ impl BufferService {
                         // Reset the builder to initial state set by `QueryBuilder::new` function,
                         // so it can be reused for another chunk.
                         query_builder.reset();
+                    }
+
+                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
+                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
+                    // TODO: re-try failed commit?
+                    if let Err(err) = sqlx::query("COMMIT").execute(&db).await {
+                        relay_log::error!("failed to commit a transaction: {}", LogError(&err));
                     }
                 });
             }
@@ -380,6 +397,7 @@ impl BufferService {
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
     ) -> Result<(), QueueKey> {
         loop {
+            // By default this creates a prepared statement which is cached and re-used.
             let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
             )
@@ -465,6 +483,7 @@ impl BufferService {
         let mut count: u64 = 0;
         for key in &keys {
             count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
+            self.count_mem_envelopes -= count as i64;
         }
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
