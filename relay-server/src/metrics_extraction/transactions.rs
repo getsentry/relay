@@ -840,7 +840,7 @@ fn extract_transaction_metrics_inner(
         ));
     */
 
-    let mut root_counter_tags = TransactionsCPRTags::new(sampling_result, tags.clone());
+    let mut root_counter_tags = TransactionsCPRTags::new(sampling_result, UniversalTags::default());
     if let Some(name) = transaction_from_dsc {
         root_counter_tags.transaction = transaction_from_dsc.map(|t| t.to_owned());
     }
@@ -1660,7 +1660,7 @@ mod tests {
                 kind: "lcp".to_string(),
                 value: 41.0,
                 timestamp: UnixTimestamp::from_secs(1619420402),
-                unit: MetricUnit::Duration(DurationUnit::MicroSecond),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags: measurement_tags
             }
             .into()]
