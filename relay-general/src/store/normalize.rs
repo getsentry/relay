@@ -687,6 +687,7 @@ pub struct LightNormalizationConfig<'a> {
     pub normalize_user_agent: Option<bool>,
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
+    pub device_class_synthesis_config: bool,
 }
 
 pub fn light_normalize_event(
@@ -749,7 +750,11 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
-        normalize_device_class(event);
+
+        // TODO: Consider moving to store normalization
+        if config.device_class_synthesis_config {
+            normalize_device_class(event);
+        }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
