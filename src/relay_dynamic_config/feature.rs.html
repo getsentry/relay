@@ -34,6 +34,11 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Features exposed by project config.
@@ -58,6 +63,11 @@
     /// Transaction names modified by clusterer rules are always marked as such.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
     </span>TransactionNameMarkScrubbedAsSanitized,
+    <span class="doccomment">/// Enables device.class synthesis
+    ///
+    /// Enables device.class tag synthesis on mobile events.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:device-class-synthesis&quot;</span>)]
+    </span>DeviceClassSynthesis,
     <span class="doccomment">/// Unused.
     ///
     /// This used to control the initial experimental metrics extraction for sessions and has been

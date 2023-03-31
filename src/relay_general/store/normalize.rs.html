@@ -2957,6 +2957,11 @@
 <a href="#2956" id="2956">2956</a>
 <a href="#2957" id="2957">2957</a>
 <a href="#2958" id="2958">2958</a>
+<a href="#2959" id="2959">2959</a>
+<a href="#2960" id="2960">2960</a>
+<a href="#2961" id="2961">2961</a>
+<a href="#2962" id="2962">2962</a>
+<a href="#2963" id="2963">2963</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -3646,6 +3651,7 @@
     <span class="kw">pub </span>normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;,
     <span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
     <span class="kw">pub </span>is_renormalize: bool,
+    <span class="kw">pub </span>device_class_synthesis_config: bool,
 }
 
 <span class="kw">pub fn </span>light_normalize_event(
@@ -3708,7 +3714,11 @@
             config.max_secs_in_future,
         )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
         </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
-        </span>normalize_device_class(event);
+
+        // TODO: Consider moving to store normalization
+        </span><span class="kw">if </span>config.device_class_synthesis_config {
+            normalize_device_class(event);
+        }
         light_normalize_stacktraces(event)<span class="question-mark">?</span>;
         normalize_exceptions(event)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace
         </span>normalize_user_agent(event, config.normalize_user_agent); <span class="comment">// Legacy browsers filter

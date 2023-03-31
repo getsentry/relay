@@ -3465,6 +3465,8 @@
 <a href="#3464" id="3464">3464</a>
 <a href="#3465" id="3465">3465</a>
 <a href="#3466" id="3466">3466</a>
+<a href="#3467" id="3467">3467</a>
+<a href="#3468" id="3468">3468</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5689,7 +5691,9 @@
                         .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
                     rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
                 },
-
+                device_class_synthesis_config: state
+                    .project_state
+                    .has_feature(Feature::DeviceClassSynthesis),
                 is_renormalize: <span class="bool-val">false</span>,
             };
 
