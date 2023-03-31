@@ -627,7 +627,6 @@
 <a href="#627" id="627">627</a>
 <a href="#628" id="628">628</a>
 <a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
@@ -792,7 +791,6 @@
 }
 
 <span class="doccomment">/// Set a test client for the period of the called function (only affects the current thread).
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;test&quot;</span>)]
 </span><span class="kw">pub fn </span>with_capturing_test_client(f: <span class="kw">impl </span>FnOnce()) -&gt; Vec&lt;String&gt; {
     <span class="kw">let </span>(rx, sink) = cadence::SpyMetricSink::new();
     <span class="kw">let </span>test_client = MetricsClient {

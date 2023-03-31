@@ -35,6 +35,8 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
 </pre><pre class="rust"><code><span class="kw">mod </span>api;
 <span class="kw">mod </span>buffer;
 <span class="kw">mod </span>dynamic_sampling;
@@ -48,6 +50,7 @@
 <span class="kw">mod </span>semaphore;
 <span class="kw">mod </span>sizes;
 <span class="kw">mod </span>sleep_handle;
+<span class="kw">mod </span>statsd;
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">mod </span>native;
@@ -69,6 +72,7 @@
 <span class="kw">pub use </span><span class="self">self</span>::semaphore::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sizes::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sleep_handle::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::statsd::<span class="kw-2">*</span>;
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">pub use </span><span class="self">self</span>::unreal::<span class="kw-2">*</span>;
 </code></pre></div>
