@@ -79,6 +79,7 @@ tower-http = { version = "0.4.0", default-features = false, features = ["catch-p
 tracing = "0.1.37"
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
+sentry-kafka-schemas = "0.0.22"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

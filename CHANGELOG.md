@@ -36,6 +36,7 @@ Metrics:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Use types from `sentry-kafka-schemas` crate to validate metrics messages into kafka. ([#1981](https://github.com/getsentry/relay/pull/1981))
 
 ## 23.3.1
 
