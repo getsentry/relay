@@ -22,7 +22,7 @@ jobs:
         run: scripts/docker-build-linux.sh
         env:
           BUILD_ARCH: x86_64
-          RELAY_FEATURES: ssl
+          RELAY_FEATURES:
 
       - name: Bundle Debug File
         run: |

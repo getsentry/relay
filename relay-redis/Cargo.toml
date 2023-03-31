@@ -11,13 +11,12 @@ publish = false
 
 [dependencies]
 r2d2 = { version = "0.8.10", optional = true }
-redis = { version = "0.22.2", optional = true, features = ["cluster", "r2d2"] }
+redis = { version = "0.22.2", optional = true, features = ["cluster", "r2d2", "tls"] }
 serde = { version = "1.0.114", features = ["derive"] }
 thiserror = "1.0.38"
 
 [features]
 default = []
-tls = ["redis?/tls"]
 impl = ["dep:r2d2", "dep:redis"]
 
 [dev-dependencies]

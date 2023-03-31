@@ -552,13 +552,6 @@ struct Limits {
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     query_timeout: u64,
-    /// The maximum number of connections to Relay that can be created at once.
-    max_connection_rate: usize,
-    /// The maximum number of pending connects to Relay. This corresponds to the backlog param of
-    /// `listen(2)` in POSIX.
-    max_pending_connections: i32,
-    /// The maximum number of open connections to Relay.
-    max_connections: usize,
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
@@ -587,9 +580,6 @@ impl Default for Limits {
             max_replay_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
-            max_connection_rate: 256,
-            max_pending_connections: 2048,
-            max_connections: 25_000,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
         }
@@ -736,6 +726,33 @@ impl Default for Http {
     }
 }
 
+fn buffer_max_connections() -> u32 {
+    30
+}
+
+fn buffer_min_connections() -> u32 {
+    10
+}
+
+/// Controls internal caching behavior.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistentBuffer {
+    /// The path to the persistent buffer file.
+    path: PathBuf,
+    /// Maximum number of connections, which will be maintained by the pool.
+    #[serde(default = "buffer_max_connections")]
+    max_connections: u32,
+    /// Minimal number of connections, which will be maintained by the pool.
+    #[serde(default = "buffer_min_connections")]
+    min_connections: u32,
+    /// The maximum size of the buffer to keep, in bytes.
+    ///
+    /// If not set the befault is 10737418240 bytes or 10 GB.
+    max_disk_size: Option<usize>,
+    /// The maximum number of envelopes to keep in the memory buffer before spooling them to disk.
+    max_memory_size: Option<usize>,
+}
+
 /// Controls internal caching behavior.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -769,6 +786,11 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
+    /// The settings to configure persistent buffering.
+    ///
+    /// When enabled all incoming envelopes will be persisted to the disk instead of keeping
+    /// them in memory.
+    persistent_envelope_buffer: Option<PersistentBuffer>,
 }
 
 impl Default for Cache {
@@ -784,6 +806,7 @@ impl Default for Cache {
             batch_size: 500,
             file_interval: 10,     // 10 seconds
             eviction_interval: 60, // 60 seconds
+            persistent_envelope_buffer: None,
         }
     }
 }
@@ -1676,6 +1699,65 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
+    /// Returns `true` if the persistent envelope buffer is enabled, `false` otherwise.
+    pub fn cache_persistent_buffer_enabled(&self) -> bool {
+        self.values.cache.persistent_envelope_buffer.is_some()
+    }
+
+    /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
+    pub fn cache_persistent_buffer_path(&self) -> Option<PathBuf> {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.path.to_owned())
+    }
+
+    /// Maximum number of connections to create to buffer file.
+    pub fn cache_persistent_buffer_max_connections(&self) -> u32 {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.max_connections)
+            .unwrap_or(buffer_max_connections())
+    }
+
+    /// Minimum number of connections to create to buffer file.
+    pub fn cache_persistent_buffer_min_connections(&self) -> u32 {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .map(|b| b.min_connections)
+            .unwrap_or(buffer_min_connections())
+    }
+
+    /// The maximum size of the buffer, in bytes.
+    ///
+    /// Default: 10737418240 bytes or 10 GB.
+    pub fn cache_persistent_buffer_max_disk_size(&self) -> usize {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .and_then(|b| b.max_disk_size)
+            .unwrap_or(10 * 1024 * 1024 * 1024)
+    }
+
+    /// The maximum size of the memory buffer.
+    ///
+    /// Set to smaller between `cache.persistent_envelope_buffer.max_memory_size` and `cache.envelope_buffer_size`.
+    /// Default set to half of `cache.envelope_buffer_size`
+    pub fn cache_persistent_buffer_max_memory_size(&self) -> usize {
+        self.values
+            .cache
+            .persistent_envelope_buffer
+            .as_ref()
+            .and_then(|b| b.max_memory_size)
+            .unwrap_or(self.envelope_buffer_size() / 2)
+    }
+
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
         self.values.limits.max_event_size.as_bytes()
@@ -1752,21 +1834,6 @@ impl Config {
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.query_timeout)
-    }
-
-    /// The maximum number of open connections to Relay.
-    pub fn max_connections(&self) -> usize {
-        self.values.limits.max_connections
-    }
-
-    /// The maximum number of connections to Relay that can be created at once.
-    pub fn max_connection_rate(&self) -> usize {
-        self.values.limits.max_connection_rate
-    }
-
-    /// The maximum number of pending connects to Relay.
-    pub fn max_pending_connections(&self) -> i32 {
-        self.values.limits.max_pending_connections
     }
 
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown

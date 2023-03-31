@@ -59,9 +59,8 @@ def test_legacy_store(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-@pytest.mark.parametrize("method_to_test", [("GET", False), ("POST", True)])
-def test_options_response(mini_sentry, relay, method_to_test):
-    method, should_succeed = method_to_test
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_options_response(mini_sentry, relay, method):
     relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
@@ -72,8 +71,11 @@ def test_options_response(mini_sentry, relay, method_to_test):
     }
 
     result = relay.send_options(project_id, headers)
-
-    assert result.ok == should_succeed
+    assert result.ok, result
+    # GET is never allowed for XHR
+    assert result.headers["access-control-allow-methods"] == "POST"
+    # Contents tested by test_security_report_preflight
+    assert "access-control-allow-headers" in result.headers
 
 
 def test_store_node_base64(mini_sentry, relay_chain):
@@ -135,7 +137,7 @@ def test_store_rate_limit(mini_sentry, relay):
             return "", 429, {"retry-after": "2"}
 
     # Disable outcomes so client report envelopes do not interfere with the events we are looking for
-    config = {"outcomes": {"emit_outcomes": False}}
+    config = {"outcomes": {"emit_outcomes": "as_client_reports"}}
     relay = relay(mini_sentry, config)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
@@ -147,6 +149,13 @@ def test_store_rate_limit(mini_sentry, relay):
     sleep(1)
     with pytest.raises(HTTPError):
         relay.send_event(project_id, {"message": "invalid"})
+
+    # Generated outcome has reason code 'generic':
+    outcome_envelope = mini_sentry.captured_events.get(timeout=1)
+    outcome = json.loads(outcome_envelope.items[0].payload.bytes)
+    assert outcome["rate_limited_events"] == [
+        {"reason": "generic", "category": "error", "quantity": 1}
+    ]
 
     # This event should arrive
     sleep(2)

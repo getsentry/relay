@@ -110,11 +110,8 @@ used for Relays operating as proxys. There are two optional features:
   into a Kafka topic instead of forwarding to the configured upstream. Also, it
   will perform full event normalization, filtering, and rate limiting.
 
-- **`ssl`**: Enables SSL support in the Server.
-
 - **`crash-handler`**: Allows native crash reporting for segfaults and
   out-of-memory situations when internal error reporting to Sentry is enabled.
-  This requires `curl` development headers and libraries on the build system.
 
 To enable a feature, pass it to the cargo invocation. For example, to run tests
 across all workspace crates with the `processing` feature enabled, run:
@@ -194,24 +191,6 @@ make test-python
 # Run a single test manually
 .venv/bin/pytest py/tests -k <test_name>
 ```
-
-### Development Server
-
-If you have `systemfd` and `cargo-watch` installed, the `make devserver` command
-can auto-reload Relay:
-
-```bash
-cargo install systemfd cargo-watch
-make devserver
-```
-
-### SSL
-
-The repository contains a SSL-certificate + private key for development
-purposes. It comes in two formats: Once as a `(.pem, .cert)`-pair, once as
-`.pfx` (PKCS #12) file.
-
-The password for the `.pfx` file is `password`.
 
 ### Usage with Sentry
 

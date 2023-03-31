@@ -1,15 +1,19 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
-use actix::System;
-use actix_web::{server, App};
-use anyhow::{Context, Result};
-use listenfd::ListenFd;
+use axum::http::{header, HeaderValue};
+use axum::ServiceExt;
+use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
-use relay_statsd::metric;
-use relay_system::{Addr, Controller, Service, Shutdown};
+use relay_log::tower::NewSentryLayer;
+use relay_system::{Controller, Service, Shutdown};
+use tower::ServiceBuilder;
+use tower_http::set_header::SetResponseHeaderLayer;
 
+use crate::constants;
 use crate::middlewares::{
-    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
+    self, CatchPanicLayer, HandleErrorLayer, NormalizePathLayer, RequestDecompressionLayer,
 };
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
@@ -18,120 +22,9 @@ use crate::statsd::RelayCounters;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServerError {
-    /// Binding failed.
-    #[error("bind to interface failed")]
-    BindFailed,
-
-    /// Listening on the HTTP socket failed.
-    #[error("listening failed")]
-    ListenFailed,
-
-    /// A TLS error ocurred.
-    #[error("could not initialize the TLS server")]
-    TlsInitFailed,
-
     /// TLS support was not compiled in.
-    #[cfg(not(feature = "ssl"))]
-    #[error("compile with the `ssl` feature to enable SSL support")]
+    #[error("SSL is no longer supported by Relay, please use a proxy in front")]
     TlsNotSupported,
-}
-
-fn make_app(state: ServiceState) -> App<ServiceState> {
-    App::with_state(state)
-        .middleware(SentryMiddleware::new())
-        .middleware(Metrics)
-        .middleware(AddCommonHeaders)
-        .middleware(ErrorHandlers)
-        .middleware(ReadRequestMiddleware)
-        .configure(crate::endpoints::configure_app)
-}
-
-fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    relay_log::info!("spawning http server");
-    for (addr, scheme) in server.addrs_with_scheme() {
-        relay_log::info!("  listening on: {}://{}/", scheme, addr);
-    }
-}
-
-fn listen<H, F>(
-    server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    Ok(
-        match ListenFd::from_env()
-            .take_tcp_listener(0)
-            .context(ServerError::ListenFailed)?
-        {
-            Some(listener) => server.listen(listener),
-            None => server
-                .bind(config.listen_addr())
-                .context(ServerError::BindFailed)?,
-        },
-    )
-}
-
-#[cfg(feature = "ssl")]
-fn listen_ssl<H, F>(
-    mut server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    if let (Some(addr), Some(path), Some(password)) = (
-        config.tls_listen_addr(),
-        config.tls_identity_path(),
-        config.tls_identity_password(),
-    ) {
-        use std::fs::File;
-        use std::io::Read;
-
-        use native_tls::{Identity, TlsAcceptor};
-
-        let mut file = File::open(path).unwrap();
-        let mut data = vec![];
-        file.read_to_end(&mut data).unwrap();
-        let identity =
-            Identity::from_pkcs12(&data, password).context(ServerError::TlsInitFailed)?;
-
-        let acceptor = TlsAcceptor::builder(identity)
-            .build()
-            .context(ServerError::TlsInitFailed)?;
-
-        server = server
-            .bind_tls(addr, acceptor)
-            .context(ServerError::BindFailed)?;
-    }
-
-    Ok(server)
-}
-
-#[cfg(not(feature = "ssl"))]
-fn listen_ssl<H, F>(
-    server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>, ServerError>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    if config.tls_listen_addr().is_some()
-        || config.tls_identity_path().is_some()
-        || config.tls_identity_password().is_some()
-    {
-        Err(ServerError::TlsNotSupported.into())
-    } else {
-        Ok(server)
-    }
 }
 
 /// HTTP server service.
@@ -139,55 +32,29 @@ where
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
 /// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
 pub struct HttpServer {
-    system: actix::System,
-    http_server: actix::Recipient<server::StopServer>,
+    config: Arc<Config>,
+    service: ServiceState,
 }
 
+/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
+/// is not available.
+const KEEPALIVE_RETRIES: u32 = 5;
+
+/// Set a timeout for reading client request headers. If a client does not transmit the entire
+/// header within this time, the connection is closed.
+const CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl HttpServer {
-    pub async fn start(config: Arc<Config>, service: ServiceState) -> anyhow::Result<Addr<()>> {
-        let (server_tx, server_rx) = tokio::sync::oneshot::channel();
+    pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
+        // Inform the user about a removed feature.
+        if config.tls_listen_addr().is_some()
+            || config.tls_identity_password().is_some()
+            || config.tls_identity_path().is_some()
+        {
+            return Err(ServerError::TlsNotSupported);
+        }
 
-        std::thread::spawn(move || {
-            // Create a legacy actix system and spawn the actix-web server into it.
-            let runner = actix::System::new("relay");
-            let result = Self::spawn(&config, service).map(|addr| (System::current(), addr));
-            server_tx.send(result).ok();
-
-            // Block this thread until the actix system shuts down. The shutdown is emitted from the
-            // HttpService after a shutdown signal has been received and the timeout has passed.
-            runner.run();
-        });
-
-        let (system, http_server) = server_rx.await??;
-        let service = Self {
-            system,
-            http_server,
-        };
-
-        Ok(service.start())
-    }
-
-    fn spawn(
-        config: &Config,
-        service: ServiceState,
-    ) -> anyhow::Result<actix::Recipient<server::StopServer>> {
-        metric!(counter(RelayCounters::ServerStarting) += 1);
-
-        let mut server = server::new(move || make_app(service.clone()));
-        server = server
-            .workers(config.cpu_concurrency())
-            .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
-            .keep_alive(config.keepalive_timeout().as_secs() as usize)
-            .maxconn(config.max_connections())
-            .maxconnrate(config.max_connection_rate())
-            .backlog(config.max_pending_connections())
-            .disable_signals();
-
-        server = listen(server, config)?;
-        server = listen_ssl(server, config)?;
-        dump_listen_infos(&server);
-
-        Ok(server.start().recipient())
+        Ok(Self { config, service })
     }
 }
 
@@ -195,25 +62,68 @@ impl Service for HttpServer {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+        let Self { config, service } = self;
+
+        // Build the router middleware into a single service which runs _after_ routing. Service
+        // builder order defines layers added first will be called first. This means:
+        //  - Requests go from top to bottom
+        //  - Responses go from bottom to top
+        let middleware = ServiceBuilder::new()
+            .layer(axum::middleware::from_fn(middlewares::metrics))
+            .layer(CatchPanicLayer::custom(middlewares::handle_panic))
+            .layer(SetResponseHeaderLayer::overriding(
+                header::SERVER,
+                HeaderValue::from_static(constants::SERVER),
+            ))
+            .layer(NewSentryLayer::new_from_top())
+            .layer(middlewares::trace_http_layer())
+            .layer(HandleErrorLayer::new(middlewares::decompression_error))
+            .map_request(middlewares::remove_empty_encoding)
+            .layer(RequestDecompressionLayer::new());
+
+        let router = crate::endpoints::routes(service.config())
+            .layer(middleware)
+            .with_state(service);
+
+        // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
+        // ConnectInfo is special as it needs to last.
+        let app = ServiceBuilder::new()
+            .layer(NormalizePathLayer::new())
+            .service(router)
+            .into_make_service_with_connect_info::<SocketAddr>();
+
+        let http_config = HttpConfig::new()
+            .http1_half_close(false)
+            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
+            .http1_writev(true)
+            .http2_keep_alive_timeout(config.keepalive_timeout())
+            .build();
+
+        let addr_config = AddrIncomingConfig::new()
+            .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
+            .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
+            .build();
+
+        let handle = Handle::new();
+        let server = axum_server::bind(config.listen_addr())
+            .http_config(http_config)
+            .addr_incoming_config(addr_config)
+            .handle(handle.clone());
+
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
+        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
+        tokio::spawn(server.serve(app));
+
         tokio::spawn(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
             relay_log::info!("Shutting down HTTP server");
 
-            // We assume graceful shutdown if we're given a timeout. The actix-web http server
-            // is configured with the same timeout, so it will match. Unfortunately, we have to
-            // drop all errors.
-            let graceful = timeout.is_some();
-            self.http_server
-                .do_send(server::StopServer { graceful })
-                .ok();
-
-            // Wait the shutdown timeout and then stop the actix system, which also shuts down the
-            // thread that its running one.
-            if let Some(timeout) = timeout {
-                tokio::time::sleep(timeout).await;
+            match timeout {
+                Some(timeout) => handle.graceful_shutdown(Some(timeout)),
+                None => handle.shutdown(),
             }
-
-            self.system.stop();
         });
     }
 }
