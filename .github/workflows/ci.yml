@@ -271,6 +271,7 @@ jobs:
 
     env:
       # GITHUB_SHA in pull requests points to the merge commit
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
@@ -289,6 +290,13 @@ jobs:
           workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
           service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
 
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v1"
+        with:
+          # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          version: ">= 390.0.0"
+
       - name: Configure docker
         run: |
           gcloud auth configure-docker us.gcr.io
@@ -296,8 +304,8 @@ jobs:
       - name: Push to us.gcr.io
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
-          docker push "us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:$REVISION"
+          docker push "us.gcr.io/sentryio/relay:$REVISION"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'
@@ -305,6 +313,19 @@ jobs:
           set -euxo pipefail
           docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:nightly"
           docker push "us.gcr.io/sentryio/relay:nightly"
+
+      - name: Upload gocd deployment assets
+        run: |
+          set -euxo pipefail
+          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d' ' -f2)"
+          echo "relay@$VERSION+$REVISION" > release-name
+
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > libs.tar
+
+          gsutil -m cp ./release-name ./libs.tar ./relay-debug.zip ./relay.src.zip \
+          "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/"
 
   test_integration:
     name: Integration Tests
