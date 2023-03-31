@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
+use relay_log::LogError;
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -26,7 +27,7 @@ use crate::actors::upstream::UpstreamRelay;
 
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, GarbageDisposal, ManagedEnvelope};
+use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -164,6 +165,22 @@ impl UpdateRateLimits {
     }
 }
 
+/// Updates the buffer index for [`ProjectKey`] with the [`QueueKey`] keys.
+///
+/// This message is sent from the project buffer in case of the error while fetching the data from
+/// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
+/// persistent storage.
+pub struct UpdateBufferIndex {
+    project_key: ProjectKey,
+    keys: BTreeSet<QueueKey>,
+}
+
+impl UpdateBufferIndex {
+    pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
+        Self { project_key, keys }
+    }
+}
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -192,6 +209,7 @@ pub enum ProjectCache {
     InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
+    UpdateBufferIndex(UpdateBufferIndex),
 }
 
 impl ProjectCache {
@@ -201,6 +219,14 @@ impl ProjectCache {
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<UpdateBufferIndex> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: UpdateBufferIndex, _: ()) -> Self {
+        Self::UpdateBufferIndex(message)
+    }
+}
 
 impl FromMessage<RequestUpdate> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -381,6 +407,7 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
+    buffer: Arc<BufferGuard>,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
@@ -392,6 +419,7 @@ pub struct Services {
 impl Services {
     /// Creates new [`Services`] context.
     pub fn new(
+        buffer: Arc<BufferGuard>,
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
         envelope_manager: Addr<EnvelopeManager>,
@@ -400,6 +428,7 @@ impl Services {
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         Self {
+            buffer,
             aggregator,
             envelope_processor,
             envelope_manager,
@@ -437,7 +466,7 @@ impl ProjectCacheBroker {
         self.buffer.send(Enqueue::new(key, value));
     }
 
-    /// Sends the message to [`BufferService`] to dequeue the envelopes.
+    /// Sends the message to the buffer service to dequeue the envelopes.
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
     /// forwarded to `handle_processing`.
@@ -473,8 +502,11 @@ impl ProjectCacheBroker {
         }
 
         if !result.is_empty() {
-            self.buffer
-                .send(DequeueMany::new(result, self.buffer_tx.clone()))
+            self.buffer.send(DequeueMany::new(
+                partial_key,
+                result,
+                self.buffer_tx.clone(),
+            ))
         }
     }
 
@@ -529,7 +561,7 @@ impl ProjectCacheBroker {
 
     /// Updates the [`Project`] with received [`ProjectState`].
     ///
-    /// If the project state is valid we also send the message to [`BufferService`] to dequeue the
+    /// If the project state is valid we also send the message to the buffer service to dequeue the
     /// envelopes for this project.
     fn merge_state(&mut self, message: UpdateProjectState) {
         let UpdateProjectState {
@@ -739,6 +771,10 @@ impl ProjectCacheBroker {
             .flush_buckets(context, message.partition_key, message.buckets);
     }
 
+    fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
+        self.index.insert(message.project_key, message.keys);
+    }
+
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -754,6 +790,7 @@ impl ProjectCacheBroker {
             ProjectCache::InsertMetrics(message) => self.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
+            ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
         }
     }
 }
@@ -786,6 +823,8 @@ impl Service for ProjectCacheService {
             services,
             redis,
         } = self;
+        let buffer_guard = services.buffer.clone();
+        let project_cache = services.project_cache.clone();
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -796,6 +835,16 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+            let buffer =
+                match BufferService::create(buffer_guard, project_cache, config.clone()).await {
+                    Ok(buffer) => buffer.start(),
+                    Err(err) => {
+                        relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                        // NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        std::process::exit(1);
+                    }
+                };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
@@ -807,8 +856,8 @@ impl Service for ProjectCacheService {
                 services,
                 state_tx,
                 buffer_tx,
-                index: Default::default(),
-                buffer: BufferService::new().start(),
+                index: BTreeMap::new(),
+                buffer,
             };
 
             loop {

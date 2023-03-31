@@ -11,7 +11,7 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.19", optional = true, features = ["serde"] }
+chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock", "std", "serde"] }
 console = { version = "0.15.5", optional = true }
 env_logger = { version = "0.10.0", optional = true }
 log = { version = "0.4.11", features = ["serde"] }
