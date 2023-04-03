@@ -65,8 +65,8 @@ use crate::metrics_extraction::transactions::{extract_transaction_metrics, Extra
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope,
-    SamplingResult,
+    self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -2219,35 +2219,39 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let config = LightNormalizationConfig {
-            client_ip: client_ipaddr.as_ref(),
-            user_agent: RawUserAgentInfo {
-                user_agent: request_meta.user_agent(),
-                client_hints: request_meta.client_hints().as_deref(),
-            },
-            received_at: Some(state.managed_envelope.received_at()),
-            max_secs_in_past: Some(self.config.max_secs_in_past()),
-            max_secs_in_future: Some(self.config.max_secs_in_future()),
-            measurements_config: state.project_state.config.measurements.as_ref(),
-            breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
-            normalize_user_agent: Some(true),
-            transaction_name_config: TransactionNameConfig {
-                scrub_identifiers: state
+        log_transaction_name_metrics(&mut state.event, |event| {
+            let config = LightNormalizationConfig {
+                client_ip: client_ipaddr.as_ref(),
+                user_agent: RawUserAgentInfo {
+                    user_agent: request_meta.user_agent(),
+                    client_hints: request_meta.client_hints().as_deref(),
+                },
+                received_at: Some(state.managed_envelope.received_at()),
+                max_secs_in_past: Some(self.config.max_secs_in_past()),
+                max_secs_in_future: Some(self.config.max_secs_in_future()),
+                measurements_config: state.project_state.config.measurements.as_ref(),
+                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                normalize_user_agent: Some(true),
+                transaction_name_config: TransactionNameConfig {
+                    scrub_identifiers: state
+                        .project_state
+                        .has_feature(Feature::TransactionNameNormalize),
+                    mark_scrubbed_as_sanitized: state
+                        .project_state
+                        .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
+                    rules: &state.project_state.config.tx_name_rules,
+                },
+                device_class_synthesis_config: state
                     .project_state
-                    .has_feature(Feature::TransactionNameNormalize),
-                mark_scrubbed_as_sanitized: state
-                    .project_state
-                    .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
-                rules: &state.project_state.config.tx_name_rules,
-            },
+                    .has_feature(Feature::DeviceClassSynthesis),
+                is_renormalize: false,
+            };
 
-            is_renormalize: false,
-        };
-
-        metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            relay_general::store::light_normalize_event(&mut state.event, config)
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
-        });
+            metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+                relay_general::store::light_normalize_event(event, config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)
+            })
+        })?;
 
         Ok(())
     }
@@ -2601,7 +2605,8 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-    use relay_general::protocol::EventId;
+    use relay_general::protocol::{EventId, TransactionSource};
+    use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
@@ -3339,6 +3344,112 @@ mod tests {
             outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
             Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
         );
+    }
+
+    fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "###,
+        )
+        .unwrap();
+        let e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(Some(transaction_name.into()));
+
+        e.transaction_info
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .source
+            .set_value(Some(source));
+
+        relay_statsd::with_capturing_test_client(|| {
+            log_transaction_name_metrics(&mut event, |event| {
+                let config = LightNormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        scrub_identifiers: true,
+                        mark_scrubbed_as_sanitized: false,
+                        rules: &[TransactionNameRule {
+                            pattern: LazyGlob::new("/foo/*/**".to_owned()),
+                            expiry: DateTime::<Utc>::MAX_UTC,
+                            scope: RuleScope::default(),
+                            redaction: RedactionRule::Replace {
+                                substitution: "*".to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                relay_general::store::light_normalize_event(event, config)
+            })
+            .unwrap();
+        })
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_none() {
+        let captures = capture_test_event("/nothing", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_rule() {
+        let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_pattern() {
+        let captures = capture_test_event("/something/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_both() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_no_match() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
+        insta::assert_debug_snapshot!(captures, @r###"
+        [
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route",
+        ]
+        "###);
     }
 
     /// This is a stand-in test to assert panicking behavior for spawn_blocking.
