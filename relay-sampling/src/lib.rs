@@ -878,27 +878,6 @@ impl Display for MatchedRuleIds {
     }
 }
 
-/// Returns an iterator of references that chains together and merges rules.
-///
-/// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
-/// rules from the root project and concatenate them.
-pub fn merge_rules_from_configs<'a>(
-    sampling_config: &'a SamplingConfig,
-    root_sampling_config: Option<&'a SamplingConfig>,
-) -> impl Iterator<Item = &'a SamplingRule> {
-    let event_rules = sampling_config
-        .rules_v2
-        .iter()
-        .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
-
-    let parent_rules = root_sampling_config
-        .into_iter()
-        .flat_map(|config| config.rules_v2.iter())
-        .filter(|&rule| rule.ty == RuleType::Trace);
-
-    event_rules.chain(parent_rules)
-}
-
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SamplingMatch {
@@ -1038,6 +1017,96 @@ pub struct SamplingConfig {
 impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules_v2.iter().all(SamplingRule::supported)
+    }
+
+    /// Checks whether unsupported rules result in a direct keep of the event or depending on the
+    /// type of Relay an ignore of unsupported rules.
+    fn check_unsupported_rules(
+        processing_enabled: bool,
+        sampling_config: &SamplingConfig,
+        root_sampling_config: Option<&SamplingConfig>,
+    ) -> Option<()> {
+        // When we have unsupported rules disable sampling for non processing relays.
+        if sampling_config.has_unsupported_rules()
+            || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
+        {
+            if !processing_enabled {
+                return None;
+            } else {
+                relay_log::error!("found unsupported rules even as processing relay");
+            }
+        }
+
+        Some(())
+    }
+
+    /// Returns an iterator of references that chains together and merges rules.
+    ///
+    /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
+    /// rules from the root project and concatenate them.
+    pub fn merge_rules_from_configs<'a>(
+        sampling_config: &'a SamplingConfig,
+        root_sampling_config: Option<&'a SamplingConfig>,
+    ) -> impl Iterator<Item = &'a SamplingRule> {
+        let event_rules = sampling_config
+            .rules_v2
+            .iter()
+            .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+
+        let parent_rules = root_sampling_config
+            .into_iter()
+            .flat_map(|config| config.rules_v2.iter())
+            .filter(|&rule| rule.ty == RuleType::Trace);
+
+        event_rules.chain(parent_rules)
+    }
+
+    /// Gets the sampling match result by creating the merged configuration and matching it against
+    /// the sampling configuration.
+    pub fn match_against_configs(
+        processing_enabled: bool,
+        sampling_config: &SamplingConfig,
+        root_sampling_config: Option<&SamplingConfig>,
+        dsc: Option<&DynamicSamplingContext>,
+        event: &Event,
+        ip_addr: Option<IpAddr>,
+        now: DateTime<Utc>,
+    ) -> Option<SamplingMatch> {
+        // We check if there are unsupported rules in any of the two configurations.
+        SamplingConfig::check_unsupported_rules(
+            processing_enabled,
+            sampling_config,
+            root_sampling_config,
+        )?;
+
+        // We perform the rule matching with the multi-matching logic on the merged rules.
+        let rules = SamplingConfig::merge_rules_from_configs(sampling_config, root_sampling_config);
+        let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
+
+        // If we have a match, we will try to derive the sample rate based on the sampling mode.
+        //
+        // Keep in mind that the sample rate received here has already been derived by the matching
+        // logic, based on multiple matches and decaying functions.
+        //
+        // We also decide to use the sampling mode of the project to which the event belongs.
+        match_result.set_sample_rate(match sampling_config.mode {
+            SamplingMode::Received => match_result.sample_rate,
+            SamplingMode::Total => match dsc {
+                Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
+                None => match_result.sample_rate,
+            },
+            SamplingMode::Unsupported => {
+                if processing_enabled {
+                    relay_log::error!("found unsupported sampling mode even as processing Relay");
+                }
+
+                return None;
+            }
+        });
+
+        // Only if we arrive at this stage, it means that we have found a match and we want to prepare
+        // the data for making the sampling decision.
+        Some(match_result)
     }
 }
 
@@ -1251,6 +1320,7 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Duration as DateDuration;
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
@@ -1299,6 +1369,12 @@ mod tests {
             for (index, rule) in $res.iter().enumerate() {
                 assert_eq!(rule.id.0, $exc[index])
             }
+        };
+    }
+
+    macro_rules! assert_no_match {
+        ($res:expr) => {
+            assert_eq!($res, None)
         };
     }
 
@@ -1360,7 +1436,7 @@ mod tests {
         })
     }
 
-    fn mocked_sampling_config(rules: Vec<SamplingRule>) -> SamplingConfig {
+    fn mocked_sampling_config_with_rules(rules: Vec<SamplingRule>) -> SamplingConfig {
         SamplingConfig {
             rules: vec![],
             rules_v2: rules,
@@ -1417,6 +1493,124 @@ mod tests {
         }
     }
 
+    fn mocked_simple_dynamic_sampling_context(
+        sample_rate: Option<f64>,
+        release: Option<&str>,
+        transaction: Option<&str>,
+        environment: Option<&str>,
+    ) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            release: release.map(|value| value.to_string()),
+            environment: environment.map(|value| value.to_string()),
+            transaction: transaction.map(|value| value.to_string()),
+            sample_rate,
+            user: Default::default(),
+            other: Default::default(),
+        }
+    }
+
+    fn mocked_sampling_config(mode: SamplingMode) -> SamplingConfig {
+        SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![
+                SamplingRule {
+                    condition: eq("event.transaction", &["healthcheck"], true),
+                    sampling_value: SamplingValue::SampleRate { value: 0.1 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: eq("event.transaction", &["bar"], true),
+                    sampling_value: SamplingValue::Factor { value: 1.0 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(2),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: eq("event.transaction", &["foo"], true),
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(3),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                // We put this trace rule here just for testing purposes, even though it will never
+                // be considered if put within a non-root project.
+                SamplingRule {
+                    condition: RuleCondition::all(),
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(4),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+            ],
+            mode,
+        }
+    }
+
+    fn mocked_root_project_sampling_config(mode: SamplingMode) -> SamplingConfig {
+        SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![
+                SamplingRule {
+                    condition: eq("trace.release", &["3.0"], true),
+                    sampling_value: SamplingValue::Factor { value: 1.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(5),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: eq("trace.environment", &["dev"], true),
+                    sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                    ty: RuleType::Trace,
+                    id: RuleId(6),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: RuleCondition::all(),
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(7),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+            ],
+            mode,
+        }
+    }
+
+    fn mocked_decaying_sampling_rule(
+        id: u32,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        sampling_value: SamplingValue,
+        decaying_fn: DecayingFunction,
+    ) -> SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value,
+            ty: RuleType::Transaction,
+            id: RuleId(id),
+            time_range: TimeRange { start, end },
+            decaying_fn,
+        }
+    }
+
+    fn add_sampling_rule_to_config(
+        sampling_config: &mut SamplingConfig,
+        sampling_rule: SamplingRule,
+    ) {
+        sampling_config.rules_v2.push(sampling_rule);
+    }
+
     fn match_against_rules(
         config: &SamplingConfig,
         event: &Event,
@@ -1430,10 +1624,10 @@ mod tests {
         rules: Vec<SamplingRule>,
         root_rules: Vec<SamplingRule>,
     ) -> Vec<SamplingRule> {
-        let sampling_config = mocked_sampling_config(rules);
-        let root_sampling_config = mocked_sampling_config(root_rules);
+        let sampling_config = mocked_sampling_config_with_rules(rules);
+        let root_sampling_config = mocked_sampling_config_with_rules(root_rules);
 
-        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+        SamplingConfig::merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
             .cloned()
             .collect()
     }
@@ -2600,7 +2794,7 @@ mod tests {
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
         let result = match_against_rules(
-            &mocked_sampling_config(vec![
+            &mocked_sampling_config_with_rules(vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
                     sampling_value: SamplingValue::Factor { value: 2.0 },
@@ -2637,7 +2831,7 @@ mod tests {
     #[test]
     /// Tests that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_match_against_rules_with_multiple_event_types_non_decaying_rules_and_matches() {
-        let config = mocked_sampling_config(vec![
+        let config = mocked_sampling_config_with_rules(vec![
             SamplingRule {
                 condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
                 sampling_value: SamplingValue::SampleRate { value: 0.1 },
@@ -2755,7 +2949,7 @@ mod tests {
     #[test]
     /// Test that the multi-matching works for a mixture of decaying and non-decaying rules.
     fn test_match_against_rules_with_trace_event_type_decaying_rules_and_matches() {
-        let config = mocked_sampling_config(vec![
+        let config = mocked_sampling_config_with_rules(vec![
             SamplingRule {
                 condition: and(vec![
                     eq("trace.release", &["1.1.1"], true),
@@ -3142,5 +3336,539 @@ mod tests {
                 ]
             )
         );
+    }
+
+    #[test]
+    /// Tests that no match is done when there are no matching rules.
+    fn test_get_sampling_match_result_with_no_match() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that matching is still done on the transaction rules in case trace params are invalid.
+    fn test_get_sampling_match_result_with_invalid_trace_params() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+
+        let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.5, event, 3);
+
+        let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+    }
+
+    #[test]
+    /// Tests that a match with early return is done in the project sampling config.
+    fn test_get_sampling_match_result_with_project_config_match() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+        let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+    }
+
+    #[test]
+    /// Tests that a match with early return is done in the root project sampling config.
+    fn test_get_sampling_match_result_with_root_project_config_match() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
+        let event = mocked_event(EventType::Transaction, "my_transaction", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_trace_match!(result, 1.0, dsc, 6);
+    }
+
+    #[test]
+    /// Tests that the multiple matches are done across root and non-root project sampling configs.
+    fn test_get_sampling_match_result_with_both_project_configs_match() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
+        let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
+    }
+
+    #[test]
+    /// Tests that a match is done when no dynamic sampling context and root project state are
+    /// available.
+    fn test_get_sampling_match_result_with_no_dynamic_sampling_context_and_no_root_project_state() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let event = mocked_event(EventType::Transaction, "foo", "1.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.5, event, 3);
+    }
+
+    #[test]
+    /// Tests that a match is done and the sample rate is adjusted when sampling mode is total.
+    fn test_get_sampling_match_result_with_total_sampling_mode_in_project_state() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Total);
+        let root_project_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(0.8), Some("1.0"), None, None);
+        let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.625, event, 3);
+    }
+
+    #[test]
+    /// Tests that the correct match is raised in case we have unsupported rules with processing both
+    /// enabled and disabled.
+    fn test_get_sampling_match_result_with_unsupported_rules() {
+        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
+        add_sampling_rule_to_config(
+            &mut sampling_config,
+            SamplingRule {
+                condition: RuleCondition::Unsupported,
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Transaction,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        );
+
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+        let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            false,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_no_match!(result);
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.5, event, 3);
+    }
+
+    #[test]
+    /// Tests that a no match is raised in case we have an unsupported sampling mode and a match.
+    fn test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Unsupported);
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Unsupported);
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+        let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that only transaction rules are matched in case no root project or dsc are supplied.
+    fn test_get_sampling_match_result_with_invalid_root_project_and_dsc_combination() {
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
+
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            Some(&dsc),
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+
+        let root_project_sampling_config =
+            mocked_root_project_sampling_config(SamplingMode::Received);
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            Some(&root_project_sampling_config),
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.1, event, 1);
+    }
+
+    #[test]
+    /// Tests that a match of a rule of type error with a transaction event results in no match.
+    fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
+        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
+        add_sampling_rule_to_config(
+            &mut sampling_config,
+            SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Error,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        );
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that a match of a rule of type error with an error event results in a match.
+    fn test_get_sampling_match_result_with_error_event_and_error_rule() {
+        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
+        add_sampling_rule_to_config(
+            &mut sampling_config,
+            SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Error,
+                id: RuleId(10),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        );
+        let event = mocked_event(EventType::Error, "transaction", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.5, event, 10);
+    }
+
+    #[test]
+    /// Tests that a match of a rule of type default with an error event results in a match.
+    fn test_get_sampling_match_result_with_default_event_and_error_rule() {
+        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
+        add_sampling_rule_to_config(
+            &mut sampling_config,
+            SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Error,
+                id: RuleId(10),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        );
+        let event = mocked_event(EventType::Default, "transaction", "2.0", "");
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            Utc::now(),
+        );
+        assert_transaction_match!(result, 0.5, event, 10);
+    }
+
+    #[test]
+    /// Tests that match is returned with sample rate value interpolated with linear decaying function.
+    fn test_get_sampling_match_result_with_linear_decaying_function() {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                Some(now - DateDuration::days(1)),
+                Some(now + DateDuration::days(1)),
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_transaction_match!(result, 0.75, event, 1);
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                Some(now),
+                Some(now + DateDuration::days(1)),
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_transaction_match!(result, 1.0, event, 1);
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                Some(now - DateDuration::days(1)),
+                Some(now),
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that no match is returned when the linear decaying function has invalid time range.
+    fn test_get_sampling_match_result_with_linear_decaying_function_and_invalid_time_range() {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                Some(now - DateDuration::days(1)),
+                None,
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_no_match!(result);
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                None,
+                Some(now + DateDuration::days(1)),
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_no_match!(result);
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_decaying_sampling_rule(
+                1,
+                None,
+                None,
+                SamplingValue::SampleRate { value: 1.0 },
+                DecayingFunction::Linear { decayed_value: 0.5 },
+            )],
+            mode: SamplingMode::Received,
+        };
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that match is returned when there are multiple decaying rules with factor and sample rate.
+    fn test_get_sampling_match_result_with_multiple_decaying_functions_with_factor_and_sample_rate()
+    {
+        let now = Utc::now();
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![
+                mocked_decaying_sampling_rule(
+                    1,
+                    Some(now - DateDuration::days(1)),
+                    Some(now + DateDuration::days(1)),
+                    SamplingValue::Factor { value: 5.0 },
+                    DecayingFunction::Linear { decayed_value: 1.0 },
+                ),
+                mocked_decaying_sampling_rule(
+                    2,
+                    Some(now - DateDuration::days(1)),
+                    Some(now + DateDuration::days(1)),
+                    SamplingValue::SampleRate { value: 0.3 },
+                    DecayingFunction::Constant,
+                ),
+            ],
+            mode: SamplingMode::Received,
+        };
+
+        let result = SamplingConfig::match_against_configs(
+            true,
+            &sampling_config,
+            None,
+            None,
+            &event,
+            None,
+            now,
+        );
+        assert!(result.is_some());
+        if let Some(SamplingMatch {
+            sample_rate,
+            seed,
+            matched_rule_ids,
+        }) = result
+        {
+            assert!((sample_rate - 0.9).abs() < f64::EPSILON);
+            assert_eq!(seed, event.id.0.unwrap().0);
+            assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
+        }
     }
 }
