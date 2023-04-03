@@ -6,6 +6,7 @@
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 
 ## 0.8.19

@@ -22,6 +22,11 @@ pub enum Feature {
     /// Transaction names modified by clusterer rules are always marked as such.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
     TransactionNameMarkScrubbedAsSanitized,
+    /// Enables device.class synthesis
+    ///
+    /// Enables device.class tag synthesis on mobile events.
+    #[serde(rename = "organizations:device-class-synthesis")]
+    DeviceClassSynthesis,
     /// Unused.
     ///
     /// This used to control the initial experimental metrics extraction for sessions and has been
