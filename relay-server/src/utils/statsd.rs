@@ -23,8 +23,7 @@ where
         return f(event);
     }
 
-    // Create a hash of the old name so we can track it in a set metric:
-
+    // Create a hash of the old name so we can track it in a set metric.
     let old_name = {
         let old_name = inner.transaction.as_str().unwrap_or_default();
         let mut hasher = FnvHasher::default();
