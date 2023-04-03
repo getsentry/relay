@@ -859,4 +859,27 @@ mod tests {
         assert_eq!(profile.profile.thread_metadata.unwrap().len(), 2);
         assert_eq!(profile.profile.queue_metadata.unwrap().len(), 1);
     }
+
+    #[test]
+    fn test_copy_tags() {
+        let mut tags: BTreeMap<String, String> = BTreeMap::new();
+        tags.insert("release".to_string(), "some-random-release".to_string());
+        tags.insert(
+            "transaction".to_string(),
+            "some-random-transaction".to_string(),
+        );
+
+        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let profile_json = parse_sample_profile(payload, tags);
+        assert!(profile_json.is_ok());
+
+        let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+            .map_err(ProfileError::InvalidJson)
+            .unwrap();
+        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(
+            output.transaction.unwrap().name,
+            "some-random-transaction".to_string()
+        );
+    }
 }

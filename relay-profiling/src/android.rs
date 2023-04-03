@@ -34,7 +34,10 @@ struct AndroidProfile {
 
     platform: String,
     profile_id: EventId,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
+
     version_code: String,
     version_name: String,
 
@@ -275,5 +278,32 @@ mod tests {
         assert_eq!(profile.active_thread_id, 12345);
         assert_eq!(profile.transaction_name, "transaction1");
         assert_eq!(profile.duration_ns, 1000000000);
+    }
+
+    #[test]
+    fn test_copy_tags() {
+        let mut tags: BTreeMap<String, String> = BTreeMap::new();
+        tags.insert("release".to_string(), "some-random-release".to_string());
+        tags.insert(
+            "transaction".to_string(),
+            "some-random-transaction".to_string(),
+        );
+
+        let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
+        let profile_json = parse_android_profile(payload, tags);
+        assert!(profile_json.is_ok());
+
+        let output: AndroidProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+            .map_err(ProfileError::InvalidJson)
+            .unwrap();
+        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(
+            output.transaction_name,
+            "some-random-transaction".to_string()
+        );
+
+        if let Some(transaction) = output.transaction {
+            assert_eq!(transaction.name, "some-random-transaction".to_string());
+        }
     }
 }
