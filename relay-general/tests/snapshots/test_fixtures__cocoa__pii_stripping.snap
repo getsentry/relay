@@ -620,8 +620,6 @@ threads:
 tags:
   - - a
     - b
-  - - device.class
-    - "2"
 extra:
   c: d
 debug_meta:
