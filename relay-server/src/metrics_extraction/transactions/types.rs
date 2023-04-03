@@ -14,6 +14,7 @@ use relay_metrics::{
 };
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
@@ -44,10 +45,6 @@ enum TransactionMetric {
         unit: MetricUnit,
         tags: TransactionMeasurementTags,
     },
-}
-
-pub trait IntoMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Metric;
 }
 
 impl IntoMetric for TransactionMetric {
