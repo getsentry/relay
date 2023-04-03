@@ -16,7 +16,7 @@ use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
-/// Enumerates the most common transaction-names, with a catch-all for any other names.
+/// Enumerates the metrics extracted from transaction payloads.
 #[derive(Clone, Debug, PartialEq)]
 enum TransactionMetric {
     User {
