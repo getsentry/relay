@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -532,28 +532,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
-        }
-    }
-}
-
-/// Set metrics used by Relay.
-pub enum RelaySets {
-    /// The number of unique transaction names grouped by transaction name modifications.
-    /// This metric is tagged with:
-    ///  - `source_in`: The source of the transaction name before normalization.
-    ///    See the [transaction source
-    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
-    ///    for all valid values.
-    ///  - `change`: The mechanism that changed the transaction name.
-    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
-    ///  - `source_out`: The source of the transaction name after normalization.
-    TransactionNameChanges,
-}
-
-impl SetMetric for RelaySets {
-    fn name(&self) -> &'static str {
-        match self {
-            RelaySets::TransactionNameChanges => "event.unique_transaction_name_changes",
         }
     }
 }
