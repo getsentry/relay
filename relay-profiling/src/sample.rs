@@ -323,7 +323,23 @@ pub fn parse_sample_profile(
     tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
+
+    if let Some(transaction_name) = tags.get("transaction") {
+        if let Some(ref mut transaction) = profile.transaction {
+            transaction.name = transaction_name.to_string();
+        }
+    }
+
+    if let Some(release) = tags.get("release") {
+        profile.release = release.to_string();
+    }
+
+    if let Some(environment) = tags.get("environment") {
+        profile.environment = environment.to_string();
+    }
+
     profile.tags = tags;
+
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 

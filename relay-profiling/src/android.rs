@@ -34,6 +34,7 @@ struct AndroidProfile {
 
     platform: String,
     profile_id: EventId,
+    release: String,
     version_code: String,
     version_name: String,
 
@@ -168,7 +169,25 @@ pub fn parse_android_profile(
     tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
+
+    if let Some(transaction_name) = tags.get("transaction") {
+        profile.transaction_name = transaction_name.to_string();
+
+        if let Some(ref mut transaction) = profile.transaction {
+            transaction.name = profile.transaction_name.clone();
+        }
+    }
+
+    if let Some(release) = tags.get("release") {
+        profile.release = release.to_string();
+    }
+
+    if let Some(environment) = tags.get("environment") {
+        profile.environment = environment.to_string();
+    }
+
     profile.tags = tags;
+
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
