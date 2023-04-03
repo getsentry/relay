@@ -3467,6 +3467,11 @@
 <a href="#3466" id="3466">3466</a>
 <a href="#3467" id="3467">3467</a>
 <a href="#3468" id="3468">3468</a>
+<a href="#3469" id="3469">3469</a>
+<a href="#3470" id="3470">3470</a>
+<a href="#3471" id="3471">3471</a>
+<a href="#3472" id="3472">3472</a>
+<a href="#3473" id="3473">3473</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -6858,6 +6863,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url&quot;,
+            &quot;event.unique_transaction_name_changes:6195281337519401496|s|#source_in:url,changes:none,source_out:url&quot;,
         ]
         &quot;###</span>);
     }
@@ -6868,6 +6874,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized&quot;,
+            &quot;event.unique_transaction_name_changes:3756704504880761228|s|#source_in:url,changes:rule,source_out:sanitized&quot;,
         ]
         &quot;###</span>);
     }
@@ -6878,6 +6885,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url&quot;,
+            &quot;event.unique_transaction_name_changes:4519663072515272991|s|#source_in:url,changes:pattern,source_out:url&quot;,
         ]
         &quot;###</span>);
     }
@@ -6888,6 +6896,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized&quot;,
+            &quot;event.unique_transaction_name_changes:5223952678704220359|s|#source_in:url,changes:both,source_out:sanitized&quot;,
         ]
         &quot;###</span>);
     }
@@ -6898,6 +6907,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route&quot;,
+            &quot;event.unique_transaction_name_changes:5223952678704220359|s|#source_in:route,changes:none,source_out:route&quot;,
         ]
         &quot;###</span>);
     }
