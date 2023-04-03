@@ -3120,7 +3120,6 @@ dependencies = [
  "chrono",
  "data-encoding",
  "flate2",
- "fnv",
  "futures",
  "hashbrown 0.13.2",
  "insta",
