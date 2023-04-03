@@ -3389,6 +3389,7 @@ mod tests {
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+            "event.unique_transaction_name_changes:6195281337519401496|s|#source_in:url,changes:none,source_out:url",
         ]
         "###);
     }
@@ -3399,6 +3400,7 @@ mod tests {
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
+            "event.unique_transaction_name_changes:3756704504880761228|s|#source_in:url,changes:rule,source_out:sanitized",
         ]
         "###);
     }
@@ -3409,6 +3411,7 @@ mod tests {
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
+            "event.unique_transaction_name_changes:4519663072515272991|s|#source_in:url,changes:pattern,source_out:url",
         ]
         "###);
     }
@@ -3419,6 +3422,7 @@ mod tests {
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized",
+            "event.unique_transaction_name_changes:5223952678704220359|s|#source_in:url,changes:both,source_out:sanitized",
         ]
         "###);
     }
@@ -3429,6 +3433,7 @@ mod tests {
         insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route",
+            "event.unique_transaction_name_changes:5223952678704220359|s|#source_in:route,changes:none,source_out:route",
         ]
         "###);
     }
