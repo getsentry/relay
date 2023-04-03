@@ -151,7 +151,18 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
         profile.transaction_name = transaction.name.clone();
 
         profile.transaction = Some(transaction);
-    } else if !profile.has_transaction_metadata() {
+    } else if profile.has_transaction_metadata() {
+        profile.transaction = Some(TransactionMetadata {
+            active_thread_id: profile.active_thread_id,
+            id: profile.transaction_id,
+            name: profile.transaction_name.clone(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 0,
+            relative_start_ns: 0,
+            trace_id: profile.trace_id,
+        });
+    } else {
         return Err(ProfileError::NoTransactionAssociated);
     }
 
