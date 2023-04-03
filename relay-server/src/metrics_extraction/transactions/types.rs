@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 
 use relay_common::{MetricUnit, SpanStatus, UnixTimestamp};
