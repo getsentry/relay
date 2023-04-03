@@ -18,6 +18,7 @@ pub enum SessionMetric {
         timestamp: UnixTimestamp,
         tags: SessionSessionTags,
     },
+    /// The number of unique session users for the given time frame.
     User {
         distinct_id: String,
         timestamp: UnixTimestamp,
