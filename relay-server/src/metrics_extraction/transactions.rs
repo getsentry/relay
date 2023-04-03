@@ -18,42 +18,42 @@ use crate::utils::SamplingResult;
 
 /// Enumerates the most common transaction-names, with a catch-all for any other names.
 #[derive(Clone, Debug, PartialEq)]
-enum TransactionsMetric {
+enum TransactionMetric {
     User {
         value: String,
         timestamp: UnixTimestamp,
-        tags: TransactionsUserTags,
+        tags: TransactionUserTags,
     },
     Duration {
         unit: DurationUnit,
         value: DistributionType,
         timestamp: UnixTimestamp,
-        tags: TransactionsDurationTags,
+        tags: TransactionDurationTags,
     },
     CountPerRootProject {
         value: CounterType,
         timestamp: UnixTimestamp,
-        tags: TransactionsCPRTags,
+        tags: TransactionCPRTags,
     },
     Breakdowns {
         name: String,
         timestamp: UnixTimestamp,
         value: DistributionType,
-        tags: TransactionsBreakdownTags,
+        tags: TransactionBreakdownTags,
     },
-    Measurements {
-        kind: String,
+    Measurement {
+        name: String,
         value: DistributionType,
         timestamp: UnixTimestamp,
         unit: MetricUnit,
-        tags: TransactionsMeasurementTags,
+        tags: TransactionMeasurementTags,
     },
 }
 
-impl From<TransactionsMetric> for Metric {
-    fn from(value: TransactionsMetric) -> Self {
+impl From<TransactionMetric> for Metric {
+    fn from(value: TransactionMetric) -> Self {
         let (ty, unit, name, value, timestamp, tags) = match value {
-            TransactionsMetric::User {
+            TransactionMetric::User {
                 value,
                 timestamp,
                 tags,
@@ -65,7 +65,7 @@ impl From<TransactionsMetric> for Metric {
                 timestamp,
                 tags.into(),
             ),
-            TransactionsMetric::Breakdowns {
+            TransactionMetric::Breakdowns {
                 timestamp,
                 value,
                 tags,
@@ -78,7 +78,7 @@ impl From<TransactionsMetric> for Metric {
                 timestamp,
                 tags.into(),
             ),
-            TransactionsMetric::CountPerRootProject {
+            TransactionMetric::CountPerRootProject {
                 value,
                 timestamp,
                 tags,
@@ -90,7 +90,7 @@ impl From<TransactionsMetric> for Metric {
                 timestamp,
                 tags.into(),
             ),
-            TransactionsMetric::Duration {
+            TransactionMetric::Duration {
                 unit,
                 value,
                 timestamp,
@@ -103,8 +103,8 @@ impl From<TransactionsMetric> for Metric {
                 timestamp,
                 tags.into(),
             ),
-            TransactionsMetric::Measurements {
-                kind,
+            TransactionMetric::Measurement {
+                name: kind,
                 value,
                 timestamp,
                 unit,
@@ -131,7 +131,7 @@ impl From<TransactionsMetric> for Metric {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct TransactionsMeasurementTags {
+struct TransactionMeasurementTags {
     measurement_rating: Option<String>,
     release: Option<String>,
     dist: Option<String>,
@@ -144,7 +144,7 @@ struct TransactionsMeasurementTags {
     other: BTreeMap<String, String>,
 }
 
-impl TransactionsMeasurementTags {
+impl TransactionMeasurementTags {
     fn new(measurement_rating: Option<String>, universal_tags: UniversalTags) -> Self {
         Self {
             measurement_rating,
@@ -161,8 +161,8 @@ impl TransactionsMeasurementTags {
     }
 }
 
-impl From<TransactionsMeasurementTags> for BTreeMap<String, String> {
-    fn from(value: TransactionsMeasurementTags) -> Self {
+impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
+    fn from(value: TransactionMeasurementTags) -> Self {
         let mut map = value.other;
 
         if let Some(measurement_rating) = value.measurement_rating {
@@ -202,7 +202,7 @@ impl From<TransactionsMeasurementTags> for BTreeMap<String, String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct TransactionsBreakdownTags {
+struct TransactionBreakdownTags {
     release: Option<String>,
     dist: Option<String>,
     environment: Option<String>,
@@ -214,7 +214,7 @@ struct TransactionsBreakdownTags {
     other: BTreeMap<String, String>,
 }
 
-impl TransactionsBreakdownTags {
+impl TransactionBreakdownTags {
     fn new(universal_tags: UniversalTags) -> Self {
         Self {
             release: universal_tags.release,
@@ -230,8 +230,8 @@ impl TransactionsBreakdownTags {
     }
 }
 
-impl From<TransactionsBreakdownTags> for BTreeMap<String, String> {
-    fn from(value: TransactionsBreakdownTags) -> Self {
+impl From<TransactionBreakdownTags> for BTreeMap<String, String> {
+    fn from(value: TransactionBreakdownTags) -> Self {
         let mut map = value.other;
 
         if let Some(release) = value.release {
@@ -267,7 +267,7 @@ impl From<TransactionsBreakdownTags> for BTreeMap<String, String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct TransactionsCPRTags {
+struct TransactionCPRTags {
     decision: String,
     release: Option<String>,
     dist: Option<String>,
@@ -280,7 +280,7 @@ struct TransactionsCPRTags {
     other: BTreeMap<String, String>,
 }
 
-impl TransactionsCPRTags {
+impl TransactionCPRTags {
     fn new(decision: &SamplingResult, universal_tags: UniversalTags) -> Self {
         let decision = match decision {
             SamplingResult::Keep => "keep".to_owned(),
@@ -301,8 +301,8 @@ impl TransactionsCPRTags {
     }
 }
 
-impl From<TransactionsCPRTags> for BTreeMap<String, String> {
-    fn from(value: TransactionsCPRTags) -> Self {
+impl From<TransactionCPRTags> for BTreeMap<String, String> {
+    fn from(value: TransactionCPRTags) -> Self {
         let mut map = value.other;
 
         map.insert("decision".to_string(), value.decision);
@@ -340,7 +340,7 @@ impl From<TransactionsCPRTags> for BTreeMap<String, String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct TransactionsDurationTags {
+struct TransactionDurationTags {
     release: Option<String>,
     dist: Option<String>,
     environment: Option<String>,
@@ -351,7 +351,7 @@ struct TransactionsDurationTags {
     http_method: Option<String>,
     other: BTreeMap<String, String>,
 }
-impl TransactionsDurationTags {
+impl TransactionDurationTags {
     fn new(universal_tags: UniversalTags) -> Self {
         Self {
             release: universal_tags.release,
@@ -367,8 +367,8 @@ impl TransactionsDurationTags {
     }
 }
 
-impl From<TransactionsDurationTags> for BTreeMap<String, String> {
-    fn from(value: TransactionsDurationTags) -> Self {
+impl From<TransactionDurationTags> for BTreeMap<String, String> {
+    fn from(value: TransactionDurationTags) -> Self {
         let mut map = value.other;
 
         if let Some(release) = value.release {
@@ -404,7 +404,7 @@ impl From<TransactionsDurationTags> for BTreeMap<String, String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct TransactionsUserTags {
+struct TransactionUserTags {
     release: Option<String>,
     dist: Option<String>,
     environment: Option<String>,
@@ -416,7 +416,7 @@ struct TransactionsUserTags {
     other: BTreeMap<String, String>,
 }
 
-impl TransactionsUserTags {
+impl TransactionUserTags {
     fn new(universal_tags: UniversalTags) -> Self {
         Self {
             release: universal_tags.release,
@@ -432,8 +432,8 @@ impl TransactionsUserTags {
     }
 }
 
-impl From<TransactionsUserTags> for BTreeMap<String, String> {
-    fn from(value: TransactionsUserTags) -> Self {
+impl From<TransactionUserTags> for BTreeMap<String, String> {
+    fn from(value: TransactionUserTags) -> Self {
         let mut map = value.other;
 
         if let Some(release) = value.release {
@@ -760,12 +760,12 @@ fn extract_transaction_metrics_inner(
             let rating = get_measurement_rating(name, value);
 
             metrics.push(
-                TransactionsMetric::Measurements {
-                    kind: name.to_string(),
+                TransactionMetric::Measurement {
+                    name: name.to_string(),
                     value,
                     timestamp,
                     unit: measurement.unit.value().copied().unwrap_or_default(),
-                    tags: TransactionsMeasurementTags::new(rating, tags.clone()),
+                    tags: TransactionMeasurementTags::new(rating, tags.clone()),
                 }
                 .into(),
             );
@@ -793,11 +793,11 @@ fn extract_transaction_metrics_inner(
                         None => continue,
                     };
                     metrics.push(
-                        TransactionsMetric::Breakdowns {
+                        TransactionMetric::Breakdowns {
                             name: format!("{breakdown}.{measurement_name}"),
                             timestamp,
                             value,
-                            tags: TransactionsBreakdownTags::new(tags.clone()),
+                            tags: TransactionBreakdownTags::new(tags.clone()),
                         }
                         .into(),
                     );
@@ -808,11 +808,11 @@ fn extract_transaction_metrics_inner(
 
     // Duration
     metrics.push(
-        TransactionsMetric::Duration {
+        TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
             timestamp,
-            tags: TransactionsDurationTags::new(tags.clone()),
+            tags: TransactionDurationTags::new(tags.clone()),
         }
         .into(),
     );
@@ -826,14 +826,14 @@ fn extract_transaction_metrics_inner(
         ));
     */
 
-    let mut root_counter_tags = TransactionsCPRTags::new(sampling_result, UniversalTags::default());
+    let mut root_counter_tags = TransactionCPRTags::new(sampling_result, UniversalTags::default());
     if transaction_from_dsc.is_some() {
         root_counter_tags.transaction = transaction_from_dsc.map(|t| t.to_owned());
     }
 
     // Count the transaction towards the root
     sampling_metrics.push(
-        TransactionsMetric::CountPerRootProject {
+        TransactionMetric::CountPerRootProject {
             value: 1.0,
             timestamp,
             tags: root_counter_tags,
@@ -845,10 +845,10 @@ fn extract_transaction_metrics_inner(
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
             metrics.push(
-                TransactionsMetric::User {
+                TransactionMetric::User {
                     value,
                     timestamp,
-                    tags: TransactionsUserTags::new(tags),
+                    tags: TransactionUserTags::new(tags),
                 }
                 .into(),
             );
@@ -1638,12 +1638,12 @@ mod tests {
         tags.other
             .insert("satisfaction".to_owned(), "frustrated".to_owned());
         tags.platform = Some("other".to_string());
-        let measurement_tags = TransactionsMeasurementTags::new(Some("good".to_string()), tags);
+        let measurement_tags = TransactionMeasurementTags::new(Some("good".to_string()), tags);
 
         assert_eq!(
             metrics,
-            &[TransactionsMetric::Measurements {
-                kind: "lcp".to_string(),
+            &[TransactionMetric::Measurement {
+                name: "lcp".to_string(),
                 value: 41.0,
                 timestamp: UnixTimestamp::from_secs(1619420402),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
