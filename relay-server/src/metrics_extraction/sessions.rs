@@ -12,6 +12,7 @@ use relay_metrics::{
 /// Enumerates the metrics extracted from session payloads.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionMetric {
+    /// The number of sessions collected in the given time frame.
     Session {
         counter: CounterType,
         timestamp: UnixTimestamp,
