@@ -9,24 +9,23 @@ use relay_metrics::{
     CounterType, Metric, MetricNamespace, MetricResourceIdentifier, MetricType, MetricValue,
 };
 
+use crate::metrics_extraction::transactions::IntoMetric;
+
 /// Enumerates the metrics extracted from session payloads.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionMetric {
     /// The number of sessions collected in the given time frame.
     Session {
         counter: CounterType,
-        timestamp: UnixTimestamp,
         tags: SessionSessionTags,
     },
     /// The number of unique session users for the given time frame.
     User {
         distinct_id: String,
-        timestamp: UnixTimestamp,
         tags: SessionUserTags,
     },
     Error {
         session_id: Uuid,
-        timestamp: UnixTimestamp,
         tags: SessionErrorTags,
     },
 }
@@ -127,35 +126,26 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
     }
 }
 
-impl From<SessionMetric> for Metric {
-    fn from(value: SessionMetric) -> Self {
+impl IntoMetric for SessionMetric {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
         let mri = MetricResourceIdentifier {
-            ty: value.ty(),
+            ty: self.ty(),
             namespace: MetricNamespace::Sessions,
-            name: value.to_string(),
+            name: self.to_string(),
             unit: MetricUnit::None,
         };
 
-        let (value, timestamp, tags) = match value {
+        let (value, tags) = match self {
             SessionMetric::Error {
                 session_id: id,
-                timestamp,
                 tags,
-            } => (MetricValue::set_from_display(id), timestamp, tags.into()),
-            SessionMetric::User {
-                distinct_id,
-                timestamp,
-                tags,
-            } => (
-                MetricValue::set_from_display(distinct_id),
-                timestamp,
-                tags.into(),
-            ),
-            SessionMetric::Session {
-                counter,
-                timestamp,
-                tags,
-            } => (MetricValue::Counter(counter), timestamp, tags.into()),
+            } => (MetricValue::set_from_display(id), tags.into()),
+            SessionMetric::User { distinct_id, tags } => {
+                (MetricValue::set_from_display(distinct_id), tags.into())
+            }
+            SessionMetric::Session { counter, tags } => {
+                (MetricValue::Counter(counter), tags.into())
+            }
         };
         Metric::new(mri, value, timestamp, tags)
     }
@@ -208,7 +198,6 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(
             SessionMetric::Session {
                 counter: session.total_count() as f64,
-                timestamp,
                 tags: SessionSessionTags {
                     status: SessionStatus::Unknown("init".to_string()),
                     release: release.clone(),
@@ -216,7 +205,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
         );
     }
 
@@ -225,18 +214,16 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(match errors {
             SessionErrored::Individual(session_id) => SessionMetric::Error {
                 session_id,
-                timestamp,
                 tags: SessionErrorTags {
                     release: release.clone(),
                     environment: environment.clone(),
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
 
             SessionErrored::Aggregated(count) => SessionMetric::Session {
                 counter: count as f64,
-                timestamp,
                 tags: SessionSessionTags {
                     status: SessionStatus::Unknown("errored_preaggr".to_string()),
                     release: release.clone(),
@@ -244,14 +231,13 @@ pub fn extract_session_metrics<T: SessionLike>(
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(
                 SessionMetric::User {
                     distinct_id: distinct_id.clone(),
-                    timestamp,
                     tags: SessionUserTags {
                         status: Some(SessionStatus::Errored),
                         abnormal_mechanism: None,
@@ -260,7 +246,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         sdk: sdk.map(|s| s.to_owned()),
                     },
                 }
-                .into(),
+                .into_metric(timestamp),
             );
         }
     } else if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -270,7 +256,6 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(
             SessionMetric::User {
                 distinct_id: distinct_id.clone(),
-                timestamp,
                 tags: SessionUserTags {
                     status: None,
                     abnormal_mechanism: None,
@@ -279,7 +264,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
         )
     }
 
@@ -289,7 +274,6 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(
             SessionMetric::Session {
                 counter: session.abnormal_count() as f64,
-                timestamp,
                 tags: SessionSessionTags {
                     status: SessionStatus::Abnormal,
                     release: release.clone(),
@@ -297,7 +281,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
         );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -311,7 +295,6 @@ pub fn extract_session_metrics<T: SessionLike>(
             target.push(
                 SessionMetric::User {
                     distinct_id: distinct_id.clone(),
-                    timestamp,
                     tags: SessionUserTags {
                         status: Some(SessionStatus::Abnormal),
                         abnormal_mechanism,
@@ -320,7 +303,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         sdk: sdk.map(|s| s.to_owned()),
                     },
                 }
-                .into(),
+                .into_metric(timestamp),
             )
         }
     }
@@ -329,7 +312,6 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(
             SessionMetric::Session {
                 counter: session.crashed_count() as f64,
-                timestamp,
                 tags: SessionSessionTags {
                     status: SessionStatus::Crashed,
                     release: release.clone(),
@@ -337,14 +319,13 @@ pub fn extract_session_metrics<T: SessionLike>(
                     sdk: sdk.map(|s| s.to_owned()),
                 },
             }
-            .into(),
+            .into_metric(timestamp),
         );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(
                 SessionMetric::User {
                     distinct_id: distinct_id.clone(),
-                    timestamp,
                     tags: SessionUserTags {
                         status: Some(SessionStatus::Crashed),
                         abnormal_mechanism: None,
@@ -353,7 +334,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         sdk: sdk.map(|s| s.to_owned()),
                     },
                 }
-                .into(),
+                .into_metric(timestamp),
             );
         }
     }
