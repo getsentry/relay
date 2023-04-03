@@ -2124,6 +2124,7 @@ expression: "relay_general::protocol::event_json_schema()"
           ],
           "properties": {
             "address": {
+              "description": " Address of the java monitor object.",
               "default": null,
               "type": [
                 "string",
@@ -2131,6 +2132,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "class_name": {
+              "description": " Class name of the java monitor object.",
               "default": null,
               "type": [
                 "string",
@@ -2138,6 +2140,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "package_name": {
+              "description": " Package name of the java monitor object.",
               "default": null,
               "type": [
                 "string",
@@ -2145,6 +2148,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "thread_id": {
+              "description": " Thread ID that's holding the lock.",
               "default": null,
               "anyOf": [
                 {
@@ -2156,6 +2160,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "type": {
+              "description": " Type of lock on the thread with available options being blocked, waiting, sleeping and locked.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/LockReasonType"
@@ -3385,7 +3390,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "lock_reason": {
-              "description": " Lock object that is blocking the thread",
+              "description": " Represents an instance of a held lock (java monitor object) in a thread.",
               "default": null,
               "anyOf": [
                 {

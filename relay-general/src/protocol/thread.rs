@@ -71,7 +71,7 @@ impl Empty for ThreadId {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, ProcessValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum LockReasonType {
@@ -79,6 +79,8 @@ pub enum LockReasonType {
     Waiting = 2,
     Sleeping = 4,
     Blocked = 8,
+    // This enum does not have a `fallback_variant` because we consider it unlikely to be extended. If it is,
+    // The error added to `Meta` will tell us to update this enum.
 }
 
 impl LockReasonType {
@@ -101,13 +103,6 @@ impl fmt::Display for LockReasonType {
             LockReasonType::Sleeping => write!(f, "sleeping"),
             LockReasonType::Blocked => write!(f, "blocked"),
         }
-    }
-}
-
-impl Empty for LockReasonType {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        false
     }
 }
 
@@ -158,19 +153,26 @@ impl IntoValue for LockReasonType {
     }
 }
 
-impl ProcessValue for LockReasonType {}
-
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct LockReason {
+    /// Type of lock on the thread with available options being blocked, waiting, sleeping and locked.
     #[metastructure(field = "type", required = "true")]
     pub ty: Annotated<LockReasonType>,
+
+    /// Address of the java monitor object.
     #[metastructure(skip_serialization = "empty")]
     pub address: Annotated<String>,
+
+    /// Package name of the java monitor object.
     #[metastructure(skip_serialization = "empty")]
     pub package_name: Annotated<String>,
+
+    /// Class name of the java monitor object.
     #[metastructure(skip_serialization = "empty")]
     pub class_name: Annotated<String>,
+
+    /// Thread ID that's holding the lock.
     #[metastructure(skip_serialization = "empty")]
     pub thread_id: Annotated<ThreadId>,
 
@@ -238,7 +240,7 @@ pub struct Thread {
     #[metastructure(skip_serialization = "empty")]
     pub state: Annotated<String>,
 
-    /// Lock object that is blocking the thread
+    /// Represents an instance of a held lock (java monitor object) in a thread.
     #[metastructure(skip_serialization = "empty")]
     pub lock_reason: Annotated<LockReason>,
 
