@@ -60,6 +60,7 @@ pub struct SessionUserTags {
     pub common_tags: CommonTags,
 }
 
+/// Tags that are set on all session metrics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommonTags {
     pub release: String,

@@ -11,8 +11,8 @@ use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
-    ExtractMetricsError, TransactionBreakdownTags, TransactionCPRTags, TransactionDurationTags,
-    TransactionMeasurementTags, TransactionMetric, TransactionUserTags, UniversalTags,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
+    TransactionMetric,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -149,22 +149,19 @@ fn get_transaction_name(
 }
 
 /// These are the tags that are added to all extracted metrics.
-fn extract_universal_tags(
-    event: &Event,
-    config: &TransactionMetricsConfig,
-) -> BTreeMap<UniversalTags, String> {
+fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
-        tags.insert(UniversalTags::Release, release.to_string());
+        tags.insert(CommonTag::Release, release.to_string());
     }
     if let Some(dist) = event.dist.value() {
-        tags.insert(UniversalTags::Dist, dist.to_string());
+        tags.insert(CommonTag::Dist, dist.to_string());
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(UniversalTags::Environment, environment.to_string());
+        tags.insert(CommonTag::Environment, environment.to_string());
     }
     if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert(UniversalTags::Transaction, transaction_name);
+        tags.insert(CommonTag::Transaction, transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -176,20 +173,20 @@ fn extract_universal_tags(
         _ => "other",
     };
 
-    tags.insert(UniversalTags::Platform, platform.to_string());
+    tags.insert(CommonTag::Platform, platform.to_string());
 
     if let Some(trace_context) = get_trace_context(event) {
         let status = extract_transaction_status(trace_context);
 
-        tags.insert(UniversalTags::TransactionStatus, status.to_string());
+        tags.insert(CommonTag::TransactionStatus, status.to_string());
 
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(UniversalTags::TransactionOp, op);
+            tags.insert(CommonTag::TransactionOp, op);
         }
     }
 
     if let Some(http_method) = extract_http_method(event) {
-        tags.insert(UniversalTags::HttpMethod, http_method);
+        tags.insert(CommonTag::HttpMethod, http_method);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -201,7 +198,7 @@ fn extract_universal_tags(
                     let (key, value) = entry.as_pair();
                     if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
                         if custom_tags.contains(key) {
-                            tags.insert(UniversalTags::Custom(key.to_string()), value.to_string());
+                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
                         }
                     }
                 }
@@ -209,7 +206,7 @@ fn extract_universal_tags(
         }
     }
 
-    tags
+    CommonTags(tags)
 }
 
 #[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
@@ -327,9 +324,7 @@ fn extract_transaction_metrics_inner(
                         TransactionMetric::Breakdown {
                             name: format!("{breakdown}.{measurement_name}"),
                             value,
-                            tags: TransactionBreakdownTags {
-                                universal_tags: tags.clone(),
-                            },
+                            tags: tags.clone(),
                         }
                         .into_metric(timestamp),
                     );
@@ -343,17 +338,17 @@ fn extract_transaction_metrics_inner(
         TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
-            tags: TransactionDurationTags {
-                universal_tags: tags.clone(),
-            },
+            tags: tags.clone(),
         }
         .into_metric(timestamp),
     );
 
     let root_counter_tags = {
-        let mut universal_tags = BTreeMap::default();
+        let mut universal_tags = CommonTags(BTreeMap::default());
         if let Some(transaction_from_dsc) = transaction_from_dsc {
-            universal_tags.insert(UniversalTags::Transaction, transaction_from_dsc.to_string());
+            universal_tags
+                .0
+                .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
         }
         TransactionCPRTags {
             decision: match sampling_result {
@@ -375,15 +370,7 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(
-                TransactionMetric::User {
-                    value,
-                    tags: TransactionUserTags {
-                        universal_tags: tags,
-                    },
-                }
-                .into_metric(timestamp),
-            );
+            metrics.push(TransactionMetric::User { value, tags }.into_metric(timestamp));
         }
     }
 
@@ -1167,11 +1154,11 @@ mod tests {
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
         let mut tags = extract_universal_tags(event.value().unwrap(), &config);
-        tags.insert(
-            UniversalTags::Custom("satisfaction".to_owned()),
+        tags.0.insert(
+            CommonTag::Custom("satisfaction".to_owned()),
             "frustrated".to_owned(),
         );
-        tags.insert(UniversalTags::Platform, "other".to_string());
+        tags.0.insert(CommonTag::Platform, "other".to_string());
         let measurement_tags = TransactionMeasurementTags {
             measurement_rating: Some("good".to_string()),
             universal_tags: tags,

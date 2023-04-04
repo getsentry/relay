@@ -12,14 +12,12 @@ use crate::metrics_extraction::IntoMetric;
 /// Enumerates the metrics extracted from transaction payloads.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransactionMetric {
-    User {
-        value: String,
-        tags: TransactionUserTags,
-    },
+    /// A set metric counting unique users.
+    User { value: String, tags: CommonTags },
     Duration {
         unit: DurationUnit,
         value: DistributionType,
-        tags: TransactionDurationTags,
+        tags: CommonTags,
     },
     CountPerRootProject {
         value: CounterType,
@@ -28,7 +26,7 @@ pub enum TransactionMetric {
     Breakdown {
         name: String,
         value: DistributionType,
-        tags: TransactionBreakdownTags,
+        tags: CommonTags,
     },
     Measurement {
         name: String,
@@ -109,12 +107,12 @@ impl IntoMetric for TransactionMetric {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TransactionMeasurementTags {
     pub measurement_rating: Option<String>,
-    pub universal_tags: BTreeMap<UniversalTags, String>,
+    pub universal_tags: CommonTags,
 }
 
 impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
     fn from(value: TransactionMeasurementTags) -> Self {
-        let mut map = UniversalTags::into_str_keys(value.universal_tags);
+        let mut map: BTreeMap<String, String> = value.universal_tags.into();
         if let Some(decision) = value.measurement_rating {
             map.insert("measurement_rating".to_string(), decision);
         }
@@ -123,54 +121,35 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TransactionBreakdownTags {
-    pub universal_tags: BTreeMap<UniversalTags, String>,
-}
-
-impl From<TransactionBreakdownTags> for BTreeMap<String, String> {
-    fn from(value: TransactionBreakdownTags) -> Self {
-        UniversalTags::into_str_keys(value.universal_tags)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransactionCPRTags {
     pub decision: String,
-    pub universal_tags: BTreeMap<UniversalTags, String>,
+    pub universal_tags: CommonTags,
 }
 
 impl From<TransactionCPRTags> for BTreeMap<String, String> {
     fn from(value: TransactionCPRTags) -> Self {
-        let mut map = UniversalTags::into_str_keys(value.universal_tags);
+        let mut map: BTreeMap<String, String> = value.universal_tags.into();
         map.insert("decision".to_string(), value.decision);
         map
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TransactionDurationTags {
-    pub universal_tags: BTreeMap<UniversalTags, String>,
-}
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct CommonTags(pub BTreeMap<CommonTag, String>);
 
-impl From<TransactionDurationTags> for BTreeMap<String, String> {
-    fn from(value: TransactionDurationTags) -> Self {
-        UniversalTags::into_str_keys(value.universal_tags)
+impl From<CommonTags> for BTreeMap<String, String> {
+    fn from(value: CommonTags) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect()
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TransactionUserTags {
-    pub universal_tags: BTreeMap<UniversalTags, String>,
-}
-
-impl From<TransactionUserTags> for BTreeMap<String, String> {
-    fn from(value: TransactionUserTags) -> Self {
-        UniversalTags::into_str_keys(value.universal_tags)
-    }
-}
-
+/// The most common tags for transaction metrics.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum UniversalTags {
+pub enum CommonTag {
     Release,
     Dist,
     Environment,
@@ -182,26 +161,20 @@ pub enum UniversalTags {
     Custom(String),
 }
 
-impl Display for UniversalTags {
+impl Display for CommonTag {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
-            UniversalTags::Release => "release",
-            UniversalTags::Dist => "dist",
-            UniversalTags::Environment => "environment",
-            UniversalTags::Transaction => "transaction",
-            UniversalTags::Platform => "platform",
-            UniversalTags::TransactionStatus => "transaction.status",
-            UniversalTags::TransactionOp => "transaction.op",
-            UniversalTags::HttpMethod => "http.method",
-            UniversalTags::Custom(s) => s,
+            CommonTag::Release => "release",
+            CommonTag::Dist => "dist",
+            CommonTag::Environment => "environment",
+            CommonTag::Transaction => "transaction",
+            CommonTag::Platform => "platform",
+            CommonTag::TransactionStatus => "transaction.status",
+            CommonTag::TransactionOp => "transaction.op",
+            CommonTag::HttpMethod => "http.method",
+            CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")
-    }
-}
-
-impl UniversalTags {
-    fn into_str_keys(map: BTreeMap<UniversalTags, String>) -> BTreeMap<String, String> {
-        map.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }
 }
 
