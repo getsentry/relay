@@ -24,6 +24,10 @@ pub enum SessionMetric {
         distinct_id: String,
         tags: SessionUserTags,
     },
+    /// The number of sessions that errored in the given time frame.
+    ///
+    /// Because multiple session updates can be received for the same session ID,
+    /// this is collected as a [`MetricType::Set`] metric rather than a simple counter.
     Error {
         session_id: Uuid,
         tags: SessionErrorTags,
@@ -114,10 +118,11 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
 
 impl IntoMetric for SessionMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
+        let name = self.to_string();
         let mri = MetricResourceIdentifier {
             ty: self.ty(),
             namespace: MetricNamespace::Sessions,
-            name: self.to_string(),
+            name: &name,
             unit: MetricUnit::None,
         };
 

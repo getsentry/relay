@@ -217,7 +217,7 @@ impl fmt::Display for MetricNamespace {
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
-pub struct MetricResourceIdentifier {
+pub struct MetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
@@ -225,14 +225,14 @@ pub struct MetricResourceIdentifier {
     /// the value `"custom"`.
     pub namespace: MetricNamespace,
     /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: String,
+    pub name: &'a str,
     /// The metric unit.
     pub unit: MetricUnit,
 }
 
-impl MetricResourceIdentifier {
+impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn parse(name: &str) -> Result<Self, ParseMetricError> {
+    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
@@ -242,13 +242,13 @@ impl MetricResourceIdentifier {
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name: name.to_string(),
+            name,
             unit,
         })
     }
 }
 
-impl fmt::Display for MetricResourceIdentifier {
+impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
         write!(
@@ -517,7 +517,7 @@ impl Metric {
             MetricResourceIdentifier {
                 ty,
                 namespace: raw_namespace.parse().ok()?,
-                name: name.to_string(),
+                name,
                 unit,
             },
             value,

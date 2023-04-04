@@ -49,33 +49,50 @@ enum TransactionMetric {
 
 impl IntoMetric for TransactionMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
-        let (ty, unit, name, value, tags) = match self {
-            TransactionMetric::User { value, tags } => (
-                MetricType::Set,
-                MetricUnit::None,
-                "user".to_string(),
+        let namespace = MetricNamespace::Transactions;
+        match self {
+            TransactionMetric::User { value, tags } => Metric::new(
+                MetricResourceIdentifier {
+                    ty: MetricType::Set,
+                    namespace,
+                    name: "user",
+                    unit: MetricUnit::None,
+                },
                 MetricValue::set_from_str(&value),
+                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { value, tags, name } => (
-                MetricType::Distribution,
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                format!("breakdowns.{name}"),
+            TransactionMetric::Breakdown { value, tags, name } => Metric::new(
+                MetricResourceIdentifier {
+                    ty: MetricType::Distribution,
+                    namespace,
+                    name: format!("breakdowns.{name}").as_str(),
+                    unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+                },
                 MetricValue::Distribution(value),
+                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::CountPerRootProject { value, tags } => (
-                MetricType::Counter,
-                MetricUnit::None,
-                "count_per_root_project".to_string(),
+            TransactionMetric::CountPerRootProject { value, tags } => Metric::new(
+                MetricResourceIdentifier {
+                    ty: MetricType::Counter,
+                    namespace,
+                    name: "count_per_root_project",
+                    unit: MetricUnit::None,
+                },
                 MetricValue::Counter(value),
+                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Duration { unit, value, tags } => (
-                MetricType::Distribution,
-                MetricUnit::Duration(unit),
-                "duration".to_string(),
+            TransactionMetric::Duration { unit, value, tags } => Metric::new(
+                MetricResourceIdentifier {
+                    ty: MetricType::Distribution,
+                    namespace,
+                    name: "duration",
+                    unit: MetricUnit::Duration(unit),
+                },
                 MetricValue::Distribution(value),
+                timestamp,
                 tags.into(),
             ),
             TransactionMetric::Measurement {
@@ -83,23 +100,18 @@ impl IntoMetric for TransactionMetric {
                 value,
                 unit,
                 tags,
-            } => (
-                MetricType::Distribution,
-                unit,
-                format!("measurements.{kind}"),
+            } => Metric::new(
+                MetricResourceIdentifier {
+                    ty: MetricType::Distribution,
+                    namespace,
+                    name: format!("measurements.{kind}").as_str(),
+                    unit,
+                },
                 MetricValue::Distribution(value),
+                timestamp,
                 tags.into(),
             ),
-        };
-
-        let mri = MetricResourceIdentifier {
-            ty,
-            namespace: MetricNamespace::Transactions,
-            name,
-            unit,
-        };
-
-        Metric::new(mri, value, timestamp, tags)
+        }
     }
 }
 
