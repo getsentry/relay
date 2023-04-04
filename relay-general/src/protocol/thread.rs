@@ -95,17 +95,6 @@ impl LockReasonType {
     }
 }
 
-impl fmt::Display for LockReasonType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            LockReasonType::Locked => write!(f, "locked"),
-            LockReasonType::Waiting => write!(f, "waiting"),
-            LockReasonType::Sleeping => write!(f, "sleeping"),
-            LockReasonType::Blocked => write!(f, "blocked"),
-        }
-    }
-}
-
 impl FromValue for LockReasonType {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -141,7 +130,7 @@ impl FromValue for LockReasonType {
 
 impl IntoValue for LockReasonType {
     fn into_value(self) -> Value {
-        Value::String(self.to_string())
+        Value::U64(self as u64)
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -149,7 +138,7 @@ impl IntoValue for LockReasonType {
         Self: Sized,
         S: Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(&(*self as u64), s)
     }
 }
 
@@ -370,21 +359,6 @@ mod tests {
 
         assert_eq!(thread, Annotated::from_json(input).unwrap());
 
-        let output = r#"{
-  "id": 42,
-  "name": "myname",
-  "crashed": true,
-  "current": true,
-  "main": true,
-  "state": "BLOCKED",
-  "lock_reason": {
-    "type": "locked",
-    "package_name": "android.database.sqlite",
-    "class_name": "SQLiteConnection",
-    "thread_id": 2
-  },
-  "other": "value"
-}"#;
-        assert_eq!(output, thread.to_json_pretty().unwrap());
+        assert_eq!(input, thread.to_json_pretty().unwrap());
     }
 }
