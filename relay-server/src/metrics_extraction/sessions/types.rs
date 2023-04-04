@@ -10,29 +10,31 @@ use crate::metrics_extraction::IntoMetric;
 /// Enumerates the metrics extracted from session payloads.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionMetric {
-    /// The number of sessions collected in the given time frame.
+    /// The number of sessions collected in a given time frame.
     Session {
         counter: CounterType,
         tags: SessionSessionTags,
     },
-    /// The number of unique session users for the given time frame.
+    /// The number of unique session users for a given time frame.
     User {
         distinct_id: String,
         tags: SessionUserTags,
     },
-    /// The number of sessions that errored in the given time frame.
+    /// The number of sessions that errored in a given time frame.
     ///
     /// Because multiple session updates can be received for the same session ID,
     /// this is collected as a [`MetricType::Set`] metric rather than a simple counter.
     Error { session_id: Uuid, tags: CommonTags },
 }
 
+/// Tags that are set on the `session` counter metric.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionSessionTags {
     pub status: String,
     pub common_tags: CommonTags,
 }
 
+/// Tags that are set on the `user` set metric.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionUserTags {
     pub status: Option<SessionStatus>,

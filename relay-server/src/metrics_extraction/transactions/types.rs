@@ -13,20 +13,28 @@ use crate::metrics_extraction::IntoMetric;
 pub enum TransactionMetric {
     /// A set metric counting unique users.
     User { value: String, tags: CommonTags },
+    /// A distribution metric for the transaction duration.
+    ///
+    /// Also used to count transactions, as any distribution metric features a counter.
     Duration {
         unit: DurationUnit,
         value: DistributionType,
         tags: CommonTags,
     },
+    /// An internal counter metric used to compute dynamic sampling biases.
+    ///
+    /// See https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40.
     CountPerRootProject {
         value: CounterType,
         tags: TransactionCPRTags,
     },
+    A metric created from [`relay_general::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
         tags: CommonTags,
     },
+    /// A metric created from a [`relay_general::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,
