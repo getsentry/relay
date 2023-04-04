@@ -22,7 +22,7 @@ pub enum SessionMetric {
         distinct_id: String,
         tags: SessionUserTags,
     },
-    /// The number of sessions that errored in the given time frame.
+    /// The number of sessions that errored in a given time frame.
     ///
     /// Because multiple session updates can be received for the same session ID,
     /// this is collected as a [`MetricType::Set`] metric rather than a simple counter.
