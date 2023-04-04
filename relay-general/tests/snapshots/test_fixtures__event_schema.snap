@@ -2022,6 +2022,77 @@ expression: "relay_general::protocol::event_json_schema()"
         "fatal"
       ]
     },
+    "LockReason": {
+      "description": " Represents an instance of a held lock (java monitor object) in a thread.",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "address": {
+              "description": " Address of the java monitor object.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "class_name": {
+              "description": " Class name of the java monitor object.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "package_name": {
+              "description": " Package name of the java monitor object.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "thread_id": {
+              "description": " Thread ID that's holding the lock.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "description": " Type of lock on the thread with available options being blocked, waiting, sleeping and locked.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LockReasonType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LockReasonType": {
+      "description": "Possible lock types responsible for a thread's blocked state",
+      "type": "string",
+      "enum": [
+        "locked",
+        "waiting",
+        "sleeping",
+        "blocked"
+      ]
+    },
     "LogEntry": {
       "description": " A log entry message.\n\n A log message is similar to the `message` attribute on the event itself but\n can additionally hold optional parameters.\n\n ```json\n {\n   \"message\": {\n     \"message\": \"My raw message with interpreted strings like %s\",\n     \"params\": [\"this\"]\n   }\n }\n ```\n\n ```json\n {\n   \"message\": {\n     \"message\": \"My raw message with interpreted strings like {foo}\",\n     \"params\": {\"foo\": \"this\"}\n   }\n }\n ```",
       "anyOf": [
@@ -3120,6 +3191,18 @@ expression: "relay_general::protocol::event_json_schema()"
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lock_reason": {
+              "description": " Represents an instance of a held lock (java monitor object) in a thread.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LockReason"
                 },
                 {
                   "type": "null"
