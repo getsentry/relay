@@ -38,7 +38,6 @@ Metrics:
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 - Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
-- Use types from `sentry-kafka-schemas` crate to validate metrics messages into kafka. ([#1981](https://github.com/getsentry/relay/pull/1981))
 - Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 
 ## 23.3.1
