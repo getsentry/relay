@@ -4,6 +4,7 @@
 set -euxo pipefail
 
 ARCH=${1:-$(uname -m)}
+TOOLCHAIN=$2
 
 # Set the correct build target and update the arch if required.
 case "$ARCH" in
@@ -31,6 +32,7 @@ fi
 
 docker buildx build \
     "${args[@]}" \
+    --build-arg RUST_TOOLCHAIN_VERSION="$TOOLCHAIN" \
     --build-arg UID="$(id -u)" \
     --build-arg GID="$(id -g)" \
     --cache-to type=inline \
