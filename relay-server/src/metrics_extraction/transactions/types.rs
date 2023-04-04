@@ -14,6 +14,9 @@ use crate::metrics_extraction::IntoMetric;
 pub enum TransactionMetric {
     /// A set metric counting unique users.
     User { value: String, tags: CommonTags },
+    /// A distribution metric for the transaction duration.
+    ///
+    /// Also used to count transactions, as any distribution metric features a counter.
     Duration {
         unit: DurationUnit,
         value: DistributionType,
