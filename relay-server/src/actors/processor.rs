@@ -47,7 +47,6 @@ use {
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    std::collections::BTreeSet,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -1083,10 +1082,7 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 let tags: BTreeMap<String, String> = match state.event.value() {
-                    Some(event) => relay_profiling::extract_tags(
-                        event,
-                        BTreeSet::from(["device.class".to_string()]),
-                    ),
+                    Some(event) => relay_profiling::extract_tags(event),
                     _ => BTreeMap::new(),
                 };
 
