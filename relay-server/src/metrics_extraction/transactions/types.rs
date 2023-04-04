@@ -22,6 +22,9 @@ pub enum TransactionMetric {
         value: DistributionType,
         tags: CommonTags,
     },
+    /// An internal counter metric used to compute dynamic sampling biases.
+    ///
+    /// See https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40.
     CountPerRootProject {
         value: CounterType,
         tags: TransactionCPRTags,
