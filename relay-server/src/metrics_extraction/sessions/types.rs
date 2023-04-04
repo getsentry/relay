@@ -54,6 +54,7 @@ pub struct SessionSessionTags {
     pub common_tags: CommonTags,
 }
 
+/// Tags that are set on the `user` set metric.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionUserTags {
     pub status: Option<SessionStatus>,
