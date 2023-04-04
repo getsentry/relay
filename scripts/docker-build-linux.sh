@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eux
 
+TOOLCHAIN=$1
+
 if [ "${BUILD_ARCH}" = "x86_64" ]; then
   DOCKER_ARCH="amd64"
 elif [ "${BUILD_ARCH}" = "i686" ]; then
@@ -16,6 +18,7 @@ BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 # Prepare build environment first
 docker pull $BUILD_IMAGE || true
 docker buildx build \
+     --build-arg RUST_TOOLCHAIN_VERSION="$TOOLCHAIN" \
      --platform "linux/${DOCKER_ARCH}" \
      --cache-from=${BUILD_IMAGE} \
      --target relay-deps \

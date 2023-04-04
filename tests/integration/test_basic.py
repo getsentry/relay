@@ -196,17 +196,22 @@ def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
     assert response.status_code == status_code
 
 
-@pytest.mark.parametrize("content_encoding", ["gzip", "deflate"])
+@pytest.mark.parametrize("content_encoding", ["gzip", "deflate", "identity", ""])
 def test_compression(mini_sentry, relay, content_encoding):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(mini_sentry)
 
+    encodings = {
+        "deflate": zlib.compress,
+        "gzip": gzip.compress,
+        "identity": lambda x: x,
+        "": lambda x: x,
+    }
+
     response = relay.post(
         "/api/42/store/?sentry_key=%s" % mini_sentry.get_dsn_public_key(project_id),
         headers={"content-encoding": content_encoding},
-        data={"deflate": zlib.compress, "gzip": gzip.compress,}[
-            content_encoding
-        ](b'{"message": "hello world"}'),
+        data=encodings[content_encoding](b'{"message": "hello world"}'),
     )
     response.raise_for_status()

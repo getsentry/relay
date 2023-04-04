@@ -7,11 +7,11 @@ mod metrics_rate_limits;
 mod multipart;
 mod param_parser;
 mod rate_limits;
-mod request;
 mod retry;
 mod semaphore;
 mod sizes;
 mod sleep_handle;
+mod statsd;
 
 #[cfg(feature = "processing")]
 mod native;
@@ -29,10 +29,10 @@ pub use self::multipart::*;
 pub use self::native::*;
 pub use self::param_parser::*;
 pub use self::rate_limits::*;
-pub use self::request::*;
 pub use self::retry::*;
 pub use self::semaphore::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
+pub use self::statsd::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

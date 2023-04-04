@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
+use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
 /// Represents an action requested by the Upstream sent in an error message.
@@ -40,7 +41,7 @@ impl ApiErrorResponse {
         }
     }
 
-    pub fn from_error<E: Error>(error: &E) -> Self {
+    pub fn from_error<E: Error + ?Sized>(error: &E) -> Self {
         let detail = Some(error.to_string());
 
         let mut causes = Vec::new();
@@ -73,3 +74,9 @@ impl fmt::Display for ApiErrorResponse {
 }
 
 impl Error for ApiErrorResponse {}
+
+impl IntoResponse for ApiErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        axum::Json(self).into_response()
+    }
+}

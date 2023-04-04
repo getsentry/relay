@@ -125,6 +125,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
         is_renormalize: config.is_renormalize.unwrap_or(false),
+        device_class_synthesis_config: false, // only supported in relay
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;

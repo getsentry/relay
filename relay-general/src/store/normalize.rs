@@ -687,6 +687,7 @@ pub struct LightNormalizationConfig<'a> {
     pub normalize_user_agent: Option<bool>,
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
+    pub device_class_synthesis_config: bool,
 }
 
 pub fn light_normalize_event(
@@ -749,7 +750,11 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
-        normalize_device_class(event);
+
+        // TODO: Consider moving to store normalization
+        if config.device_class_synthesis_config {
+            normalize_device_class(event);
+        }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
@@ -2767,7 +2772,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 1000.into(),
+                        model: "iPhone8,4".to_string().into(),
                         ..Default::default()
                     })))),
                 );
@@ -2799,7 +2804,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 2000.into(),
+                        model: "iPhone12,8".to_string().into(),
                         ..Default::default()
                     })))),
                 );
@@ -2831,7 +2836,7 @@ mod tests {
                     "device".to_owned(),
                     Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
                         family: "iPhone".to_string().into(),
-                        processor_frequency: 3000.into(),
+                        model: "iPhone15,3".to_string().into(),
                         ..Default::default()
                     })))),
                 );

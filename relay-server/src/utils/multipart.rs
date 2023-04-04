@@ -1,55 +1,10 @@
 use std::convert::TryInto;
 use std::io;
 
-use actix::prelude::*;
-use actix_web::error::PayloadError;
-use actix_web::{multipart, HttpMessage, HttpRequest};
-use bytes::Bytes;
-use futures::compat::Future01CompatExt;
-use futures01::{Async, Future, Poll, Stream};
+use axum::extract::multipart::{Field, Multipart};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-use crate::extractors::DecodingPayload;
-use crate::service::ServiceState;
-
-#[derive(Debug, thiserror::Error)]
-pub enum MultipartError {
-    #[error("payload reached its size limit")]
-    Overflow,
-
-    #[error("{0}")]
-    InvalidMultipart(actix_web::error::MultipartError),
-}
-
-/// A wrapper around an actix payload that always ends with a newline.
-#[derive(Debug)]
-struct TerminatedPayload {
-    inner: DecodingPayload,
-    end: Option<Bytes>,
-}
-
-impl TerminatedPayload {
-    pub fn new(payload: DecodingPayload) -> Self {
-        Self {
-            inner: payload,
-            end: Some(Bytes::from_static(b"\r\n")),
-        }
-    }
-}
-
-impl Stream for TerminatedPayload {
-    type Item = Bytes;
-    type Error = PayloadError;
-
-    #[inline]
-    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        match self.inner.poll() {
-            Ok(Async::Ready(None)) => Ok(Async::Ready(self.end.take())),
-            poll => poll,
-        }
-    }
-}
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -139,12 +94,8 @@ impl FormDataWriter {
         entry.to_writer(&mut self.data);
     }
 
-    pub fn into_item(self) -> Item {
-        let mut item = Item::new(ItemType::FormData);
-        // Content type is Text (since it is not a json object but multiple
-        // json arrays serialized one after the other.
-        item.set_payload(ContentType::Text, self.data);
-        item
+    pub fn into_inner(self) -> Vec<u8> {
+        self.data
     }
 }
 
@@ -174,82 +125,6 @@ impl<'a> Iterator for FormDataIter<'a> {
     }
 }
 
-/// Reads data from a multipart field (coming from a HttpRequest).
-///
-/// This function returns `None` on overflow. The caller needs to coerce this into an appropriate
-/// error. This function does not error directly on overflow to allow consuming the full stream.
-pub fn consume_field<S>(
-    field: multipart::Field<S>,
-    max_size: usize,
-) -> ResponseFuture<Vec<u8>, MultipartError>
-where
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
-    let future = field.map_err(MultipartError::InvalidMultipart).fold(
-        Vec::with_capacity(512),
-        move |mut body, chunk| {
-            if (body.len() + chunk.len()) > max_size {
-                Err(MultipartError::Overflow)
-            } else {
-                body.extend_from_slice(&chunk);
-                Ok(body)
-            }
-        },
-    );
-
-    Box::new(future)
-}
-
-fn consume_item(
-    mut content: MultipartItems,
-    item: multipart::MultipartItem<TerminatedPayload>,
-) -> ResponseFuture<MultipartItems, MultipartError> {
-    let field = match item {
-        multipart::MultipartItem::Nested(nested) => return consume_stream(content, nested),
-        multipart::MultipartItem::Field(field) => field,
-    };
-
-    let content_type = field.content_type().to_string();
-    let content_disposition = field.content_disposition();
-
-    let future = consume_field(field, content.remaining_size).map(move |data| {
-        content.remaining_size -= data.len();
-
-        let field_name = content_disposition.as_ref().and_then(|d| d.get_name());
-        let file_name = content_disposition.as_ref().and_then(|d| d.get_filename());
-
-        if let Some(file_name) = file_name {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type((*content.infer_type)(field_name));
-            item.set_payload(content_type.into(), data);
-            item.set_filename(file_name);
-            content.items.push(item);
-        } else if let Some(field_name) = field_name {
-            // Ensure to decode this safely to match Django's POST data behavior. This allows us to
-            // process sentry event payloads even if they contain invalid encoding.
-            let string = String::from_utf8_lossy(&data);
-            content.form_data.append(field_name, &string);
-        } else {
-            relay_log::trace!("multipart content without name or file_name");
-        }
-
-        content
-    });
-
-    Box::new(future)
-}
-
-fn consume_stream(
-    content: MultipartItems,
-    stream: multipart::Multipart<TerminatedPayload>,
-) -> ResponseFuture<MultipartItems, MultipartError> {
-    let future = stream
-        .map_err(MultipartError::InvalidMultipart)
-        .fold(content, consume_item);
-
-    Box::new(future)
-}
-
 /// Looks for a multipart boundary at the beginning of the data
 /// and returns it as a `&str` if it is found
 ///
@@ -273,68 +148,80 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-/// Internal structure used when constructing Envelopes to maintain a cap on the content size
-pub struct MultipartItems {
-    // Items of the envelope under construction.
-    items: Items,
-    // Keeps track of how much bigger is this envelope allowed to grow.
-    remaining_size: usize,
-    // Collect all form data in here.
-    form_data: FormDataWriter,
-    #[allow(clippy::type_complexity)]
-    infer_type: Box<dyn Fn(Option<&str>) -> AttachmentType>,
+#[derive(Debug, thiserror::Error)]
+pub enum MultipartError {
+    #[error("field exceeded the size limit")]
+    FieldSizeExceeded,
+    #[error(transparent)]
+    Raw(#[from] axum::extract::multipart::MultipartError),
 }
 
-impl MultipartItems {
-    pub fn new(max_size: usize) -> Self {
-        Self {
-            items: Items::new(),
-            remaining_size: max_size,
-            form_data: FormDataWriter::new(),
-            infer_type: Box::new(|_| AttachmentType::default()),
+async fn field_data<'a>(field: &mut Field<'a>, limit: usize) -> Result<Vec<u8>, MultipartError> {
+    let mut body = Vec::new();
+
+    while let Some(chunk) = field.chunk().await? {
+        if body.len() + chunk.len() > limit {
+            return Err(MultipartError::FieldSizeExceeded);
+        }
+        body.extend_from_slice(&chunk);
+    }
+
+    Ok(body)
+}
+
+pub async fn multipart_items<F>(
+    mut multipart: Multipart,
+    item_limit: usize,
+    mut infer_type: F,
+) -> Result<Items, MultipartError>
+where
+    F: FnMut(Option<&str>) -> AttachmentType,
+{
+    let mut items = Items::new();
+    let mut form_data = FormDataWriter::new();
+
+    while let Some(mut field) = multipart.next_field().await? {
+        if let Some(file_name) = field.file_name() {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_attachment_type(infer_type(field.name()));
+            item.set_filename(file_name);
+            let content_type = match field.content_type() {
+                Some(string) => string.into(),
+                None => ContentType::OctetStream,
+            };
+            // Extract the body after the immutable borrow on `file_name` is gone.
+            item.set_payload(content_type, field_data(&mut field, item_limit).await?);
+            items.push(item);
+        } else if let Some(field_name) = field.name().map(str::to_owned) {
+            let data = field_data(&mut field, item_limit).await?;
+            // Ensure to decode this safely to match Django's POST data behavior. This allows us to
+            // process sentry event payloads even if they contain invalid encoding.
+            let string = String::from_utf8_lossy(&data);
+            form_data.append(&field_name, &string);
+        } else {
+            relay_log::trace!("multipart content without name or file_name");
         }
     }
 
-    pub fn infer_attachment_type<F>(mut self, f: F) -> Self
-    where
-        F: Fn(Option<&str>) -> AttachmentType + 'static,
-    {
-        self.infer_type = Box::new(f);
-        self
+    let form_data = form_data.into_inner();
+    if !form_data.is_empty() {
+        let mut item = Item::new(ItemType::FormData);
+        // Content type is Text (since it is not a json object but multiple
+        // json arrays serialized one after the other.
+        item.set_payload(ContentType::Text, form_data);
+        items.push(item);
     }
 
-    pub async fn handle_request(
-        self,
-        request: &HttpRequest<ServiceState>,
-    ) -> Result<Items, MultipartError> {
-        // Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
-        // causes keep-alive streams to break. Instead, rely on the middleware to consume the
-        // stream. This can happen, for instance, when the boundary is malformed.
-        let boundary = match multipart::Multipart::boundary(request.headers()) {
-            Ok(boundary) => boundary,
-            Err(error) => return Err(MultipartError::InvalidMultipart(error)),
-        };
-
-        let payload = TerminatedPayload::new(DecodingPayload::new(request, self.remaining_size));
-        let multipart = multipart::Multipart::new(Ok(boundary), payload);
-
-        let future = consume_stream(self, multipart).and_then(|multipart| {
-            let mut items = multipart.items;
-
-            let form_data = multipart.form_data.into_item();
-            if !form_data.is_empty() {
-                items.push(form_data);
-            }
-
-            Ok(items)
-        });
-
-        future.compat().await
-    }
+    Ok(items)
 }
 
 #[cfg(test)]
 mod tests {
+    use axum::body::Full;
+    use axum::extract::FromRequest;
+    use axum::http::Request;
+    use bytes::Bytes;
+
     use super::*;
 
     #[test]
@@ -364,10 +251,7 @@ mod tests {
         writer.append("bar", "");
         writer.append("blub", "blub");
 
-        let item = writer.into_item();
-        assert_eq!(item.ty(), &ItemType::FormData);
-
-        let payload = item.payload();
+        let payload = writer.into_inner();
         let iter = FormDataIter::new(&payload);
         let entries: Vec<_> = iter.collect();
 
@@ -384,12 +268,29 @@ mod tests {
     #[test]
     fn test_empty_formdata() {
         let writer = FormDataWriter::new();
-        let item = writer.into_item();
+        let payload = writer.into_inner();
 
-        let payload = item.payload();
         let iter = FormDataIter::new(&payload);
         let entries: Vec<_> = iter.collect();
 
         assert_eq!(entries, vec![]);
+    }
+
+    /// Regression test for multipart payloads without a trailing newline.
+    #[tokio::test]
+    async fn missing_trailing_newline() -> anyhow::Result<()> {
+        let data = "--X-BOUNDARY\r\nContent-Disposition: form-data; \
+        name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"; // No trailing newline
+
+        let request = Request::builder()
+            .header("content-type", "multipart/form-data; boundary=X-BOUNDARY")
+            .body(Full::new(Bytes::from(data)))
+            .unwrap();
+
+        let mut multipart = Multipart::from_request(request, &()).await?;
+        assert!(multipart.next_field().await?.is_some());
+        assert!(multipart.next_field().await?.is_none());
+
+        Ok(())
     }
 }
