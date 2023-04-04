@@ -35,6 +35,7 @@ pub enum TransactionMetric {
         value: DistributionType,
         tags: CommonTags,
     },
+    /// A metric created from a [`relay_general::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,
