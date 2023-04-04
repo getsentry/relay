@@ -1,0 +1,16 @@
+{"run_id":"1680635793-395237000","line":1501,"new":{"module_name":"relay_general__store__normalize__tests","snapshot_name":"replay_id_added_from_dsc","metadata":{"source":"relay-general/src/store/normalize.rs","assertion_line":1501,"expression":"event.contexts"},"snapshot":"~"},"old":{"module_name":"relay_general__store__normalize__tests","metadata":{},"snapshot":"Tags(\n    PairList(\n        [\n            TagEntry(\n                \"device.class\",\n                \"2\",\n            ),\n        ],\n    ),\n)"}}
+{"run_id":"1680636747-15499000","line":2996,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2928,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2962,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2894,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2830,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2862,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2415,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2485,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2148,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2038,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2734,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2085,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2611,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2630,"new":null,"old":null}
+{"run_id":"1680636747-15499000","line":2207,"new":null,"old":null}

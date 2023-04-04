@@ -13,7 +13,7 @@ pub struct ReplayContext {
 }
 
 impl ReplayContext {
-    /// The key under which a replay context is generally stored (in `Contexts`)
+    /// The key under which a replay context is generally stored (in `Contexts`).
     pub fn default_key() -> &'static str {
         "replay"
     }

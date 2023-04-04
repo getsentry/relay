@@ -1890,6 +1890,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
             client_hints: envelope.meta().client_hints().to_owned(),
         };
 
@@ -2617,12 +2618,6 @@ mod tests {
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
-    #[cfg(feature = "processing")]
-    use {
-        relay_common::{Dsn, Uuid},
-        relay_sampling::TraceUserContext,
-    };
-
     struct TestProcessSessionArguments<'a> {
         item: Item,
         received: DateTime<Utc>,
@@ -2998,77 +2993,6 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "processing")]
-    async fn test_replay_id_added_from_dsc() {
-        let config = Config::from_json_value(serde_json::json!({
-            "outcomes": {
-                "emit_outcomes": true,
-                "emit_client_outcomes": false,
-            },
-            "processing": {
-                "enabled": true,
-                "kafka_config": [],
-            }
-        }))
-        .unwrap();
-        let processor = create_test_processor(config);
-        let event_id = protocol::EventId::new();
-
-        let dsn: Dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-        let replay_id = Uuid::new_v4();
-        let test_dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            release: None,
-            environment: None,
-            user: TraceUserContext {
-                user_segment: "vip".to_string(),
-                user_id: "me".to_string(),
-            },
-            public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            transaction: None,
-            sample_rate: None,
-            other: BTreeMap::new(),
-            replay_id: Some(replay_id),
-        };
-
-        envelope.set_dsc(test_dsc);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, r###"{"foo": "bar"}"###);
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        let item = new_envelope.items().next().unwrap();
-
-        let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&item.payload()).unwrap();
-        let event = annotated_event.into_value().unwrap();
-
-        let contexts = event.contexts.into_value().unwrap();
-        let replay_context = contexts.get("replay").unwrap();
-        let replay_str = replay_id.to_string().replace('-', "");
-        let output = format!(r#"{{"replay_id":"{replay_str}","type":"replay"}}"#);
-        assert_eq!(output, replay_context.to_json().unwrap());
     }
 
     #[tokio::test]
