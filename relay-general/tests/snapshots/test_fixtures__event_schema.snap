@@ -1427,56 +1427,15 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "EventType": {
       "description": "The type of an event.\n\nThe event type determines how Sentry handles the event and has an impact on processing, rate limiting, and quotas. There are three fundamental classes of event types:\n\n- **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues based on their exception stack traces and error messages. - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser security violation reports and grouped into unique issues based on the endpoint and violation. SDKs do not send such events. - **Transaction events** (`transaction`): Contain operation spans and collected into traces for performance monitoring.",
-      "oneOf": [
-        {
-          "description": "Events that carry an exception payload.",
-          "type": "string",
-          "enum": [
-            "error"
-          ]
-        },
-        {
-          "description": "A CSP violation payload.",
-          "type": "string",
-          "enum": [
-            "csp"
-          ]
-        },
-        {
-          "description": "An HPKP violation payload.",
-          "type": "string",
-          "enum": [
-            "hpkp"
-          ]
-        },
-        {
-          "description": "An ExpectCT violation payload.",
-          "type": "string",
-          "enum": [
-            "expectct"
-          ]
-        },
-        {
-          "description": "An ExpectStaple violation payload.",
-          "type": "string",
-          "enum": [
-            "expectstaple"
-          ]
-        },
-        {
-          "description": "Performance monitoring transactions carrying spans.",
-          "type": "string",
-          "enum": [
-            "transaction"
-          ]
-        },
-        {
-          "description": "All events that do not qualify as any other type.",
-          "type": "string",
-          "enum": [
-            "default"
-          ]
-        }
+      "type": "string",
+      "enum": [
+        "error",
+        "csp",
+        "hpkp",
+        "expectct",
+        "expectstaple",
+        "transaction",
+        "default"
       ]
     },
     "Exception": {
@@ -2036,35 +1995,12 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "InstructionAddrAdjustment": {
       "description": "Controls the mechanism by which the `instruction_addr` of a [`Stacktrace`] [`Frame`] is adjusted.\n\nThe adjustment tries to transform *return addresses* to *call addresses* for symbolication. Typically, this adjustment needs to be done for all frames but the first, as the first frame is usually taken directly from the cpu context of a hardware exception or a suspended thread and the stack trace is created from that.\n\nWhen the stack walking implementation truncates frames from the top, `\"all\"` frames should be adjusted. In case the stack walking implementation already does the adjustment when producing stack frames, `\"none\"` should be used here.",
-      "oneOf": [
-        {
-          "description": "The default. Applies a heuristic based on other event / exception attributes.",
-          "type": "string",
-          "enum": [
-            "auto"
-          ]
-        },
-        {
-          "description": "All but the first frame needs to be adjusted. The first frame's address is not a *return address*, but points directly to the faulty instruction.",
-          "type": "string",
-          "enum": [
-            "all_but_first"
-          ]
-        },
-        {
-          "description": "All frames should be adjusted, for example because the stack walking implementation truncated frames from the top of the stack, and all remaining frames' addresses are *return addresses*.",
-          "type": "string",
-          "enum": [
-            "all"
-          ]
-        },
-        {
-          "description": "The stack walking implementation already provides correct addresses and no adjustment should be performed when symbolicating.",
-          "type": "string",
-          "enum": [
-            "none"
-          ]
-        }
+      "type": "string",
+      "enum": [
+        "auto",
+        "all_but_first",
+        "all",
+        "none"
       ]
     },
     "JsonLenientString": {
@@ -2077,42 +2013,13 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "Level": {
       "description": "Severity level of an event or breadcrumb.",
-      "oneOf": [
-        {
-          "description": "Indicates very spammy debug information.",
-          "type": "string",
-          "enum": [
-            "debug"
-          ]
-        },
-        {
-          "description": "Informational messages.",
-          "type": "string",
-          "enum": [
-            "info"
-          ]
-        },
-        {
-          "description": "A warning.",
-          "type": "string",
-          "enum": [
-            "warning"
-          ]
-        },
-        {
-          "description": "An error.",
-          "type": "string",
-          "enum": [
-            "error"
-          ]
-        },
-        {
-          "description": "Similar to error but indicates a critical event that usually causes a shutdown.",
-          "type": "string",
-          "enum": [
-            "fatal"
-          ]
-        }
+      "type": "string",
+      "enum": [
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "fatal"
       ]
     },
     "LockReason": {
@@ -3120,126 +3027,25 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "SpanStatus": {
       "description": "Trace status.\n\nValues from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status> Mapping to HTTP from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status>",
-      "oneOf": [
-        {
-          "description": "The operation completed successfully.\n\nHTTP status 100..299 + successful redirects from the 3xx range.",
-          "type": "string",
-          "enum": [
-            "ok"
-          ]
-        },
-        {
-          "description": "The operation was cancelled (typically by the user).",
-          "type": "string",
-          "enum": [
-            "cancelled"
-          ]
-        },
-        {
-          "description": "Unknown. Any non-standard HTTP status code.\n\n\"We do not know whether the transaction failed or succeeded\"",
-          "type": "string",
-          "enum": [
-            "unknown"
-          ]
-        },
-        {
-          "description": "Client specified an invalid argument. 4xx.\n\nNote that this differs from FailedPrecondition. InvalidArgument indicates arguments that are problematic regardless of the state of the system.",
-          "type": "string",
-          "enum": [
-            "invalid_argument"
-          ]
-        },
-        {
-          "description": "Deadline expired before operation could complete.\n\nFor operations that change the state of the system, this error may be returned even if the operation has been completed successfully.\n\nHTTP redirect loops and 504 Gateway Timeout",
-          "type": "string",
-          "enum": [
-            "deadline_exceeded"
-          ]
-        },
-        {
-          "description": "404 Not Found. Some requested entity (file or directory) was not found.",
-          "type": "string",
-          "enum": [
-            "not_found"
-          ]
-        },
-        {
-          "description": "Already exists (409)\n\nSome entity that we attempted to create already exists.",
-          "type": "string",
-          "enum": [
-            "already_exists"
-          ]
-        },
-        {
-          "description": "403 Forbidden\n\nThe caller does not have permission to execute the specified operation.",
-          "type": "string",
-          "enum": [
-            "permission_denied"
-          ]
-        },
-        {
-          "description": "429 Too Many Requests\n\nSome resource has been exhausted, perhaps a per-user quota or perhaps the entire file system is out of space.",
-          "type": "string",
-          "enum": [
-            "resource_exhausted"
-          ]
-        },
-        {
-          "description": "Operation was rejected because the system is not in a state required for the operation's execution",
-          "type": "string",
-          "enum": [
-            "failed_precondition"
-          ]
-        },
-        {
-          "description": "The operation was aborted, typically due to a concurrency issue.",
-          "type": "string",
-          "enum": [
-            "aborted"
-          ]
-        },
-        {
-          "description": "Operation was attempted past the valid range.",
-          "type": "string",
-          "enum": [
-            "out_of_range"
-          ]
-        },
-        {
-          "description": "501 Not Implemented\n\nOperation is not implemented or not enabled.",
-          "type": "string",
-          "enum": [
-            "unimplemented"
-          ]
-        },
-        {
-          "description": "Other/generic 5xx.",
-          "type": "string",
-          "enum": [
-            "internal_error"
-          ]
-        },
-        {
-          "description": "503 Service Unavailable",
-          "type": "string",
-          "enum": [
-            "unavailable"
-          ]
-        },
-        {
-          "description": "Unrecoverable data loss or corruption",
-          "type": "string",
-          "enum": [
-            "data_loss"
-          ]
-        },
-        {
-          "description": "401 Unauthorized (actually does mean unauthenticated according to RFC 7235)\n\nPrefer PermissionDenied if a user is logged in.",
-          "type": "string",
-          "enum": [
-            "unauthenticated"
-          ]
-        }
+      "type": "string",
+      "enum": [
+        "ok",
+        "cancelled",
+        "unknown",
+        "invalid_argument",
+        "deadline_exceeded",
+        "not_found",
+        "already_exists",
+        "permission_denied",
+        "resource_exhausted",
+        "failed_precondition",
+        "aborted",
+        "out_of_range",
+        "unimplemented",
+        "internal_error",
+        "unavailable",
+        "data_loss",
+        "unauthenticated"
       ]
     },
     "Stacktrace": {
@@ -3667,63 +3473,16 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "TransactionSource": {
       "description": "Describes how the name of the transaction was determined.",
-      "oneOf": [
-        {
-          "description": "User-defined name set through `set_transaction_name`.",
-          "type": "string",
-          "enum": [
-            "custom"
-          ]
-        },
-        {
-          "description": "Raw URL, potentially containing identifiers.",
-          "type": "string",
-          "enum": [
-            "url"
-          ]
-        },
-        {
-          "description": "Parametrized URL or route.",
-          "type": "string",
-          "enum": [
-            "route"
-          ]
-        },
-        {
-          "description": "Name of the view handling the request.",
-          "type": "string",
-          "enum": [
-            "view"
-          ]
-        },
-        {
-          "description": "Named after a software component, such as a function or class name.",
-          "type": "string",
-          "enum": [
-            "component"
-          ]
-        },
-        {
-          "description": "The transaction name was updated to reduce the name cardinality.",
-          "type": "string",
-          "enum": [
-            "sanitized"
-          ]
-        },
-        {
-          "description": "Name of a background task (e.g. a Celery task).",
-          "type": "string",
-          "enum": [
-            "task"
-          ]
-        },
-        {
-          "description": "This is the default value set by Relay for legacy SDKs.",
-          "type": "string",
-          "enum": [
-            "unknown"
-          ]
-        }
+      "type": "string",
+      "enum": [
+        "custom",
+        "url",
+        "route",
+        "view",
+        "component",
+        "sanitized",
+        "task",
+        "unknown"
       ]
     },
     "User": {
