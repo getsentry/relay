@@ -993,6 +993,48 @@ impl SamplingMatch {
     }
 }
 
+/// Checks whether unsupported rules result in a direct keep of the event or depending on the
+/// type of Relay an ignore of unsupported rules.
+fn check_unsupported_rules(
+    processing_enabled: bool,
+    sampling_config: &SamplingConfig,
+    root_sampling_config: Option<&SamplingConfig>,
+) -> Option<()> {
+    // When we have unsupported rules disable sampling for non processing relays.
+    if sampling_config.has_unsupported_rules()
+        || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
+    {
+        if !processing_enabled {
+            return None;
+        } else {
+            relay_log::error!("found unsupported rules even as processing relay");
+        }
+    }
+
+    Some(())
+}
+
+/// Returns an iterator of references that chains together and merges rules.
+///
+/// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
+/// rules from the root project and concatenate them.
+fn merge_rules_from_configs<'a>(
+    sampling_config: &'a SamplingConfig,
+    root_sampling_config: Option<&'a SamplingConfig>,
+) -> impl Iterator<Item = &'a SamplingRule> {
+    let event_rules = sampling_config
+        .rules_v2
+        .iter()
+        .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+
+    let parent_rules = root_sampling_config
+        .into_iter()
+        .flat_map(|config| config.rules_v2.iter())
+        .filter(|&rule| rule.ty == RuleType::Trace);
+
+    event_rules.chain(parent_rules)
+}
+
 /// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
@@ -1019,48 +1061,6 @@ impl SamplingConfig {
         !self.rules_v2.iter().all(SamplingRule::supported)
     }
 
-    /// Checks whether unsupported rules result in a direct keep of the event or depending on the
-    /// type of Relay an ignore of unsupported rules.
-    fn check_unsupported_rules(
-        processing_enabled: bool,
-        sampling_config: &SamplingConfig,
-        root_sampling_config: Option<&SamplingConfig>,
-    ) -> Option<()> {
-        // When we have unsupported rules disable sampling for non processing relays.
-        if sampling_config.has_unsupported_rules()
-            || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
-        {
-            if !processing_enabled {
-                return None;
-            } else {
-                relay_log::error!("found unsupported rules even as processing relay");
-            }
-        }
-
-        Some(())
-    }
-
-    /// Returns an iterator of references that chains together and merges rules.
-    ///
-    /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
-    /// rules from the root project and concatenate them.
-    fn merge_rules_from_configs<'a>(
-        sampling_config: &'a SamplingConfig,
-        root_sampling_config: Option<&'a SamplingConfig>,
-    ) -> impl Iterator<Item = &'a SamplingRule> {
-        let event_rules = sampling_config
-            .rules_v2
-            .iter()
-            .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
-
-        let parent_rules = root_sampling_config
-            .into_iter()
-            .flat_map(|config| config.rules_v2.iter())
-            .filter(|&rule| rule.ty == RuleType::Trace);
-
-        event_rules.chain(parent_rules)
-    }
-
     /// Gets the sampling match result by creating the merged configuration and matching it against
     /// the sampling configuration.
     pub fn merge_configs_and_match(
@@ -1073,14 +1073,14 @@ impl SamplingConfig {
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
         // We check if there are unsupported rules in any of the two configurations.
-        SamplingConfig::check_unsupported_rules(
+        check_unsupported_rules(
             processing_enabled,
             sampling_config,
             root_sampling_config,
         )?;
 
         // We perform the rule matching with the multi-matching logic on the merged rules.
-        let rules = SamplingConfig::merge_rules_from_configs(sampling_config, root_sampling_config);
+        let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
         let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
 
         // If we have a match, we will try to derive the sample rate based on the sampling mode.
@@ -1627,7 +1627,7 @@ mod tests {
         let sampling_config = mocked_sampling_config_with_rules(rules);
         let root_sampling_config = mocked_sampling_config_with_rules(root_rules);
 
-        SamplingConfig::merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
             .cloned()
             .collect()
     }
