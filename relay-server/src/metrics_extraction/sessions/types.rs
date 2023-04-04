@@ -47,6 +47,7 @@ pub struct SessionErrorTags {
     pub common_tags: CommonTags,
 }
 
+/// Tags that are set on the `session` counter metric.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionSessionTags {
     pub status: String,
