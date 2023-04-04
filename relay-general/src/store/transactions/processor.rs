@@ -57,7 +57,13 @@ impl<'r> TransactionsProcessor<'r> {
 
                 if let Some((rule, result)) = result {
                     if *transaction != result {
-                        meta.set_original_value(Some(transaction.clone()));
+                        // If another rule was applied before, we don't want to
+                        // rename the transaction name to keep the original one.
+                        // We do want to continue adding remarks though, in
+                        // order to keep track of all rules applied.
+                        if meta.original_value().is_none() {
+                            meta.set_original_value(Some(transaction.clone()));
+                        }
                         // add also the rule which was applied to the transaction name
                         meta.add_remark(Remark::new(RemarkType::Substituted, rule));
                         *transaction = result;
@@ -342,26 +348,37 @@ impl Processor for TransactionsProcessor<'_> {
         }
 
         if self.name_config.scrub_identifiers {
-            // Apply the rule if any found
-            self.apply_transaction_rename_rule(
-                &mut event.transaction,
-                event.transaction_info.value_mut(),
-            )?;
-
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
+            let mut sanitized = false;
+
             if matches!(
                 event.get_transaction_source(),
                 &TransactionSource::Url | &TransactionSource::Sanitized
             ) {
-                scrub_identifiers(&mut event.transaction)?;
-                if self.name_config.mark_scrubbed_as_sanitized {
-                    event
-                        .transaction_info
-                        .get_or_insert_with(Default::default)
-                        .source
-                        .set_value(Some(TransactionSource::Sanitized));
-                }
+                scrub_identifiers(&mut event.transaction)?.then(|| {
+                    sanitized = true;
+                });
+            }
+
+            if !self.name_config.rules.is_empty() {
+                self.apply_transaction_rename_rule(
+                    &mut event.transaction,
+                    event.transaction_info.value_mut(),
+                )?;
+
+                sanitized = true;
+            }
+
+            if sanitized
+                && matches!(event.get_transaction_source(), &TransactionSource::Url)
+                && self.name_config.mark_scrubbed_as_sanitized
+            {
+                event
+                    .transaction_info
+                    .get_or_insert_with(Default::default)
+                    .source
+                    .set_value(Some(TransactionSource::Sanitized));
             }
         }
 
@@ -449,7 +466,7 @@ mod tests {
     use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
-    use crate::store::LazyGlob;
+    use crate::store::{LazyGlob, RedactionRule, RuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
@@ -1675,7 +1692,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/",
+            "transaction": "/foo/rule-target/user/123/0/",
             "transaction_info": {
               "source": "url"
             },
@@ -1722,8 +1739,8 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -1759,11 +1776,17 @@ mod tests {
                "": {
                  "rem": [
                    [
+                     "int",
+                     "s",
+                     22,
+                     25
+                   ],
+                   [
                      "/foo/*/user/*/**",
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
+                 "val": "/foo/rule-target/user/123/0/"
                }
              }
            }
@@ -1779,8 +1802,8 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -1816,17 +1839,17 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "/foo/*/**",
-                    "s"
-                  ],
-                  [
                     "int",
                     "s",
-                    12,
-                    15
+                    22,
+                    25
+                  ],
+                  [
+                    "/foo/*/**",
+                    "s"
                   ]
                 ],
-                "val": "/foo/*/user/123/0/"
+                "val": "/foo/rule-target/user/123/0/"
               }
             }
           }
@@ -1910,7 +1933,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user",
+            "transaction": "/foo/rule-target/user",
             "transaction_info": {
               "source": "url"
             },
@@ -1984,7 +2007,7 @@ mod tests {
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user"
+                 "val": "/foo/rule-target/user"
                }
              }
            }
@@ -2139,4 +2162,128 @@ mod tests {
         "open-12345-close",
         "open-12345-close"
     );
+
+    #[test]
+    fn test_scrub_identifiers_before_rules() {
+        // There's a rule matching the transaction name. However, the UUID
+        // should be scrubbed first. Scrubbing the UUID makes the rule to not
+        // match the transformed transaction name anymore.
+
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        // Annotate the snapshot instead of comparing transaction names, to also
+        // make sure the event's _meta is correct.
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_scrub_identifiers_and_apply_rules() {
+        // Ensure rules are applied after scrubbing identifiers. Rules are only
+        // applied when `transaction.source="url"`, so this test ensures this
+        // value isn't set as part of identifier scrubbing.
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_no_sanitized_if_no_rules() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/whatever",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                rules: &[],
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
 }

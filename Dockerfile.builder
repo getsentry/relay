@@ -1,8 +1,8 @@
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM centos:7 AS relay-deps
 
-# Pin the Rust version for now
-ARG RUST_TOOLCHAIN_VERSION=1.68.0
+# Rust version must be provided by the caller.
+ARG RUST_TOOLCHAIN_VERSION
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
 RUN yum -y update \
@@ -24,7 +24,7 @@ ARG GID=10000
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
-    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
+    && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config \
     # Adding user and group is the workaround for the old git version,
     # which cannot checkout the repos failing with error:
     # fatal: unable to look up current user in the passwd file: no such user

@@ -1,14 +1,19 @@
 use std::collections::HashMap;
 
-use actix::MailboxError;
-use actix_web::{App, Error, FromRequest, Json};
-use futures::{future, TryFutureExt};
+use axum::extract::Query;
+use axum::handler::Handler;
+use axum::http::Request;
+use axum::response::{IntoResponse, Result};
+use axum::{Json, RequestExt};
+use futures::future;
 use relay_common::ProjectKey;
 use relay_dynamic_config::ErrorBoundary;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
+use crate::endpoints::common::ServiceUnavailable;
+use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 
@@ -28,33 +33,8 @@ const ENDPOINT_V3: u16 = 3;
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
+    #[serde(default)]
     version: u16,
-}
-
-impl VersionQuery {
-    fn from_request(req: &actix_web::Request) -> Self {
-        let query = req.uri().query().unwrap_or("");
-        serde_urlencoded::from_str::<VersionQuery>(query).unwrap_or(VersionQuery { version: 0 })
-    }
-}
-
-impl<S> FromRequest<S> for VersionQuery {
-    type Config = ();
-    type Result = Self;
-
-    fn from_request(req: &actix_web::HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        Self::from_request(req)
-    }
-}
-
-/// Checks for a specific `version` query parameter.
-struct VersionPredicate;
-
-impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
-    fn check(&self, req: &actix_web::Request, _: &S) -> bool {
-        let query = VersionQuery::from_request(req);
-        query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
-    }
 }
 
 /// The type returned for each requested project config.
@@ -112,18 +92,17 @@ struct GetProjectStatesRequest {
     no_cache: bool,
 }
 
-async fn get_project_configs(
+async fn inner(
+    Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
-    version: VersionQuery,
-) -> Result<Json<GetProjectStatesResponseWrapper>, Error> {
-    let relay = body.relay;
-    let request = body.inner;
+) -> Result<impl IntoResponse, ServiceUnavailable> {
+    let SignedJson { inner, relay } = body;
 
-    let no_cache = request.no_cache;
-    let keys_len = request.public_keys.len();
+    let no_cache = inner.no_cache;
+    let keys_len = inner.public_keys.len();
 
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    let valid_keys = request.public_keys.into_iter().filter_map(|e| e.ok());
+    let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
         let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
             ProjectCache::from_registry()
@@ -143,7 +122,7 @@ async fn get_project_configs(
     let mut pending = Vec::with_capacity(keys_len);
 
     for (project_key, state_result) in future::join_all(futures).await {
-        let Some(project_state) = state_result.map_err(|_| MailboxError::Closed)? else {
+        let Some(project_state) = state_result? else {
             pending.push(project_key);
             continue;
         };
@@ -157,7 +136,7 @@ async fn get_project_configs(
                 .contains(&relay.public_key);
 
         if has_access {
-            let full = relay.internal && request.full_config;
+            let full = relay.internal && inner.full_config;
             let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
             configs.insert(project_key, Some(wrapper));
         } else {
@@ -172,14 +151,32 @@ async fn get_project_configs(
     Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
 }
 
-pub fn configure_app(app: App<ServiceState>) -> App<ServiceState> {
-    app.resource("/api/0/relays/projectconfigs/", |r| {
-        r.name("relay-projectconfigs");
-        r.post()
-            .filter(VersionPredicate)
-            .with_async(|b, v| Box::pin(get_project_configs(b, v)).compat());
+/// Returns `true` if the `?version` query parameter is compatible with this implementation.
+fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+}
 
-        // Forward all unsupported versions to the upstream.
-        r.post().f(crate::endpoints::forward::forward_compat);
+/// Endpoint handler for the project configs endpoint.
+///
+/// # Version Compatibility
+///
+/// This endpoint checks a `?version` query parameter for compatibility. If this implementation is
+/// compatible with the version requested by the client (downstream Relay), it runs the project
+/// config endpoint implementation. Otherwise, the request is forwarded to the upstream.
+///
+/// Relays can drop compatibility with old versions of the project config endpoint, for instance the
+/// initial version 1. However, Sentry's HTTP endpoint will retain compatibility for much longer to
+/// support old Relay versions.
+pub async fn handle<B>(state: ServiceState, mut req: Request<B>) -> Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    let data = req.extract_parts().await?;
+    Ok(if is_compatible(data) {
+        inner.call(req, state).await
+    } else {
+        forward::forward(state, req).await
     })
 }

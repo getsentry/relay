@@ -131,10 +131,11 @@ fn set_default_filters(builder: &mut env_logger::Builder) {
     builder
         // Configure INFO as default for all third-party crates.
         .filter_level(LevelFilter::Info)
-        // Trust DNS is very spammy on INFO, so configure a higher warn level.
-        .filter_module("trust_dns_proto", LevelFilter::Warn)
         // Actix-web has useful information on the debug stream, so allow this.
-        .filter_module("actix_web::pipeline", LevelFilter::Debug);
+        .filter_module("actix_web::pipeline", LevelFilter::Debug)
+        // Logs from sqlx are very spammy on INFO level, so configure a higher WARN level.
+        .filter_module("sqlx", LevelFilter::Warn)
+        .filter_module("trust_dns_proto", LevelFilter::Warn);
 
     // Add all internal modules with maximum log-level.
     for name in CRATE_NAMES {

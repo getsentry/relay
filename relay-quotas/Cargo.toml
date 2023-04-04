@@ -11,7 +11,6 @@ publish = false
 
 [features]
 default = []
-tls = ["relay-redis?/tls"]
 redis = [
     "dep:thiserror",
     "dep:relay-log",

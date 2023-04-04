@@ -150,7 +150,11 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     assert event == expected_evt
 
 
-def test_security_report_cors(mini_sentry, relay):
+def split_header(header_val):
+    return [x.strip() for x in header_val.split(",")]
+
+
+def test_security_report_preflight(mini_sentry, relay):
     """
     Test that we respond correctly to a CORS preflight request
     """
@@ -160,7 +164,7 @@ def test_security_report_cors(mini_sentry, relay):
     dsn = project_config["publicKeys"][0]
     url = "/api/{}/security/?sentry_key={}".format(proj_id, dsn)
     headers = {
-        "Host": "raduw-relay.eu.ngrok.io",
+        "Host": "relay.example.org",
         "Pragma": "no-cache",
         "Cache-Control": "no-cache",
         "Origin": None,
@@ -176,42 +180,40 @@ def test_security_report_cors(mini_sentry, relay):
     assert resp.status_code == 200
     headers = resp.headers
 
-    def should_contain(header_val, required_vals):
-        # split value in its components (should be a comma delimited list with spaces)
-        if not header_val:
-            header_val = ""
-        header_elements = [x.strip() for x in header_val.split(",")]
+    assert headers["access-control-allow-methods"] == "POST"
+    assert set(split_header(headers["access-control-allow-headers"])) == set(
+        [
+            "x-forwarded-for",
+            "content-type",
+            "transfer-encoding",
+            "referer",
+            "authorization",
+            "origin",
+            "authentication",
+            "content-encoding",
+            "x-sentry-auth",
+            "accept",
+            "x-requested-with",
+        ]
+    )
 
-        for elm in required_vals:
-            if elm not in header_elements:
-                return False, "Could not find required value: '{}'".format(elm)
-        return True, None
 
-    allow_headers = headers.get("access-control-allow-headers", "")
-    should_allow_headers = [
-        "x-forwarded-for",
-        "content-type",
-        "transfer-encoding",
-        "referer",
-        "authorization",
-        "origin",
-        "authentication",
-        "content-encoding",
-        "x-sentry-auth",
-        "accept",
-        "x-requested-with",
-    ]
-    ok, err = should_contain(allow_headers, should_allow_headers)
-    assert ok, err
+def test_security_report_expose_headers(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    mini_sentry.add_full_project_config(42)
 
-    allow_methods = headers.get("access-control-allow-methods", "")
-    ok, err = should_contain(allow_methods, ["POST"])
-    assert ok, err
+    resp = relay.send_security_report(
+        project_id=42,
+        content_type="application/json; charset=utf-8",
+        payload="",  # Invalid, but irrelevant for this test
+        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+        environment="production",
+        origin="http://valid.com",
+    )
 
-    expose_headers = headers.get("access-control-expose-headers", "")
-    should_expose_headers = ["x-sentry-error", "x-sentry-rate-limits", "retry-after"]
-    ok, err = should_contain(expose_headers, should_expose_headers)
-    assert ok, err
+    assert set(split_header(resp.headers["access-control-expose-headers"])) == set(
+        ["x-sentry-error", "x-sentry-rate-limits", "retry-after"]
+    )
 
 
 def test_adds_origin_header(mini_sentry, relay, json_fixture_provider):
