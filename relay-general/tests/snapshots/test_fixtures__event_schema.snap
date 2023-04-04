@@ -2023,6 +2023,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "LockReason": {
+      "description": " Represents an instance of a held lock (java monitor object) in a thread.",
       "anyOf": [
         {
           "type": "object",
@@ -2083,6 +2084,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "LockReasonType": {
+      "description": "Possible lock types responsible for a thread's blocked state",
       "type": "string",
       "enum": [
         "locked",
