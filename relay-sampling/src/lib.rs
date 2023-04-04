@@ -5,22 +5,34 @@
 //! checking whether the generated number is bigger or smaller than the sample rate.
 //!
 //! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
-//! [`SamplingRule`] that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
+//! [`SamplingRule`]s that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
 //!
 //! # Trace and Transaction Sampling
 //!
 //! Relay samples both transactions looking at [`Event`] and traces looking at [`DynamicSamplingContext`]:
-//! - Trace sampling: ensures that either all transactions of a trace are sampled or none.
-//! - Transaction sampling: does not guarantee complete traces and instead applies to individual transactions.
+//! - **Trace sampling**: ensures that either all transactions of a trace are sampled or none.
+//! - **Transaction sampling**: does not guarantee complete traces and instead applies to individual transactions.
 //!
 //! # Components
 //!
 //! The sampling system implemented in Relay is composed of several important components:
-//! - [`DynamicSamplingContext`] : contains information about the trace and is read during trace sampling.
-//! - [`FieldValueProvider`] : an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
+//! - [`DynamicSamplingContext`]: a struct that contains the trace information.
+//! - [`FieldValueProvider`]: an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
 //! expose fields that are read during matching.
-//! - [`SamplingRule`] :
+//! - [`SamplingRule`]: a rule that is matched against [`Event`] or [`DynamicSamplingContext`] that
+//! can contain a [`RuleCondition`] for expressing predicates on the incoming payload.
+//! - [`SamplingMatch`]: the result of the matching of one or more [`SamplingRule`].
 //!
+//! # How It Works
+//! - The incoming [`Event`] and optionally [`DynamicSamplingContext`] are received by Relay.
+//! - Relay fetches the [`SamplingConfig`] of the project to which the [`Event`] belongs and (if exists) the
+//! [`SamplingConfig`] of the root project of the trace.
+//! - The [`SamplingConfig`]s are merged together and the matching algorithm in
+//! [`SamplingMatch::match_against_rules`] is executed.
+//! - The sampling algorithm will go over each [`SamplingRule`] and compute either a factor or
+//! sample rate based on the [`SamplingValue`] of the rule.
+//! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
+//! data that will be used in `relay_server` to perform the sampling decision.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -339,7 +351,7 @@ impl RuleCondition {
     }
 }
 
-/// Sampling rule Id
+/// The id of the [`SamplingRule`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RuleId(pub u32);
 
@@ -352,7 +364,7 @@ impl Display for RuleId {
 /// A range of time.
 ///
 /// The time range should be applicable between the start time, inclusive, and
-/// end time, exclusive.  There aren't any explicit checks to ensure the end
+/// end time, exclusive. There aren't any explicit checks to ensure the end
 /// time is equal to or greater than the start time; the time range isn't valid
 /// in such cases.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
