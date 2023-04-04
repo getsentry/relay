@@ -326,16 +326,16 @@ pub fn parse_sample_profile(
 
     if let Some(transaction_name) = tags.get("transaction") {
         if let Some(ref mut transaction) = profile.transaction {
-            transaction.name = transaction_name.to_string();
+            transaction.name = transaction_name.to_owned();
         }
     }
 
     if let Some(release) = tags.get("release") {
-        profile.release = release.to_string();
+        profile.release = release.to_owned();
     }
 
     if let Some(environment) = tags.get("environment") {
-        profile.environment = environment.to_string();
+        profile.environment = environment.to_owned();
     }
 
     profile.tags = tags;

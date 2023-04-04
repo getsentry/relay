@@ -1085,14 +1085,24 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 let tags: BTreeMap<String, String> = match state.event.value() {
-                    Some(event) => extract_universal_tags(
-                        event,
-                        &TransactionMetricsConfig {
-                            version: 1,
-                            extract_custom_tags: BTreeSet::from(["device.class".to_string()]),
-                            ..Default::default()
-                        },
-                    ),
+                    Some(event) => {
+                        let mut tags = extract_universal_tags(
+                            event,
+                            &TransactionMetricsConfig {
+                                version: 1,
+                                extract_custom_tags: BTreeSet::from(["device.class".to_string()]),
+                                ..Default::default()
+                            },
+                        );
+
+                        // Overwrite the transaction name to keep the original one
+                        tags.insert(
+                            "transaction".to_owned(),
+                            event.get_transaction_source().to_string(),
+                        );
+
+                        tags
+                    }
                     _ => BTreeMap::new(),
                 };
 
