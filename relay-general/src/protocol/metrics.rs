@@ -128,6 +128,12 @@ pub struct Metrics {
     #[metastructure(field = "ms.processing.proguard")]
     pub ms_processing_proguard: Annotated<u64>,
 
+    /// The number of milliseconds Sentry spent resolving sources for a java event.
+    ///
+    /// This metric is measured in Sentry and reported in the java processing task.
+    #[metastructure(field = "ms.processing.jvmbased")]
+    pub ms_processing_jvmbased: Annotated<u64>,
+
     /// The number of milliseconds sentry spent resolving minified stack traces for a javascript event.
     ///
     /// This metric is measured in Sentry and reported in the javascript processing task.
