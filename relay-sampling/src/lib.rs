@@ -1073,11 +1073,7 @@ impl SamplingConfig {
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
         // We check if there are unsupported rules in any of the two configurations.
-        check_unsupported_rules(
-            processing_enabled,
-            sampling_config,
-            root_sampling_config,
-        )?;
+        check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
 
         // We perform the rule matching with the multi-matching logic on the merged rules.
         let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
