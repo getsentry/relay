@@ -11,7 +11,9 @@ use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::pool::PoolConnection;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
@@ -232,6 +234,10 @@ impl BufferService {
                 // 3. Disk I/O operations tends to be more sequential using WAL.
                 // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
                 .journal_mode(SqliteJournalMode::Wal)
+                // WAL mode is safe from corruption with synchronous=NORMAL.
+                // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
+                // Which guarantees good balance between safety and speed.
+                .synchronous(SqliteSynchronous::Normal)
                 // If shared-cache mode is enabled and a thread establishes multiple
                 // connections to the same database, the connections share a single data and schema cache.
                 // This can significantly reduce the quantity of memory and IO required by the system.
@@ -268,7 +274,7 @@ impl BufferService {
     ///
     /// It returns an error if the spooling failed.
     async fn do_spool(
-        db: &mut PoolConnection<Sqlite>,
+        connection: &mut PoolConnection<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
         // A builder type for constructing queries at runtime.
@@ -297,7 +303,7 @@ impl BufferService {
                     relay_log::error!("failed to serialize the envelope: {}", LogError(&err))
                 }
             });
-            query_builder.build().execute(&mut *db).await?;
+            query_builder.build().execute(&mut *connection).await?;
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
@@ -394,6 +400,12 @@ impl BufferService {
     ) -> Result<(), QueueKey> {
         loop {
             // By default this creates a prepared statement which is cached and re-used.
+            //
+            // Removing envelopes from the on-disk buffer in batches has following implicatations:
+            // 1. It is faster to delete from the DB in batches.
+            // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
+            // but only one batch, and the rest of them will stay on disk for the next iteration
+            // to pick up.
             let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
             )
