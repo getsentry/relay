@@ -1044,7 +1044,7 @@ impl SamplingConfig {
     ///
     /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
     /// rules from the root project and concatenate them.
-    pub fn merge_rules_from_configs<'a>(
+    fn merge_rules_from_configs<'a>(
         sampling_config: &'a SamplingConfig,
         root_sampling_config: Option<&'a SamplingConfig>,
     ) -> impl Iterator<Item = &'a SamplingRule> {
@@ -1063,7 +1063,7 @@ impl SamplingConfig {
 
     /// Gets the sampling match result by creating the merged configuration and matching it against
     /// the sampling configuration.
-    pub fn match_against_configs(
+    pub fn merge_configs_and_match(
         processing_enabled: bool,
         sampling_config: &SamplingConfig,
         root_sampling_config: Option<&SamplingConfig>,
@@ -3344,7 +3344,7 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3365,7 +3365,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
 
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3377,7 +3377,7 @@ mod tests {
         assert_transaction_match!(result, 0.5, event, 3);
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3398,7 +3398,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3419,7 +3419,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
         let event = mocked_event(EventType::Transaction, "my_transaction", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3440,7 +3440,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
         let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3459,7 +3459,7 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3479,7 +3479,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(0.8), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3513,7 +3513,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             false,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3524,7 +3524,7 @@ mod tests {
         );
         assert_no_match!(result);
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3545,7 +3545,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3564,7 +3564,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
 
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3577,7 +3577,7 @@ mod tests {
 
         let root_project_sampling_config =
             mocked_root_project_sampling_config(SamplingMode::Received);
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             Some(&root_project_sampling_config),
@@ -3606,7 +3606,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3635,7 +3635,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Error, "transaction", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3664,7 +3664,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Default, "transaction", "2.0", "");
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3693,7 +3693,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3715,7 +3715,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3737,7 +3737,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3766,7 +3766,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3788,7 +3788,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3810,7 +3810,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,
@@ -3850,7 +3850,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result = SamplingConfig::match_against_configs(
+        let result = SamplingConfig::merge_configs_and_match(
             true,
             &sampling_config,
             None,

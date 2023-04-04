@@ -24,8 +24,8 @@ pub enum SamplingResult {
     Drop(MatchedRuleIds),
 }
 
-/// Matches the incoming event with the SamplingConfig(s) of the projects.
-fn match_with_project_states(
+/// Matches the incoming event with the SamplingConfig(s) of the project and root project.
+fn get_sampling_match(
     processing_enabled: bool,
     project_state: &ProjectState,
     root_project_state: Option<&ProjectState>,
@@ -40,7 +40,7 @@ fn match_with_project_states(
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    SamplingConfig::match_against_configs(
+    SamplingConfig::merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,
@@ -61,7 +61,7 @@ pub fn should_keep_event(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
-    match match_with_project_states(
+    match get_sampling_match(
         processing_enabled,
         project_state,
         root_project_state,
