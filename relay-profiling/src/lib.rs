@@ -99,6 +99,7 @@ use std::collections::BTreeMap;
 mod android;
 mod cocoa;
 mod error;
+mod extract_tags;
 mod measurements;
 mod native_debug_image;
 mod outcomes;
@@ -110,9 +111,11 @@ use relay_general::protocol::EventId;
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
-pub use crate::error::ProfileError;
-pub use crate::outcomes::discard_reason;
 use crate::sample::{parse_sample_profile, Version};
+
+pub use crate::error::ProfileError;
+pub use crate::extract_tags::extract_tags;
+pub use crate::outcomes::discard_reason;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {

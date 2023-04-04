@@ -3020,6 +3020,7 @@ dependencies = [
  "android_trace_log",
  "chrono",
  "data-encoding",
+ "relay-common",
  "relay-general",
  "serde",
  "serde_json",

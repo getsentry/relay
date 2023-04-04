@@ -41,11 +41,9 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::metrics_extraction::transactions::extract_universal_tags,
     crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
-    relay_dynamic_config::TransactionMetricsConfig,
     relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -1085,24 +1083,10 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 let tags: BTreeMap<String, String> = match state.event.value() {
-                    Some(event) => {
-                        let mut tags = extract_universal_tags(
-                            event,
-                            &TransactionMetricsConfig {
-                                version: 1,
-                                extract_custom_tags: BTreeSet::from(["device.class".to_string()]),
-                                ..Default::default()
-                            },
-                        );
-
-                        // Overwrite the transaction name to keep the original one
-                        tags.insert(
-                            "transaction".to_owned(),
-                            event.get_transaction_source().to_string(),
-                        );
-
-                        tags
-                    }
+                    Some(event) => relay_profiling::extract_tags(
+                        event,
+                        BTreeSet::from(["device.class".to_string()]),
+                    ),
                     _ => BTreeMap::new(),
                 };
 

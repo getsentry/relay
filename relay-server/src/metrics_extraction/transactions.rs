@@ -161,7 +161,7 @@ fn get_transaction_name(
 }
 
 /// These are the tags that are added to all extracted metrics.
-pub fn extract_universal_tags(
+fn extract_universal_tags(
     event: &Event,
     config: &TransactionMetricsConfig,
 ) -> BTreeMap<String, String> {
