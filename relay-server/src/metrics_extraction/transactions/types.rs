@@ -373,7 +373,7 @@ fn extract_universal_tags(
         tags.insert(UniversalTags::Environment, environment.to_string());
     }
     if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert(UniversalTags::Transaction, transaction_name.to_string());
+        tags.insert(UniversalTags::Transaction, transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -393,12 +393,12 @@ fn extract_universal_tags(
         tags.insert(UniversalTags::TransactionStatus, status.to_string());
 
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(UniversalTags::TransactionOp, op.to_string());
+            tags.insert(UniversalTags::TransactionOp, op);
         }
     }
 
     if let Some(http_method) = extract_http_method(event) {
-        tags.insert(UniversalTags::HttpMethod, http_method.to_string());
+        tags.insert(UniversalTags::HttpMethod, http_method);
     }
 
     let custom_tags = &config.extract_custom_tags;
