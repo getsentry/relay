@@ -12,12 +12,12 @@ use crate::metrics_extraction::IntoMetric;
 /// Enumerates the metrics extracted from session payloads.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionMetric {
-    /// The number of sessions collected in the given time frame.
+    /// The number of sessions collected in a given time frame.
     Session {
         counter: CounterType,
         tags: SessionSessionTags,
     },
-    /// The number of unique session users for the given time frame.
+    /// The number of unique session users for a given time frame.
     User {
         distinct_id: String,
         tags: SessionUserTags,
