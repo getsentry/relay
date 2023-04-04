@@ -308,7 +308,7 @@ impl BufferService {
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
-    fn try_spool(&mut self) -> Result<(), BufferError> {
+    async fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
             spool_config,
             ref mut buffer,
@@ -337,30 +337,17 @@ impl BufferService {
                     let buf = std::mem::take(buffer);
                     self.count_mem_envelopes = 0;
 
-                    // spawn the task to enqueue the entire buffer
-                    tokio::spawn(async move {
-                        // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
-                        // Once we started spooling our in-memory buffer, the dequeue from the disk
-                        // will be blocked till this operations either fails, or commits.
-                        if let Err(err) = sqlx::query("BEGIN").execute(&mut connection).await {
-                            relay_log::error!("failed to start a transaction: {}", LogError(&err));
-                            return;
-                        }
+                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
+                    // Once we started spooling our in-memory buffer, the dequeue from the disk
+                    // will be blocked till this operations either fails, or commits.
+                    sqlx::query("BEGIN").execute(&mut connection).await?;
 
-                        if let Err(err) = Self::do_spool(&mut connection, buf).await {
-                            relay_log::error!(
-                                "failed to spool memory buffer to the disk: {}",
-                                LogError(&err)
-                            );
-                        }
+                    Self::do_spool(&mut connection, buf).await?;
 
-                        // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
-                        // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
-                        // TODO: re-try failed commit?
-                        if let Err(err) = sqlx::query("COMMIT").execute(&mut connection).await {
-                            relay_log::error!("failed to commit: {}", LogError(&err));
-                        }
-                    });
+                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
+                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
+                    // TODO: re-try failed commit?
+                    sqlx::query("COMMIT").execute(&mut connection).await?;
                 }
             }
         }
@@ -386,7 +373,7 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        self.try_spool()?;
+        self.try_spool().await?;
 
         // save to the internal buffer
         self.buffer.entry(key).or_default().push(managed_envelope);
@@ -547,14 +534,22 @@ impl Drop for BufferService {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
         // We have envelopes in memory, try to buffer them to the disk.
         if count > 0 {
-            if let Err(err) = self.try_spool() {
-                relay_log::error!("failed to spool {} on shutdown: {}", count, LogError(&err));
-            }
-
-            // The buffer must be empty by now, report the error otherwise.
-            let count: usize = self.buffer.values().map(|v| v.len()).sum();
-            if count > 0 {
-                relay_log::error!("dropped {} envelopes", count);
+            let buffer = std::mem::take(&mut self.buffer);
+            if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
+                let db = db.clone();
+                tokio::spawn(async move {
+                    let Some(mut connection) = db.try_acquire() else {
+                        relay_log::error!("failed to get connection while dropping the project buffer");
+                        return;
+                    };
+                    if let Err(err) = Self::do_spool(&mut connection, buffer).await {
+                        relay_log::error!(
+                            "failed to spool {} on shutdown: {}",
+                            count,
+                            LogError(&err)
+                        );
+                    }
+                });
             }
         }
     }
