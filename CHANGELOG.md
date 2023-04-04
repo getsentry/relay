@@ -11,16 +11,19 @@
 This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
 
 Configuration:
+
 - SSL support has been dropped. As per [official guidelines](https://docs.sentry.io/product/relay/operating-guidelines/), Relay should be operated behind a reverse proxy, which can perform SSL termination.
 - Connection config options `max_connections`, `max_pending_connections`, and `max_connection_rate` no longer have an effect. Instead, configure the reverse proxy to handle connection concurrency as needed.
 
 Endpoints:
+
 - The security endpoint no longer forwards to upstream if the mime type doesn't match supported mime types. Instead, the request is rejected with a corresponding error.
 - Passing store payloads as `?sentry_data=<base64>` query parameter is restricted to `GET` requests on the store endpoint. Other endpoints require the payload to be passed in the request body.
 - Requests with an invalid `content-encoding` header will now be rejected. Exceptions to this are an empty string and `UTF-8`, which have been sent historically by some SDKs and are now treated as identity (no encoding). Previously, all unknown encodings were treated as identity.
 - Temporarily, response bodies for some errors are rendered as plain text instead of JSON. This will be addressed in an upcoming release.
 
 Metrics:
+
 - The `route` tag of request metrics uses the route pattern instead of schematic names. There is an exact replacement for every previous route. For example, `"store-default"` is now tagged as `"/api/:project_id/store/"`.
 - Statsd metrics `event.size_bytes.raw` and `event.size_bytes.uncompressed` have been removed.
 
@@ -28,11 +31,14 @@ Metrics:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
 - Add replay_id onto event from dynamic sampling context. ([#1983](https://github.com/getsentry/relay/pull/1983))
+- Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
+- Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 
 **Internal**:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
 
 ## 23.3.1
 

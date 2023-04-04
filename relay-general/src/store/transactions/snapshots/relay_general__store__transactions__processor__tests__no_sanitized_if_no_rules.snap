@@ -4,9 +4,9 @@ expression: event
 ---
 {
   "type": "transaction",
-  "transaction": "/remains/rule-target/*",
+  "transaction": "/remains/rule-target/whatever",
   "transaction_info": {
-    "source": "sanitized"
+    "source": "url"
   },
   "timestamp": 1619420400.0,
   "start_timestamp": 1619420341.0,
@@ -18,20 +18,5 @@ expression: event
       "type": "trace"
     }
   },
-  "spans": [],
-  "_meta": {
-    "transaction": {
-      "": {
-        "rem": [
-          [
-            "int",
-            "s",
-            21,
-            31
-          ]
-        ],
-        "val": "/remains/rule-target/1234567890"
-      }
-    }
-  }
+  "spans": []
 }

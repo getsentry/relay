@@ -350,19 +350,28 @@ impl Processor for TransactionsProcessor<'_> {
         if self.name_config.scrub_identifiers {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
+            let mut sanitized = false;
+
             if matches!(
                 event.get_transaction_source(),
                 &TransactionSource::Url | &TransactionSource::Sanitized
             ) {
-                scrub_identifiers(&mut event.transaction)?;
+                scrub_identifiers(&mut event.transaction)?.then(|| {
+                    sanitized = true;
+                });
             }
 
-            self.apply_transaction_rename_rule(
-                &mut event.transaction,
-                event.transaction_info.value_mut(),
-            )?;
+            if !self.name_config.rules.is_empty() {
+                self.apply_transaction_rename_rule(
+                    &mut event.transaction,
+                    event.transaction_info.value_mut(),
+                )?;
 
-            if matches!(event.get_transaction_source(), &TransactionSource::Url)
+                sanitized = true;
+            }
+
+            if sanitized
+                && matches!(event.get_transaction_source(), &TransactionSource::Url)
                 && self.name_config.mark_scrubbed_as_sanitized
             {
                 event
@@ -2183,13 +2192,13 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                     scope: RuleScope::default(),
                     redaction: RedactionRule::default(),
                 }],
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -2235,6 +2244,41 @@ mod tests {
                     scope: RuleScope::default(),
                     redaction: RedactionRule::default(),
                 }],
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_no_sanitized_if_no_rules() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/whatever",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                scrub_identifiers: true,
+                mark_scrubbed_as_sanitized: true,
+                rules: &[],
             }),
             ProcessingState::root(),
         )
