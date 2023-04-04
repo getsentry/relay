@@ -1,8 +1,10 @@
-use relay_general::protocol::{AsPair, Context, ContextInner, Event, TraceContext};
-use relay_general::types::Annotated;
 use std::collections::{BTreeMap, BTreeSet};
 
+use chrono::SecondsFormat;
+
 use relay_common::SpanStatus;
+use relay_general::protocol::{AsPair, Context, ContextInner, Event, TraceContext};
+use relay_general::types::Annotated;
 
 pub fn extract_tags(
     event: &Event,
@@ -34,6 +36,24 @@ pub fn extract_tags(
 
     if let Some(http_method) = extract_http_method(event) {
         tags.insert("http.method".to_owned(), http_method);
+    }
+
+    if let Some(timestamp) = event.start_timestamp.value() {
+        tags.insert(
+            "transaction.start".to_owned(),
+            timestamp
+                .into_inner()
+                .to_rfc3339_opts(SecondsFormat::Nanos, false),
+        );
+    }
+
+    if let Some(timestamp) = event.timestamp.value() {
+        tags.insert(
+            "transaction.end".to_owned(),
+            timestamp
+                .into_inner()
+                .to_rfc3339_opts(SecondsFormat::Nanos, false),
+        );
     }
 
     let custom_tags = &extract_custom_tags;
