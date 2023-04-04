@@ -19,10 +19,9 @@ pub fn extract_tags(
         tags.insert("environment".to_owned(), environment.to_owned());
     }
 
-    tags.insert(
-        "transaction".to_owned(),
-        event.get_transaction_source().to_string(),
-    );
+    if let Some(transaction) = event.transaction.value() {
+        tags.insert("transaction".to_owned(), transaction.to_owned());
+    }
 
     if let Some(trace_context) = get_trace_context(event) {
         let status = extract_transaction_status(trace_context);
