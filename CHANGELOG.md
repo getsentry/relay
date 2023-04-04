@@ -30,12 +30,14 @@ Metrics:
 **Features**:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 
 **Internal**:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
 - Use types from `sentry-kafka-schemas` crate to validate metrics messages into kafka. ([#1981](https://github.com/getsentry/relay/pull/1981))
 
 ## 23.3.1

@@ -2224,7 +2224,9 @@ impl EnvelopeProcessorService {
                         .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
                     rules: &state.project_state.config.tx_name_rules,
                 },
-
+                device_class_synthesis_config: state
+                    .project_state
+                    .has_feature(Feature::DeviceClassSynthesis),
                 is_renormalize: false,
             };
 
