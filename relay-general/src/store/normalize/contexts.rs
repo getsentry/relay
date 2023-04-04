@@ -225,13 +225,7 @@ fn get_android_product_name(model: &str, android_map_path: &PathBuf) -> Option<S
         Ok(android_map)
     });
 
-    if let Ok(android_map) = mymap {
-        let val = android_map.get(model);
-        if let Some(val) = val {
-            return Some(val.clone());
-        }
-    }
-    None
+    mymap.as_ref().ok().and_then(|map| map.get(model).cloned())
 }
 
 pub fn normalize_context(context: &mut Context, config: &StoreConfig) {
