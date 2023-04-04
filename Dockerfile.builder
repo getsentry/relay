@@ -1,8 +1,8 @@
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM centos:7 AS relay-deps
 
-# Pin the Rust version for now
-ARG RUST_TOOLCHAIN_VERSION=1.68.2
+# Rust version must be provided by the caller.
+ARG RUST_TOOLCHAIN_VERSION
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
 RUN yum -y update \
