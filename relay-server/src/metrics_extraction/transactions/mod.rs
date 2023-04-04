@@ -457,7 +457,7 @@ mod tests {
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::{DurationUnit, MetricValue};
+    use relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
 
     use super::*;
 
@@ -1159,20 +1159,23 @@ mod tests {
             "frustrated".to_owned(),
         );
         tags.0.insert(CommonTag::Platform, "other".to_string());
-        let measurement_tags = TransactionMeasurementTags {
-            measurement_rating: Some("good".to_string()),
-            universal_tags: tags,
-        };
 
         assert_eq!(
             metrics,
-            &[TransactionMetric::Measurement {
-                name: "lcp".to_string(),
-                value: 41.0,
-                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
-                tags: measurement_tags
-            }
-            .into_metric(UnixTimestamp::from_secs(1619420402))]
+            &[Metric::new_mri(
+                MetricNamespace::Transactions,
+                "measurements.lcp",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(41.0),
+                UnixTimestamp::from_secs(1619420402),
+                {
+                    let mut tags = BTreeMap::new();
+                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
+                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
+                    tags.insert("platform".to_owned(), "other".to_owned());
+                    tags
+                }
+            )]
         );
     }
 

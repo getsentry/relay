@@ -3,9 +3,7 @@ use std::fmt::{self, Display};
 
 use relay_common::{MetricUnit, UnixTimestamp, Uuid};
 use relay_general::protocol::SessionStatus;
-use relay_metrics::{
-    CounterType, Metric, MetricNamespace, MetricResourceIdentifier, MetricType, MetricValue,
-};
+use relay_metrics::{CounterType, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::IntoMetric;
 
@@ -26,25 +24,7 @@ pub enum SessionMetric {
     ///
     /// Because multiple session updates can be received for the same session ID,
     /// this is collected as a [`MetricType::Set`] metric rather than a simple counter.
-    Error {
-        session_id: Uuid,
-        tags: SessionErrorTags,
-    },
-}
-
-impl SessionMetric {
-    fn ty(&self) -> MetricType {
-        match self {
-            SessionMetric::Session { .. } => MetricType::Counter,
-            SessionMetric::Error { .. } => MetricType::Set,
-            SessionMetric::User { .. } => MetricType::Set,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SessionErrorTags {
-    pub common_tags: CommonTags,
+    Error { session_id: Uuid, tags: CommonTags },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,12 +80,6 @@ impl From<SessionUserTags> for BTreeMap<String, String> {
     }
 }
 
-impl From<SessionErrorTags> for BTreeMap<String, String> {
-    fn from(value: SessionErrorTags) -> Self {
-        value.common_tags.into()
-    }
-}
-
 impl From<SessionSessionTags> for BTreeMap<String, String> {
     fn from(value: SessionSessionTags) -> Self {
         let mut map: BTreeMap<String, String> = value.common_tags.into();
@@ -118,12 +92,6 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
 impl IntoMetric for SessionMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
         let name = self.to_string();
-        let mri = MetricResourceIdentifier {
-            ty: self.ty(),
-            namespace: MetricNamespace::Sessions,
-            name: &name,
-            unit: MetricUnit::None,
-        };
 
         let (value, tags) = match self {
             SessionMetric::Error {
@@ -137,7 +105,14 @@ impl IntoMetric for SessionMetric {
                 (MetricValue::Counter(counter), tags.into())
             }
         };
-        Metric::new(mri, value, timestamp, tags)
+        Metric::new_mri(
+            MetricNamespace::Sessions,
+            name,
+            MetricUnit::None,
+            value,
+            timestamp,
+            tags,
+        )
     }
 }
 

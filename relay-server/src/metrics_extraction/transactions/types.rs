@@ -3,8 +3,7 @@ use std::fmt::Display;
 
 use relay_common::{MetricUnit, UnixTimestamp};
 use relay_metrics::{
-    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricResourceIdentifier,
-    MetricType, MetricValue,
+    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricValue,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -40,46 +39,34 @@ impl IntoMetric for TransactionMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
         let namespace = MetricNamespace::Transactions;
         match self {
-            TransactionMetric::User { value, tags } => Metric::new(
-                MetricResourceIdentifier {
-                    ty: MetricType::Set,
-                    namespace,
-                    name: "user",
-                    unit: MetricUnit::None,
-                },
+            TransactionMetric::User { value, tags } => Metric::new_mri(
+                namespace,
+                "user",
+                MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { value, tags, name } => Metric::new(
-                MetricResourceIdentifier {
-                    ty: MetricType::Distribution,
-                    namespace,
-                    name: format!("breakdowns.{name}").as_str(),
-                    unit: MetricUnit::Duration(DurationUnit::MilliSecond),
-                },
+            TransactionMetric::Breakdown { value, tags, name } => Metric::new_mri(
+                namespace,
+                format!("breakdowns.{name}").as_str(),
+                MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags.into(),
             ),
-            TransactionMetric::CountPerRootProject { value, tags } => Metric::new(
-                MetricResourceIdentifier {
-                    ty: MetricType::Counter,
-                    namespace,
-                    name: "count_per_root_project",
-                    unit: MetricUnit::None,
-                },
+            TransactionMetric::CountPerRootProject { value, tags } => Metric::new_mri(
+                namespace,
+                "count_per_root_project",
+                MetricUnit::None,
                 MetricValue::Counter(value),
                 timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Duration { unit, value, tags } => Metric::new(
-                MetricResourceIdentifier {
-                    ty: MetricType::Distribution,
-                    namespace,
-                    name: "duration",
-                    unit: MetricUnit::Duration(unit),
-                },
+            TransactionMetric::Duration { unit, value, tags } => Metric::new_mri(
+                namespace,
+                "duration",
+                MetricUnit::Duration(unit),
                 MetricValue::Distribution(value),
                 timestamp,
                 tags.into(),
@@ -89,13 +76,10 @@ impl IntoMetric for TransactionMetric {
                 value,
                 unit,
                 tags,
-            } => Metric::new(
-                MetricResourceIdentifier {
-                    ty: MetricType::Distribution,
-                    namespace,
-                    name: format!("measurements.{kind}").as_str(),
-                    unit,
-                },
+            } => Metric::new_mri(
+                namespace,
+                format!("measurements.{kind}").as_str(),
+                unit,
                 MetricValue::Distribution(value),
                 timestamp,
                 tags.into(),

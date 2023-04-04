@@ -5,7 +5,7 @@ use relay_general::protocol::{
 use relay_metrics::Metric;
 
 use crate::metrics_extraction::sessions::types::{
-    CommonTags, SessionErrorTags, SessionMetric, SessionSessionTags, SessionUserTags,
+    CommonTags, SessionMetric, SessionSessionTags, SessionUserTags,
 };
 use crate::metrics_extraction::IntoMetric;
 
@@ -64,9 +64,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(match errors {
             SessionErrored::Individual(session_id) => SessionMetric::Error {
                 session_id,
-                tags: SessionErrorTags {
-                    common_tags: common_tags.clone(),
-                },
+                tags: common_tags.clone(),
             }
             .into_metric(timestamp),
 

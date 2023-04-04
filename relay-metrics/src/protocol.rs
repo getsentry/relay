@@ -485,14 +485,22 @@ impl Metric {
     ///
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
-    pub fn new(
-        mri: MetricResourceIdentifier,
+    pub fn new_mri(
+        namespace: MetricNamespace,
+        name: impl AsRef<str>,
+        unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: mri.to_string(),
+            name: MetricResourceIdentifier {
+                ty: value.ty(),
+                name: name.as_ref(),
+                namespace,
+                unit,
+            }
+            .to_string(),
             value,
             timestamp,
             tags,
@@ -513,13 +521,10 @@ impl Metric {
             .split_once('/')
             .unwrap_or(("custom", string));
 
-        let mut metric = Self::new(
-            MetricResourceIdentifier {
-                ty,
-                namespace: raw_namespace.parse().ok()?,
-                name,
-                unit,
-            },
+        let mut metric = Self::new_mri(
+            raw_namespace.parse().ok()?,
+            name,
+            unit,
             value,
             timestamp,
             BTreeMap::new(),
