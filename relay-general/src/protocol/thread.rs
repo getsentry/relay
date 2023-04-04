@@ -1,5 +1,3 @@
-use std::fmt;
-
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -71,10 +69,12 @@ impl Empty for ThreadId {
     }
 }
 
+/// Possible lock types responsible for a thread's blocked state
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ProcessValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum LockReasonType {
+    ///
     Locked = 1,
     Waiting = 2,
     Sleeping = 4,
@@ -142,6 +142,7 @@ impl IntoValue for LockReasonType {
     }
 }
 
+/// Represents an instance of a held lock (java monitor object) in a thread.
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct LockReason {
