@@ -1,4 +1,26 @@
-//! Functionality for calculating if a trace should be processed or dropped.
+//! Sampling logic for performing sampling decisions of incoming events.
+//!
+//! Relay performs sampling of events in order to allow Sentry to offer performance at scale. The
+//! process of sampling ultimately comes down to generating a random number and given a sample rate
+//! checking whether the generated number is bigger or smaller than the sample rate.
+//!
+//! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
+//! [`SamplingRule`] that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
+//!
+//! # Trace and Transaction Sampling
+//!
+//! Relay samples both transactions looking at [`Event`] and traces looking at [`DynamicSamplingContext`]:
+//! - Trace sampling: ensures that either all transactions of a trace are sampled or none.
+//! - Transaction sampling: does not guarantee complete traces and instead applies to individual transactions.
+//!
+//! # Components
+//!
+//! The sampling system implemented in Relay is composed of several important components:
+//! - [`DynamicSamplingContext`] : contains information about the trace and is read during trace sampling.
+//! - [`FieldValueProvider`] : an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
+//! expose fields that are read during matching.
+//! - [`SamplingRule`] :
+//!
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
