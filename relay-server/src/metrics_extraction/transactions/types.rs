@@ -29,6 +29,7 @@ pub enum TransactionMetric {
         value: CounterType,
         tags: TransactionCPRTags,
     },
+    A metric created from [`relay_general::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
