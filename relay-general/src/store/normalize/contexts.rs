@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::io::BufRead;
+use std::path::PathBuf;
 
 use once_cell::sync::{Lazy, OnceCell};
 use regex::Regex;
 
-use crate::protocol::{Context, DeviceContext, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
 use crate::store::StoreConfig;
 use crate::types::{Annotated, Empty};
 
@@ -203,36 +204,34 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
-static ANDROID_MAP: OnceCell<HashMap<String, String>> = OnceCell::new();
-fn normalize_device_context(device: &mut Box<DeviceContext>, config: &StoreConfig) {
-    let mymap: Result<&HashMap<String, String>, std::io::Error> =
-        ANDROID_MAP.get_or_try_init(|| {
-            let file = std::fs::File::open(&config.android_csv)?;
-            let reader = std::io::BufReader::new(file);
-            let mut android_map: HashMap<String, String> = HashMap::new();
+static ANDROID_MAP: OnceCell<Result<HashMap<String, String>, std::io::Error>> = OnceCell::new();
 
-            for line in reader.lines() {
-                let line = line?;
-                let columns: Vec<&str> = line.split(", ").collect();
+fn get_android_product_name(model: &str, android_map_path: &PathBuf) -> Option<String> {
+    let mymap: &Result<HashMap<String, String>, std::io::Error> = ANDROID_MAP.get_or_init(|| {
+        let file = std::fs::File::open(android_map_path)?;
+        let reader = std::io::BufReader::new(file);
+        let mut android_map: HashMap<String, String> = HashMap::new();
 
-                if columns.len() >= 4 {
-                    let key = columns[3].to_string();
-                    let value = columns[1].to_string();
-                    android_map.insert(key, value);
-                }
-            }
-            Ok(android_map)
-        });
+        for line in reader.lines() {
+            let line = line?;
+            let columns: Vec<&str> = line.split(',').collect();
 
-    if let Ok(android_map) = mymap {
-        let key = device.as_ref().model.value();
-        if let Some(key) = key {
-            let val = android_map.get(key);
-            if let Some(val) = val {
-                device.model.set_value(Some(val.clone()));
+            if columns.len() >= 4 {
+                let key = columns[3].trim().to_string();
+                let value = columns[1].trim().to_string();
+                android_map.insert(key, value);
             }
         }
+        Ok(android_map)
+    });
+
+    if let Ok(android_map) = mymap {
+        let val = android_map.get(model);
+        if let Some(val) = val {
+            return Some(val.clone());
+        }
     }
+    None
 }
 
 pub fn normalize_context(context: &mut Context, config: &StoreConfig) {
@@ -240,7 +239,13 @@ pub fn normalize_context(context: &mut Context, config: &StoreConfig) {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
-        Context::Device(device) => normalize_device_context(device, config),
+        Context::Device(device) => {
+            if let Some(model) = device.as_ref().model.value() {
+                if let Some(product_name) = get_android_product_name(model, &config.android_csv) {
+                    device.model.set_value(Some(product_name));
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -251,6 +256,24 @@ mod tests {
 
     use super::*;
     use crate::protocol::LenientString;
+
+    #[test]
+    fn test_get_product_name() {
+        let model = "NE2211";
+        let product_name =
+            get_android_product_name(model, &PathBuf::from("../.relay/android_models.csv"))
+                .unwrap();
+
+        assert_eq!(product_name, "OnePlus 10 Pro 5G".to_string());
+
+        let model = "MP04";
+
+        let product_name =
+            get_android_product_name(model, &PathBuf::from("../.relay/android_models.csv"))
+                .unwrap();
+
+        assert_eq!(product_name, "A13 Pro Max 5G EEA".to_string());
+    }
 
     #[test]
     fn test_dotnet_framework_48_without_build_id() {
