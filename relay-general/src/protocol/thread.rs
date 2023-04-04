@@ -74,10 +74,13 @@ impl Empty for ThreadId {
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum LockReasonType {
-    ///
+    /// thread Runnable but holding a lock object (generic case)
     Locked = 1,
+    /// thread TimedWaiting in Object.wait() with a timeout
     Waiting = 2,
+    /// thread TimedWaiting in Thread.sleep()
     Sleeping = 4,
+    /// thread Blocked on a monitor/shared lock
     Blocked = 8,
     // This enum does not have a `fallback_variant` because we consider it unlikely to be extended. If it is,
     // The error added to `Meta` will tell us to update this enum.
