@@ -254,8 +254,9 @@ impl BufferService {
                 // It is a rough extimation for how many envelopes we can fit in the
                 // configured memory limit, taking that 1 enveloper is 1 MB.
                 //
-                // TODO: Can we calculate the size of the envelope?
-                max_envelopes_count: config.spool_envelopes_max_memory_size() / (1024 * 1024),
+                // TODO: Can we calculate the real size of the envelope?
+                max_envelopes_count: config.spool_envelopes_max_memory_size()
+                    / config.max_envelope_size(),
             };
 
             service.spool_config = Some(spool_config);
