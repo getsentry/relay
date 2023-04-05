@@ -302,20 +302,18 @@ impl BufferService {
 
         let mut count = 0;
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| {
-                count += 1;
-                match value {
-                    Ok(value) => {
-                        b.push_bind(key.own_key.to_string())
-                            .push_bind(key.sampling_key.to_string())
-                            .push_bind(value);
-                    }
-                    Err(err) => {
-                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                    }
+            query_builder.push_values(chunk, |mut b, (key, value)| match value {
+                Ok(value) => {
+                    b.push_bind(key.own_key.to_string())
+                        .push_bind(key.sampling_key.to_string())
+                        .push_bind(value);
+                }
+                Err(err) => {
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
                 }
             });
-            query_builder.build().execute(db).await?;
+            let result = query_builder.build().execute(db).await?;
+            count += result.rows_affected() as i64;
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
