@@ -13,6 +13,9 @@ use crate::statsd::KafkaHistograms;
 mod utils;
 use utils::{CaptureErrorContext, ThreadedProducer};
 
+#[cfg(debug_assertions)]
+mod schemas;
+
 /// Kafka producer errors.
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -35,6 +38,10 @@ pub enum ClientError {
     /// Failed to serialize the json message using serde.
     #[error("failed to serialize json message")]
     InvalidJson(#[source] serde_json::Error),
+
+    /// Failed to run schema validation on message.
+    #[error("failed to run schema validation on message")]
+    SchemaValidationFailed(#[source] schemas::SchemaError),
 
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
     #[error("invalid kafka shard")]
@@ -142,6 +149,9 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
+        #[cfg(debug_assertions)]
+        schemas::validate_message_schema(topic, &serialized)
+            .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
         self.send(topic, organization_id, &key, message.variant(), &serialized)
     }
