@@ -46,7 +46,7 @@ pub enum RelayHistograms {
     ///
     /// This number is always <= `EnvelopeQueueSize`.
     ///
-    /// The memory buffer size can be configured with `cache.persistent_envelope_buffer.max_memory_size`.
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
     BufferEnvelopesMemory,
     /// The number of envelopes waiting for project states on disk.
     ///
@@ -54,7 +54,7 @@ pub enum RelayHistograms {
     /// the in-memory buffer overflows (for example, we cannot fetch project states from the upstream)
     /// will the disk buffer be used.
     ///
-    /// The disk buffer size can be configured with `cache.persistent_envelope_buffer.max_disk_size`.
+    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDisk,
     /// The number of spans per processed transaction event.
     ///
