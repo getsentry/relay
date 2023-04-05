@@ -212,7 +212,7 @@ pub fn normalize_context(context: &mut Context) {
                 .value()
                 .and_then(|model| ANDROID_MAP.get(model.as_str()))
             {
-                device.model.set_value(Some(product_name.to_string()))
+                device.name.set_value(Some(product_name.to_string()))
             }
         }
         _ => {}
