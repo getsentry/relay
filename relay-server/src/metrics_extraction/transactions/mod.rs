@@ -1153,12 +1153,6 @@ mod tests {
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
-        let mut tags = extract_universal_tags(event.value().unwrap(), &config);
-        tags.0.insert(
-            CommonTag::Custom("satisfaction".to_owned()),
-            "frustrated".to_owned(),
-        );
-        tags.0.insert(CommonTag::Platform, "other".to_string());
 
         assert_eq!(
             metrics,
