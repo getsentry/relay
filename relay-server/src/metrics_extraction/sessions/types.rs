@@ -23,7 +23,7 @@ pub enum SessionMetric {
     /// The number of sessions that errored in a given time frame.
     ///
     /// Because multiple session updates can be received for the same session ID,
-    /// this is collected as a [`MetricType::Set`] metric rather than a simple counter.
+    /// this is collected as a [`relay_metrics::MetricType::Set`] metric rather than a simple counter.
     Error { session_id: Uuid, tags: CommonTags },
 }
 
