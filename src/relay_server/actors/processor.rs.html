@@ -3467,6 +3467,7 @@
 <a href="#3466" id="3466">3466</a>
 <a href="#3467" id="3467">3467</a>
 <a href="#3468" id="3468">3468</a>
+<a href="#3469" id="3469">3469</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3527,7 +3528,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{

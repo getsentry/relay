@@ -3714,7 +3714,7 @@
             .persistent_envelope_buffer
             .as_ref()
             .map(|b| b.max_connections)
-            .unwrap_or(buffer_max_connections())
+            .unwrap_or_else(buffer_max_connections)
     }
 
     <span class="doccomment">/// Minimum number of connections to create to buffer file.
@@ -3724,7 +3724,7 @@
             .persistent_envelope_buffer
             .as_ref()
             .map(|b| b.min_connections)
-            .unwrap_or(buffer_min_connections())
+            .unwrap_or_else(buffer_min_connections)
     }
 
     <span class="doccomment">/// The maximum size of the buffer, in bytes.

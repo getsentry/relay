@@ -1,5 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transactions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html">
-                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html">
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1786,55 +1786,27 @@
 <a href="#1785" id="1785">1785</a>
 <a href="#1786" id="1786">1786</a>
 <a href="#1787" id="1787">1787</a>
-<a href="#1788" id="1788">1788</a>
-<a href="#1789" id="1789">1789</a>
-<a href="#1790" id="1790">1790</a>
-<a href="#1791" id="1791">1791</a>
-<a href="#1792" id="1792">1792</a>
-<a href="#1793" id="1793">1793</a>
-<a href="#1794" id="1794">1794</a>
-<a href="#1795" id="1795">1795</a>
-<a href="#1796" id="1796">1796</a>
-<a href="#1797" id="1797">1797</a>
-<a href="#1798" id="1798">1798</a>
-<a href="#1799" id="1799">1799</a>
-<a href="#1800" id="1800">1800</a>
-<a href="#1801" id="1801">1801</a>
-<a href="#1802" id="1802">1802</a>
-<a href="#1803" id="1803">1803</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use </span>relay_common::{SpanStatus, UnixTimestamp};
+<span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 <span class="kw">use </span>relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 <span class="kw">use </span>relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 <span class="kw">use </span>relay_general::store;
 <span class="kw">use </span>relay_general::types::Annotated;
-<span class="kw">use </span>relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
-};
+<span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
+    TransactionMetric,
+};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::SamplingResult;
 
-<span class="doccomment">/// Error returned from [`extract_transaction_metrics`].
-</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-</span><span class="kw">pub enum </span>ExtractMetricsError {
-    <span class="doccomment">/// The start or end timestamps are missing from the event payload.
-    </span><span class="attr">#[error(<span class="string">&quot;no valid timestamp could be found in the event&quot;</span>)]
-    </span>MissingTimestamp,
-    <span class="doccomment">/// The event timestamp is outside the supported range.
-    ///
-    /// The supported range is derived from the
-    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
-    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
-    </span><span class="attr">#[error(<span class="string">&quot;timestamp too old or too far in the future&quot;</span>)]
-    </span>InvalidTimestamp,
-}
-
-<span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
+<span class="kw">pub mod </span>types;
 
 <span class="kw">fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
     <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
@@ -1965,22 +1937,19 @@
 }
 
 <span class="doccomment">/// These are the tags that are added to all extracted metrics.
-</span><span class="kw">fn </span>extract_universal_tags(
-    event: <span class="kw-2">&amp;</span>Event,
-    config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
-) -&gt; BTreeMap&lt;String, String&gt; {
+</span><span class="kw">fn </span>extract_universal_tags(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>TransactionMetricsConfig) -&gt; CommonTags {
     <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
-        tags.insert(<span class="string">&quot;release&quot;</span>.to_owned(), release.to_owned());
+        tags.insert(CommonTag::Release, release.to_string());
     }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.value() {
-        tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.clone());
+        tags.insert(CommonTag::Dist, dist.to_string());
     }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
-        tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.to_owned());
+        tags.insert(CommonTag::Environment, environment.to_string());
     }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name);
+        tags.insert(CommonTag::Transaction, transaction_name);
     }
 
     <span class="comment">// The platform tag should not increase dimensionality in most cases, because most
@@ -1991,19 +1960,21 @@
         <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>store::is_valid_platform(platform) =&gt; platform,
         <span class="kw">_ </span>=&gt; <span class="string">&quot;other&quot;</span>,
     };
-    tags.insert(<span class="string">&quot;platform&quot;</span>.to_owned(), platform.to_owned());
+
+    tags.insert(CommonTag::Platform, platform.to_string());
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
         <span class="kw">let </span>status = extract_transaction_status(trace_context);
-        tags.insert(<span class="string">&quot;transaction.status&quot;</span>.to_owned(), status.to_string());
+
+        tags.insert(CommonTag::TransactionStatus, status.to_string());
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
-            tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op);
+            tags.insert(CommonTag::TransactionOp, op);
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(http_method) = extract_http_method(event) {
-        tags.insert(<span class="string">&quot;http.method&quot;</span>.to_owned(), http_method);
+        tags.insert(CommonTag::HttpMethod, http_method);
     }
 
     <span class="kw">let </span>custom_tags = <span class="kw-2">&amp;</span>config.extract_custom_tags;
@@ -2015,7 +1986,7 @@
                     <span class="kw">let </span>(key, value) = entry.as_pair();
                     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(key), <span class="prelude-val">Some</span>(value)) = (key.as_str(), value.as_str()) {
                         <span class="kw">if </span>custom_tags.contains(key) {
-                            tags.insert(key.to_owned(), value.to_owned());
+                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
                         }
                     }
                 }
@@ -2023,7 +1994,7 @@
         }
     }
 
-    tags
+    CommonTags(tags)
 }
 
 <span class="attr">#[allow(clippy::too_many_arguments)] </span><span class="comment">// TODO: Provide a more sensible API for this.
@@ -2100,19 +2071,20 @@
                 <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
             };
 
-            <span class="kw">let </span><span class="kw-2">mut </span>tags_for_measurement = tags.clone();
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(rating) = get_measurement_rating(name, value) {
-                tags_for_measurement.insert(<span class="string">&quot;measurement_rating&quot;</span>.to_owned(), rating);
-            }
+            <span class="kw">let </span>measurement_tags = TransactionMeasurementTags {
+                measurement_rating: get_measurement_rating(name, value),
+                universal_tags: tags.clone(),
+            };
 
-            metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                <span class="macro">format!</span>(<span class="string">&quot;measurements.{name}&quot;</span>),
-                measurement.unit.value().copied().unwrap_or_default(),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags_for_measurement,
-            ));
+            metrics.push(
+                TransactionMetric::Measurement {
+                    name: name.to_string(),
+                    value,
+                    unit: measurement.unit.value().copied().unwrap_or_default(),
+                    tags: measurement_tags,
+                }
+                .into_metric(timestamp),
+            );
         }
     }
 
@@ -2136,63 +2108,57 @@
                         <span class="prelude-val">Some</span>(value) =&gt; <span class="kw-2">*</span>value,
                         <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
                     };
-
-                    <span class="kw">let </span>unit = measurement.unit.value();
-
-                    metrics.push(Metric::new_mri(
-                        METRIC_NAMESPACE,
-                        <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{breakdown}.{measurement_name}&quot;</span>),
-                        unit.copied().unwrap_or(MetricUnit::None),
-                        MetricValue::Distribution(value),
-                        timestamp,
-                        tags.clone(),
-                    ));
+                    metrics.push(
+                        TransactionMetric::Breakdown {
+                            name: <span class="macro">format!</span>(<span class="string">&quot;{breakdown}.{measurement_name}&quot;</span>),
+                            value,
+                            tags: tags.clone(),
+                        }
+                        .into_metric(timestamp),
+                    );
                 }
             }
         }
     }
 
     <span class="comment">// Duration
-    </span>metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        <span class="string">&quot;duration&quot;</span>,
-        MetricUnit::Duration(DurationUnit::MilliSecond),
-        MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-        timestamp,
-        tags.clone(),
-    ));
+    </span>metrics.push(
+        TransactionMetric::Duration {
+            unit: DurationUnit::MilliSecond,
+            value: relay_common::chrono_to_positive_millis(end - start),
+            tags: tags.clone(),
+        }
+        .into_metric(timestamp),
+    );
 
-    <span class="kw">let </span><span class="kw-2">mut </span>root_counter_tags = BTreeMap::new();
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = transaction_from_dsc {
-        root_counter_tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), name.to_owned());
-    }
-    <span class="kw">let </span>decision = <span class="kw">match </span>sampling_result {
-        SamplingResult::Keep =&gt; <span class="string">&quot;keep&quot;</span>.to_owned(),
-        SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="string">&quot;drop&quot;</span>.to_owned(),
+    <span class="kw">let </span>root_counter_tags = {
+        <span class="kw">let </span><span class="kw-2">mut </span>universal_tags = CommonTags(BTreeMap::default());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_from_dsc) = transaction_from_dsc {
+            universal_tags
+                .<span class="number">0
+                </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+        }
+        TransactionCPRTags {
+            decision: <span class="kw">match </span>sampling_result {
+                SamplingResult::Keep =&gt; <span class="string">&quot;keep&quot;</span>.to_owned(),
+                SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="string">&quot;drop&quot;</span>.to_owned(),
+            },
+            universal_tags,
+        }
     };
-    root_counter_tags.insert(<span class="string">&quot;decision&quot;</span>.to_owned(), decision);
-
     <span class="comment">// Count the transaction towards the root
-    </span>sampling_metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        <span class="string">&quot;count_per_root_project&quot;</span>,
-        MetricUnit::None,
-        MetricValue::Counter(<span class="number">1.0</span>),
-        timestamp,
-        root_counter_tags,
-    ));
+    </span>sampling_metrics.push(
+        TransactionMetric::CountPerRootProject {
+            value: <span class="number">1.0</span>,
+            tags: root_counter_tags,
+        }
+        .into_metric(timestamp),
+    );
 
     <span class="comment">// User
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                <span class="string">&quot;user&quot;</span>,
-                MetricUnit::None,
-                MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
-                timestamp,
-                tags,
-            ));
+            metrics.push(TransactionMetric::User { value, tags }.into_metric(timestamp));
         }
     }
 
@@ -2204,7 +2170,7 @@
 /// column in Discover for Transactions, barring:
 ///
 /// * imprecision caused by HLL sketching in Snuba, which we don&#39;t have in events
-/// * hash collisions in [`MetricValue::set_from_display`], which we don&#39;t have in events
+/// * hash collisions in [`relay_metrics::MetricValue::set_from_display`], which we don&#39;t have in events
 /// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don&#39;t have in metrics
 ///
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a
@@ -2251,13 +2217,13 @@
 <span class="kw">fn </span>get_measurement_rating(name: <span class="kw-2">&amp;</span>str, value: f64) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         <span class="macro">debug_assert!</span>(meh_ceiling &lt; poor_ceiling);
-        <span class="kw">if </span>value &lt; meh_ceiling {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;good&quot;</span>.to_owned())
+        <span class="prelude-val">Some</span>(<span class="kw">if </span>value &lt; meh_ceiling {
+            <span class="string">&quot;good&quot;</span>.to_owned()
         } <span class="kw">else if </span>value &lt; poor_ceiling {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;meh&quot;</span>.to_owned())
+            <span class="string">&quot;meh&quot;</span>.to_owned()
         } <span class="kw">else </span>{
-            <span class="prelude-val">Some</span>(<span class="string">&quot;poor&quot;</span>.to_owned())
-        }
+            <span class="string">&quot;poor&quot;</span>.to_owned()
+        })
     };
 
     <span class="kw">match </span>name {
@@ -2272,13 +2238,14 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_common::MetricUnit;
     <span class="kw">use </span>relay_dynamic_config::TaggingRule;
     <span class="kw">use </span>relay_general::protocol::{Contexts, Timestamp, User};
     <span class="kw">use </span>relay_general::store::{
         <span class="self">self</span>, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     <span class="kw">use </span>relay_general::types::Annotated;
-    <span class="kw">use </span>relay_metrics::DurationUnit;
+    <span class="kw">use </span>relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -2974,10 +2941,11 @@
         )
         .unwrap();
         metrics.retain(|m| m.name.contains(<span class="string">&quot;lcp&quot;</span>));
+
         <span class="macro">assert_eq!</span>(
             metrics,
             <span class="kw-2">&amp;</span>[Metric::new_mri(
-                METRIC_NAMESPACE,
+                MetricNamespace::Transactions,
                 <span class="string">&quot;measurements.lcp&quot;</span>,
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(<span class="number">41.0</span>),
@@ -3606,4 +3574,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
