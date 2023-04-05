@@ -33,6 +33,20 @@
 //! sample rate based on the [`SamplingValue`] of the rule.
 //! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
 //! data that will be used in `relay_server` to perform the sampling decision.
+//!
+//! # Examples
+//!
+//! ## [`SamplingConfig`]
+//!
+//! ```json
+#![doc = include_str!("../tests/fixtures/sampling_config.json")]
+//! ```
+//!
+//! ## [`DynamicSamplingContext`]
+//!
+//! ```json
+#![doc = include_str!("../tests/fixtures/dynamic_sampling_context.json")]
+//! ```
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -2328,6 +2342,18 @@ mod tests {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
+    }
+
+    #[test]
+    fn test_sampling_config_deserialization() {
+        let json = include_str!("../tests/fixtures/sampling_config.json");
+        serde_json::from_str::<SamplingConfig>(json).unwrap();
+    }
+
+    #[test]
+    fn test_dynamic_sampling_context_deserialization() {
+        let json = include_str!("../tests/fixtures/dynamic_sampling_context.json");
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
     }
 
     #[test]
