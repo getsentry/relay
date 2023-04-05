@@ -94,7 +94,6 @@ fn bench_store_processor(c: &mut Criterion) {
         span_attributes: Default::default(),
         client_sample_rate: None,
         client_hints: ClientHints::default(),
-        android_csv: PathBuf::default(),
     };
 
     let mut processor = StoreProcessor::new(config, None);

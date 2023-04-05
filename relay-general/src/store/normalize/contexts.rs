@@ -6,6 +6,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::store::android_map::ANDROID_MAP;
 use crate::store::StoreConfig;
 use crate::types::{Annotated, Empty};
 
@@ -204,40 +205,15 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
-static ANDROID_MAP: OnceCell<Result<HashMap<String, String>, std::io::Error>> = OnceCell::new();
-
-fn get_android_product_name(model: &str) -> Option<String> {
-    let mymap: &Result<HashMap<String, String>, std::io::Error> = ANDROID_MAP.get_or_init(|| {
-        let path = PathBuf::from("../android_models.csv");
-        let file = std::fs::File::open(&path)?;
-        let reader = std::io::BufReader::new(file);
-        let mut android_map: HashMap<String, String> = HashMap::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let columns: Vec<&str> = line.split(',').collect();
-
-            if columns.len() >= 4 {
-                let key = columns[3].trim().to_string();
-                let value = columns[1].trim().to_string();
-                android_map.insert(key, value);
-            }
-        }
-        Ok(android_map)
-    });
-
-    mymap.as_ref().ok().and_then(|map| map.get(model).cloned())
-}
-
-pub fn normalize_context(context: &mut Context, config: &StoreConfig) {
+pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
         Context::Device(device) => {
             if let Some(model) = device.as_ref().model.value() {
-                if let Some(product_name) = get_android_product_name(model) {
-                    device.model.set_value(Some(product_name));
+                if let Some(product_name) = ANDROID_MAP.get(model.as_str()) {
+                    device.model.set_value(Some(product_name.to_string()));
                 }
             }
         }
@@ -255,15 +231,16 @@ mod tests {
     #[test]
     fn test_get_product_name() {
         let model = "NE2211";
-        let product_name = get_android_product_name(model).unwrap();
-
-        assert_eq!(product_name, "OnePlus 10 Pro 5G".to_string());
+        let product_name = ANDROID_MAP.get(model).unwrap();
+        assert_eq!(product_name, &"OnePlus 10 Pro 5G");
 
         let model = "MP04";
 
-        let product_name = get_android_product_name(model).unwrap();
+        let product_name = ANDROID_MAP.get(model).unwrap();
 
-        assert_eq!(product_name, "A13 Pro Max 5G EEA".to_string());
+        assert_eq!(product_name, &"A13 Pro Max 5G EEA");
+
+        assert!(ANDROID_MAP.get("foobar").is_none());
     }
 
     #[test]

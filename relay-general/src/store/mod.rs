@@ -67,9 +67,6 @@ pub struct StoreConfig {
 
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
-
-    /// A csv file that can map from android model number
-    pub android_csv: PathBuf,
 }
 
 /// The processor that normalizes events for store.

@@ -33,6 +33,7 @@ mod request;
 mod spans;
 mod stacktrace;
 
+pub mod android_map;
 pub mod user_agent;
 
 /// Defines a builtin measurement.
@@ -986,7 +987,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        contexts::normalize_context(context, &self.config);
+        contexts::normalize_context(context);
         Ok(())
     }
 
