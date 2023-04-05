@@ -10,7 +10,6 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
-use sqlx::pool::PoolConnection;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
 };
@@ -274,7 +273,7 @@ impl BufferService {
     ///
     /// It returns an error if the spooling failed.
     async fn do_spool(
-        connection: &mut PoolConnection<Sqlite>,
+        db: &Pool<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
         // A builder type for constructing queries at runtime.
@@ -283,27 +282,27 @@ impl BufferService {
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
 
-        // Flatten all the envelopes
-        let envelopes = buffer.into_iter().flat_map(|(k, vals)| {
-            vals.into_iter()
-                .map(move |v| (k, v.into_envelope().to_vec()))
-        });
-
         // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chnunks which will be preparing the batch inserts.
-        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+        // here to prepare the chunks which will be preparing the batch inserts.
+        let mut envelopes = stream::iter(buffer.into_iter())
+            .flat_map(|(key, values)| {
+                stream::iter(values.into_iter())
+                    .map(move |value| (key, value.into_envelope().to_vec()))
+            })
+            .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk.into_iter(), |mut b, (key, value)| match value {
+            query_builder.push_values(chunk, |mut b, (key, value)| match value {
                 Ok(value) => {
                     b.push_bind(key.own_key.to_string())
                         .push_bind(key.sampling_key.to_string())
                         .push_bind(value);
                 }
                 Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err))
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
                 }
             });
-            query_builder.build().execute(&mut *connection).await?;
+            query_builder.build().execute(db).await?;
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
@@ -328,36 +327,22 @@ impl BufferService {
             max_memory_size,
         }) = spool_config
         {
-            // And if the count of in memory envelopes is over the defined max buffer size.
-            if self.count_mem_envelopes > *max_memory_size as i64 {
-                let estimated_db_size =
-                    Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
-
-                // Reject all the enqueue requests if we exceed the max size of the buffer.
-                if estimated_db_size as usize > *max_disk_size {
-                    return Err(BufferError::Full(estimated_db_size));
-                }
-
-                // All the operations must be done inside of the same connection.
-                if let Some(mut connection) = db.try_acquire() {
-                    let buf = std::mem::take(buffer);
-                    self.count_mem_envelopes = 0;
-
-                    // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
-                    // Once we started spooling our in-memory buffer, the dequeue from the disk
-                    // will be blocked till this operations either fails, or commits.
-                    sqlx::query("BEGIN").execute(&mut connection).await?;
-
-                    Self::do_spool(&mut connection, buf).await?;
-
-                    // The SQL command "COMMIT" does not actually commit the changes to disk. It just turns autocommit back on.
-                    // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
-                    // TODO: re-try failed commit?
-                    sqlx::query("COMMIT").execute(&mut connection).await?;
-                }
+            if self.count_mem_envelopes < *max_memory_size as i64 {
+                return Ok(());
             }
-        }
 
+            let estimated_db_size =
+                Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
+
+            // Reject all the enqueue requests if we exceed the max size of the buffer.
+            if estimated_db_size as usize > *max_disk_size {
+                return Err(BufferError::Full(estimated_db_size));
+            }
+
+            let buf = std::mem::take(buffer);
+            self.count_mem_envelopes = 0;
+            Self::do_spool(db, buf).await?;
+        }
         Ok(())
     }
 
@@ -401,7 +386,7 @@ impl BufferService {
         loop {
             // By default this creates a prepared statement which is cached and re-used.
             //
-            // Removing envelopes from the on-disk buffer in batches has following implicatations:
+            // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
@@ -546,23 +531,7 @@ impl Drop for BufferService {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
         // We have envelopes in memory, try to buffer them to the disk.
         if count > 0 {
-            let buffer = std::mem::take(&mut self.buffer);
-            if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
-                let db = db.clone();
-                tokio::spawn(async move {
-                    let Some(mut connection) = db.try_acquire() else {
-                        relay_log::error!("failed to get connection while dropping the project buffer");
-                        return;
-                    };
-                    if let Err(err) = Self::do_spool(&mut connection, buffer).await {
-                        relay_log::error!(
-                            "failed to spool {} on shutdown: {}",
-                            count,
-                            LogError(&err)
-                        );
-                    }
-                });
-            }
+            relay_log::error!("dropped {} envelopes", count);
         }
     }
 }
