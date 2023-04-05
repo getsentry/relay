@@ -1720,7 +1720,7 @@ impl Config {
             .persistent_envelope_buffer
             .as_ref()
             .map(|b| b.max_connections)
-            .unwrap_or(buffer_max_connections())
+            .unwrap_or_else(buffer_max_connections)
     }
 
     /// Minimum number of connections to create to buffer file.
@@ -1730,7 +1730,7 @@ impl Config {
             .persistent_envelope_buffer
             .as_ref()
             .map(|b| b.min_connections)
-            .unwrap_or(buffer_min_connections())
+            .unwrap_or_else(buffer_min_connections)
     }
 
     /// The maximum size of the buffer, in bytes.
