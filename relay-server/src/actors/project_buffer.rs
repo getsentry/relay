@@ -505,6 +505,9 @@ impl BufferService {
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
             );
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            );
         }
 
         Ok(())
@@ -614,7 +617,7 @@ mod tests {
         let config = Config::from_json_value(serde_json::json!({
             "cache": {
                 "persistent_envelope_buffer": {
-                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "path": dbg!(std::env::temp_dir().join(Uuid::new_v4().to_string())),
                     "max_memory_size": 2,
                 }
             }
@@ -660,6 +663,8 @@ mod tests {
                     .await
                     .unwrap();
 
+                // Make sure that not only metrics are correct, but also the number of envelopes
+                // flushed.
                 let mut count = 0;
                 while rx.recv().await.is_some() {
                     count += 1;
@@ -668,6 +673,21 @@ mod tests {
             })
         });
 
-        assert_debug_snapshot!(captures);
+        assert_debug_snapshot!(captures, @r###"
+        [
+            "service.back_pressure:0|g|#service:project_cache",
+            "buffer.envelopes_mem:1|h",
+            "buffer.envelopes_mem:2|h",
+            "buffer.envelopes_mem:0|h",
+            "buffer.envelopes_disk:2|h",
+            "buffer.envelopes_mem:1|h",
+            "buffer.envelopes_mem:2|h",
+            "buffer.envelopes_mem:0|h",
+            "buffer.envelopes_disk:4|h",
+            "buffer.envelopes_mem:1|h",
+            "buffer.envelopes_disk:0|h",
+            "buffer.envelopes_mem:0|h",
+        ]
+        "###);
     }
 }
