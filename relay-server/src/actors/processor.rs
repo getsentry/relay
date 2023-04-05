@@ -2168,23 +2168,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    #[cfg(feature = "processing")]
-    /// Adds data from the DSC onto the event, only replay_id for now.
-    fn enrich_event_with_dsc(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope_mut();
-
-        if let Some(event) = state.event.value_mut() {
-            if let Some(dsc) = envelope.dsc() {
-                if let Some(replay_id) = dsc.replay_id {
-                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                    contexts.add(SentryContext::Replay(Box::new(ReplayContext {
-                        replay_id: Annotated::new(relay_general::protocol::EventId(replay_id)),
-                        other: Object::default(),
-                    })));
-                }
-            }
-        }
-    }
     /// Run dynamic sampling rules to see if we keep the envelope or remove it.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         state.sampling_result = utils::should_keep_event(
@@ -2284,7 +2267,6 @@ impl EnvelopeProcessorService {
             if_processing!({
                 self.process_unreal(state)?;
                 self.create_placeholders(state);
-                self.enrich_event_with_dsc(state);
             });
 
             self.finalize_event(state)?;
