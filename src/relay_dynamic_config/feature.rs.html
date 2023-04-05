@@ -34,11 +34,6 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Features exposed by project config.
@@ -53,11 +48,6 @@
     <span class="doccomment">/// Enables data scrubbing of replay recording payloads.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;</span>)]
     </span>SessionReplayRecordingScrubbing,
-    <span class="doccomment">/// Enables transaction names normalization.
-    ///
-    /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
-    </span>TransactionNameNormalize,
     <span class="doccomment">/// True if transaction names scrubbed by regex patterns should be marked as &quot;sanitized&quot;.
     ///
     /// Transaction names modified by clusterer rules are always marked as such.
