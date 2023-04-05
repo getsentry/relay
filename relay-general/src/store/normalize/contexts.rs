@@ -206,10 +206,13 @@ pub fn normalize_context(context: &mut Context) {
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
         Context::Device(device) => {
-            if let Some(model) = device.as_ref().model.value() {
-                if let Some(product_name) = ANDROID_MAP.get(model.as_str()) {
-                    device.model.set_value(Some(product_name.to_string()));
-                }
+            if let Some(product_name) = device
+                .as_ref()
+                .model
+                .value()
+                .and_then(|model| ANDROID_MAP.get(model.as_str()))
+            {
+                device.model.set_value(Some(product_name.to_string()))
             }
         }
         _ => {}
