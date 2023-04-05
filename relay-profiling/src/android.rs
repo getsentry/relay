@@ -290,12 +290,10 @@ mod tests {
 
     #[test]
     fn test_copy_tags() {
-        let mut tags: BTreeMap<String, String> = BTreeMap::new();
-        tags.insert("release".to_string(), "some-random-release".to_string());
-        tags.insert(
-            "transaction".to_string(),
-            "some-random-transaction".to_string(),
-        );
+        let tags = BTreeMap::from([
+            ("release".to_string(), "some-random-release".to_string()),
+            ("transaction".to_string(), "some-random-transaction".to_string()),
+        ]);
 
         let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
         let profile_json = parse_android_profile(payload, tags);
