@@ -536,6 +536,9 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::io::{Error, ErrorKind};
 <span class="kw">use </span>std::path::PathBuf;
@@ -576,7 +579,7 @@
     </span>CapacityExceeded(<span class="attr">#[from] </span><span class="kw">crate</span>::utils::BufferError),
 
     <span class="attr">#[error(<span class="string">&quot;failed to get the size of the buffer on the filesystem&quot;</span>)]
-    </span>DatabaseSizeError(<span class="attr">#[from] </span>std::io::Error),
+    </span>DatabaseFileError(<span class="attr">#[from] </span>std::io::Error),
 
     <span class="doccomment">/// Describes the errors linked with the `Sqlite` backed buffer.
     </span><span class="attr">#[error(<span class="string">&quot;failed to fetch data from the database&quot;</span>)]
@@ -712,7 +715,7 @@
 </span><span class="kw">struct </span>BufferSpoolConfig {
     db: Pool&lt;Sqlite&gt;,
     max_disk_size: usize,
-    max_memory_size: usize,
+    max_envelopes_count: usize,
 }
 
 <span class="doccomment">/// [`Buffer`] interface implementation backed by SQLite.
@@ -754,8 +757,8 @@
             spool_config: <span class="prelude-val">None</span>,
         };
 
-        <span class="comment">// Only if persistent buffer enabled, we create the pool and set the config.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(path) = config.cache_persistent_buffer_path() {
+        <span class="comment">// Only if persistent envelopes buffer file path provided, we create the pool and set the config.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(path) = config.spool_envelopes_path() {
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;Using the buffer file: {}&quot;</span>, path.to_string_lossy());
 
             <span class="self">Self</span>::setup(<span class="kw-2">&amp;</span>path).<span class="kw">await</span><span class="question-mark">?</span>;
@@ -781,15 +784,20 @@
                 </span>.shared_cache(<span class="bool-val">true</span>);
 
             <span class="kw">let </span>db = SqlitePoolOptions::new()
-                .max_connections(config.cache_persistent_buffer_max_connections())
-                .min_connections(config.cache_persistent_buffer_min_connections())
+                .max_connections(config.spool_envelopes_max_connections())
+                .min_connections(config.spool_envelopes_min_connections())
                 .connect_with(options)
                 .<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="kw">let </span>spool_config = BufferSpoolConfig {
                 db,
-                max_disk_size: config.cache_persistent_buffer_max_disk_size(),
-                max_memory_size: config.cache_persistent_buffer_max_memory_size(),
+                max_disk_size: config.spool_envelopes_max_disk_size(),
+                <span class="comment">// It is a rough extimation for how many envelopes we can fit in the
+                // configured memory limit, taking that 1 enveloper is 1 MB.
+                //
+                // TODO: Can we calculate the real size of the envelope?
+                </span>max_envelopes_count: config.spool_envelopes_max_memory_size()
+                    / config.max_envelope_size(),
             };
 
             service.spool_config = <span class="prelude-val">Some</span>(spool_config);
@@ -802,7 +810,7 @@
     </span><span class="kw">fn </span>estimate_buffer_size(path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;u64, BufferError&gt; {
         path.and_then(|path| std::fs::metadata(path).ok())
             .map(|m| m.len())
-            .ok_or(BufferError::DatabaseSizeError(Error::from(
+            .ok_or(BufferError::DatabaseFileError(Error::from(
                 ErrorKind::NotFound,
             )))
     }
@@ -862,21 +870,19 @@
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(BufferSpoolConfig {
             db,
             max_disk_size,
-            max_memory_size,
+            max_envelopes_count,
         }) = spool_config
         {
-            <span class="kw">if </span><span class="self">self</span>.count_mem_envelopes &lt; <span class="kw-2">*</span>max_memory_size <span class="kw">as </span>i64 {
+            <span class="kw">if </span><span class="self">self</span>.count_mem_envelopes &lt; <span class="kw-2">*</span>max_envelopes_count <span class="kw">as </span>i64 {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
 
-            <span class="kw">let </span>estimated_db_size =
-                <span class="self">Self</span>::estimate_buffer_size(<span class="self">self</span>.config.cache_persistent_buffer_path())<span class="question-mark">?</span>;
+            <span class="kw">let </span>estimated_db_size = <span class="self">Self</span>::estimate_buffer_size(<span class="self">self</span>.config.spool_envelopes_path())<span class="question-mark">?</span>;
 
             <span class="comment">// Reject all the enqueue requests if we exceed the max size of the buffer.
             </span><span class="kw">if </span>estimated_db_size <span class="kw">as </span>usize &gt; <span class="kw-2">*</span>max_disk_size {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::Full(estimated_db_size));
             }
-
             <span class="kw">let </span>buf = std::mem::take(buffer);
             <span class="self">self</span>.count_mem_envelopes = <span class="number">0</span>;
             <span class="self">Self</span>::do_spool(db, buf).<span class="kw">await</span><span class="question-mark">?</span>;
