@@ -12,11 +12,6 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// Enables transaction names normalization.
-    ///
-    /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
-    #[serde(rename = "organizations:transaction-name-normalize")]
-    TransactionNameNormalize,
     /// True if transaction names scrubbed by regex patterns should be marked as "sanitized".
     ///
     /// Transaction names modified by clusterer rules are always marked as such.

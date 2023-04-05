@@ -1,36 +1,24 @@
 use std::collections::BTreeMap;
 
-use relay_common::{SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, EventType, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
-use relay_metrics::{
-    AggregatorConfig, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
-};
+use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::transactions::types::{
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
+    TransactionMetric,
+};
+use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
-/// Error returned from [`extract_transaction_metrics`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-pub enum ExtractMetricsError {
-    /// The start or end timestamps are missing from the event payload.
-    #[error("no valid timestamp could be found in the event")]
-    MissingTimestamp,
-    /// The event timestamp is outside the supported range.
-    ///
-    /// The supported range is derived from the
-    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
-    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
-    #[error("timestamp too old or too far in the future")]
-    InvalidTimestamp,
-}
-
-const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
+pub mod types;
 
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     let contexts = event.contexts.value()?;
@@ -159,22 +147,19 @@ fn get_transaction_name(
 }
 
 /// These are the tags that are added to all extracted metrics.
-fn extract_universal_tags(
-    event: &Event,
-    config: &TransactionMetricsConfig,
-) -> BTreeMap<String, String> {
+fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
+        tags.insert(CommonTag::Release, release.to_string());
     }
     if let Some(dist) = event.dist.value() {
-        tags.insert("dist".to_owned(), dist.clone());
+        tags.insert(CommonTag::Dist, dist.to_string());
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
+        tags.insert(CommonTag::Environment, environment.to_string());
     }
     if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert("transaction".to_owned(), transaction_name);
+        tags.insert(CommonTag::Transaction, transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -185,19 +170,21 @@ fn extract_universal_tags(
         Some(platform) if store::is_valid_platform(platform) => platform,
         _ => "other",
     };
-    tags.insert("platform".to_owned(), platform.to_owned());
+
+    tags.insert(CommonTag::Platform, platform.to_string());
 
     if let Some(trace_context) = get_trace_context(event) {
         let status = extract_transaction_status(trace_context);
-        tags.insert("transaction.status".to_owned(), status.to_string());
+
+        tags.insert(CommonTag::TransactionStatus, status.to_string());
 
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert("transaction.op".to_owned(), op);
+            tags.insert(CommonTag::TransactionOp, op);
         }
     }
 
     if let Some(http_method) = extract_http_method(event) {
-        tags.insert("http.method".to_owned(), http_method);
+        tags.insert(CommonTag::HttpMethod, http_method);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -209,7 +196,7 @@ fn extract_universal_tags(
                     let (key, value) = entry.as_pair();
                     if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
                         if custom_tags.contains(key) {
-                            tags.insert(key.to_owned(), value.to_owned());
+                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
                         }
                     }
                 }
@@ -217,7 +204,7 @@ fn extract_universal_tags(
         }
     }
 
-    tags
+    CommonTags(tags)
 }
 
 #[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
@@ -294,19 +281,20 @@ fn extract_transaction_metrics_inner(
                 None => continue,
             };
 
-            let mut tags_for_measurement = tags.clone();
-            if let Some(rating) = get_measurement_rating(name, value) {
-                tags_for_measurement.insert("measurement_rating".to_owned(), rating);
-            }
+            let measurement_tags = TransactionMeasurementTags {
+                measurement_rating: get_measurement_rating(name, value),
+                universal_tags: tags.clone(),
+            };
 
-            metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                format!("measurements.{name}"),
-                measurement.unit.value().copied().unwrap_or_default(),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags_for_measurement,
-            ));
+            metrics.push(
+                TransactionMetric::Measurement {
+                    name: name.to_string(),
+                    value,
+                    unit: measurement.unit.value().copied().unwrap_or_default(),
+                    tags: measurement_tags,
+                }
+                .into_metric(timestamp),
+            );
         }
     }
 
@@ -330,63 +318,57 @@ fn extract_transaction_metrics_inner(
                         Some(value) => *value,
                         None => continue,
                     };
-
-                    let unit = measurement.unit.value();
-
-                    metrics.push(Metric::new_mri(
-                        METRIC_NAMESPACE,
-                        format!("breakdowns.{breakdown}.{measurement_name}"),
-                        unit.copied().unwrap_or(MetricUnit::None),
-                        MetricValue::Distribution(value),
-                        timestamp,
-                        tags.clone(),
-                    ));
+                    metrics.push(
+                        TransactionMetric::Breakdown {
+                            name: format!("{breakdown}.{measurement_name}"),
+                            value,
+                            tags: tags.clone(),
+                        }
+                        .into_metric(timestamp),
+                    );
                 }
             }
         }
     }
 
     // Duration
-    metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        "duration",
-        MetricUnit::Duration(DurationUnit::MilliSecond),
-        MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-        timestamp,
-        tags.clone(),
-    ));
+    metrics.push(
+        TransactionMetric::Duration {
+            unit: DurationUnit::MilliSecond,
+            value: relay_common::chrono_to_positive_millis(end - start),
+            tags: tags.clone(),
+        }
+        .into_metric(timestamp),
+    );
 
-    let mut root_counter_tags = BTreeMap::new();
-    if let Some(name) = transaction_from_dsc {
-        root_counter_tags.insert("transaction".to_owned(), name.to_owned());
-    }
-    let decision = match sampling_result {
-        SamplingResult::Keep => "keep".to_owned(),
-        SamplingResult::Drop(_) => "drop".to_owned(),
+    let root_counter_tags = {
+        let mut universal_tags = CommonTags(BTreeMap::default());
+        if let Some(transaction_from_dsc) = transaction_from_dsc {
+            universal_tags
+                .0
+                .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+        }
+        TransactionCPRTags {
+            decision: match sampling_result {
+                SamplingResult::Keep => "keep".to_owned(),
+                SamplingResult::Drop(_) => "drop".to_owned(),
+            },
+            universal_tags,
+        }
     };
-    root_counter_tags.insert("decision".to_owned(), decision);
-
     // Count the transaction towards the root
-    sampling_metrics.push(Metric::new_mri(
-        METRIC_NAMESPACE,
-        "count_per_root_project",
-        MetricUnit::None,
-        MetricValue::Counter(1.0),
-        timestamp,
-        root_counter_tags,
-    ));
+    sampling_metrics.push(
+        TransactionMetric::CountPerRootProject {
+            value: 1.0,
+            tags: root_counter_tags,
+        }
+        .into_metric(timestamp),
+    );
 
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp,
-                tags,
-            ));
+            metrics.push(TransactionMetric::User { value, tags }.into_metric(timestamp));
         }
     }
 
@@ -398,7 +380,7 @@ fn extract_transaction_metrics_inner(
 /// column in Discover for Transactions, barring:
 ///
 /// * imprecision caused by HLL sketching in Snuba, which we don't have in events
-/// * hash collisions in [`MetricValue::set_from_display`], which we don't have in events
+/// * hash collisions in [`relay_metrics::MetricValue::set_from_display`], which we don't have in events
 /// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
 ///
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a
@@ -445,13 +427,13 @@ fn get_eventuser_tag(user: &User) -> Option<String> {
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         debug_assert!(meh_ceiling < poor_ceiling);
-        if value < meh_ceiling {
-            Some("good".to_owned())
+        Some(if value < meh_ceiling {
+            "good".to_owned()
         } else if value < poor_ceiling {
-            Some("meh".to_owned())
+            "meh".to_owned()
         } else {
-            Some("poor".to_owned())
-        }
+            "poor".to_owned()
+        })
     };
 
     match name {
@@ -466,13 +448,14 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use relay_common::MetricUnit;
     use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::DurationUnit;
+    use relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
 
     use super::*;
 
@@ -1168,10 +1151,11 @@ mod tests {
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
+
         assert_eq!(
             metrics,
             &[Metric::new_mri(
-                METRIC_NAMESPACE,
+                MetricNamespace::Transactions,
                 "measurements.lcp",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(41.0),
