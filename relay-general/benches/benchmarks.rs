@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::{fmt, fs};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};

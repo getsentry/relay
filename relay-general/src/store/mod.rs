@@ -1,6 +1,5 @@
 //! Utility code for sentry's internal store.
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};

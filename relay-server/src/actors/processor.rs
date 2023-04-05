@@ -1897,7 +1897,6 @@ impl EnvelopeProcessorService {
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
             client_hints: envelope.meta().client_hints().to_owned(),
-            android_csv,
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
