@@ -190,6 +190,7 @@ pub struct BufferService {
     count_disk_envelopes: i64,
 
     #[cfg(test)]
+    /// Create untracked envelopes when loading from disk. Only use in tests.
     untracked: bool,
 }
 
@@ -623,7 +624,6 @@ mod tests {
             }
         }))
         .unwrap();
-
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -644,6 +644,7 @@ mod tests {
                     .unwrap();
                 service.untracked = true; // so we do not panic when dropping envelopes
 
+                // Send 5 envelopes
                 for _ in 0..5 {
                     service
                         .handle_enqueue(Enqueue {
@@ -653,6 +654,8 @@ mod tests {
                         .await
                         .unwrap();
                 }
+
+                // Dequeue everything
                 let (tx, mut rx) = mpsc::unbounded_channel();
                 service
                     .handle_dequeue(DequeueMany {
