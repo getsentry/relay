@@ -10,7 +10,9 @@ use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
@@ -231,6 +233,10 @@ impl BufferService {
                 // 3. Disk I/O operations tends to be more sequential using WAL.
                 // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
                 .journal_mode(SqliteJournalMode::Wal)
+                // WAL mode is safe from corruption with synchronous=NORMAL.
+                // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
+                // Which guarantees good balance between safety and speed.
+                .synchronous(SqliteSynchronous::Normal)
                 // If shared-cache mode is enabled and a thread establishes multiple
                 // connections to the same database, the connections share a single data and schema cache.
                 // This can significantly reduce the quantity of memory and IO required by the system.
@@ -263,10 +269,51 @@ impl BufferService {
             )))
     }
 
+    /// Saves the provided buffer to the disk.
+    ///
+    /// It returns an error if the spooling failed.
+    async fn do_spool(
+        db: &Pool<Sqlite>,
+        buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
+    ) -> Result<(), BufferError> {
+        // A builder type for constructing queries at runtime.
+        // This by default creates a prepared sql statement, which is cached and
+        // re-used for sequential queries.
+        let mut query_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
+
+        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+        // here to prepare the chunks which will be preparing the batch inserts.
+        let mut envelopes = stream::iter(buffer.into_iter())
+            .flat_map(|(key, values)| {
+                stream::iter(values.into_iter())
+                    .map(move |value| (key, value.into_envelope().to_vec()))
+            })
+            .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+
+        while let Some(chunk) = envelopes.next().await {
+            query_builder.push_values(chunk, |mut b, (key, value)| match value {
+                Ok(value) => {
+                    b.push_bind(key.own_key.to_string())
+                        .push_bind(key.sampling_key.to_string())
+                        .push_bind(value);
+                }
+                Err(err) => {
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                }
+            });
+            query_builder.build().execute(db).await?;
+            // Reset the builder to initial state set by `QueryBuilder::new` function,
+            // so it can be reused for another chunk.
+            query_builder.reset();
+        }
+        Ok(())
+    }
+
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
-    fn try_spool(&mut self) -> Result<(), BufferError> {
+    async fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
             spool_config,
             ref mut buffer,
@@ -280,64 +327,21 @@ impl BufferService {
             max_memory_size,
         }) = spool_config
         {
-            // And if the count of in memory envelopes is over the defined max buffer size.
-            if self.count_mem_envelopes > *max_memory_size as i64 {
-                let estimated_db_size =
-                    Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
-
-                // Reject all the enqueue requests if we exceed the max size of the buffer.
-                if estimated_db_size as usize > *max_disk_size {
-                    return Err(BufferError::Full(estimated_db_size));
-                }
-
-                let buf = std::mem::take(buffer);
-                let db = db.clone();
-                self.count_mem_envelopes = 0;
-
-                // spawn the task to enqueue the entire buffer
-                tokio::spawn(async move {
-                    let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-                        "INSERT INTO envelopes (own_key, sampling_key, envelope) ",
-                    );
-
-                    // Flatten all the envelopes
-                    let envelopes = buf.into_iter().flat_map(|(k, vals)| {
-                        vals.into_iter()
-                            .map(move |v| (k, v.into_envelope().to_vec()))
-                    });
-
-                    // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-                    // here to prepare the chnunks which will be preparing the batch inserts.
-                    let mut envelopes =
-                        stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-                    while let Some(chunk) = envelopes.next().await {
-                        query_builder.push_values(chunk.into_iter(), |mut b, v| match v.1 {
-                            Ok(envelope_bytes) => {
-                                b.push_bind(v.0.own_key.to_string())
-                                    .push_bind(v.0.sampling_key.to_string())
-                                    .push_bind(envelope_bytes);
-                            }
-                            Err(err) => {
-                                relay_log::error!(
-                                    "failed to serialize the envelope: {}",
-                                    LogError(&err)
-                                )
-                            }
-                        });
-
-                        let query = query_builder.build();
-                        if let Err(err) = query.execute(&db).await {
-                            relay_log::error!(
-                                "failed to buffer envelopes to disk: {}",
-                                LogError(&err)
-                            )
-                        }
-                        // Reset the builder to initial state set by `QueryBuilder::new` function,
-                        // so it can be reused for another chunk.
-                        query_builder.reset();
-                    }
-                });
+            if self.count_mem_envelopes < *max_memory_size as i64 {
+                return Ok(());
             }
+
+            let estimated_db_size =
+                Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
+
+            // Reject all the enqueue requests if we exceed the max size of the buffer.
+            if estimated_db_size as usize > *max_disk_size {
+                return Err(BufferError::Full(estimated_db_size));
+            }
+
+            let buf = std::mem::take(buffer);
+            self.count_mem_envelopes = 0;
+            Self::do_spool(db, buf).await?;
         }
         Ok(())
     }
@@ -360,7 +364,7 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        self.try_spool()?;
+        self.try_spool().await?;
 
         // save to the internal buffer
         self.buffer.entry(key).or_default().push(managed_envelope);
@@ -380,6 +384,13 @@ impl BufferService {
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
     ) -> Result<(), QueueKey> {
         loop {
+            // By default this creates a prepared statement which is cached and re-used.
+            //
+            // Removing envelopes from the on-disk buffer in batches has following implications:
+            // 1. It is faster to delete from the DB in batches.
+            // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
+            // but only one batch, and the rest of them will stay on disk for the next iteration
+            // to pick up.
             let mut envelopes = sqlx::query(
                 "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
             )
@@ -465,6 +476,7 @@ impl BufferService {
         let mut count: u64 = 0;
         for key in &keys {
             count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
+            self.count_mem_envelopes -= count as i64;
         }
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
@@ -519,15 +531,7 @@ impl Drop for BufferService {
         let count: usize = self.buffer.values().map(|v| v.len()).sum();
         // We have envelopes in memory, try to buffer them to the disk.
         if count > 0 {
-            if let Err(err) = self.try_spool() {
-                relay_log::error!("failed to spool {} on shutdown: {}", count, LogError(&err));
-            }
-
-            // The buffer must be empty by now, report the error otherwise.
-            let count: usize = self.buffer.values().map(|v| v.len()).sum();
-            if count > 0 {
-                relay_log::error!("dropped {} envelopes", count);
-            }
+            relay_log::error!("dropped {} envelopes", count);
         }
     }
 }
