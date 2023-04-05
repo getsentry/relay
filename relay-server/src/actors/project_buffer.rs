@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::envelope::{Envelope, EnvelopeError};
+use crate::statsd::RelayHistograms;
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
@@ -187,10 +188,12 @@ pub struct BufferService {
     project_cache: Addr<ProjectCache>,
     spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
+    count_disk_envelopes: i64,
 }
 
 impl BufferService {
-    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+    /// Set up database and return the current number of envelopes.
+    async fn setup(path: &PathBuf) -> Result<i64, BufferError> {
         let options = SqliteConnectOptions::new()
             .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
@@ -199,7 +202,12 @@ impl BufferService {
         let db = SqlitePoolOptions::new().connect_with(options).await?;
         sqlx::migrate!("../migrations").run(&db).await?;
 
-        Ok(())
+        let count: i64 = sqlx::query("SELECT count(*) FROM envelopes")
+            .fetch_one(&db)
+            .await?
+            .try_get(0)?;
+
+        Ok(count)
     }
 
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
@@ -214,6 +222,7 @@ impl BufferService {
             config: config.clone(),
             project_cache,
             count_mem_envelopes: 0,
+            count_disk_envelopes: 0,
             spool_config: None,
         };
 
@@ -221,7 +230,7 @@ impl BufferService {
         if let Some(path) = config.cache_persistent_buffer_path() {
             relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
 
-            Self::setup(&path).await?;
+            service.count_disk_envelopes = Self::setup(&path).await?;
 
             let options = SqliteConnectOptions::new()
                 .filename(&path)
@@ -341,7 +350,12 @@ impl BufferService {
                 // All the operations must be done inside of the same connection.
                 if let Some(mut connection) = db.try_acquire() {
                     let buf = std::mem::take(buffer);
+                    let buf_len = buf.len() as i64; // if this becomes negative, max_memory_size was set too large.
                     self.count_mem_envelopes = 0;
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BufferEnvelopesMemory) =
+                            self.count_mem_envelopes as f64
+                    );
 
                     // A RESERVED lock will be acquired when the first INSERT, UPDATE, or DELETE statement is executed.
                     // Once we started spooling our in-memory buffer, the dequeue from the disk
@@ -354,6 +368,13 @@ impl BufferService {
                     // Then, at the conclusion of the command, the regular autocommit logic takes over and causes the actual commit to disk to occur.
                     // TODO: re-try failed commit?
                     sqlx::query("COMMIT").execute(&mut connection).await?;
+
+                    // After successful commit, we assume that the envelopes are now on disk:
+                    self.count_disk_envelopes = buf_len;
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BufferEnvelopesDisk) =
+                            self.count_disk_envelopes as f64
+                    );
                 }
             }
         }
@@ -385,6 +406,10 @@ impl BufferService {
         self.buffer.entry(key).or_default().push(managed_envelope);
         self.count_mem_envelopes += 1;
 
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+        );
+
         Ok(())
     }
 
@@ -392,12 +417,15 @@ impl BufferService {
     /// managed envelopes and send to back into processing pipeline.
     ///
     /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
+    ///
+    /// Returns the amount of envelopes deleted from disk.
     async fn fetch_and_delete(
         &self,
         db: &Pool<Sqlite>,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Result<(), QueueKey> {
+    ) -> Result<i64, QueueKey> {
+        let mut count = 0;
         loop {
             // By default this creates a prepared statement which is cached and re-used.
             //
@@ -415,10 +443,11 @@ impl BufferService {
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if Pin::new(&mut envelopes).peek().await.is_none() {
-                return Ok(());
+                return Ok(count);
             }
 
             while let Some(envelope) = envelopes.next().await {
+                count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
 
@@ -468,14 +497,21 @@ impl BufferService {
 
             while let Some(key) = keys.pop() {
                 // If the error with a key is returned we must save it for the next iterration.
-                if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
-                    unused_keys.insert(key);
-                }
+                match self.fetch_and_delete(db, key, &sender).await {
+                    Ok(count) => self.count_disk_envelopes += count,
+                    Err(key) => {
+                        unused_keys.insert(key);
+                    }
+                };
             }
             if !unused_keys.is_empty() {
                 self.project_cache
                     .send(UpdateBufferIndex::new(project_key, unused_keys))
             }
+
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
+            );
         }
 
         Ok(())
@@ -494,6 +530,7 @@ impl BufferService {
             self.count_mem_envelopes -= count as i64;
         }
 
+        let mut disk_count = 0;
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
                 let result =
@@ -503,9 +540,16 @@ impl BufferService {
                         .execute(db)
                         .await?;
 
-                count += result.rows_affected();
+                disk_count = result.rows_affected();
             }
         }
+
+        self.count_disk_envelopes -= disk_count as i64;
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
+        );
+
+        count += disk_count;
 
         if count > 0 {
             relay_log::with_scope(

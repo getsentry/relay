@@ -42,6 +42,20 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `cache.persistent_envelope_buffer.max_memory_size`.
+    BufferEnvelopesMemory,
+    /// The number of envelopes waiting for project states on disk.
+    ///
+    /// During normal operation, this number should be 0. Only when
+    /// the in-memory buffer overflows (for example, we cannot fetch project states from the upstream)
+    /// will the disk buffer be used.
+    ///
+    /// The disk buffer size can be configured with `cache.persistent_envelope_buffer.max_disk_size`.
+    BufferEnvelopesDisk,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -130,6 +144,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
+            RelayHistograms::BufferEnvelopesDisk => "buffer.envelopes_disk",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
