@@ -188,6 +188,9 @@ pub struct BufferService {
     spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
     count_disk_envelopes: i64,
+
+    #[cfg(test)]
+    untracked: bool,
 }
 
 impl BufferService {
@@ -223,6 +226,8 @@ impl BufferService {
             count_mem_envelopes: 0,
             count_disk_envelopes: 0,
             spool_config: None,
+            #[cfg(test)]
+            untracked: false,
         };
 
         // Only if persistent buffer enabled, we create the pool and set the config.
@@ -373,6 +378,10 @@ impl BufferService {
         let envelope_row: Vec<u8> = row.try_get("envelope")?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let envelope = Envelope::parse_bytes(envelope_bytes)?;
+        #[cfg(test)]
+        if self.untracked {
+            return Ok(ManagedEnvelope::untracked(envelope));
+        }
         let managed_envelope = self.buffer_guard.enter(envelope)?;
         Ok(managed_envelope)
     }
@@ -482,7 +491,7 @@ impl BufferService {
             while let Some(key) = keys.pop() {
                 // If the error with a key is returned we must save it for the next iterration.
                 match self.fetch_and_delete(db, key, &sender).await {
-                    Ok(count) => self.count_disk_envelopes += count,
+                    Ok(count) => self.count_disk_envelopes -= count,
                     Err(key) => {
                         unused_keys.insert(key);
                     }
@@ -576,5 +585,89 @@ impl Drop for BufferService {
         if count > 0 {
             relay_log::error!("dropped {} envelopes", count);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+    use relay_common::Uuid;
+    use relay_general::protocol::EventId;
+    use relay_test::mock_service;
+
+    use crate::extractors::RequestMeta;
+
+    use super::*;
+
+    fn empty_envelope() -> ManagedEnvelope {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+        ManagedEnvelope::untracked(envelope)
+    }
+
+    #[test]
+    fn metrics_work() {
+        let buffer_guard = BufferGuard::new(999999).into();
+        let config = Config::from_json_value(serde_json::json!({
+            "cache": {
+                "persistent_envelope_buffer": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 2,
+                }
+            }
+        }))
+        .unwrap();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let _guard = rt.enter();
+
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(async {
+                let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+                let mut service = BufferService::create(buffer_guard, project_cache, config.into())
+                    .await
+                    .unwrap();
+                service.untracked = true; // so we do not panic when dropping envelopes
+
+                for _ in 0..5 {
+                    service
+                        .handle_enqueue(Enqueue {
+                            key,
+                            value: empty_envelope(),
+                        })
+                        .await
+                        .unwrap();
+                }
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                service
+                    .handle_dequeue(DequeueMany {
+                        project_key,
+                        keys: [key].into(),
+                        sender: tx,
+                    })
+                    .await
+                    .unwrap();
+
+                let mut count = 0;
+                while rx.recv().await.is_some() {
+                    count += 1;
+                }
+                assert_eq!(count, 5);
+            })
+        });
+
+        assert_debug_snapshot!(captures);
     }
 }
