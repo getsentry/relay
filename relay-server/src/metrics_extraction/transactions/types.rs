@@ -23,18 +23,18 @@ pub enum TransactionMetric {
     },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
-    /// See https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40.
+    /// See '<https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40>'.
     CountPerRootProject {
         value: CounterType,
         tags: TransactionCPRTags,
     },
-    /// A metric created from [`relay_general::Breakdowns`].
+    /// A metric created from [`relay_general::protocol::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
         tags: CommonTags,
     },
-    /// A metric created from a [`relay_general::Measurement`].
+    /// A metric created from a [`relay_general::protocol::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,
@@ -170,7 +170,7 @@ impl Display for CommonTag {
     }
 }
 
-/// Error returned from [`extract_transaction_metrics`].
+/// Error returned from [`super::extract_transaction_metrics`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ExtractMetricsError {
     /// The start or end timestamps are missing from the event payload.
@@ -179,8 +179,8 @@ pub enum ExtractMetricsError {
     /// The event timestamp is outside the supported range.
     ///
     /// The supported range is derived from the
-    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
-    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
+    /// [`max_secs_in_past`](relay_metrics::AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](relay_metrics::AggregatorConfig::max_secs_in_future) configuration options.
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
 }
