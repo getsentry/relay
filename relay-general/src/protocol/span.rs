@@ -1,4 +1,6 @@
-use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+use crate::protocol::{
+    JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -47,8 +49,9 @@ pub struct Span {
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
-    /// The origin of the span indicates what created the span.
-    pub origin: Annotated<String>,
+    /// The origin of the span indicates what created the span (see `OriginType` docs).
+    #[metastructure(max_chars = "enumlike")]
+    pub origin: Annotated<OriginType>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.

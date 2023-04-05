@@ -3,7 +3,7 @@ use regex::Regex;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
-use crate::protocol::OperationType;
+use crate::protocol::{OperationType, OriginType};
 use crate::types::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -102,8 +102,9 @@ pub struct TraceContext {
     /// should not ever send this value.
     pub client_sample_rate: Annotated<f64>,
 
-    /// The origin of the trace indicates what created the trace.
-    pub origin: Annotated<String>,
+    /// The origin of the trace indicates what created the trace (see `OriginType` docs).
+    #[metastructure(max_chars = "enumlike")]
+    pub origin: Annotated<OriginType>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]

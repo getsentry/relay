@@ -32,6 +32,10 @@ use crate::user_agent::{ClientHints, RawUserAgentInfo};
 /// Tries to follow OpenCensus/OpenTracing's span types.
 pub type OperationType = String;
 
+/// Origin type such as `auto.http`.
+/// Follows the pattern described in https://develop.sentry.dev/sdk/performance/trace-origin/.
+pub type OriginType = String;
+
 /// A context describes environment info (e.g. device, os or browser).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
