@@ -2220,9 +2220,6 @@ impl EnvelopeProcessorService {
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    scrub_identifiers: state
-                        .project_state
-                        .has_feature(Feature::TransactionNameNormalize),
                     mark_scrubbed_as_sanitized: state
                         .project_state
                         .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
@@ -3370,7 +3367,6 @@ mod tests {
             log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
-                        scrub_identifiers: true,
                         mark_scrubbed_as_sanitized: false,
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
