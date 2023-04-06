@@ -621,16 +621,17 @@ mod tests {
 
     #[test]
     fn metrics_work() {
-        let buffer_guard = BufferGuard::new(999999).into();
-        let config = Config::from_json_value(serde_json::json!({
+        let buffer_guard: Arc<_> = BufferGuard::new(999999).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "cache": {
                 "persistent_envelope_buffer": {
-                    "path": dbg!(std::env::temp_dir().join(Uuid::new_v4().to_string())),
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 2,
                 }
             }
         }))
-        .unwrap();
+        .unwrap()
+        .into();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -646,9 +647,17 @@ mod tests {
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
                 let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-                let mut service = BufferService::create(buffer_guard, project_cache, config.into())
-                    .await
-                    .unwrap();
+                let mut service = BufferService::create(
+                    buffer_guard.clone(),
+                    project_cache.clone(),
+                    config.clone(),
+                )
+                .await
+                .unwrap();
+
+                // Database is empty:
+                assert_eq!(service.count_disk_envelopes, 0);
+
                 service.untracked = true; // so we do not panic when dropping envelopes
 
                 // Send 5 envelopes
@@ -661,6 +670,13 @@ mod tests {
                         .await
                         .unwrap();
                 }
+
+                // Check that a second service gets the initial count right:
+                let other_service = BufferService::create(buffer_guard, project_cache, config)
+                    .await
+                    .unwrap();
+                assert_eq!(service.count_disk_envelopes, 4);
+                assert_eq!(other_service.count_disk_envelopes, 4);
 
                 // Dequeue everything
                 let (tx, mut rx) = mpsc::unbounded_channel();
