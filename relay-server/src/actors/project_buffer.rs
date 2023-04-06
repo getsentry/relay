@@ -192,7 +192,7 @@ pub struct BufferService {
 }
 
 impl BufferService {
-    /// Set up database and return the current number of envelopes.
+    /// Set up the database and return the current number of envelopes.
     async fn setup(path: &PathBuf) -> Result<(), BufferError> {
         let options = SqliteConnectOptions::new()
             .filename(path)
