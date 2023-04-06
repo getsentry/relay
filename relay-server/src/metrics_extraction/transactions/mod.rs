@@ -79,11 +79,9 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
         // Caller decides how to treat this.
         TransactionSource::Unknown => treat_unknown_as_low_cardinality,
 
-        // Any other value would be an SDK bug, assume high-cardinality and drop.
-        TransactionSource::Other(source) => {
-            relay_log::error!("Invalid transaction source: '{}'", source);
-            false
-        }
+        // Any other value would be an SDK bug or users manually configuring the
+        // source, assume high-cardinality and drop.
+        TransactionSource::Other(_) => false,
     }
 }
 
