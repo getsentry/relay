@@ -49,7 +49,7 @@ pub struct Span {
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
-    /// The origin of the span indicates what created the span (see `OriginType` docs).
+    /// The origin of the span indicates what created the span (see [OriginType] docs).
     #[metastructure(max_chars = "enumlike")]
     pub origin: Annotated<OriginType>,
 
