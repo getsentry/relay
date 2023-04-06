@@ -7,14 +7,33 @@ use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
 
-pub static ANDROID_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut map = HashMap::new();
+    // Note that on windows, a path with backslashes '\' won't work on unix systems.
     let android_str = include_str!("../../../../files/android_models.csv");
 
-    for line in android_str.lines() {
+    let mut lines = android_str.lines();
+
+    let header = lines.next().expect("CSV file should have a header");
+
+    let header_fields: Vec<&str> = header.split(',').collect();
+    let model_index = header_fields.iter().position(|&s| s.trim() == "Model");
+    let product_name_index = header_fields
+        .iter()
+        .position(|&s| s.trim() == "Marketing Name");
+
+    let (model_index, product_name_index) = match (model_index, product_name_index) {
+        (Some(model_index), Some(product_name_index)) => (model_index, product_name_index),
+        (_, _) => return HashMap::new(),
+    };
+
+    for line in lines {
         let fields: Vec<&str> = line.split(',').collect();
-        if fields.len() >= 4 {
-            map.insert(fields[3].trim(), fields[1].trim());
+        if fields.len() > std::cmp::max(model_index, product_name_index) {
+            map.insert(
+                fields[model_index].trim(),
+                fields[product_name_index].trim(),
+            );
         }
     }
     map

@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MAP};
+use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -209,7 +209,7 @@ pub fn normalize_context(context: &mut Context) {
                 .as_ref()
                 .model
                 .value()
-                .and_then(|model| ANDROID_MAP.get(model.as_str()))
+                .and_then(|model| ANDROID_MODEL_NAMES.get(model.as_str()))
             {
                 device.name.set_value(Some(product_name.to_string()))
             }
@@ -227,17 +227,17 @@ mod tests {
 
     #[test]
     fn test_get_product_name() {
-        let model = "NE2211";
-        let product_name = ANDROID_MAP.get(model).unwrap();
-        assert_eq!(product_name, &"OnePlus 10 Pro 5G");
+        assert_eq!(
+            ANDROID_MODEL_NAMES.get("NE2211").unwrap(),
+            &"OnePlus 10 Pro 5G"
+        );
 
-        let model = "MP04";
+        assert_eq!(
+            ANDROID_MODEL_NAMES.get("MP04").unwrap(),
+            &"A13 Pro Max 5G EEA"
+        );
 
-        let product_name = ANDROID_MAP.get(model).unwrap();
-
-        assert_eq!(product_name, &"A13 Pro Max 5G EEA");
-
-        assert!(ANDROID_MAP.get("foobar").is_none());
+        assert!(ANDROID_MODEL_NAMES.get("foobar").is_none());
     }
 
     #[test]
