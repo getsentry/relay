@@ -1,7 +1,7 @@
 use crate::protocol::EventId;
 use crate::types::{Annotated, Object, Value};
 
-/// Replay context
+/// Replay context.
 ///
 /// The replay context contains the replay_id of the session replay if the event
 /// occurred during a replay. The replay_id is added onto the dynamic sampling context
