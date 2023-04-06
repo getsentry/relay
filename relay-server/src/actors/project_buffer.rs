@@ -8,7 +8,7 @@ use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
-use relay_system::{Addr, FromMessage, Interface, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
@@ -513,6 +513,30 @@ impl BufferService {
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
         }
     }
+
+    /// Handle the shutdown notification.
+    ///
+    /// When the service notified to shut down, it tries to immediatelly spool to disk all the
+    /// content of the in-memory buffer. The service will spool to disk only if the spooling for
+    /// envelops is enabled.
+    async fn handle_shutdown(&mut self) -> Result<(), BufferError> {
+        // Buffer to disk only if the DB and config are provided.
+        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
+            let count: usize = self.buffer.values().map(|v| v.len()).sum();
+            if count == 0 {
+                return Ok(());
+            }
+            relay_log::info!(
+                "received shutdown signal, spooling {} envelopes to disk",
+                count
+            );
+
+            let buf = std::mem::take(&mut self.buffer);
+            self.count_mem_envelopes = 0;
+            Self::do_spool(db, buf).await?;
+        }
+        Ok(())
+    }
 }
 
 impl Service for BufferService {
@@ -520,9 +544,24 @@ impl Service for BufferService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                if let Err(err) = self.handle_message(message).await {
-                    relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
+            let mut shutdown = Controller::shutdown_handle();
+
+            loop {
+                tokio::select! {
+                    biased;
+
+                    Some(message) = rx.recv() => {
+                        if let Err(err) = self.handle_message(message).await {
+                            relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
+                        }
+                    }
+                    _ = shutdown.notified() => {
+                       if let Err(err) = self.handle_shutdown().await {
+                            relay_log::error!("failed while shutting down the service: {}", LogError(&err))
+                        }
+                    }
+                    else => break,
+
                 }
             }
         });
