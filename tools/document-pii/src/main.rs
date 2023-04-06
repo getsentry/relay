@@ -58,19 +58,18 @@ Challenges:
     crates with different types of the same name.
 
 I believe we can treat enum-variants and fields of a struct as roughly the same
+I don't think i covered all the bases wrt generics here.
 
-some potential ways:
+im thinking of doing it as a DFS style where i try to traverse it all in one go while keeping in mind
+all of the challenges above.
 
--- graph traversal --
-
-Iterate over each Type, print out anything that is pii=true and h
-
-
-
-
-
+Jan also suggested a using a derive macro, so something like #[derive(Pii)], which would force us to
+also annotate every type in the field or variant of the annotated type. I'm not entirely sure how
+this would work and also It would force us to mark an entire type as Pii while it might not be,
+or it might be pii=true in some contexts but not in others
 
 
+anyway I just wanted to update you on my thoughts regarding this, if you have any ideas or inputs then let me know
 
 
  */
