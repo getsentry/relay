@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::statsd::RelayHistograms;
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
@@ -319,7 +319,10 @@ impl BufferService {
                 }
             });
             let result = query_builder.build().execute(db).await?;
-            count += result.rows_affected() as i64;
+            relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
+            let rows_written = result.rows_affected();
+            count += rows_written as i64;
+
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
@@ -436,6 +439,8 @@ impl BufferService {
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
             .fetch(db).peekable();
+
+            relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if Pin::new(&mut envelopes).peek().await.is_none() {
@@ -685,13 +690,17 @@ mod tests {
             "buffer.envelopes_mem:2|h",
             "buffer.disk_size:4096|h",
             "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
             "buffer.envelopes_disk:2|h",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
             "buffer.disk_size:4096|h",
             "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
             "buffer.envelopes_disk:4|h",
             "buffer.envelopes_mem:1|h",
+            "buffer.reads:1|c",
+            "buffer.reads:1|c",
             "buffer.envelopes_disk:0|h",
             "buffer.envelopes_mem:0|h",
         ]
