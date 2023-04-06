@@ -33,7 +33,6 @@ mod request;
 mod spans;
 mod stacktrace;
 
-pub mod android_map;
 pub mod user_agent;
 
 /// Defines a builtin measurement.

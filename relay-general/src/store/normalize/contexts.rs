@@ -1,8 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
-use crate::store::android_map::ANDROID_MAP;
+use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MAP};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows

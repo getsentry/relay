@@ -1,7 +1,24 @@
+use std::collections::HashMap;
+
+use once_cell::sync::Lazy;
+
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
+
+pub static ANDROID_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    let android_str = include_str!("../../../../files/android_models.csv");
+
+    for line in android_str.lines() {
+        let fields: Vec<&str> = line.split(',').collect();
+        if fields.len() >= 4 {
+            map.insert(fields[3].trim(), fields[1].trim());
+        }
+    }
+    map
+});
 
 /// Device information.
 ///
