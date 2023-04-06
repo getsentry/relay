@@ -12,22 +12,21 @@ use crate::user_agent::{parse_device, ClientHints};
 pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut map = HashMap::new();
     // Note that windows paths with backslashes '\' won't work on unix systems.
-    let android_str = include_str!("../../../../files/android_models.csv");
+    let android_str = include_str!("../../../files/android_models.csv");
 
     let mut lines = android_str.lines();
 
     let header = lines.next().expect("CSV file should have a header");
 
     let header_fields: Vec<&str> = header.split(',').collect();
-    let model_index = header_fields.iter().position(|&s| s.trim() == "Model");
+    let model_index = header_fields
+        .iter()
+        .position(|&s| s.trim() == "Model")
+        .unwrap();
     let product_name_index = header_fields
         .iter()
-        .position(|&s| s.trim() == "Marketing Name");
-
-    let (model_index, product_name_index) = match (model_index, product_name_index) {
-        (Some(model_index), Some(product_name_index)) => (model_index, product_name_index),
-        (_, _) => return HashMap::new(),
-    };
+        .position(|&s| s.trim() == "Marketing Name")
+        .unwrap();
 
     for line in lines {
         let fields: Vec<&str> = line.split(',').collect();
