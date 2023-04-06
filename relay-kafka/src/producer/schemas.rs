@@ -21,32 +21,32 @@ pub enum SchemaError {
     /// If somebody changes `impl Default for TopicAssignments` to have more complex defaults, this
     /// error will start occurring. But it should not happen in prod.
     #[error("failed to determine logical topic")]
-    InvalidLogicalTopic,
+    LogicalTopic,
 
     /// Failed to deserialize message, potentially because it isn't JSON?
     #[error("failed to deserialize message")]
-    InvalidMessageJson(#[source] serde_json::Error),
+    MessageJson(#[source] serde_json::Error),
 
     /// Failed to deserialize schema as JSON
     #[error("failed to deserialize schema")]
-    InvalidSchemaJson(#[source] serde_json::Error),
+    SchemaJson(#[source] serde_json::Error),
 
     /// Failed to compile schema
     // We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
     #[error("failed to compile schema: {0}")]
-    InvalidSchemaCompiled(String),
+    SchemaCompiled(String),
 
     /// Failed to validate message JSON against schema
     // We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
     #[error("message violates schema: {0}")]
-    InvalidMessage(String),
+    Message(String),
 }
 
 pub fn validate_message_schema(topic: KafkaTopic, message: &[u8]) -> Result<(), SchemaError> {
     let default_assignments = TopicAssignments::default();
     let logical_topic_name = match default_assignments.get(topic) {
         TopicAssignment::Primary(logical_topic_name) => logical_topic_name,
-        _ => return Err(SchemaError::InvalidLogicalTopic),
+        _ => return Err(SchemaError::LogicalTopic),
     };
 
     let schema = match sentry_kafka_schemas::get_schema(logical_topic_name, None) {
@@ -54,11 +54,10 @@ pub fn validate_message_schema(topic: KafkaTopic, message: &[u8]) -> Result<(), 
         // No topic found
         Err(_) => return Ok(()),
     };
-    let schema = serde_json::from_str(&schema.schema).map_err(SchemaError::InvalidSchemaJson)?;
-    let schema = JSONSchema::compile(&schema)
-        .map_err(|e| SchemaError::InvalidSchemaCompiled(e.to_string()))?;
-    let message_value =
-        serde_json::from_slice(&message).map_err(SchemaError::InvalidMessageJson)?;
+    let schema = serde_json::from_str(&schema.schema).map_err(SchemaError::SchemaJson)?;
+    let schema =
+        JSONSchema::compile(&schema).map_err(|e| SchemaError::SchemaCompiled(e.to_string()))?;
+    let message_value = serde_json::from_slice(message).map_err(SchemaError::MessageJson)?;
 
     if let Err(e) = schema.validate(&message_value) {
         let mut result = String::new();
@@ -66,7 +65,7 @@ pub fn validate_message_schema(topic: KafkaTopic, message: &[u8]) -> Result<(), 
             writeln!(result, "{}", error).unwrap();
         }
 
-        return Err(SchemaError::InvalidMessage(result));
+        return Err(SchemaError::Message(result));
     }
 
     Ok(())
