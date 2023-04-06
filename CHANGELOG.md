@@ -5,6 +5,7 @@
 **Internal**:
 
 - Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 
 **Breaking Changes**:
 
