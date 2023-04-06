@@ -45,13 +45,13 @@ pub struct Span {
     #[metastructure(pii = "maybe")]
     pub tags: Annotated<Object<JsonLenientString>>,
 
+    /// The origin of the span indicates what created the span (see [OriginType] docs).
+    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    pub origin: Annotated<OriginType>,
+
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
-
-    /// The origin of the span indicates what created the span (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike")]
-    pub origin: Annotated<OriginType>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.

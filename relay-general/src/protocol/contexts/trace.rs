@@ -103,7 +103,7 @@ pub struct TraceContext {
     pub client_sample_rate: Annotated<f64>,
 
     /// The origin of the trace indicates what created the trace (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// Additional arbitrary fields for forwards compatibility.
