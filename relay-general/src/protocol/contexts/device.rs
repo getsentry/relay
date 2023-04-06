@@ -11,7 +11,7 @@ use crate::user_agent::{parse_device, ClientHints};
 /// E.g. NE2211 -> OnePlus 10 Pro 5G
 pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    // Note that on windows, a path with backslashes '\' won't work on unix systems.
+    // Note that windows paths with backslashes '\' won't work on unix systems.
     let android_str = include_str!("../../../../files/android_models.csv");
 
     let mut lines = android_str.lines();
