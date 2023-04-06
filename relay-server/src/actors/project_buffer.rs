@@ -369,8 +369,6 @@ impl BufferService {
         }
 
         let estimated_db_size = Self::estimate_buffer_size(db).await?;
-
-        // Reject all the enqueue requests if we exceed the max size of the buffer.
         if estimated_db_size as usize >= *max_disk_size {
             *is_disk_full = true;
             return Err(BufferError::DatabaseFull(estimated_db_size));
@@ -385,7 +383,7 @@ impl BufferService {
         Self::do_spool(db, buf).await
     }
 
-    /// Extreacts the envelope from the `SqliteRow`.
+    /// Extracts the envelope from the `SqliteRow`.
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
@@ -492,7 +490,7 @@ impl BufferService {
     }
 
     /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    async fn spool_status(&mut self) -> Result<(), BufferError> {
+    async fn refresh_spool_state(&mut self) -> Result<(), BufferError> {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
@@ -532,7 +530,7 @@ impl BufferService {
             };
         }
 
-        self.spool_status().await?;
+        self.refresh_spool_state().await?;
 
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
@@ -570,7 +568,7 @@ impl BufferService {
                 count += result.rows_affected();
             }
 
-            self.spool_status().await?;
+            self.refresh_spool_state().await?;
         }
 
         if count > 0 {
