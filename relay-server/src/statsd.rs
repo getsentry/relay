@@ -48,18 +48,9 @@ pub enum RelayHistograms {
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
     BufferEnvelopesMemory,
-    /// The number of envelopes waiting for project states on disk.
-    ///
-    /// During normal operation, this number should be 0. Only when
-    /// the in-memory buffer overflows (for example, we cannot fetch project states from the upstream)
-    /// will the disk buffer be used.
-    ///
-    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
-    BufferEnvelopesDisk,
     /// The file size of the buffer db on disk, in bytes.
     ///
-    /// This metric is only emitted before flushing from memory, so it might not always
-    /// be up-to-date.
+    /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
     /// The number of spans per processed transaction event.
     ///
@@ -150,7 +141,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
-            RelayHistograms::BufferEnvelopesDisk => "buffer.envelopes_disk",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",

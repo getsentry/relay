@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -33,7 +32,7 @@ const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
     #[error("failed to store the envelope in the buffer, max size {0} reached")]
-    Full(u64),
+    Full(i64),
 
     #[error("failed to move envelope from disk to memory")]
     CapacityExceeded(#[from] crate::utils::BufferError),
@@ -183,11 +182,9 @@ struct BufferSpoolConfig {
 pub struct BufferService {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
-    config: Arc<Config>,
     project_cache: Addr<ProjectCache>,
     spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
-    count_disk_envelopes: i64,
 
     #[cfg(test)]
     /// Create untracked envelopes when loading from disk. Only use in tests.
@@ -196,7 +193,7 @@ pub struct BufferService {
 
 impl BufferService {
     /// Set up database and return the current number of envelopes.
-    async fn setup(path: &PathBuf) -> Result<i64, BufferError> {
+    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
         let options = SqliteConnectOptions::new()
             .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
@@ -205,12 +202,7 @@ impl BufferService {
         let db = SqlitePoolOptions::new().connect_with(options).await?;
         sqlx::migrate!("../migrations").run(&db).await?;
 
-        let count: i64 = sqlx::query("SELECT count(*) FROM envelopes")
-            .fetch_one(&db)
-            .await?
-            .try_get(0)?;
-
-        Ok(count)
+        Ok(())
     }
 
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
@@ -222,10 +214,8 @@ impl BufferService {
         let mut service = Self {
             buffer: BTreeMap::new(),
             buffer_guard,
-            config: config.clone(),
             project_cache,
             count_mem_envelopes: 0,
-            count_disk_envelopes: 0,
             spool_config: None,
             #[cfg(test)]
             untracked: false,
@@ -235,7 +225,7 @@ impl BufferService {
         if let Some(path) = config.cache_persistent_buffer_path() {
             relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
 
-            service.count_disk_envelopes = Self::setup(&path).await?;
+            Self::setup(&path).await?;
 
             let options = SqliteConnectOptions::new()
                 .filename(&path)
@@ -275,13 +265,22 @@ impl BufferService {
         Ok(service)
     }
 
-    /// Checks the provided path and gets the size of the file this path points to.
-    fn estimate_buffer_size(path: Option<PathBuf>) -> Result<u64, BufferError> {
-        path.and_then(|path| std::fs::metadata(path).ok())
-            .map(|m| m.len())
-            .ok_or(BufferError::DatabaseSizeError(Error::from(
-                ErrorKind::NotFound,
-            )))
+    /// Estimates the db size by multiplying `page_count * page_size`.
+    async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
+        let mut rows = sqlx::query("pragma page_count; pragma page_size;").fetch(db);
+        let page_count: i64 = match rows.next().await {
+            Some(row) => row?.try_get(0)?,
+            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
+        };
+        let page_size: i64 = match rows.next().await {
+            Some(row) => row?.try_get(0)?,
+            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
+        };
+        let size = page_count * page_size;
+
+        relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
+
+        Ok(size)
     }
 
     /// Saves the provided buffer to the disk.
@@ -290,7 +289,7 @@ impl BufferService {
     async fn do_spool(
         db: &Pool<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
-    ) -> Result<i64, BufferError> {
+    ) -> Result<(), BufferError> {
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
@@ -306,7 +305,6 @@ impl BufferService {
             })
             .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
 
-        let mut count = 0;
         while let Some(chunk) = envelopes.next().await {
             query_builder.push_values(chunk, |mut b, (key, value)| match value {
                 Ok(value) => {
@@ -318,16 +316,14 @@ impl BufferService {
                     relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
                 }
             });
-            let result = query_builder.build().execute(db).await?;
+            query_builder.build().execute(db).await?;
             relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
-            let rows_written = result.rows_affected();
-            count += rows_written as i64;
 
             // Reset the builder to initial state set by `QueryBuilder::new` function,
             // so it can be reused for another chunk.
             query_builder.reset();
         }
-        Ok(count)
+        Ok(())
     }
 
     /// Tries to save in-memory buffer to disk.
@@ -351,10 +347,7 @@ impl BufferService {
                 return Ok(());
             }
 
-            let estimated_db_size =
-                Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
-
-            relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = estimated_db_size);
+            let estimated_db_size = Self::estimate_buffer_size(db).await?;
 
             // Reject all the enqueue requests if we exceed the max size of the buffer.
             if estimated_db_size as usize > *max_disk_size {
@@ -367,11 +360,7 @@ impl BufferService {
                 histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
             );
 
-            let count = Self::do_spool(db, buf).await?;
-            self.count_disk_envelopes += count;
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
-            );
+            Self::do_spool(db, buf).await?;
         }
 
         Ok(())
@@ -423,8 +412,7 @@ impl BufferService {
         db: &Pool<Sqlite>,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Result<i64, QueueKey> {
-        let mut count = 0;
+    ) -> Result<(), QueueKey> {
         loop {
             // By default this creates a prepared statement which is cached and re-used.
             //
@@ -444,11 +432,10 @@ impl BufferService {
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if Pin::new(&mut envelopes).peek().await.is_none() {
-                return Ok(count);
+                return Ok(());
             }
 
             while let Some(envelope) = envelopes.next().await {
-                count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
 
@@ -498,11 +485,8 @@ impl BufferService {
 
             while let Some(key) = keys.pop() {
                 // If the error with a key is returned we must save it for the next iterration.
-                match self.fetch_and_delete(db, key, &sender).await {
-                    Ok(count) => self.count_disk_envelopes -= count,
-                    Err(key) => {
-                        unused_keys.insert(key);
-                    }
+                if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
+                    unused_keys.insert(key);
                 };
             }
             if !unused_keys.is_empty() {
@@ -510,9 +494,7 @@ impl BufferService {
                     .send(UpdateBufferIndex::new(project_key, unused_keys))
             }
 
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
-            );
+            Self::estimate_buffer_size(db).await.ok(); // logs metric
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
             );
@@ -534,7 +516,6 @@ impl BufferService {
             self.count_mem_envelopes -= count as i64;
         }
 
-        let mut disk_count = 0;
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
                 let result =
@@ -544,16 +525,11 @@ impl BufferService {
                         .execute(db)
                         .await?;
 
-                disk_count = result.rows_affected();
+                count += result.rows_affected();
             }
+
+            Self::estimate_buffer_size(db).await.ok(); // logs metric
         }
-
-        self.count_disk_envelopes -= disk_count as i64;
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesDisk) = self.count_disk_envelopes as f64
-        );
-
-        count += disk_count;
 
         if count > 0 {
             relay_log::with_scope(
@@ -626,7 +602,7 @@ mod tests {
             "cache": {
                 "persistent_envelope_buffer": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 2,
+                    "max_memory_size": 3,
                 }
             }
         }))
@@ -655,9 +631,6 @@ mod tests {
                 .await
                 .unwrap();
 
-                // Database is empty:
-                assert_eq!(service.count_disk_envelopes, 0);
-
                 service.untracked = true; // so we do not panic when dropping envelopes
 
                 // Send 5 envelopes
@@ -670,13 +643,6 @@ mod tests {
                         .await
                         .unwrap();
                 }
-
-                // Check that a second service gets the initial count right:
-                let other_service = BufferService::create(buffer_guard, project_cache, config)
-                    .await
-                    .unwrap();
-                assert_eq!(service.count_disk_envelopes, 4);
-                assert_eq!(other_service.count_disk_envelopes, 4);
 
                 // Dequeue everything
                 let (tx, mut rx) = mpsc::unbounded_channel();
@@ -704,20 +670,15 @@ mod tests {
             "service.back_pressure:0|g|#service:project_cache",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
-            "buffer.disk_size:4096|h",
+            "buffer.envelopes_mem:3|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_disk:2|h",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
-            "buffer.disk_size:4096|h",
-            "buffer.envelopes_mem:0|h",
-            "buffer.writes:1|c",
-            "buffer.envelopes_disk:4|h",
-            "buffer.envelopes_mem:1|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
-            "buffer.envelopes_disk:0|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
         ]
         "###);
