@@ -40,6 +40,7 @@ pub enum ClientError {
     InvalidJson(#[source] serde_json::Error),
 
     /// Failed to run schema validation on message.
+    #[cfg(debug_assertions)]
     #[error("failed to run schema validation on message")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
