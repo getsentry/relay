@@ -66,7 +66,3 @@ pub use self::transaction::*;
 pub use self::types::*;
 pub use self::user::*;
 pub use self::user_report::*;
-
-/// Origin type such as `auto.http`.
-/// Follows the pattern described in the [develop docs](https://develop.sentry.dev/sdk/performance/trace-origin/).
-pub type OriginType = String;
