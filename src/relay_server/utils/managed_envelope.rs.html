@@ -329,6 +329,13 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::time::Instant;
@@ -430,13 +437,20 @@
         }
     }
 
-    <span class="doccomment">/// Creates a standalone `EnvelopeContext` for testing purposes.
+    <span class="doccomment">/// Creates a standalone envelope for testing purposes.
     ///
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
     </span><span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>standalone(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>)
+    }
+
+    <span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>untracked(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>);
+        envelope.context.done = <span class="bool-val">true</span>;
+        envelope
     }
 
     <span class="doccomment">/// Computes a managed envelope from the given envelope and binds it to the processing queue.

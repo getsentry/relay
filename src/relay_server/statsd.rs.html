@@ -536,6 +536,25 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -580,6 +599,16 @@
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     </span>EnvelopeQueueSize,
+    <span class="doccomment">/// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always &lt;= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    </span>BufferEnvelopesMemory,
+    <span class="doccomment">/// The file size of the buffer db on disk, in bytes.
+    ///
+    /// This metric is computed by multiplying `page_count * page_size`.
+    </span>BufferDiskSize,
     <span class="doccomment">/// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -668,6 +697,8 @@
             RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
             RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
             RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
+            RelayHistograms::BufferEnvelopesMemory =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
+            RelayHistograms::BufferDiskSize =&gt; <span class="string">&quot;buffer.disk_size&quot;</span>,
             RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
             RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
@@ -889,7 +920,12 @@
     ///  - `handling`: Either `&quot;success&quot;` if the envelope was handled correctly, or `&quot;failure&quot;` if
     ///    there was an error or bug.
     </span>EnvelopeRejected,
-    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
+    <span class="doccomment">/// Number times the envelope buffer spools to disk.
+    </span>BufferWrites,
+    <span class="doccomment">/// Number times the envelope buffer reads back from disk.
+    </span>BufferReads,
+    <span class="doccomment">///
+    /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
     ///  - `outcome`: The basic cause for rejecting the event.
@@ -1049,6 +1085,8 @@
             </span>RelayCounters::EventCorrupted =&gt; <span class="string">&quot;event.corrupted&quot;</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">&quot;event.accepted&quot;</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">&quot;event.rejected&quot;</span>,
+            RelayCounters::BufferWrites =&gt; <span class="string">&quot;buffer.writes&quot;</span>,
+            RelayCounters::BufferReads =&gt; <span class="string">&quot;buffer.reads&quot;</span>,
             RelayCounters::Outcomes =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
