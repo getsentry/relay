@@ -351,6 +351,8 @@ impl BufferService {
             let estimated_db_size =
                 Self::estimate_buffer_size(self.config.cache_persistent_buffer_path())?;
 
+            relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = estimated_db_size);
+
             // Reject all the enqueue requests if we exceed the max size of the buffer.
             if estimated_db_size as usize > *max_disk_size {
                 return Err(BufferError::Full(estimated_db_size));
@@ -681,10 +683,12 @@ mod tests {
             "service.back_pressure:0|g|#service:project_cache",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
+            "buffer.disk_size:4096|h",
             "buffer.envelopes_mem:0|h",
             "buffer.envelopes_disk:2|h",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
+            "buffer.disk_size:4096|h",
             "buffer.envelopes_mem:0|h",
             "buffer.envelopes_disk:4|h",
             "buffer.envelopes_mem:1|h",

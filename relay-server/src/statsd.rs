@@ -56,6 +56,11 @@ pub enum RelayHistograms {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDisk,
+    /// The file size of the buffer db on disk, in bytes.
+    ///
+    /// This metric is only emitted before flushing from memory, so it might not always
+    /// be up-to-date.
+    BufferDiskSize,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -146,6 +151,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
             RelayHistograms::BufferEnvelopesDisk => "buffer.envelopes_disk",
+            RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
