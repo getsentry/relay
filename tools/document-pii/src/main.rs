@@ -36,6 +36,42 @@ same manner, so that it will be a recursive process.
 if any of this is not clear, let me know.
 
 
+------------------
+
+
+Some thoughts regarding the way to document all pii=true fields
+
+we want to print the full path of all the fields which are marked as pii=true. Full path, meaning
+e.g. Foo.Bar.baz
+
+Where the last element, here baz, is the field name, while the previous elements are the name of types,
+so Foo has a field of type Bar, and then Bar has the field name baz.
+
+Challenges:
+1. avoid recursion: if when you traverse the fields you come to a field already discovered, stop immediatly.
+2. consider generic instantiations of field names: if a field has type Foo<Bar<Baz>>, where Bar is a concrete implementation
+    of Foo, and Baz is a concrete implementation of Bar, we have to make a vector of those types and
+    recurse into them one by one.
+3. Resolve full path names: When you iterate over the fields, you're not getting the full path
+    of the types, but the relative one. we therefore have to resolve the full path by
+    checking the use-statements and concatenating. This is especially important because we have many
+    crates with different types of the same name.
+
+I believe we can treat enum-variants and fields of a struct as roughly the same
+
+some potential ways:
+
+-- graph traversal --
+
+Iterate over each Type, print out anything that is pii=true and h
+
+
+
+
+
+
+
+
 
  */
 
