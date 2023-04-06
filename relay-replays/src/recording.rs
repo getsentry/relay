@@ -562,4 +562,22 @@ mod tests {
         // NOTE: default scrubbers do not remove email address
         // assert!(scrubbed_result.contains("\"message\":\"[email]\""));
     }
+
+    #[test]
+    fn test_scrub_pii_key_based() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
+
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
+        assert_eq!(
+            scrubbed[0]["data"]["payload"]["data"]["request"]["body"]["api_key"],
+            "[Filtered]"
+        );
+    }
 }
