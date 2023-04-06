@@ -14,7 +14,7 @@ use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::envelope::{Envelope, EnvelopeError};
@@ -31,9 +31,6 @@ const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
-    #[error("failed to store the envelope in the buffer, max size {0} reached")]
-    Full(u64),
-
     #[error("failed to move envelope from disk to memory")]
     CapacityExceeded(#[from] crate::utils::BufferError),
 
@@ -170,11 +167,22 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+/// Vacuum handler type, which combimes [`tokio::mpsc::UnboundedSender`] and [`tokio::mpsc::UnboundedReceiver`].
+///
+/// It expects the result of the VACUUM run operation.
+type VacuumHandler = (
+    mpsc::UnboundedSender<Result<bool, BufferError>>,
+    mpsc::UnboundedReceiver<Result<bool, BufferError>>,
+);
+
 #[derive(Debug)]
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
     max_disk_size: usize,
     max_envelopes_count: usize,
+    is_disk_full: bool,
+    vacuum_handler: VacuumHandler,
+    vacuum_permit: Arc<Semaphore>,
 }
 
 /// [`Buffer`] interface implementation backed by SQLite.
@@ -218,7 +226,12 @@ impl BufferService {
 
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         if let Some(path) = config.spool_envelopes_path() {
-            relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
+            relay_log::info!(
+                "Using the buffer file {}, max memory size {}, max disk size {}",
+                path.to_string_lossy(),
+                config.spool_envelopes_max_memory_size(),
+                config.spool_envelopes_max_disk_size()
+            );
 
             Self::setup(&path).await?;
 
@@ -257,6 +270,10 @@ impl BufferService {
                 // TODO: Can we calculate the real size of the envelope?
                 max_envelopes_count: config.spool_envelopes_max_memory_size()
                     / config.max_envelope_size(),
+                is_disk_full: false,
+                vacuum_handler: mpsc::unbounded_channel(),
+                // Run only 1 VACUUM at the time.
+                vacuum_permit: Arc::new(Semaphore::new(1)),
             };
 
             service.spool_config = Some(spool_config);
@@ -315,38 +332,72 @@ impl BufferService {
         Ok(())
     }
 
+    /// Runs the VACUUM command.
+    ///
+    /// The VACUUM command rebuilds the database file, repacking it into a minimal amount of disk space.
+    async fn run_vacuum(&mut self) -> Result<(), BufferError> {
+        let Some(BufferSpoolConfig { ref db, max_disk_size, vacuum_handler: (ref tx, _), vacuum_permit: ref permit, .. }) = self.spool_config else {
+            return Ok(());
+        };
+
+        let db = db.clone();
+        let tx = tx.clone();
+        let spool_envelopes_path = self.config.spool_envelopes_path();
+
+        if let Ok(permit) = permit.clone().try_acquire_owned() {
+            // This operation can be heavy on big tables and can take some time.
+            // Spawn a task for it.
+            tokio::spawn(async move {
+                relay_log::info!("Running VACUUM operation.");
+                let result = match sqlx::query("VACUUM;").execute(&db).await {
+                    Ok(_) => Self::estimate_buffer_size(spool_envelopes_path)
+                        .map(|db_size| db_size as usize > max_disk_size),
+
+                    Err(err) => Err(BufferError::from(err)),
+                };
+
+                tx.send(result).ok();
+                // drop the permit once we done.
+                drop(permit);
+            });
+        }
+
+        Ok(())
+    }
+
     /// Tries to save in-memory buffer to disk.
     ///
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     async fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
-            spool_config,
+            ref mut spool_config,
             ref mut buffer,
             ..
         } = self;
 
         // Buffer to disk only if the DB and config are provided.
-        if let Some(BufferSpoolConfig {
+        let Some(BufferSpoolConfig {
             db,
             max_disk_size,
             max_envelopes_count,
-        }) = spool_config
-        {
-            if self.count_mem_envelopes < *max_envelopes_count as i64 {
-                return Ok(());
-            }
+            ref mut is_disk_full,
+            ..
+        }) = spool_config else { return Ok(()) };
 
-            let estimated_db_size = Self::estimate_buffer_size(self.config.spool_envelopes_path())?;
-
-            // Reject all the enqueue requests if we exceed the max size of the buffer.
-            if estimated_db_size as usize > *max_disk_size {
-                return Err(BufferError::Full(estimated_db_size));
-            }
-            let buf = std::mem::take(buffer);
-            self.count_mem_envelopes = 0;
-            Self::do_spool(db, buf).await?;
+        if self.count_mem_envelopes < *max_envelopes_count as i64 {
+            return Ok(());
         }
-        Ok(())
+
+        let estimated_db_size = Self::estimate_buffer_size(self.config.spool_envelopes_path())?;
+
+        // Reject all the enqueue requests if we exceed the max size of the buffer.
+        if estimated_db_size as usize > *max_disk_size {
+            *is_disk_full = true;
+            return self.run_vacuum().await;
+        }
+        let buf = std::mem::take(buffer);
+        self.count_mem_envelopes = 0;
+        Self::do_spool(db, buf).await
     }
 
     /// Extreacts the envelope from the `SqliteRow`.
@@ -367,7 +418,14 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        self.try_spool().await?;
+        // If disk is full, we won't try to spool anymore till the disk has more space.
+        // This way we fall back to the `cache.envelope_buffer_size`, and will try to keep the rest
+        // of the incoming envelopes in the memory till the `BufferGuard` is  exhausted and we
+        // start dropping the envelopes.
+        let is_disk_full = self.spool_config.as_ref().map_or(true, |s| s.is_disk_full);
+        if !is_disk_full {
+            self.try_spool().await?;
+        }
 
         // save to the internal buffer
         self.buffer.entry(key).or_default().push(managed_envelope);
@@ -451,19 +509,24 @@ impl BufferService {
         }
 
         // Persistent buffer is configured, lets try to get data from the disk.
-        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
-            let mut unused_keys = BTreeSet::new();
+        let Some(BufferSpoolConfig { db, is_disk_full, .. }) = &self.spool_config else { return Ok(()) };
+        let mut unused_keys = BTreeSet::new();
 
-            while let Some(key) = keys.pop() {
-                // If the error with a key is returned we must save it for the next iterration.
-                if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
-                    unused_keys.insert(key);
-                }
+        while let Some(key) = keys.pop() {
+            // If the error with a key is returned we must save it for the next iterration.
+            if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
+                unused_keys.insert(key);
             }
-            if !unused_keys.is_empty() {
-                self.project_cache
-                    .send(UpdateBufferIndex::new(project_key, unused_keys))
-            }
+        }
+        if !unused_keys.is_empty() {
+            self.project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
+        }
+
+        // If the disk is full, but we deleted some of the records, run the vacuum again, to see if
+        // we can free up some space.
+        if *is_disk_full {
+            self.run_vacuum().await?;
         }
 
         Ok(())
@@ -537,6 +600,21 @@ impl BufferService {
         }
         Ok(())
     }
+
+    /// Receives updates from the vacuum runs and set the status of the disk.
+    async fn handle_vacuum(&mut self) {
+        let Some(BufferSpoolConfig {
+            ref mut is_disk_full,
+            vacuum_handler: (_, rx),
+            ..
+        }) = &mut self.spool_config else { return };
+        if let Some(status) = rx.recv().await {
+            match status {
+                Ok(status) => *is_disk_full = status,
+                Err(err) => relay_log::error!("failed to run VACUUM: {}", LogError(&err)),
+            }
+        }
+    }
 }
 
 impl Service for BufferService {
@@ -555,13 +633,18 @@ impl Service for BufferService {
                             relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
                         }
                     }
+
                     _ = shutdown.notified() => {
                        if let Err(err) = self.handle_shutdown().await {
                             relay_log::error!("failed while shutting down the service: {}", LogError(&err))
                         }
                     }
-                    else => break,
 
+                    // Only use this branch if we have spool config provided, meaning that DB is
+                    // configured and we should handle vacuum
+                    _ = self.handle_vacuum(), if self.spool_config.is_some() => (),
+
+                    else => break,
                 }
             }
         });
