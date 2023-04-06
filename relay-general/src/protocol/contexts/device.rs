@@ -16,6 +16,8 @@ pub static ANDROID_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(||
     for line in android_str.lines() {
         let fields: Vec<&str> = line.split(',').collect();
         if fields.len() >= 4 {
+            // The indices '3' and '1' refer to 'model' and 'marketing name' respectively, as 
+            // described here: <https://storage.googleapis.com/play_public/supported_devices.html>
             map.insert(fields[3].trim(), fields[1].trim());
         }
     }
