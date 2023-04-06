@@ -7,6 +7,8 @@ use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
 
+/// A hashmap that translates from the android model to the more human-friendly product-names.
+/// E.g. NE2211 -> OnePlus 10 Pro 5G
 pub static ANDROID_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut map = HashMap::new();
     let android_str = include_str!("../../../../files/android_models.csv");
