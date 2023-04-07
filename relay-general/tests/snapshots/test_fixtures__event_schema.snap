@@ -3185,24 +3185,30 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "held_locks": {
+              "description": " Represents a collection of locks (java monitor objects) held by a thread.\n\n A map of lock object addresses and their respective lock reason/details.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/LockReason"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
             "id": {
               "description": " The ID of the thread. Typically a number or numeric string.\n\n Needs to be unique among the threads. An exception can set the `thread_id` attribute to cross-reference this thread.",
               "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "lock_reason": {
-              "description": " Represents an instance of a held lock (java monitor object) in a thread.",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/LockReason"
                 },
                 {
                   "type": "null"
