@@ -581,12 +581,15 @@ where
     where
         E: de::Error,
     {
-        self.1.push_path(v);
+        if self.2 {
+            self.1.push_path(v);
+            return self.0.visit_borrowed_str(v);
+        };
+
         let res = match self.1.transform_str(v) {
             Cow::Borrowed(v) => self.0.visit_borrowed_str(v),
             Cow::Owned(v) => self.0.visit_string(v),
         };
-        self.1.pop_path();
         res
     }
 
@@ -594,6 +597,9 @@ where
     where
         E: de::Error,
     {
+        if self.2 {
+            return self.0.visit_str(v);
+        };
         match self.1.transform_str(v) {
             Cow::Borrowed(v) => self.0.visit_str(v),
             Cow::Owned(v) => self.0.visit_string(v),
@@ -604,6 +610,9 @@ where
     where
         E: de::Error,
     {
+        if self.2 {
+            return self.0.visit_string(v);
+        };
         match self.1.transform_string(v) {
             Cow::Borrowed(v) => self.0.visit_borrowed_str(v),
             Cow::Owned(v) => self.0.visit_string(v),
