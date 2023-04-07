@@ -24,6 +24,8 @@
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::any::Any;
 
 <span class="kw">use </span>axum::http::StatusCode;
@@ -41,6 +43,8 @@
     } <span class="kw">else </span>{
         <span class="string">&quot;no error details&quot;
     </span>};
+
+    <span class="macro">relay_log::error!</span>(<span class="string">&quot;panic in web handler: {}&quot;</span>, detail);
 
     <span class="kw">let </span>response = (
         StatusCode::INTERNAL_SERVER_ERROR,
