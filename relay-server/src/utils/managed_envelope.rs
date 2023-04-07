@@ -306,8 +306,7 @@ impl ManagedEnvelope {
         self.envelope().meta()
     }
 
-    /// Returns the size of the payload in this envelope with estimated size of [`EnvelopeContext`]
-    /// type and [`EnvelopeHeaders`] type.
+    /// Returns estimated size of this envelope.
     ///
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
