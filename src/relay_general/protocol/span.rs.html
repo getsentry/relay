@@ -93,7 +93,17 @@
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{
+    JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -138,6 +148,10 @@
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>tags: Annotated&lt;Object&lt;JsonLenientString&gt;&gt;,
 
+    <span class="doccomment">/// The origin of the span indicates what created the span (see [OriginType] docs).
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.&quot;</span>)]
+    </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
+
     <span class="doccomment">/// Arbitrary additional data on a span, like `extra` on the top-level event.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
@@ -165,7 +179,8 @@
   &quot;op&quot;: &quot;operation&quot;,
   &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
   &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-  &quot;status&quot;: &quot;ok&quot;
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;origin&quot;: &quot;auto.http&quot;
 }&quot;#</span>;
 
         <span class="kw">let </span>span = Annotated::new(Span {
@@ -179,6 +194,7 @@
             trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
             span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
             status: Annotated::new(SpanStatus::Ok),
+            origin: Annotated::new(<span class="string">&quot;auto.http&quot;</span>.to_owned()),
             ..Default::default()
         });
         <span class="macro">assert_eq!</span>(json, span.to_json_pretty().unwrap());

@@ -329,6 +329,10 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
 </pre><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
 <span class="kw">mod </span>browser;
@@ -362,6 +366,10 @@
 <span class="doccomment">/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing&#39;s span types.
 </span><span class="kw">pub type </span>OperationType = String;
+
+<span class="doccomment">/// Origin type such as `auto.http`.
+/// Follows the pattern described in the [develop docs](https://develop.sentry.dev/sdk/performance/trace-origin/).
+</span><span class="kw">pub type </span>OriginType = String;
 
 <span class="doccomment">/// A context describes environment info (e.g. device, os or browser).
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
