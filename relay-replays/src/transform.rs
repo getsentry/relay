@@ -742,8 +742,11 @@ where
     where
         X: serde::Deserializer<'de>,
     {
-        self.0
-            .deserialize(Deserializer::borrowed(deserializer, self.1))
+        let res = self
+            .0
+            .deserialize(Deserializer::borrowed(deserializer, self.1));
+        self.1.pop_path();
+        res
     }
 }
 
