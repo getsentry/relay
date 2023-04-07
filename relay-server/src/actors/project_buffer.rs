@@ -225,12 +225,12 @@ impl BufferService {
 
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         if let Some(path) = config.spool_envelopes_path() {
+            relay_log::info!("buffer file {}", path.to_string_lossy());
             relay_log::info!(
-                "Using the buffer file {}, max memory size {}, max disk size {}",
-                path.to_string_lossy(),
-                config.spool_envelopes_max_memory_size(),
-                config.spool_envelopes_max_disk_size()
+                "max memory size {}",
+                config.spool_envelopes_max_memory_size()
             );
+            relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
 
             Self::setup(&path).await?;
 
@@ -253,7 +253,7 @@ impl BufferService {
                 // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
                 // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
                 //
-                // This will helps us to keep the file size under some controll.
+                // This will helps us to keep the file size under some control.
                 .auto_vacuum(SqliteAutoVacuum::Full)
                 // If shared-cache mode is enabled and a thread establishes multiple
                 // connections to the same database, the connections share a single data and schema cache.
@@ -423,9 +423,10 @@ impl BufferService {
         // It falls back to the `cache.envelope_buffer_size`, and will try to keep the rest
         // of the incoming envelopes in the memory till the `BufferGuard` is exhausted and it
         // starts dropping the envelopes.
-        let is_disk_full = self.spool_config.as_ref().map_or(true, |s| s.is_disk_full);
-        if !is_disk_full {
-            self.try_spool().await?;
+        if let Some(ref spool_config) = self.spool_config {
+            if !spool_config.is_disk_full {
+                self.try_spool().await?;
+            }
         }
 
         Ok(())
