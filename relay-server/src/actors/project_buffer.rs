@@ -175,7 +175,7 @@ impl FromMessage<RemoveMany> for Buffer {
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
     max_disk_size: usize,
-    max_envelopes_count: usize,
+    max_memory_size: usize,
     is_disk_full: bool,
 }
 
@@ -186,7 +186,7 @@ pub struct BufferService {
     buffer_guard: Arc<BufferGuard>,
     project_cache: Addr<ProjectCache>,
     spool_config: Option<BufferSpoolConfig>,
-    count_mem_envelopes: i64,
+    used_memory: usize,
 
     #[cfg(test)]
     /// Create untracked envelopes when loading from disk. Only use in tests.
@@ -217,7 +217,7 @@ impl BufferService {
             buffer: BTreeMap::new(),
             buffer_guard,
             project_cache,
-            count_mem_envelopes: 0,
+            used_memory: 0,
             spool_config: None,
             #[cfg(test)]
             untracked: false,
@@ -273,8 +273,7 @@ impl BufferService {
                 // configured memory limit, taking that 1 enveloper is 1 MB.
                 //
                 // TODO: Can we calculate the real size of the envelope?
-                max_envelopes_count: config.spool_envelopes_max_memory_size()
-                    / config.max_envelope_size(),
+                max_memory_size: config.spool_envelopes_max_memory_size(),
                 is_disk_full: false,
             };
 
@@ -362,12 +361,12 @@ impl BufferService {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
-            max_envelopes_count,
+            max_memory_size,
             ref mut is_disk_full,
             ..
         }) = spool_config else { return Ok(()) };
 
-        if self.count_mem_envelopes < *max_envelopes_count as i64 {
+        if self.used_memory < *max_memory_size {
             return Ok(());
         }
 
@@ -378,9 +377,9 @@ impl BufferService {
         }
 
         let buf = std::mem::take(buffer);
-        self.count_mem_envelopes = 0;
+        self.used_memory = 0;
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
 
         Self::do_spool(db, buf).await
@@ -409,11 +408,11 @@ impl BufferService {
         } = message;
 
         // save to the internal buffer
+        self.used_memory += managed_envelope.estimated_size();
         self.buffer.entry(key).or_default().push(managed_envelope);
-        self.count_mem_envelopes += 1;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
 
         // If disk is full, the service stop spooling till the disk has more space.
@@ -518,7 +517,7 @@ impl BufferService {
 
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
-                self.count_mem_envelopes -= 1;
+                self.used_memory -= value.estimated_size();
                 sender.send(value).ok();
             }
         }
@@ -537,7 +536,7 @@ impl BufferService {
         self.refresh_spool_state().await?;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
         if !unused_keys.is_empty() {
             self.project_cache
@@ -554,10 +553,13 @@ impl BufferService {
     /// number of envelopes dropped for the specific project key.
     async fn handle_remove(&mut self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
-        let mut count: u64 = 0;
+        let mut count: usize = 0;
         for key in &keys {
-            count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
-            self.count_mem_envelopes -= count as i64;
+            let (current_count, current_size) = self.buffer.remove(key).map_or((0, 0), |k| {
+                (k.len(), k.into_iter().map(|k| k.estimated_size()).sum())
+            });
+            count += current_count;
+            self.used_memory -= current_size;
         }
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
@@ -569,7 +571,7 @@ impl BufferService {
                         .execute(db)
                         .await?;
 
-                count += result.rows_affected();
+                count += result.rows_affected() as usize;
             }
 
             self.refresh_spool_state().await?;
@@ -612,7 +614,7 @@ impl BufferService {
             );
 
             let buf = std::mem::take(&mut self.buffer);
-            self.count_mem_envelopes = 0;
+            self.used_memory = 0;
             Self::do_spool(db, buf).await?;
         }
         Ok(())
@@ -684,7 +686,7 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 3 * Config::default().max_envelope_size(),
+                    "max_memory_size": 1024, // 1KB limit
                 }
             }
         }))
@@ -750,14 +752,17 @@ mod tests {
         assert_debug_snapshot!(captures, @r###"
         [
             "service.back_pressure:0|g|#service:project_cache",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
-            "buffer.envelopes_mem:3|h",
+            "buffer.envelopes_mem:808|h",
+            "buffer.envelopes_mem:1616|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
+            "buffer.envelopes_mem:808|h",
+            "buffer.envelopes_mem:1616|h",
+            "buffer.disk_size:24576|h",
+            "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
+            "buffer.envelopes_mem:808|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
             "buffer.disk_size:24576|h",

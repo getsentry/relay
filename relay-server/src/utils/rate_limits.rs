@@ -142,6 +142,9 @@ pub struct EnvelopeSummary {
 
     /// Whether the envelope contains an event which already had the metrics extracted.
     pub event_metrics_extracted: bool,
+
+    /// The payload size of this envelope.
+    pub payload_size: usize,
 }
 
 impl EnvelopeSummary {
@@ -172,6 +175,7 @@ impl EnvelopeSummary {
                 continue;
             }
 
+            summary.payload_size = item.payload().len();
             summary.set_quantity(item);
         }
 

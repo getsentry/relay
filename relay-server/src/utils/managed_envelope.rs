@@ -1,5 +1,6 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::mem::size_of;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -8,7 +9,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -303,6 +304,17 @@ impl ManagedEnvelope {
 
     pub fn meta(&self) -> &RequestMeta {
         self.envelope().meta()
+    }
+
+    /// Returns the size of the payload in this envelope with estimated size of [`EnvelopeContext`]
+    /// type and [`EnvelopeHeaders`] type.
+    ///
+    /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
+    /// list of additional attributes allocated on all of the inner types.
+    pub fn estimated_size(&self) -> usize {
+        self.context.summary.payload_size
+            + size_of::<EnvelopeContext>()
+            + size_of::<EnvelopeHeaders>()
     }
 
     /// Returns the instant at which the envelope was received at this Relay.
