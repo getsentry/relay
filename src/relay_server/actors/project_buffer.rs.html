@@ -728,6 +728,45 @@
 <a href="#727" id="727">727</a>
 <a href="#728" id="728">728</a>
 <a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -740,7 +779,8 @@
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Service};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+    SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
+    SqliteSynchronous,
 };
 <span class="kw">use </span>sqlx::{Pool, QueryBuilder, Row, Sqlite};
 <span class="kw">use </span>tokio::sync::mpsc;
@@ -761,11 +801,11 @@
 <span class="doccomment">/// The set of errors which can happend while working the the buffer.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BufferError {
-    <span class="attr">#[error(<span class="string">&quot;failed to store the envelope in the buffer, max size {0} reached&quot;</span>)]
-    </span>Full(i64),
-
     <span class="attr">#[error(<span class="string">&quot;failed to move envelope from disk to memory&quot;</span>)]
     </span>CapacityExceeded(<span class="attr">#[from] </span><span class="kw">crate</span>::utils::BufferError),
+
+    <span class="attr">#[error(<span class="string">&quot;failed to spool to disk, reached maximum disk size: {0}&quot;</span>)]
+    </span>DatabaseFull(i64),
 
     <span class="attr">#[error(<span class="string">&quot;failed to get the size of the buffer on the filesystem&quot;</span>)]
     </span>DatabaseFileError(<span class="attr">#[from] </span>std::io::Error),
@@ -905,6 +945,7 @@
     db: Pool&lt;Sqlite&gt;,
     max_disk_size: usize,
     max_envelopes_count: usize,
+    is_disk_full: bool,
 }
 
 <span class="doccomment">/// [`Buffer`] interface implementation backed by SQLite.
@@ -953,7 +994,12 @@
 
         <span class="comment">// Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(path) = config.spool_envelopes_path() {
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;Using the buffer file: {}&quot;</span>, path.to_string_lossy());
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;buffer file {}&quot;</span>, path.to_string_lossy());
+            <span class="macro">relay_log::info!</span>(
+                <span class="string">&quot;max memory size {}&quot;</span>,
+                config.spool_envelopes_max_memory_size()
+            );
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;max disk size {}&quot;</span>, config.spool_envelopes_max_disk_size());
 
             <span class="self">Self</span>::setup(<span class="kw-2">&amp;</span>path).<span class="kw">await</span><span class="question-mark">?</span>;
 
@@ -972,6 +1018,12 @@
                 // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
                 // Which guarantees good balance between safety and speed.
                 </span>.synchronous(SqliteSynchronous::Normal)
+                <span class="comment">// The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
+                // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
+                // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+                //
+                // This will helps us to keep the file size under some control.
+                </span>.auto_vacuum(SqliteAutoVacuum::Full)
                 <span class="comment">// If shared-cache mode is enabled and a thread establishes multiple
                 // connections to the same database, the connections share a single data and schema cache.
                 // This can significantly reduce the quantity of memory and IO required by the system.
@@ -992,6 +1044,7 @@
                 // TODO: Can we calculate the real size of the envelope?
                 </span>max_envelopes_count: config.spool_envelopes_max_memory_size()
                     / config.max_envelope_size(),
+                is_disk_full: <span class="bool-val">false</span>,
             };
 
             service.spool_config = <span class="prelude-val">Some</span>(spool_config);
@@ -1025,32 +1078,34 @@
         db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;,
         buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
+        <span class="kw">let </span>envelopes = buffer
+            .into_iter()
+            .flat_map(|(key, values)| values.into_iter().map(<span class="kw">move </span>|value| (key, value)))
+            .filter_map(|(key, managed)| <span class="kw">match </span>managed.into_envelope().to_vec() {
+                <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Some</span>((key, vec)),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize the envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="prelude-val">None
+                </span>}
+            });
+
+        <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+        // here to prepare the chunks which will be preparing the batch inserts.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / <span class="number">3</span>);
+
         <span class="comment">// A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
         </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; =
             QueryBuilder::new(<span class="string">&quot;INSERT INTO envelopes (own_key, sampling_key, envelope) &quot;</span>);
 
-        <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = stream::iter(buffer.into_iter())
-            .flat_map(|(key, values)| {
-                stream::iter(values.into_iter())
-                    .map(<span class="kw">move </span>|value| (key, value.into_envelope().to_vec()))
-            })
-            .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / <span class="number">3</span>);
-
         <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = envelopes.next().<span class="kw">await </span>{
-            query_builder.push_values(chunk, |<span class="kw-2">mut </span>b, (key, value)| <span class="kw">match </span>value {
-                <span class="prelude-val">Ok</span>(value) =&gt; {
-                    b.push_bind(key.own_key.to_string())
-                        .push_bind(key.sampling_key.to_string())
-                        .push_bind(value);
-                }
-                <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize the envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-                }
+            query_builder.push_values(chunk, |<span class="kw-2">mut </span>b, (key, value)| {
+                b.push_bind(key.own_key.to_string())
+                    .push_bind(key.sampling_key.to_string())
+                    .push_bind(value);
             });
+
             query_builder.build().execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWrites) += <span class="number">1</span>);
 
@@ -1058,6 +1113,7 @@
             // so it can be reused for another chunk.
             </span>query_builder.reset();
         }
+
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1066,41 +1122,40 @@
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     </span><span class="kw">async fn </span>try_spool(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
         <span class="kw">let </span><span class="self">Self </span>{
-            spool_config,
+            <span class="kw-2">ref mut </span>spool_config,
             <span class="kw-2">ref mut </span>buffer,
             ..
         } = <span class="self">self</span>;
 
         <span class="comment">// Buffer to disk only if the DB and config are provided.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(BufferSpoolConfig {
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(BufferSpoolConfig {
             db,
             max_disk_size,
             max_envelopes_count,
-        }) = spool_config
-        {
-            <span class="kw">if </span><span class="self">self</span>.count_mem_envelopes &lt; <span class="kw-2">*</span>max_envelopes_count <span class="kw">as </span>i64 {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-            }
+            <span class="kw-2">ref mut </span>is_disk_full,
+            ..
+        }) = spool_config <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
 
-            <span class="kw">let </span>estimated_db_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
-
-            <span class="comment">// Reject all the enqueue requests if we exceed the max size of the buffer.
-            </span><span class="kw">if </span>estimated_db_size <span class="kw">as </span>usize &gt; <span class="kw-2">*</span>max_disk_size {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::Full(estimated_db_size));
-            }
-            <span class="kw">let </span>buf = std::mem::take(buffer);
-            <span class="self">self</span>.count_mem_envelopes = <span class="number">0</span>;
-            <span class="macro">relay_statsd::metric!</span>(
-                histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.count_mem_envelopes <span class="kw">as </span>f64
-            );
-
-            <span class="self">Self</span>::do_spool(db, buf).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">if </span><span class="self">self</span>.count_mem_envelopes &lt; <span class="kw-2">*</span>max_envelopes_count <span class="kw">as </span>i64 {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="prelude-val">Ok</span>(())
-    }
+        <span class="kw">let </span>estimated_db_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">if </span>estimated_db_size <span class="kw">as </span>usize &gt;= <span class="kw-2">*</span>max_disk_size {
+            <span class="kw-2">*</span>is_disk_full = <span class="bool-val">true</span>;
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::DatabaseFull(estimated_db_size));
+        }
 
-    <span class="doccomment">/// Extreacts the envelope from the `SqliteRow`.
+        <span class="kw">let </span>buf = std::mem::take(buffer);
+        <span class="self">self</span>.count_mem_envelopes = <span class="number">0</span>;
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.count_mem_envelopes <span class="kw">as </span>f64
+        );
+
+        <span class="self">Self</span>::do_spool(db, buf).<span class="kw">await
+    </span>}
+
+    <span class="doccomment">/// Extracts the envelope from the `SqliteRow`.
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     </span><span class="kw">fn </span>extract_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, row: SqliteRow) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
@@ -1122,8 +1177,6 @@
             value: managed_envelope,
         } = message;
 
-        <span class="self">self</span>.try_spool().<span class="kw">await</span><span class="question-mark">?</span>;
-
         <span class="comment">// save to the internal buffer
         </span><span class="self">self</span>.buffer.entry(key).or_default().push(managed_envelope);
         <span class="self">self</span>.count_mem_envelopes += <span class="number">1</span>;
@@ -1131,6 +1184,19 @@
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.count_mem_envelopes <span class="kw">as </span>f64
         );
+
+        <span class="comment">// If disk is full, the service stop spooling till the disk has more space.
+        // The auto-vacuum will kick in on each delete from the database, and the spool status will
+        // be checked and we more space is available the `is_disk_full` flag set to `false`.
+        //
+        // It falls back to the `cache.envelope_buffer_size`, and will try to keep the rest
+        // of the incoming envelopes in the memory till the `BufferGuard` is exhausted and it
+        // starts dropping the envelopes.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>spool_config) = <span class="self">self</span>.spool_config {
+            <span class="kw">if </span>!spool_config.is_disk_full {
+                <span class="self">self</span>.try_spool().<span class="kw">await</span><span class="question-mark">?</span>;
+            }
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1196,6 +1262,19 @@
         }
     }
 
+    <span class="doccomment">/// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
+    </span><span class="kw">async fn </span>refresh_spool_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(BufferSpoolConfig {
+            db,
+            max_disk_size,
+            <span class="kw-2">ref mut </span>is_disk_full, ..
+        }) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.spool_config <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()); };
+
+        <span class="kw">let </span>estimated_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw-2">*</span>is_disk_full = (estimated_size <span class="kw">as </span>usize) &gt;= <span class="kw-2">*</span>max_disk_size;
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="doccomment">/// Handles the dequeueing messages from the internal buffer.
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
@@ -1214,24 +1293,24 @@
         }
 
         <span class="comment">// Persistent buffer is configured, lets try to get data from the disk.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(BufferSpoolConfig { db, .. }) = <span class="kw-2">&amp;</span><span class="self">self</span>.spool_config {
-            <span class="kw">let </span><span class="kw-2">mut </span>unused_keys = BTreeSet::new();
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(BufferSpoolConfig { db, .. }) = <span class="kw-2">&amp;</span><span class="self">self</span>.spool_config <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
+        <span class="kw">let </span><span class="kw-2">mut </span>unused_keys = BTreeSet::new();
 
-            <span class="kw">while let </span><span class="prelude-val">Some</span>(key) = keys.pop() {
-                <span class="comment">// If the error with a key is returned we must save it for the next iterration.
-                </span><span class="kw">if let </span><span class="prelude-val">Err</span>(key) = <span class="self">self</span>.fetch_and_delete(db, key, <span class="kw-2">&amp;</span>sender).<span class="kw">await </span>{
-                    unused_keys.insert(key);
-                };
-            }
-            <span class="kw">if </span>!unused_keys.is_empty() {
-                <span class="self">self</span>.project_cache
-                    .send(UpdateBufferIndex::new(project_key, unused_keys))
-            }
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(key) = keys.pop() {
+            <span class="comment">// If the error with a key is returned we must save it for the next iterration.
+            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(key) = <span class="self">self</span>.fetch_and_delete(db, key, <span class="kw-2">&amp;</span>sender).<span class="kw">await </span>{
+                unused_keys.insert(key);
+            };
+        }
 
-            <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span>.ok(); <span class="comment">// logs metric
-            </span><span class="macro">relay_statsd::metric!</span>(
-                histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.count_mem_envelopes <span class="kw">as </span>f64
-            );
+        <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.count_mem_envelopes <span class="kw">as </span>f64
+        );
+        <span class="kw">if </span>!unused_keys.is_empty() {
+            <span class="self">self</span>.project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1262,8 +1341,8 @@
                 count += result.rows_affected();
             }
 
-            <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span>.ok(); <span class="comment">// logs metric
-        </span>}
+            <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span><span class="question-mark">?</span>;
+        }
 
         <span class="kw">if </span>count &gt; <span class="number">0 </span>{
             relay_log::with_scope(
@@ -1331,7 +1410,6 @@
                         }
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-
                 }
             }
         });
