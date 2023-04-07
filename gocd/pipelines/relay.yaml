@@ -47,7 +47,7 @@ pipelines:
 
       - deploy-production:
           approval:
-            type: manual
+            type: success
             allow_only_on_success: true
           fetch_materials: true
 
@@ -82,7 +82,7 @@ pipelines:
           # Manually completes this pipeline run.
           # This will trigger relay-pop deployments.
           approval:
-            type: manual
+            type: success
             allow_only_on_success: true
           jobs:
             deploy:
