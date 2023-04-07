@@ -36,6 +36,7 @@ Metrics:
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 - Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
 - Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
 
 **Internal**:
 
