@@ -49,7 +49,11 @@ use serde::de;
 ///     }
 /// }
 /// ```
-pub trait Transform {
+pub trait Transform<'de> {
+    fn push_path(&mut self, _key: &'de str) {}
+
+    fn pop_path(&mut self) {}
+
     fn transform_bool(&mut self, v: bool) -> bool {
         v
     }
@@ -162,27 +166,31 @@ impl<T> Mut<'_, T> {
 /// let number = deserializer.deserialize_u32(deserializer).unwrap();
 /// assert_eq!(number, 42);
 /// ```
-pub struct Deserializer<'a, D, T>(D, Mut<'a, T>);
+pub struct Deserializer<'a, D, T>(D, Mut<'a, T>, bool);
 
 impl<'de, 'a, D, T> Deserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     /// Creates a new `Deserializer`.
     pub fn new(deserializer: D, transformer: T) -> Self {
-        Self(deserializer, Mut::Owned(transformer))
+        Self(deserializer, Mut::Owned(transformer), false)
     }
 
     fn borrowed(deserializer: D, transformer: &'a mut T) -> Self {
-        Self(deserializer, Mut::Borrowed(transformer))
+        Self(deserializer, Mut::Borrowed(transformer), false)
+    }
+
+    fn key(deserializer: D, transformer: &'a mut T) -> Self {
+        Self(deserializer, Mut::Borrowed(transformer), true)
     }
 }
 
 impl<'de, 'a, D, T> de::Deserializer<'de> for Deserializer<'a, D, T>
 where
     D: de::Deserializer<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     type Error = D::Error;
 
@@ -190,70 +198,80 @@ where
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_any(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_any(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_bool<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_bool(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_bool(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_i8<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_i8(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_i8(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_i16<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_i16(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_i16(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_i32<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_i32(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_i32(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_i64<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_i64(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_i64(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_u8<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_u8(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_u8(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_u16<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_u16(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_u16(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_u32<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_u32(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_u32(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_u64<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_u64(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_u64(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     serde::serde_if_integer128! {
@@ -261,14 +279,14 @@ where
         where
             V: de::Visitor<'de>,
         {
-            self.0.deserialize_i128(Visitor(visitor, self.1.as_mut()))
+            self.0.deserialize_i128(Visitor(visitor, self.1.as_mut(), self.2))
         }
 
         fn deserialize_u128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: de::Visitor<'de>,
         {
-            self.0.deserialize_u128(Visitor(visitor, self.1.as_mut()))
+            self.0.deserialize_u128(Visitor(visitor, self.1.as_mut(), self.2))
         }
     }
 
@@ -276,42 +294,48 @@ where
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_f32(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_f32(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_f64<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_f64(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_f64(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_char<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_char(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_char(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_str<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_str(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_str(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_string<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_string(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_string(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_bytes<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_bytes(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_bytes(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_byte_buf<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -319,21 +343,23 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_byte_buf(Visitor(visitor, self.1.as_mut()))
+            .deserialize_byte_buf(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_option<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_option(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_option(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_unit<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_unit(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_unit(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_unit_struct<V>(
@@ -345,7 +371,7 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_unit_struct(name, Visitor(visitor, self.1.as_mut()))
+            .deserialize_unit_struct(name, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_newtype_struct<V>(
@@ -357,14 +383,15 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_newtype_struct(name, Visitor(visitor, self.1.as_mut()))
+            .deserialize_newtype_struct(name, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_seq<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_seq(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_seq(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_tuple<V>(mut self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
@@ -372,7 +399,7 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_tuple(len, Visitor(visitor, self.1.as_mut()))
+            .deserialize_tuple(len, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_tuple_struct<V>(
@@ -385,14 +412,15 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_tuple_struct(name, len, Visitor(visitor, self.1.as_mut()))
+            .deserialize_tuple_struct(name, len, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_map<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        self.0.deserialize_map(Visitor(visitor, self.1.as_mut()))
+        self.0
+            .deserialize_map(Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_struct<V>(
@@ -405,7 +433,7 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_struct(name, fields, Visitor(visitor, self.1.as_mut()))
+            .deserialize_struct(name, fields, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_enum<V>(
@@ -418,7 +446,7 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_enum(name, variants, Visitor(visitor, self.1.as_mut()))
+            .deserialize_enum(name, variants, Visitor(visitor, self.1.as_mut(), self.2))
     }
 
     fn deserialize_identifier<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -426,7 +454,7 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_identifier(Visitor(visitor, self.1.as_mut()))
+            .deserialize_identifier(Visitor(visitor, self.1.as_mut(), true))
     }
 
     fn deserialize_ignored_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -434,16 +462,16 @@ where
         V: de::Visitor<'de>,
     {
         self.0
-            .deserialize_ignored_any(Visitor(visitor, self.1.as_mut()))
+            .deserialize_ignored_any(Visitor(visitor, self.1.as_mut(), self.2))
     }
 }
 
-struct Visitor<'a, V, T>(V, &'a mut T);
+struct Visitor<'a, V, T>(V, &'a mut T, bool);
 
 impl<'de, 'a, V, T> de::Visitor<'de> for Visitor<'a, V, T>
 where
     V: de::Visitor<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     type Value = V::Value;
 
@@ -553,10 +581,13 @@ where
     where
         E: de::Error,
     {
-        match self.1.transform_str(v) {
+        self.1.push_path(v);
+        let res = match self.1.transform_str(v) {
             Cow::Borrowed(v) => self.0.visit_borrowed_str(v),
             Cow::Owned(v) => self.0.visit_string(v),
-        }
+        };
+        self.1.pop_path();
+        res
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -648,7 +679,7 @@ struct SeqAccess<'a, A, T>(A, &'a mut T);
 impl<'de, 'a, A, T> de::SeqAccess<'de> for SeqAccess<'a, A, T>
 where
     A: de::SeqAccess<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     type Error = A::Error;
 
@@ -660,7 +691,7 @@ where
     where
         S: de::DeserializeSeed<'de>,
     {
-        self.0.next_element_seed(DeserializeSeed(seed, self.1))
+        self.0.next_element_seed(DeserializeValueSeed(seed, self.1))
     }
 }
 
@@ -669,7 +700,7 @@ struct MapAccess<'a, A, T>(A, &'a mut T);
 impl<'de, 'a, A, T> de::MapAccess<'de> for MapAccess<'a, A, T>
 where
     A: de::MapAccess<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     type Error = A::Error;
 
@@ -678,23 +709,23 @@ where
         K: de::DeserializeSeed<'de>,
     {
         // NOTE: No transform on keys.
-        self.0.next_key_seed(seed)
+        self.0.next_key_seed(DeserializeKeySeed(seed, self.1))
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        self.0.next_value_seed(DeserializeSeed(seed, self.1))
+        self.0.next_value_seed(DeserializeValueSeed(seed, self.1))
     }
 }
 
-struct DeserializeSeed<'a, D, T>(D, &'a mut T);
+struct DeserializeValueSeed<'a, D, T>(D, &'a mut T);
 
-impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeSeed<'a, D, T>
+impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeValueSeed<'a, D, T>
 where
     D: de::DeserializeSeed<'de>,
-    T: Transform,
+    T: Transform<'de>,
 {
     type Value = D::Value;
 
@@ -704,5 +735,22 @@ where
     {
         self.0
             .deserialize(Deserializer::borrowed(deserializer, self.1))
+    }
+}
+
+struct DeserializeKeySeed<'a, D, T>(D, &'a mut T);
+
+impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeKeySeed<'a, D, T>
+where
+    D: de::DeserializeSeed<'de>,
+    T: Transform<'de>,
+{
+    type Value = D::Value;
+
+    fn deserialize<X>(self, deserializer: X) -> Result<Self::Value, X::Error>
+    where
+        X: serde::Deserializer<'de>,
+    {
+        self.0.deserialize(Deserializer::key(deserializer, self.1))
     }
 }

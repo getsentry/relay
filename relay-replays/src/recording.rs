@@ -68,13 +68,13 @@ impl From<serde_json::Error> for ParseRecordingError {
     }
 }
 
-static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
-    ProcessingState::root().enter_static(
-        "",
-        Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
-        Some(ValueType::String),
-    )
-});
+// static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
+//     ProcessingState::root().enter_static(
+//         "",
+//         Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
+//         Some(ValueType::String),
+//     )
+// });
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
@@ -82,9 +82,18 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 struct ScrubberTransform<'a> {
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
+    state: ProcessingState<'a>,
 }
 
-impl Transform for &'_ mut ScrubberTransform<'_> {
+impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
+    fn push_path(&mut self, key: &'de str) {
+        // TODO: PII
+        self.state
+            .enter_borrowed(key, None, Some(ValueType::Object));
+    }
+
+    fn pop_path(&mut self) {}
+
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
@@ -92,7 +101,7 @@ impl Transform for &'_ mut ScrubberTransform<'_> {
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
         if let Some(ref mut processor) = self.processor1 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
@@ -101,7 +110,7 @@ impl Transform for &'_ mut ScrubberTransform<'_> {
 
         if let Some(ref mut processor) = self.processor2 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
@@ -255,6 +264,7 @@ impl<'a> RecordingScrubber<'a> {
             transform: Rc::new(RefCell::new(ScrubberTransform {
                 processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
                 processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+                state: ProcessingState::new_root(None, None),
             })),
         }
     }
