@@ -9,7 +9,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, EnvelopeHeaders, Item};
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -312,9 +312,11 @@ impl ManagedEnvelope {
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
     pub fn estimated_size(&self) -> usize {
-        self.context.summary.payload_size
-            + size_of::<EnvelopeContext>()
-            + size_of::<EnvelopeHeaders>()
+        // Always round it up to next 100 bytes.
+        (f64::ceil(
+            (self.context.summary.payload_size + size_of::<Envelope>() + size_of::<Self>()) as f64
+                / 100.,
+        ) * 100.) as usize
     }
 
     /// Returns the instant at which the envelope was received at this Relay.

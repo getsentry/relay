@@ -686,7 +686,7 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 1024, // 1KB limit
+                    "max_memory_size": 2048, // 2KB limit
                 }
             }
         }))
@@ -752,17 +752,17 @@ mod tests {
         assert_debug_snapshot!(captures, @r###"
         [
             "service.back_pressure:0|g|#service:project_cache",
-            "buffer.envelopes_mem:808|h",
-            "buffer.envelopes_mem:1616|h",
+            "buffer.envelopes_mem:1600|h",
+            "buffer.envelopes_mem:3200|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:808|h",
-            "buffer.envelopes_mem:1616|h",
+            "buffer.envelopes_mem:1600|h",
+            "buffer.envelopes_mem:3200|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:808|h",
+            "buffer.envelopes_mem:1600|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
             "buffer.disk_size:24576|h",
