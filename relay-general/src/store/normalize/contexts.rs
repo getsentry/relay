@@ -237,6 +237,8 @@ mod tests {
             &"A13 Pro Max 5G EEA"
         );
 
+        assert_eq!(ANDROID_MODEL_NAMES.get("ZT216_7").unwrap(), &"zyrex");
+
         assert!(ANDROID_MODEL_NAMES.get("foobar").is_none());
     }
 

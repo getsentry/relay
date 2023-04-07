@@ -19,14 +19,21 @@ pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy
     let header = lines.next().expect("CSV file should have a header");
 
     let header_fields: Vec<&str> = header.split(',').collect();
-    let model_index = header_fields
-        .iter()
-        .position(|&s| s.trim() == "Model")
-        .unwrap();
+    let model_index = header_fields.iter().position(|&s| s.trim() == "Model");
     let product_name_index = header_fields
         .iter()
-        .position(|&s| s.trim() == "Marketing Name")
-        .unwrap();
+        .position(|&s| s.trim() == "Marketing Name");
+
+    let (model_index, product_name_index) = match (model_index, product_name_index) {
+        (Some(model_index), Some(product_name_index)) => (model_index, product_name_index),
+        (_, _) => {
+            relay_log::error!(
+                "Failed to find Model and/or Marketing Name headers for android-model map",
+            );
+
+            return HashMap::new();
+        }
+    };
 
     for line in lines {
         let fields: Vec<&str> = line.split(',').collect();
