@@ -309,32 +309,34 @@ impl BufferService {
         db: &Pool<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
+        let envelopes = buffer
+            .into_iter()
+            .flat_map(|(key, values)| values.into_iter().map(move |value| (key, value)))
+            .filter_map(|(key, managed)| match managed.into_envelope().to_vec() {
+                Ok(vec) => Some((key, vec)),
+                Err(err) => {
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                    None
+                }
+            });
+
+        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+        // here to prepare the chunks which will be preparing the batch inserts.
+        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
 
-        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        let mut envelopes = stream::iter(buffer.into_iter())
-            .flat_map(|(key, values)| {
-                stream::iter(values.into_iter())
-                    .map(move |value| (key, value.into_envelope().to_vec()))
-            })
-            .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| match value {
-                Ok(value) => {
-                    b.push_bind(key.own_key.to_string())
-                        .push_bind(key.sampling_key.to_string())
-                        .push_bind(value);
-                }
-                Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                }
+            query_builder.push_values(chunk, |mut b, (key, value)| {
+                b.push_bind(key.own_key.to_string())
+                    .push_bind(key.sampling_key.to_string())
+                    .push_bind(value);
             });
+
             query_builder.build().execute(db).await?;
             relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
 
@@ -342,6 +344,7 @@ impl BufferService {
             // so it can be reused for another chunk.
             query_builder.reset();
         }
+
         Ok(())
     }
 
