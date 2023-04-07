@@ -581,10 +581,37 @@
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Empty};
 
 <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -787,7 +814,17 @@
         Context::Runtime(runtime) =&gt; normalize_runtime_context(runtime),
         Context::Os(os) =&gt; normalize_os_context(os),
         Context::Response(response) =&gt; normalize_response(response),
-        <span class="kw">_ </span>=&gt; (),
+        Context::Device(device) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(product_name) = device
+                .as_ref()
+                .model
+                .value()
+                .and_then(|model| ANDROID_MODEL_NAMES.get(model.as_str()))
+            {
+                device.name.set_value(<span class="prelude-val">Some</span>(product_name.to_string()))
+            }
+        }
+        <span class="kw">_ </span>=&gt; {}
     }
 }
 
@@ -797,6 +834,23 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::LenientString;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_get_product_name() {
+        <span class="macro">assert_eq!</span>(
+            ANDROID_MODEL_NAMES.get(<span class="string">&quot;NE2211&quot;</span>).unwrap(),
+            <span class="kw-2">&amp;</span><span class="string">&quot;OnePlus 10 Pro 5G&quot;
+        </span>);
+
+        <span class="macro">assert_eq!</span>(
+            ANDROID_MODEL_NAMES.get(<span class="string">&quot;MP04&quot;</span>).unwrap(),
+            <span class="kw-2">&amp;</span><span class="string">&quot;A13 Pro Max 5G EEA&quot;
+        </span>);
+
+        <span class="macro">assert_eq!</span>(ANDROID_MODEL_NAMES.get(<span class="string">&quot;ZT216_7&quot;</span>).unwrap(), <span class="kw-2">&amp;</span><span class="string">&quot;zyrex&quot;</span>);
+
+        <span class="macro">assert!</span>(ANDROID_MODEL_NAMES.get(<span class="string">&quot;foobar&quot;</span>).is_none());
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_dotnet_framework_48_without_build_id() {
