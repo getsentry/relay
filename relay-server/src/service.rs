@@ -43,7 +43,7 @@ pub enum ServiceError {
     Redis,
 }
 
-/// Adds registry function to the implementer.
+/// Service registry which contains all the central services running in Relay.
 pub trait ServiceRegistry {
     /// Returns the services registry.
     fn registry(&self) -> &Registry;
@@ -90,7 +90,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    pub registry: Box<Registry>,
+    registry: Box<Registry>,
     _aggregator_runtime: Arc<Runtime>,
     _outcome_runtime: Arc<Runtime>,
     _project_runtime: Arc<Runtime>,

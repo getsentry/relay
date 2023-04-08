@@ -15,7 +15,7 @@ use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
 use crate::extractors::SignedJson;
-use crate::service::ServiceState;
+use crate::service::{ServiceRegistry, ServiceState};
 
 /// V2 version of this endpoint.
 ///
@@ -98,7 +98,7 @@ async fn inner(
     body: SignedJson<GetProjectStatesRequest>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
-    let project_cache = &state.registry.project_cache.clone();
+    let project_cache = &state.registry().project_cache.clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
