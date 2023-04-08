@@ -16,7 +16,9 @@ use sqlx::sqlite::{
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
+use crate::actors::outcome::TrackOutcome;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
+use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
@@ -184,7 +186,9 @@ struct BufferSpoolConfig {
 pub struct BufferService {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
+    outcome_aggregator: Addr<TrackOutcome>,
     project_cache: Addr<ProjectCache>,
+    test_store: Addr<TestStore>,
     spool_config: Option<BufferSpoolConfig>,
     count_mem_envelopes: i64,
 
@@ -210,13 +214,17 @@ impl BufferService {
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
         buffer_guard: Arc<BufferGuard>,
+        outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        test_store: Addr<TestStore>,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let mut service = Self {
             buffer: BTreeMap::new(),
             buffer_guard,
+            outcome_aggregator,
             project_cache,
+            test_store,
             count_mem_envelopes: 0,
             spool_config: None,
             #[cfg(test)]
@@ -395,9 +403,17 @@ impl BufferService {
         let envelope = Envelope::parse_bytes(envelope_bytes)?;
         #[cfg(test)]
         if self.untracked {
-            return Ok(ManagedEnvelope::untracked(envelope));
+            return Ok(ManagedEnvelope::untracked(
+                envelope,
+                self.outcome_aggregator.clone(),
+                self.test_store.clone(),
+            ));
         }
-        let managed_envelope = self.buffer_guard.enter(envelope)?;
+        let managed_envelope = self.buffer_guard.enter(
+            envelope,
+            self.outcome_aggregator.clone(),
+            self.test_store.clone(),
+        )?;
         Ok(managed_envelope)
     }
 
@@ -668,13 +684,22 @@ mod tests {
 
     use super::*;
 
+    fn services() -> (Addr<ProjectCache>, Addr<TrackOutcome>, Addr<TestStore>) {
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+
+        (project_cache, outcome_aggregator, test_store)
+    }
+
     fn empty_envelope() -> ManagedEnvelope {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
-        ManagedEnvelope::untracked(envelope)
+        let (_, outcome_aggregator, test_store) = services();
+        ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
     }
 
     #[test]
@@ -702,13 +727,16 @@ mod tests {
             .unwrap();
         let _guard = rt.enter();
 
+        let (project_cache, outcome_aggregator, test_store) = services();
+
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
                 let mut service = BufferService::create(
-                    buffer_guard.clone(),
-                    project_cache.clone(),
-                    config.clone(),
+                    buffer_guard,
+                    outcome_aggregator,
+                    project_cache,
+                    test_store,
+                    config,
                 )
                 .await
                 .unwrap();
@@ -747,9 +775,14 @@ mod tests {
             })
         });
 
+        // Collect only the buffer metrics.
+        let captures: Vec<_> = captures
+            .into_iter()
+            .filter(|name| !name.contains("#service"))
+            .collect();
+
         assert_debug_snapshot!(captures, @r###"
         [
-            "service.back_pressure:0|g|#service:project_cache",
             "buffer.envelopes_mem:1|h",
             "buffer.envelopes_mem:2|h",
             "buffer.envelopes_mem:3|h",

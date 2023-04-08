@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use once_cell::race::OnceBox;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
@@ -26,8 +25,6 @@ use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::BufferGuard;
 
-pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
-
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServiceError {
@@ -44,6 +41,12 @@ pub enum ServiceError {
     /// Initializing the Redis cluster client failed.
     #[error("could not initialize redis cluster client")]
     Redis,
+}
+
+/// Adds registry function to the implementer.
+pub trait ServiceRegistry {
+    /// Returns the services registry.
+    fn registry(&self) -> &Registry;
 }
 
 #[derive(Clone)]
@@ -87,6 +90,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    pub registry: Box<Registry>,
     _aggregator_runtime: Arc<Runtime>,
     _outcome_runtime: Arc<Runtime>,
     _project_runtime: Arc<Runtime>,
@@ -149,6 +153,7 @@ impl ServiceState {
             config.clone(),
             aggregator.clone(),
             processor.clone(),
+            project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
         );
@@ -165,17 +170,22 @@ impl ServiceState {
 
         // Keep all the services in one context.
         let project_cache_services = Services::new(
-            buffer.clone(),
             aggregator.clone(),
             processor.clone(),
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
+            test_store.clone(),
             upstream_relay.clone(),
         );
         let guard = project_runtime.enter();
-        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
-            .spawn_handler(project_cache_rx);
+        ProjectCacheService::new(
+            config.clone(),
+            buffer.clone(),
+            project_cache_services,
+            redis_pool,
+        )
+        .spawn_handler(project_cache_rx);
         drop(guard);
 
         let health_check =
@@ -189,24 +199,23 @@ impl ServiceState {
             }
         }
 
-        REGISTRY
-            .set(Box::new(Registry {
-                aggregator,
-                processor,
-                health_check,
-                outcome_producer,
-                outcome_aggregator,
-                envelope_manager,
-                test_store,
-                relay_cache,
-                project_cache,
-                upstream_relay,
-            }))
-            .unwrap();
+        let registry = Box::new(Registry {
+            aggregator,
+            processor,
+            health_check,
+            outcome_producer,
+            outcome_aggregator,
+            envelope_manager,
+            test_store,
+            relay_cache,
+            project_cache,
+            upstream_relay,
+        });
 
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
+            registry,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _project_runtime: Arc::new(project_runtime),
@@ -226,6 +235,12 @@ impl ServiceState {
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
         &self.buffer_guard
+    }
+}
+
+impl ServiceRegistry for ServiceState {
+    fn registry(&self) -> &Registry {
+        &self.registry
     }
 }
 

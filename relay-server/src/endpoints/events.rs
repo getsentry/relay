@@ -5,14 +5,18 @@ use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use relay_general::protocol::EventId;
 
-use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
+use crate::actors::test_store::GetCapturedEnvelope;
 use crate::endpoints::common::ServiceUnavailable;
 use crate::envelope;
+use crate::service::ServiceState;
 
 pub async fn handle(
+    state: ServiceState,
     Path(event_id): Path<EventId>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
-    let envelope_opt = TestStore::from_registry()
+    let envelope_opt = state
+        .registry
+        .test_store
         .send(GetCapturedEnvelope { event_id })
         .await?;
 

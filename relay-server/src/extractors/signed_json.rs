@@ -7,7 +7,8 @@ use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
 
-use crate::actors::relays::{GetRelay, RelayCache};
+use crate::actors::relays::GetRelay;
+use crate::service::ServiceRegistry;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug)]
@@ -77,7 +78,7 @@ where
     B: axum::body::HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
-    S: Send + Sync,
+    S: Send + Sync + ServiceRegistry,
 {
     type Rejection = SignatureError;
 
@@ -91,7 +92,9 @@ where
 
         let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 
-        let relay = RelayCache::from_registry()
+        let relay = state
+            .registry()
+            .relay_cache
             .send(GetRelay { relay_id })
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
