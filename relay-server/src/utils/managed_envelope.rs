@@ -313,10 +313,7 @@ impl ManagedEnvelope {
     pub fn estimated_size(&self) -> usize {
         // Always round it up to next 100 bytes.
         (f64::ceil(
-            (self.context.summary.payload_size
-                + size_of::<Self>()
-                + size_of::<Envelope>()
-                + size_of::<EnvelopeContext>()) as f64
+            (self.context.summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64
                 / 100.,
         ) * 100.) as usize
     }
