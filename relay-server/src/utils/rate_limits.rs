@@ -175,7 +175,7 @@ impl EnvelopeSummary {
                 continue;
             }
 
-            summary.payload_size += item.payload().len();
+            summary.payload_size += item.len();
             summary.set_quantity(item);
         }
 
