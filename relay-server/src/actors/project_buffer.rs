@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -47,6 +48,9 @@ pub enum BufferError {
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
+
+    #[error("failed to get request start time from the spool entry")]
+    RequestStartTimeError,
 
     #[error("failed to run migrations")]
     MigrationFailed(#[from] MigrateError),
@@ -311,14 +315,29 @@ impl BufferService {
     ) -> Result<(), BufferError> {
         let envelopes = buffer
             .into_iter()
-            .flat_map(|(key, values)| values.into_iter().map(move |value| (key, value)))
-            .filter_map(|(key, managed)| match managed.into_envelope().to_vec() {
-                Ok(vec) => Some((key, vec)),
-                Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                    None
-                }
-            });
+            .flat_map(|(key, values)| {
+                values.into_iter().map(move |value| {
+                    (
+                        key,
+                        value
+                            .start_time()
+                            .elapsed()
+                            .as_millis()
+                            .to_be_bytes()
+                            .to_vec(),
+                        value,
+                    )
+                })
+            })
+            .filter_map(
+                |(key, start_time, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, start_time)),
+                    Err(err) => {
+                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                        None
+                    }
+                },
+            );
 
         // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
         // here to prepare the chunks which will be preparing the batch inserts.
@@ -327,12 +346,14 @@ impl BufferService {
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
-        let mut query_builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT INTO envelopes (processing_time, own_key, sampling_key, envelope) ",
+        );
 
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| {
-                b.push_bind(key.own_key.to_string())
+            query_builder.push_values(chunk, |mut b, (key, value, start_time)| {
+                b.push_bind(start_time)
+                    .push_bind(key.own_key.to_string())
                     .push_bind(key.sampling_key.to_string())
                     .push_bind(value);
             });
@@ -392,7 +413,21 @@ impl BufferService {
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
         let envelope_row: Vec<u8> = row.try_get("envelope")?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let envelope = Envelope::parse_bytes(envelope_bytes)?;
+        let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
+
+        let processing_time_row: Vec<u8> = row.try_get("processing_time")?;
+        let processing_time = u128::from_be_bytes(
+            processing_time_row
+                .try_into()
+                .map_err(|_| BufferError::RequestStartTimeError)?,
+        );
+        let elapsed = Duration::from_millis(processing_time.try_into().unwrap_or_default());
+        let start_time = Instant::now()
+            .checked_add(elapsed)
+            .ok_or(BufferError::RequestStartTimeError)?;
+
+        envelope.set_start_time(start_time);
+
         #[cfg(test)]
         if self.untracked {
             return Ok(ManagedEnvelope::untracked(envelope));
@@ -453,7 +488,11 @@ impl BufferService {
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
             let mut envelopes = sqlx::query(
-                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
+                "DELETE FROM
+                    envelopes
+                 WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
+                 RETURNING
+                    envelope, processing_time",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
