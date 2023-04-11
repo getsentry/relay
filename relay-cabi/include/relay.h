@@ -42,6 +42,9 @@ enum RelayDataCategory {
   RELAY_DATA_CATEGORY_SESSION = 5,
   /**
    * A profile
+   *
+   * This is the category for profiles sent alongside transactions but the transaction was
+   * dropped.
    */
   RELAY_DATA_CATEGORY_PROFILE = 6,
   /**
@@ -62,6 +65,16 @@ enum RelayDataCategory {
    * contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
    */
   RELAY_DATA_CATEGORY_TRANSACTION_INDEXED = 9,
+  /**
+   * Monitor check-ins.
+   */
+  RELAY_DATA_CATEGORY_MONITOR = 10,
+  /**
+   * Index Profile
+   *
+   * This is the category for profiles that were accepted and stored in full.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_INDEXED = 11,
   /**
    * Any other data category not known by this Relay.
    */
@@ -549,12 +562,10 @@ bool relay_is_glob_match(const struct RelayBuf *value,
                          GlobFlags flags);
 
 /**
- * Converts a codeowners path into a regex and searches for match against the provided value.
- *
- * Returns `true` if the regex matches, `false` otherwise.
+ * Returns `true` if the codeowners path matches the value, `false` otherwise.
  */
 bool relay_is_codeowners_path_match(const struct RelayBuf *value,
-                         const struct RelayStr *pat);
+                                    const struct RelayStr *pattern);
 
 /**
  * Parse a sentry release structure from a string.
@@ -580,9 +591,11 @@ struct RelayStr relay_validate_sampling_condition(const struct RelayStr *value);
 struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 /**
- * Validate entire project config. If `strict` is true, verify that reserializing the parsed
- * config results in the same fields as the original.
+ * Validate entire project config.
+ *
+ * If `strict` is true, checks for unknown fields in the input.
  */
-struct RelayStr relay_validate_project_config(const struct RelayStr *value, bool strict);
+struct RelayStr relay_validate_project_config(const struct RelayStr *value,
+                                              bool strict);
 
 #endif /* RELAY_H_INCLUDED */

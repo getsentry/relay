@@ -107,6 +107,9 @@ pub enum DataCategory {
     /// Session updates. Quantity is the number of updates in the batch.
     Session = 5,
     /// A profile
+    ///
+    /// This is the category for profiles sent alongside transactions but the transaction was
+    /// dropped.
     Profile = 6,
     /// Session Replays
     Replay = 7,
@@ -122,6 +125,10 @@ pub enum DataCategory {
     TransactionIndexed = 9,
     /// Monitor check-ins.
     Monitor = 10,
+    /// Index Profile
+    ///
+    /// This is the category for profiles that were accepted and stored in full.
+    ProfileIndexed = 11,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -144,6 +151,7 @@ impl DataCategory {
             "attachment" => Self::Attachment,
             "session" => Self::Session,
             "profile" => Self::Profile,
+            "profile_indexed" => Self::ProfileIndexed,
             "replay" => Self::Replay,
             "transaction_processed" => Self::TransactionProcessed,
             "transaction_indexed" => Self::TransactionIndexed,
