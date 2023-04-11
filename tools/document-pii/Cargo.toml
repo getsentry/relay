@@ -20,6 +20,8 @@ quote = "1.0"
 walkdir = "2.3.3"
 toml = "0.7.3"
 proc-macro2 = "1.0"
+lazy_static = "1.4"
+
 
 
 
