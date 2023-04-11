@@ -58,7 +58,8 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
+use crate::metrics_extraction::transactions::extract_transaction_metrics;
+use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -2215,9 +2216,6 @@ impl EnvelopeProcessorService {
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    scrub_identifiers: state
-                        .project_state
-                        .has_feature(Feature::TransactionNameNormalize),
                     mark_scrubbed_as_sanitized: state
                         .project_state
                         .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
@@ -3366,7 +3364,6 @@ mod tests {
             log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
-                        scrub_identifiers: true,
                         mark_scrubbed_as_sanitized: false,
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),

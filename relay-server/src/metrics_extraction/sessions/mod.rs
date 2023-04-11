@@ -1,15 +1,15 @@
-use std::collections::BTreeMap;
-
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::{Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::Metric;
 
-use super::utils::with_tag;
+use crate::metrics_extraction::sessions::types::{
+    CommonTags, SessionMetric, SessionSessionTags, SessionUserTags,
+};
+use crate::metrics_extraction::IntoMetric;
 
-/// Namespace of session metrics for the MRI.
-const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
+pub mod types;
 
 /// Convert contained nil UUIDs to None
 fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
@@ -38,125 +38,136 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     };
 
-    let mut tags = BTreeMap::new();
-    tags.insert("release".to_owned(), attributes.release.clone());
-    if let Some(ref environment) = attributes.environment {
-        tags.insert("environment".to_owned(), environment.clone());
-    }
-    if let Some(client) = client {
-        tags.insert("sdk".to_owned(), client.to_owned());
-    }
+    let common_tags = CommonTags {
+        release: attributes.release.clone(),
+        environment: attributes.environment.clone(),
+        sdk: client.map(|s| s.to_string()),
+    };
 
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
-        target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
-            MetricUnit::None,
-            MetricValue::Counter(session.total_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", "init"),
-        ));
+        target.push(
+            SessionMetric::Session {
+                counter: session.total_count() as f64,
+                tags: SessionSessionTags {
+                    status: "init".to_string(),
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
     }
 
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.all_errors() {
         target.push(match errors {
-            SessionErrored::Individual(session_id) => Metric::new_mri(
-                METRIC_NAMESPACE,
-                "error",
-                MetricUnit::None,
-                MetricValue::set_from_display(session_id),
-                timestamp,
-                tags.clone(),
-            ),
-            SessionErrored::Aggregated(count) => Metric::new_mri(
-                METRIC_NAMESPACE,
-                "session",
-                MetricUnit::None,
-                MetricValue::Counter(count as f64),
-                timestamp,
-                with_tag(&tags, "session.status", "errored_preaggr"),
-            ),
+            SessionErrored::Individual(session_id) => SessionMetric::Error {
+                session_id,
+                tags: common_tags.clone(),
+            }
+            .into_metric(timestamp),
+
+            SessionErrored::Aggregated(count) => SessionMetric::Session {
+                counter: count as f64,
+                tags: SessionSessionTags {
+                    status: "errored_preaggr".to_string(),
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                with_tag(&tags, "session.status", "errored"),
-            ));
+            target.push(
+                SessionMetric::User {
+                    distinct_id: distinct_id.clone(),
+                    tags: SessionUserTags {
+                        status: Some(SessionStatus::Errored),
+                        abnormal_mechanism: None,
+                        common_tags: common_tags.clone(),
+                    },
+                }
+                .into_metric(timestamp),
+            );
         }
     } else if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
         // For session updates without errors, we collect the user without a session.status tag.
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
-        target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "user",
-            MetricUnit::None,
-            MetricValue::set_from_str(distinct_id),
-            timestamp,
-            tags.clone(),
-        ));
+        target.push(
+            SessionMetric::User {
+                distinct_id: distinct_id.clone(),
+                tags: SessionUserTags {
+                    status: None,
+                    abnormal_mechanism: None,
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        )
     }
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
-            MetricUnit::None,
-            MetricValue::Counter(session.abnormal_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", SessionStatus::Abnormal),
-        ));
+        target.push(
+            SessionMetric::Session {
+                counter: session.abnormal_count() as f64,
+                tags: SessionSessionTags {
+                    status: "abnormal".to_string(),
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            let mut tags_for_abnormal_session =
-                with_tag(&tags, "session.status", SessionStatus::Abnormal);
-            if extract_abnormal_mechanism && session.abnormal_mechanism() != AbnormalMechanism::None
+            let abnormal_mechanism = if extract_abnormal_mechanism
+                && session.abnormal_mechanism() != AbnormalMechanism::None
             {
-                tags_for_abnormal_session.insert(
-                    "abnormal_mechanism".to_owned(),
-                    session.abnormal_mechanism().to_string(),
-                );
-            }
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                tags_for_abnormal_session,
-            ));
+                Some(session.abnormal_mechanism().to_string())
+            } else {
+                None
+            };
+            target.push(
+                SessionMetric::User {
+                    distinct_id: distinct_id.clone(),
+                    tags: SessionUserTags {
+                        status: Some(SessionStatus::Abnormal),
+                        abnormal_mechanism,
+                        common_tags: common_tags.clone(),
+                    },
+                }
+                .into_metric(timestamp),
+            )
         }
     }
 
     if session.crashed_count() > 0 {
-        target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "session",
-            MetricUnit::None,
-            MetricValue::Counter(session.crashed_count() as f64),
-            timestamp,
-            with_tag(&tags, "session.status", SessionStatus::Crashed),
-        ));
+        target.push(
+            SessionMetric::Session {
+                counter: session.crashed_count() as f64,
+                tags: SessionSessionTags {
+                    status: "crashed".to_string(),
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                with_tag(&tags, "session.status", SessionStatus::Crashed),
-            ));
+            target.push(
+                SessionMetric::User {
+                    distinct_id: distinct_id.clone(),
+                    tags: SessionUserTags {
+                        status: Some(SessionStatus::Crashed),
+                        abnormal_mechanism: None,
+                        common_tags,
+                    },
+                }
+                .into_metric(timestamp),
+            );
         }
     }
 }

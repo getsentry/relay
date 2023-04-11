@@ -726,31 +726,70 @@ impl Default for Http {
     }
 }
 
-fn buffer_max_connections() -> u32 {
-    30
+/// Default for max memory size, 500 MB.
+fn spool_envelopes_max_memory_size() -> usize {
+    524288000
 }
 
-fn buffer_min_connections() -> u32 {
+/// Default for max disk size, 500 MB.
+fn spool_envelopes_max_disk_size() -> usize {
+    524288000
+}
+
+/// Default for min connections to keep open in the pool.
+fn spool_envelopes_min_connections() -> u32 {
     10
 }
 
-/// Controls internal caching behavior.
+/// Default for max connections to keep open in the pool.
+fn spool_envelopes_max_connections() -> u32 {
+    20
+}
+
+/// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PersistentBuffer {
-    /// The path to the persistent buffer file.
-    path: PathBuf,
+pub struct EnvelopeSpool {
+    /// The path to the persistent spool file.
+    ///
+    /// If set, this will enable the buffering for incoming envelopes.
+    path: Option<PathBuf>,
     /// Maximum number of connections, which will be maintained by the pool.
-    #[serde(default = "buffer_max_connections")]
+    #[serde(default = "spool_envelopes_max_connections")]
     max_connections: u32,
     /// Minimal number of connections, which will be maintained by the pool.
-    #[serde(default = "buffer_min_connections")]
+    #[serde(default = "spool_envelopes_min_connections")]
     min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the befault is 10737418240 bytes or 10 GB.
-    max_disk_size: Option<usize>,
-    /// The maximum number of envelopes to keep in the memory buffer before spooling them to disk.
-    max_memory_size: Option<usize>,
+    /// If not set the befault is 524288000 bytes (500MB).
+    #[serde(default = "spool_envelopes_max_disk_size")]
+    max_disk_size: usize,
+    /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
+    ///
+    /// This is a hard upper bound. Internally, this is converted to an envelope count by dividing
+    /// this number by the maximum envelope size, so in practice, because the avg. envelope
+    /// size is well below the maximum, we start spooling to disk long before this hard limit is reached.
+    #[serde(default = "spool_envelopes_max_memory_size")]
+    max_memory_size: usize,
+}
+
+impl Default for EnvelopeSpool {
+    fn default() -> Self {
+        Self {
+            path: None,
+            max_connections: spool_envelopes_max_connections(),
+            min_connections: spool_envelopes_min_connections(),
+            max_disk_size: spool_envelopes_max_disk_size(),
+            max_memory_size: spool_envelopes_max_memory_size(),
+        }
+    }
+}
+
+/// Persistent buffering configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Spool {
+    #[serde(default)]
+    envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
@@ -786,11 +825,6 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
-    /// The settings to configure persistent buffering.
-    ///
-    /// When enabled all incoming envelopes will be persisted to the disk instead of keeping
-    /// them in memory.
-    persistent_envelope_buffer: Option<PersistentBuffer>,
 }
 
 impl Default for Cache {
@@ -806,7 +840,6 @@ impl Default for Cache {
             batch_size: 500,
             file_interval: 10,     // 10 seconds
             eviction_interval: 60, // 60 seconds
-            persistent_envelope_buffer: None,
         }
     }
 }
@@ -1156,6 +1189,8 @@ struct ConfigValues {
     http: Http,
     #[serde(default)]
     cache: Cache,
+    #[serde(default)]
+    spool: Spool,
     #[serde(default)]
     limits: Limits,
     #[serde(default)]
@@ -1699,63 +1734,34 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
-    /// Returns `true` if the persistent envelope buffer is enabled, `false` otherwise.
-    pub fn cache_persistent_buffer_enabled(&self) -> bool {
-        self.values.cache.persistent_envelope_buffer.is_some()
-    }
-
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
-    pub fn cache_persistent_buffer_path(&self) -> Option<PathBuf> {
+    pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
         self.values
-            .cache
-            .persistent_envelope_buffer
+            .spool
+            .envelopes
+            .path
             .as_ref()
-            .map(|b| b.path.to_owned())
+            .map(|path| path.to_owned())
     }
 
     /// Maximum number of connections to create to buffer file.
-    pub fn cache_persistent_buffer_max_connections(&self) -> u32 {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .map(|b| b.max_connections)
-            .unwrap_or(buffer_max_connections())
+    pub fn spool_envelopes_max_connections(&self) -> u32 {
+        self.values.spool.envelopes.max_connections
     }
 
     /// Minimum number of connections to create to buffer file.
-    pub fn cache_persistent_buffer_min_connections(&self) -> u32 {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .map(|b| b.min_connections)
-            .unwrap_or(buffer_min_connections())
+    pub fn spool_envelopes_min_connections(&self) -> u32 {
+        self.values.spool.envelopes.min_connections
     }
 
     /// The maximum size of the buffer, in bytes.
-    ///
-    /// Default: 10737418240 bytes or 10 GB.
-    pub fn cache_persistent_buffer_max_disk_size(&self) -> usize {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .and_then(|b| b.max_disk_size)
-            .unwrap_or(10 * 1024 * 1024 * 1024)
+    pub fn spool_envelopes_max_disk_size(&self) -> usize {
+        self.values.spool.envelopes.max_disk_size
     }
 
-    /// The maximum size of the memory buffer.
-    ///
-    /// Set to smaller between `cache.persistent_envelope_buffer.max_memory_size` and `cache.envelope_buffer_size`.
-    /// Default set to half of `cache.envelope_buffer_size`
-    pub fn cache_persistent_buffer_max_memory_size(&self) -> usize {
-        self.values
-            .cache
-            .persistent_envelope_buffer
-            .as_ref()
-            .and_then(|b| b.max_memory_size)
-            .unwrap_or(self.envelope_buffer_size() / 2)
+    /// The maximum size of the memory buffer, in bytes.
+    pub fn spool_envelopes_max_memory_size(&self) -> usize {
+        self.values.spool.envelopes.max_memory_size
     }
 
     /// Returns the maximum size of an event payload in bytes.

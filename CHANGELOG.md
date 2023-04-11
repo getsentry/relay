@@ -5,6 +5,7 @@
 **Internal**:
 
 - Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 
 **Breaking Changes**:
 
@@ -31,14 +32,18 @@ Metrics:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
 - Add replay_id onto event from dynamic sampling context. ([#1983](https://github.com/getsentry/relay/pull/1983))
+- Add product-name for devices, derived from the android model. ([#2004](https://github.com/getsentry/relay/pull/2004))
 - Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
+- Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
+- Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
 
 **Internal**:
 
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 - Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
+- Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 
 ## 23.3.1
 
