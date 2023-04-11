@@ -128,11 +128,15 @@
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.
 </span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
+<span class="kw">use </span>relay_common::Uuid;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
 
@@ -196,6 +200,8 @@
 
     <span class="doccomment">/// The SDK&#39;s sample rate as communicated via envelope headers.
     </span><span class="kw">pub </span>client_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+    <span class="doccomment">/// The replay_id associated with the current event communicated via envelope headers.
+    </span><span class="kw">pub </span>replay_id: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
 }
 
 <span class="doccomment">/// The processor that normalizes events for store.

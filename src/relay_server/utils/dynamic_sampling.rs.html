@@ -911,6 +911,7 @@
 <a href="#910" id="910">910</a>
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>std::net::IpAddr;
@@ -1139,6 +1140,7 @@
             transaction: transaction.map(|value| value.to_string()),
             sample_rate,
             user: Default::default(),
+            replay_id: Default::default(),
             other: Default::default(),
         }
     }

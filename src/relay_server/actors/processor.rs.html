@@ -3464,6 +3464,8 @@
 <a href="#3463" id="3463">3463</a>
 <a href="#3464" id="3464">3464</a>
 <a href="#3465" id="3465">3465</a>
+<a href="#3466" id="3466">3466</a>
+<a href="#3467" id="3467">3467</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5357,6 +5359,7 @@
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
             client_hints: envelope.meta().client_hints().to_owned(),
         };
 
@@ -6049,6 +6052,7 @@
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
+
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::{EventId, TransactionSource};
     <span class="kw">use </span>relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
