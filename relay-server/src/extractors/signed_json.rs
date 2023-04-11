@@ -8,7 +8,7 @@ use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
 
 use crate::actors::relays::GetRelay;
-use crate::service::ServiceRegistry;
+use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug)]
@@ -72,17 +72,19 @@ fn get_header<'a, B>(
 }
 
 #[axum::async_trait]
-impl<T, S, B> FromRequest<S, B> for SignedJson<T>
+impl<T, B> FromRequest<ServiceState, B> for SignedJson<T>
 where
     T: DeserializeOwned,
     B: axum::body::HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
-    S: Send + Sync + ServiceRegistry,
 {
     type Rejection = SignatureError;
 
-    async fn from_request(request: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(
+        request: Request<B>,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
         let relay_id = get_header(&request, "x-sentry-relay-id")?
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
@@ -93,8 +95,7 @@ where
         let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 
         let relay = state
-            .registry()
-            .relay_cache
+            .relay_cache()
             .send(GetRelay { relay_id })
             .await?
             .ok_or(SignatureError::UnknownRelay)?;

@@ -43,12 +43,6 @@ pub enum ServiceError {
     Redis,
 }
 
-/// Service registry which contains all the central services running in Relay.
-pub trait ServiceRegistry {
-    /// Returns the services registry.
-    fn registry(&self) -> &Registry;
-}
-
 #[derive(Clone)]
 pub struct Registry {
     pub aggregator: Addr<Aggregator>,
@@ -85,9 +79,8 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         .unwrap()
 }
 
-/// Server state.
-#[derive(Clone, Debug)]
-pub struct ServiceState {
+#[derive(Debug)]
+struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
     registry: Box<Registry>,
@@ -96,6 +89,12 @@ pub struct ServiceState {
     _project_runtime: Arc<Runtime>,
     _upstream_runtime: Arc<Runtime>,
     _store_runtime: Option<Arc<Runtime>>,
+}
+
+/// Server state.
+#[derive(Clone, Debug)]
+pub struct ServiceState {
+    inner: Arc<StateInner>,
 }
 
 impl ServiceState {
@@ -212,7 +211,7 @@ impl ServiceState {
             upstream_relay,
         });
 
-        Ok(ServiceState {
+        let state = StateInner {
             buffer_guard: buffer,
             config,
             registry,
@@ -221,12 +220,16 @@ impl ServiceState {
             _project_runtime: Arc::new(project_runtime),
             _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
+        };
+
+        Ok(ServiceState {
+            inner: Arc::new(state),
         })
     }
 
     /// Returns a reference to the Relay configuration.
     pub fn config(&self) -> &Config {
-        &self.config
+        &self.inner.config
     }
 
     /// Returns a reference to the guard of the envelope buffer.
@@ -234,13 +237,47 @@ impl ServiceState {
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.buffer_guard
+        &self.inner.buffer_guard
     }
-}
 
-impl ServiceRegistry for ServiceState {
-    fn registry(&self) -> &Registry {
-        &self.registry
+    /// Returns the address of the [`ProjectCache`] service.
+    pub fn project_cache(&self) -> &Addr<ProjectCache> {
+        &self.inner.registry.project_cache
+    }
+
+    /// Returns the address of the [`RelayCache`] service.
+    pub fn relay_cache(&self) -> &Addr<RelayCache> {
+        &self.inner.registry.relay_cache
+    }
+
+    /// Returns the address of the [`HealthCheck`] service.
+    pub fn health_check(&self) -> &Addr<HealthCheck> {
+        &self.inner.registry.health_check
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
+        &self.inner.registry.outcome_producer
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn test_store(&self) -> &Addr<TestStore> {
+        &self.inner.registry.test_store
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn upstream_relay(&self) -> &Addr<UpstreamRelay> {
+        &self.inner.registry.upstream_relay
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
+        &self.inner.registry.processor
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.inner.registry.outcome_aggregator
     }
 }
 

@@ -8,15 +8,14 @@ use relay_general::protocol::EventId;
 use crate::actors::test_store::GetCapturedEnvelope;
 use crate::endpoints::common::ServiceUnavailable;
 use crate::envelope;
-use crate::service::{ServiceRegistry, ServiceState};
+use crate::service::ServiceState;
 
 pub async fn handle(
     state: ServiceState,
     Path(event_id): Path<EventId>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let envelope_opt = state
-        .registry()
-        .test_store
+        .test_store()
         .send(GetCapturedEnvelope { event_id })
         .await?;
 

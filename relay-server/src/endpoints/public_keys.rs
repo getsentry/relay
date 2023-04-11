@@ -6,7 +6,7 @@ use futures::future;
 use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::extractors::SignedJson;
-use crate::service::{ServiceRegistry, ServiceState};
+use crate::service::ServiceState;
 
 /// Handles the Relay public keys endpoint.
 ///
@@ -17,7 +17,7 @@ pub async fn handle(
     state: ServiceState,
     body: SignedJson<GetRelays>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
-    let relay_cache = &state.registry().relay_cache;
+    let relay_cache = &state.relay_cache();
 
     let relay_ids = body.inner.relay_ids.into_iter();
     let futures = relay_ids.map(|relay_id| {

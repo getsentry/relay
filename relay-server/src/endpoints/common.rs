@@ -12,7 +12,7 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::ProcessMetrics;
 use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
-use crate::service::{ServiceRegistry, ServiceState};
+use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
@@ -268,7 +268,7 @@ fn queue_envelope(
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
-        state.registry().processor.send(ProcessMetrics {
+        state.processor().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
@@ -286,15 +286,14 @@ fn queue_envelope(
         // The envelope has been split, so we need to fork the context.
         let event_context = buffer_guard.enter(
             event_envelope,
-            state.registry().outcome_aggregator.clone(),
-            state.registry().test_store.clone(),
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
         )?;
 
         // Update the old context after successful forking.
         managed_envelope.update();
         state
-            .registry()
-            .project_cache
+            .project_cache()
             .send(ValidateEnvelope::new(event_context));
     }
 
@@ -305,8 +304,7 @@ fn queue_envelope(
     } else {
         relay_log::trace!("queueing envelope");
         state
-            .registry()
-            .project_cache
+            .project_cache()
             .send(ValidateEnvelope::new(managed_envelope));
     }
 
@@ -329,8 +327,8 @@ pub async fn handle_envelope(
     let mut managed_envelope = buffer_guard
         .enter(
             envelope,
-            state.registry().outcome_aggregator.clone(),
-            state.registry().test_store.clone(),
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
         )
         .map_err(BadStoreRequest::QueueFailed)?;
 
@@ -346,8 +344,7 @@ pub async fn handle_envelope(
     }
 
     let checked = state
-        .registry()
-        .project_cache
+        .project_cache()
         .send(CheckEnvelope::new(managed_envelope))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?

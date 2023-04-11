@@ -23,7 +23,7 @@ use tokio::sync::oneshot::error::RecvError;
 use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
-use crate::service::{ServiceRegistry, ServiceState};
+use crate::service::ServiceState;
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -213,7 +213,7 @@ async fn handle(
         sender: tx,
     };
 
-    state.registry().upstream_relay.send(SendRequest(request));
+    state.upstream_relay().send(SendRequest(request));
     let (status, headers, body) = rx.await??;
 
     Ok(if headers.contains_key(header::CONTENT_TYPE) {
