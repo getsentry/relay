@@ -593,7 +593,7 @@ mod tests {
         let image = Annotated::new(DebugImage::Jvm(Box::new(JvmDebugImage {
             debug_id: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
             other: {
-                let mut map = Object::new();
+                let mut map = Map::new();
                 map.insert(
                     "other".to_string(),
                     Annotated::new(Value::String("value".to_string())),
