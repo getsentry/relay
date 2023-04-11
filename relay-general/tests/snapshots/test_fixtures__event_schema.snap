@@ -1016,7 +1016,7 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/SourceMapDebugImage"
         },
         {
-          "$ref": "#/definitions/JvmBasedDebugImage"
+          "$ref": "#/definitions/JvmDebugImage"
         },
         {
           "type": "object",
@@ -2014,8 +2014,8 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
-    "JvmBasedDebugImage": {
-      "description": " A debug image consisting of source files for a JVM based language.\n\n Examples:\n\n ```json\n {\n   \"type\": \"jvmbased\",\n   \"debug_id\": \"395835f4-03e0-4436-80d3-136f0749a893\"\n }\n ```",
+    "JvmDebugImage": {
+      "description": " A debug image consisting of source files for a JVM based language.\n\n Examples:\n\n ```json\n {\n   \"type\": \"jvm\",\n   \"debug_id\": \"395835f4-03e0-4436-80d3-136f0749a893\"\n }\n ```",
       "anyOf": [
         {
           "type": "object",

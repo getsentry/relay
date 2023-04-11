@@ -453,13 +453,13 @@ pub struct SourceMapDebugImage {
 ///
 /// ```json
 /// {
-///   "type": "jvmbased",
+///   "type": "jvm",
 ///   "debug_id": "395835f4-03e0-4436-80d3-136f0749a893"
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct JvmBasedDebugImage {
+pub struct JvmDebugImage {
     /// Unique debug identifier of the bundle.
     #[metastructure(required = "true")]
     pub debug_id: Annotated<DebugId>,
@@ -509,7 +509,7 @@ pub enum DebugImage {
     /// Source map debug image.
     SourceMap(Box<SourceMapDebugImage>),
     /// JVM based debug image.
-    JvmBased(Box<JvmBasedDebugImage>),
+    Jvm(Box<JvmDebugImage>),
     /// A debug image that is unknown to this protocol specification.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
@@ -588,9 +588,9 @@ mod tests {
         let json = r#"{
   "debug_id": "395835f4-03e0-4436-80d3-136f0749a893",
   "other": "value",
-  "type": "jvmbased"
+  "type": "jvm"
 }"#;
-        let image = Annotated::new(DebugImage::JvmBased(Box::new(JvmBasedDebugImage {
+        let image = Annotated::new(DebugImage::Jvm(Box::new(JvmDebugImage {
             debug_id: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
             other: {
                 let mut map = Object::new();
