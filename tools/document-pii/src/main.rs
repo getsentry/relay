@@ -4,7 +4,8 @@
 )]
 
 use std::fs;
-use syn::{Attribute, Field, Item, ItemStruct, Lit, Meta, MetaNameValue, Type};
+use syn::punctuated::Punctuated;
+use syn::{Attribute, Field, Item, ItemStruct, Lit, Meta, MetaNameValue, Type, UsePath, UseTree};
 
 use walkdir::WalkDir;
 
@@ -84,6 +85,9 @@ fn type_to_string(ty: &Type) -> String {
 }
 
 fn process_rust_file(file_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    dbg!("@@@@@@@@@@@@@@@");
+
+    dbg!(file_path);
     let file_content = fs::read_to_string(file_path)?;
 
     let syntax_tree: syn::File = syn::parse_file(&file_content)?;
@@ -100,9 +104,52 @@ fn process_rust_file(file_path: &Path) -> Result<(), Box<dyn std::error::Error>>
     };
 
     visitor.visit_file(&syntax_tree);
-    for x in visitor.use_statements {}
+    for x in visitor.use_statements {
+        let x = use_tree_to_path(
+            syn::Path {
+                leading_colon: None,
+                segments: Punctuated::new(),
+            },
+            &x.tree,
+        );
 
+        let y = x.split(',');
+        for x in y {
+            let x = x.trim().replace(' ', "");
+            if x.starts_with("relay") || true {
+                dbg!(x);
+            }
+        }
+    }
     Ok(())
+}
+
+fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
+    match use_tree {
+        UseTree::Path(use_path) => {
+            leading_path.segments.push(use_path.ident.clone().into());
+            use_tree_to_path(leading_path, &*use_path.tree)
+        }
+        UseTree::Name(use_name) => {
+            leading_path.segments.push(use_name.ident.clone().into());
+            quote::quote!(#leading_path).to_string()
+        }
+        //        UseTree::Group(use_group) => use_tree_to_path(leading_path, &use_group.group.stream),
+        //UseTree::Group(use_group) => use_tree_to_path(leading_path, &use_group.items),
+        UseTree::Group(use_group) => {
+            let mut paths = Vec::new();
+            for item in &use_group.items {
+                paths.push(use_tree_to_path(leading_path.clone(), item));
+            }
+            paths.join(", ")
+        }
+
+        UseTree::Rename(use_rename) => {
+            leading_path.segments.push(use_rename.rename.clone().into());
+            quote::quote!(#leading_path).to_string()
+        }
+        _ => quote::quote!(#leading_path).to_string(),
+    }
 }
 
 fn main() {
