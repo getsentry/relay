@@ -269,10 +269,6 @@ impl BufferService {
             let spool_config = BufferSpoolConfig {
                 db,
                 max_disk_size: config.spool_envelopes_max_disk_size(),
-                // It is a rough extimation for how many envelopes we can fit in the
-                // configured memory limit, taking that 1 enveloper is 1 MB.
-                //
-                // TODO: Can we calculate the real size of the envelope?
                 max_memory_size: config.spool_envelopes_max_memory_size(),
                 is_disk_full: false,
             };
