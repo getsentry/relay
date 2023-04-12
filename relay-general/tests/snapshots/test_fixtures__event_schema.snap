@@ -2209,6 +2209,16 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "exception_id": {
+              "description": " An optional numeric value providing an ID for the exception relative to this specific event.\n It is referenced by the `parent_id` to reconstruct the logical tree of exceptions in an\n exception group.\n\n This should contain an unsigned integer value starting with `0` for the last exception in\n the exception values list, then `1` for the previous exception, etc.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "handled": {
               "description": " Flag indicating whether this exception was handled.\n\n This is a best-effort guess at whether the exception was handled by user code or not. For\n example:\n\n - Exceptions leading to a 500 Internal Server Error or to a hard process crash are\n   `handled=false`, as the SDK typically has an integration that automatically captures the\n   error.\n\n - Exceptions captured using `capture_exception` (called from user code) are `handled=true`\n   as the user explicitly captured the exception (and therefore kind of handled it)",
               "default": null,
@@ -2225,6 +2235,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "is_exception_group": {
+              "description": " An optional boolean value, set `true` when the exception is the platform-specific exception\n group type.  Defaults to `false`.\n\n For example, exceptions of type `ExceptionGroup` (Python), `AggregateException` (.NET), and\n `AggregateError` (JavaScript) should have `\"is_exception_group\": true`.  Other exceptions\n can omit this field.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "meta": {
               "description": " Operating system or runtime meta information.",
               "default": null,
@@ -2235,6 +2253,24 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "parent_id": {
+              "description": " An optional numeric value pointing at the `exception_id` that is the direct parent of this\n exception, used to reconstruct the logical tree of exceptions in an exception group.\n\n The last exception in the exception values list should omit this field, because it is the\n root exception and thus has no parent.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "description": " An optional string value describing the source of the exception.\n\n For chained exceptions, this should contain the platform-specific name of the property or\n attribute (on the parent exception) that this exception was acquired from. In the case of\n an array, it should include the zero-based array index as well.\n\n - Python Examples: `\"__context__\"`, `\"__cause__\"`, `\"exceptions[0]\"`, `\"exceptions[1]\"`\n\n - .NET Examples:  `\"InnerException\"`, `\"InnerExceptions[0]\"`, `\"InnerExceptions[1]\"`\n\n - JavaScript Examples: `\"cause\"`, `\"errors[0]\"`, `\"errors[1]\"`",
+              "default": null,
+              "type": [
+                "string",
+                "null"
               ]
             },
             "synthetic": {
