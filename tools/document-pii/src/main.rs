@@ -3,7 +3,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use std::collections::HashMap;
 use std::fs;
+use std::hash::Hash;
 use syn::punctuated::Punctuated;
 use syn::{Field, Item, ItemStruct, Lit, Meta, MetaNameValue, Type, UsePath, UseTree, Variant};
 
@@ -40,14 +42,32 @@ struct TypeVisitor {
     use_statements: Vec<syn::ItemUse>,
     module_path: String,
     current_path: Vec<String>,
+    all_types: HashMap<String, ItemStruct>,
+    first_iter: bool,
+}
+
+impl TypeVisitor {
+    pub fn get_crate_root(&self) -> String {
+        let x: Vec<&str> = self.module_path.split("relay::").collect();
+        let x = x[1].split_once("::").unwrap().0;
+        x.to_owned()
+    }
 }
 
 impl<'ast> Visit<'ast> for TypeVisitor {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         unsafe { VISITED_TYPES.clear() }
-        println!("{}::{}", self.module_path, node.ident);
-        for field in node.fields.iter() {
-            self.visit_field(field);
+        let struct_name = format!("{}::{}", self.module_path, node.ident);
+        println!("{struct_name}");
+        if !self.first_iter {
+            for field in node.fields.iter() {
+                self.visit_field(field);
+            }
+        } else {
+            let x = get_item_path_from_full(struct_name);
+            let x = x.replace("src::", "");
+            let x = x.replace("-", "_");
+            self.all_types.insert(x, node.clone());
         }
 
         syn::visit::visit_item_struct(self, node);
@@ -55,10 +75,12 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         unsafe { VISITED_TYPES.clear() }
-        println!("{}::{}", self.module_path, node.ident);
-        for variant in node.variants.iter() {
-            for field in variant.fields.iter() {
-                self.visit_field(field);
+        let enum_name = format!("{}::{}", self.module_path, node.ident);
+        if !self.first_iter {
+            for variant in node.variants.iter() {
+                for field in variant.fields.iter() {
+                    self.visit_field(field);
+                }
             }
         }
         syn::visit::visit_item_enum(self, node);
@@ -74,6 +96,9 @@ impl<'ast> Visit<'ast> for TypeVisitor {
         if node.ident.as_ref().is_none() {
             return;
         }
+        if self.first_iter {
+            return;
+        }
         //println!("  Field: {}", node.ident.as_ref().unwrap());
         let mut x = type_to_string(&node.ty);
         let types: Vec<String> = x.split(",").map(|s| s.to_owned()).collect();
@@ -81,9 +106,14 @@ impl<'ast> Visit<'ast> for TypeVisitor {
             for bro in &self.use_statements {
                 for wtf in use_tree_to_paths(&bro.tree) {
                     if wtf.ends_with(&x.trim()) && unsafe { !VISITED_TYPES.contains(&wtf) } {
-                        println!("   Type: {}", wtf);
+                        let x = wtf.replace("crate::", &format!("{}::", self.get_crate_root()));
+
+                        if self.all_types.get(&x).is_none() {
+                            dbg!(&x);
+                            dbg!(self.all_types.get(&x));
+                        }
                         unsafe {
-                            VISITED_TYPES.push(wtf.clone());
+                            VISITED_TYPES.push(x.clone());
                         }
                     }
                 }
@@ -116,28 +146,6 @@ fn should_keep_itemuse(node: &syn::ItemUse) -> bool {
         }
     }
     false
-}
-
-fn footype_to_string(ty: &Type) -> String {
-    match ty {
-        Type::Path(type_path) => {
-            let segments = type_path
-                .path
-                .segments
-                .iter()
-                .map(|segment| segment.ident.to_string())
-                .collect::<Vec<_>>()
-                .join("::");
-
-            format!("/::{}", segments)
-        }
-        _ => {
-            use quote::ToTokens;
-            let mut tokens = proc_macro2::TokenStream::new();
-            ty.to_tokens(&mut tokens);
-            tokens.to_string()
-        }
-    }
 }
 
 fn type_to_string(ty: &Type) -> String {
@@ -179,7 +187,11 @@ fn process_type(ty: &Type, segments: &mut Vec<String>) {
     }
 }
 
-fn process_rust_file(file_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn process_rust_file(
+    file_path: &Path,
+    all_types: HashMap<String, ItemStruct>,
+    first_iter: bool,
+) -> Result<HashMap<String, ItemStruct>, Box<dyn std::error::Error>> {
     let file_content = fs::read_to_string(file_path)?;
 
     let syntax_tree: syn::File = syn::parse_file(&file_content)?;
@@ -194,15 +206,12 @@ fn process_rust_file(file_path: &Path) -> Result<(), Box<dyn std::error::Error>>
         module_path: module_path.clone(),
         use_statements: vec![],
         current_path: vec![],
+        all_types,
+        first_iter,
     };
 
     visitor.visit_file(&syntax_tree);
-    for itemuse in visitor.use_statements {
-        for thepath in use_tree_to_paths(&itemuse.tree) {
-            //dbg!(thepath);
-        }
-    }
-    Ok(())
+    Ok(visitor.all_types)
 }
 
 fn use_tree_to_paths(use_tree: &UseTree) -> Vec<String> {
@@ -246,9 +255,24 @@ fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
     }
 }
 
+pub fn get_item_path_from_full(full: String) -> String {
+    full.split_once("::relay::").unwrap().1.to_owned()
+}
+
 fn main() {
     let paths = find_rs_files("/Users/tor/prog/rust/relay/");
+    let mut all_types: HashMap<String, ItemStruct> = HashMap::new();
+    for path in paths.clone() {
+        all_types = process_rust_file(path.as_path(), all_types.clone(), true).unwrap();
+    }
     for path in paths {
-        process_rust_file(path.as_path());
+        process_rust_file(path.as_path(), all_types.clone(), false).unwrap();
+    }
+    //dbg!(all_types);
+
+    for key in all_types.keys() {
+        if key.contains("EventId") {
+            dbg!(key);
+        }
     }
 }
