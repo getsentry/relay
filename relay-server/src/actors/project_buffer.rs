@@ -49,9 +49,6 @@ pub enum BufferError {
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
 
-    #[error("failed to get request start time from the spool entry")]
-    RequestStartTimeError,
-
     #[error("failed to run migrations")]
     MigrationFailed(#[from] MigrateError),
 }
@@ -306,24 +303,6 @@ impl BufferService {
         Ok(size)
     }
 
-    /// Returns duration since UNIX_EPOCH.
-    fn now() -> Duration {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-    }
-
-    /// Returns the timestamp in form of fixed byte array.
-    ///
-    /// Timestamp represents the point in time before the provided duration.
-    fn timestamp(elapsed: Duration) -> Option<[u8; 16]> {
-        Self::now()
-            // Subtract already elapased time, to get approximate timestamp when the envelope
-            // received.
-            .checked_sub(elapsed)
-            .map(|d| d.as_millis().to_be_bytes())
-    }
-
     /// Saves the provided buffer to the disk.
     ///
     /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
@@ -334,19 +313,13 @@ impl BufferService {
         let envelopes = buffer
             .into_iter()
             .flat_map(|(key, values)| {
-                values.into_iter().map(move |value| {
-                    (
-                        key,
-                        Self::timestamp(value.start_time().elapsed())
-                            .unwrap_or_default()
-                            .to_vec(),
-                        value,
-                    )
-                })
+                values
+                    .into_iter()
+                    .map(move |value| (key, value.received_at().timestamp_millis(), value))
             })
             .filter_map(
-                |(key, timestamp, managed)| match managed.into_envelope().to_vec() {
-                    Ok(vec) => Some((key, vec, timestamp)),
+                |(key, received_at, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, received_at)),
                     Err(err) => {
                         relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
                         None
@@ -362,12 +335,12 @@ impl BufferService {
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT INTO envelopes (timestamp, own_key, sampling_key, envelope) ",
+            "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ",
         );
 
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value, timestamp)| {
-                b.push_bind(timestamp)
+            query_builder.push_values(chunk, |mut b, (key, value, received_at)| {
+                b.push_bind(received_at)
                     .push_bind(key.own_key.to_string())
                     .push_bind(key.sampling_key.to_string())
                     .push_bind(value);
@@ -430,14 +403,14 @@ impl BufferService {
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
-        let timestamp_row: Vec<u8> = row.try_get("timestamp")?;
-        let timestamp = u128::from_be_bytes(
-            timestamp_row
-                .try_into()
-                .map_err(|_| BufferError::RequestStartTimeError)?,
-        );
-        let timestamp = Duration::from_millis(timestamp.try_into().unwrap_or_default());
-        let elapsed = Self::now().checked_sub(timestamp).unwrap_or_default();
+        let received_at: i64 = row.try_get("received_at")?;
+        let received_at = Duration::from_millis(received_at as u64);
+        let elapsed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .checked_sub(received_at)
+            .unwrap_or_default();
+
         let start_time = Instant::now()
             // Subtract the elapsed time (the time the envelope was kept in the spool) from the current
             // Instant to get the timestamp when the request started.
@@ -511,7 +484,7 @@ impl BufferService {
                     envelopes
                  WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
                  RETURNING
-                    envelope, timestamp",
+                    envelope, received_at",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
