@@ -1,5 +1,6 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::mem::size_of;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -326,6 +327,18 @@ impl ManagedEnvelope {
 
     pub fn meta(&self) -> &RequestMeta {
         self.envelope().meta()
+    }
+
+    /// Returns estimated size of this envelope.
+    ///
+    /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
+    /// list of additional attributes allocated on all of the inner types.
+    pub fn estimated_size(&self) -> usize {
+        // Always round it up to next 100 bytes.
+        (f64::ceil(
+            (self.context.summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64
+                / 100.,
+        ) * 100.) as usize
     }
 
     /// Returns the instant at which the envelope was received at this Relay.
