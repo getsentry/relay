@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -306,6 +306,24 @@ impl BufferService {
         Ok(size)
     }
 
+    /// Returns duration since UNIX_EPOCH.
+    fn now() -> Duration {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+    }
+
+    /// Returns the timestamp in form of fixed byte array.
+    ///
+    /// Timestamp represents the point in time before the provided duration.
+    fn timestamp(elapsed: Duration) -> Option<[u8; 16]> {
+        Self::now()
+            // Subtract already elapased time, to get approximate timestamp when the envelope
+            // received.
+            .checked_sub(elapsed)
+            .map(|d| d.as_millis().to_be_bytes())
+    }
+
     /// Saves the provided buffer to the disk.
     ///
     /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
@@ -319,19 +337,16 @@ impl BufferService {
                 values.into_iter().map(move |value| {
                     (
                         key,
-                        value
-                            .start_time()
-                            .elapsed()
-                            .as_millis()
-                            .to_be_bytes()
+                        Self::timestamp(value.start_time().elapsed())
+                            .unwrap_or_default()
                             .to_vec(),
                         value,
                     )
                 })
             })
             .filter_map(
-                |(key, start_time, managed)| match managed.into_envelope().to_vec() {
-                    Ok(vec) => Some((key, vec, start_time)),
+                |(key, timestamp, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, timestamp)),
                     Err(err) => {
                         relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
                         None
@@ -347,12 +362,12 @@ impl BufferService {
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT INTO envelopes (processing_time, own_key, sampling_key, envelope) ",
+            "INSERT INTO envelopes (timestamp, own_key, sampling_key, envelope) ",
         );
 
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value, start_time)| {
-                b.push_bind(start_time)
+            query_builder.push_values(chunk, |mut b, (key, value, timestamp)| {
+                b.push_bind(timestamp)
                     .push_bind(key.own_key.to_string())
                     .push_bind(key.sampling_key.to_string())
                     .push_bind(value);
@@ -415,16 +430,20 @@ impl BufferService {
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
-        let processing_time_row: Vec<u8> = row.try_get("processing_time")?;
-        let processing_time = u128::from_be_bytes(
-            processing_time_row
+        let timestamp_row: Vec<u8> = row.try_get("timestamp")?;
+        let timestamp = u128::from_be_bytes(
+            timestamp_row
                 .try_into()
                 .map_err(|_| BufferError::RequestStartTimeError)?,
         );
-        let elapsed = Duration::from_millis(processing_time.try_into().unwrap_or_default());
+        let timestamp = Duration::from_millis(timestamp.try_into().unwrap_or_default());
+        let elapsed = Self::now().checked_sub(timestamp).unwrap_or_default();
         let start_time = Instant::now()
-            .checked_add(elapsed)
-            .ok_or(BufferError::RequestStartTimeError)?;
+            // Subtract the elapsed time (the time the envelope was kept in the spool) from the current
+            // Instant to get the timestamp when the request started.
+            .checked_sub(elapsed)
+            // If we fail to get the instant from the timestamp, we fallback to `now()`.
+            .unwrap_or_else(Instant::now);
 
         envelope.set_start_time(start_time);
 
@@ -492,7 +511,7 @@ impl BufferService {
                     envelopes
                  WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
                  RETURNING
-                    envelope, processing_time",
+                    envelope, timestamp",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())

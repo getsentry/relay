@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS envelopes (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  processing_time BLOB,
+  timestamp       BLOB,
   own_key         TEXT,
   sampling_key    TEXT,
   envelope        BLOB
