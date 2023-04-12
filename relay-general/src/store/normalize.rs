@@ -16,7 +16,8 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, DeviceClass, Event,
     EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
-    Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
+    Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
+    VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 use crate::types::{
@@ -196,6 +197,16 @@ impl<'a> NormalizeProcessor<'a> {
         if let Some(ref mut contexts) = event.contexts.value_mut() {
             if let Some(Context::Trace(ref mut trace_context)) = contexts.get_context_mut("trace") {
                 trace_context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
+            }
+        }
+    }
+    fn normalize_replay_context(&self, event: &mut Event) {
+        if let Some(ref mut contexts) = event.contexts.value_mut() {
+            if let Some(replay_id) = self.config.replay_id {
+                contexts.add(Context::Replay(Box::new(ReplayContext {
+                    replay_id: Annotated::new(EventId(replay_id)),
+                    other: Object::default(),
+                })));
             }
         }
     }
@@ -821,6 +832,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Normalize connected attributes and interfaces
         self.normalize_spans(event);
         self.normalize_trace_context(event);
+        self.normalize_replay_context(event);
 
         Ok(())
     }
@@ -1123,6 +1135,7 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 mod tests {
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
+    use relay_common::Uuid;
     use serde_json::json;
     use similar_asserts::assert_eq;
 
@@ -1470,6 +1483,39 @@ mod tests {
         light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.environment), None);
+    }
+    #[test]
+    fn test_replay_id_added_from_dsc() {
+        let replay_id = Uuid::new_v4();
+        let mut event = Annotated::new(Event {
+            contexts: Annotated::new(Contexts(Object::new())),
+            ..Event::default()
+        });
+        let config = StoreConfig {
+            replay_id: Some(replay_id),
+            ..StoreConfig::default()
+        };
+        let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let event = event.value().unwrap();
+
+        assert_eq!(
+            event.contexts,
+            Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "replay".to_owned(),
+                    Annotated::new(ContextInner(Context::Replay(Box::new(ReplayContext {
+                        replay_id: Annotated::new(EventId(replay_id)),
+                        other: Object::default(),
+                    })))),
+                );
+                contexts
+            }))
+        )
     }
 
     #[test]
