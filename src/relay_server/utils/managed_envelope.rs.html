@@ -336,9 +336,23 @@
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
-</span><span class="kw">use </span>std::time::Instant;
+</span><span class="kw">use </span>std::mem::size_of;
+<span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::DataCategory;
@@ -641,6 +655,18 @@
 
     <span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RequestMeta {
         <span class="self">self</span>.envelope().meta()
+    }
+
+    <span class="doccomment">/// Returns estimated size of this envelope.
+    ///
+    /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
+    /// list of additional attributes allocated on all of the inner types.
+    </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="comment">// Always round it up to next 100 bytes.
+        </span>(f64::ceil(
+            (<span class="self">self</span>.context.summary.payload_size + size_of::&lt;<span class="self">Self</span>&gt;() + size_of::&lt;Envelope&gt;()) <span class="kw">as </span>f64
+                / <span class="number">100.</span>,
+        ) * <span class="number">100.</span>) <span class="kw">as </span>usize
     }
 
     <span class="doccomment">/// Returns the instant at which the envelope was received at this Relay.
