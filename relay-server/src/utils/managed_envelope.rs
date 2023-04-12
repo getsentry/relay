@@ -334,11 +334,11 @@ impl ManagedEnvelope {
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
     pub fn estimated_size(&self) -> usize {
-        // Always round it up to next 100 bytes.
+        // Always round it up to next 1KB.
         (f64::ceil(
             (self.context.summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64
-                / 100.,
-        ) * 100.) as usize
+                / 1000.,
+        ) * 1000.) as usize
     }
 
     /// Returns the instant at which the envelope was received at this Relay.

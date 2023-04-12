@@ -781,17 +781,17 @@ mod tests {
 
         assert_debug_snapshot!(captures, @r###"
         [
-            "buffer.envelopes_mem:1700|h",
-            "buffer.envelopes_mem:3400|h",
+            "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem:4000|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:1700|h",
-            "buffer.envelopes_mem:3400|h",
+            "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem:4000|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:1700|h",
+            "buffer.envelopes_mem:2000|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
             "buffer.disk_size:24576|h",
