@@ -532,6 +532,12 @@ pub struct Event {
     #[metastructure(omit_from_schema)]
     pub _metrics: Annotated<Metrics>,
 
+    /// Track whether an error has a full trace connected to it.
+    ///
+    /// This flag only applies to events with [`Error`] type.
+    #[metastructure(omit_from_schema)]
+    pub has_full_trace: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,

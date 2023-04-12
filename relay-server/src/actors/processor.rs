@@ -11,6 +11,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use libc::stat;
 use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -2003,6 +2004,33 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Tries to apply trace rules and check if the sampling decision is positive.
+    fn apply_trace_rules_if_error(&self, state: &mut ProcessEnvelopeState) {
+        // Only if the extracted event is an error we want to run this logic, otherwise we don't
+        // do anything.
+        if let Some(EventType::Error) = state.event_type() {
+            match state.event.value_mut() {
+                Some(event) => {
+                    let sampling_result = utils::should_keep_event_with_trace_rules(
+                        self.config.processing_enabled(),
+                        state.sampling_project_state.as_deref(),
+                        state.envelope().dsc(),
+                        state.envelope().meta().client_addr(),
+                    );
+
+                    // In case the sampling result is positive, we assume that all the transactions
+                    // that have this DSC will be sampled and thus we mark the error as "having
+                    // a full trace".
+                    event.has_full_trace = Annotated::new(match sampling_result {
+                        SamplingResult::Keep => true,
+                        SamplingResult::Drop(_) => false,
+                    })
+                }
+                None => {}
+            };
+        }
+    }
+
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match state.event.value_mut() {
             Some(event) => event,
@@ -2340,6 +2368,7 @@ impl EnvelopeProcessorService {
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
+            self.apply_trace_rules_if_error(state);
             self.compute_sampling_decision(state);
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
@@ -2363,6 +2392,7 @@ impl EnvelopeProcessorService {
 
         if state.has_event() {
             self.scrub_event(state)?;
+            // TODO: add here the information to the event payload.
             self.serialize_event(state)?;
         }
 
@@ -2376,7 +2406,7 @@ impl EnvelopeProcessorService {
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut state = self.prepare_state(message)?;
-
+        println!("{:?}", state.event);
         let project_id = state.project_id;
         let client = state.envelope().meta().client().map(str::to_owned);
         let user_agent = state.envelope().meta().user_agent().map(str::to_owned);

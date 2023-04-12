@@ -53,6 +53,15 @@ fn get_sampling_match(
     )
 }
 
+pub fn should_keep_event_with_trace_rules(
+    processing_enabled: bool,
+    root_project_state: Option<&ProjectState>,
+    dsc: Option<&DynamicSamplingContext>,
+    ip_addr: Option<IpAddr>,
+) -> SamplingResult {
+    SamplingResult::Keep
+}
+
 /// Checks whether an incoming event should be kept or dropped based on the result of the sampling
 /// configuration match.
 pub fn should_keep_event(
