@@ -778,7 +778,7 @@ mod tests {
         // Collect only the buffer metrics.
         let captures: Vec<_> = captures
             .into_iter()
-            .filter(|name| !name.contains("#service"))
+            .filter(|name| name.contains("buffer."))
             .collect();
 
         assert_debug_snapshot!(captures, @r###"
