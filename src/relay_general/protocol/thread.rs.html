@@ -367,6 +367,33 @@
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -602,9 +629,10 @@
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
     </span><span class="kw">pub </span>state: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Represents an instance of a held lock (java monitor object) in a thread.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
-    </span><span class="kw">pub </span>lock_reason: Annotated&lt;LockReason&gt;,
+    <span class="doccomment">/// Represents a collection of locks (java monitor objects) held by a thread.
+    ///
+    /// A map of lock object addresses and their respective lock reason/details.
+    </span><span class="kw">pub </span>held_locks: Annotated&lt;Object&lt;LockReason&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties)]
@@ -661,7 +689,7 @@
             current: Annotated::new(<span class="bool-val">true</span>),
             main: Annotated::new(<span class="bool-val">true</span>),
             state: Annotated::new(<span class="string">&quot;RUNNABLE&quot;</span>.to_string()),
-            lock_reason: Annotated::empty(),
+            held_locks: Annotated::empty(),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
@@ -695,11 +723,19 @@
   &quot;current&quot;: true,
   &quot;main&quot;: true,
   &quot;state&quot;: &quot;BLOCKED&quot;,
-  &quot;lock_reason&quot;: {
-    &quot;type&quot;: 1,
-    &quot;package_name&quot;: &quot;android.database.sqlite&quot;,
-    &quot;class_name&quot;: &quot;SQLiteConnection&quot;,
-    &quot;thread_id&quot;: 2
+  &quot;held_locks&quot;: {
+    &quot;0x07d7437b&quot;: {
+      &quot;type&quot;: 2,
+      &quot;package_name&quot;: &quot;io.sentry.samples&quot;,
+      &quot;class_name&quot;: &quot;MainActivity&quot;,
+      &quot;thread_id&quot;: 7
+    },
+    &quot;0x0d3a2f0a&quot;: {
+      &quot;type&quot;: 1,
+      &quot;package_name&quot;: &quot;android.database.sqlite&quot;,
+      &quot;class_name&quot;: &quot;SQLiteConnection&quot;,
+      &quot;thread_id&quot;: 2
+    }
   },
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
@@ -712,14 +748,32 @@
             current: Annotated::new(<span class="bool-val">true</span>),
             main: Annotated::new(<span class="bool-val">true</span>),
             state: Annotated::new(<span class="string">&quot;BLOCKED&quot;</span>.to_string()),
-            lock_reason: Annotated::new(LockReason {
-                ty: Annotated::new(LockReasonType::Locked),
-                address: Annotated::empty(),
-                package_name: Annotated::new(<span class="string">&quot;android.database.sqlite&quot;</span>.to_string()),
-                class_name: Annotated::new(<span class="string">&quot;SQLiteConnection&quot;</span>.to_string()),
-                thread_id: Annotated::new(ThreadId::Int(<span class="number">2</span>)),
-                other: Default::default(),
-            }),
+            held_locks: {
+                <span class="kw">let </span><span class="kw-2">mut </span>locks = Object::new();
+                locks.insert(
+                    <span class="string">&quot;0x07d7437b&quot;</span>.to_string(),
+                    Annotated::new(LockReason {
+                        ty: Annotated::new(LockReasonType::Waiting),
+                        address: Annotated::empty(),
+                        package_name: Annotated::new(<span class="string">&quot;io.sentry.samples&quot;</span>.to_string()),
+                        class_name: Annotated::new(<span class="string">&quot;MainActivity&quot;</span>.to_string()),
+                        thread_id: Annotated::new(ThreadId::Int(<span class="number">7</span>)),
+                        other: Default::default(),
+                    }),
+                );
+                locks.insert(
+                    <span class="string">&quot;0x0d3a2f0a&quot;</span>.to_string(),
+                    Annotated::new(LockReason {
+                        ty: Annotated::new(LockReasonType::Locked),
+                        address: Annotated::empty(),
+                        package_name: Annotated::new(<span class="string">&quot;android.database.sqlite&quot;</span>.to_string()),
+                        class_name: Annotated::new(<span class="string">&quot;SQLiteConnection&quot;</span>.to_string()),
+                        thread_id: Annotated::new(ThreadId::Int(<span class="number">2</span>)),
+                        other: Default::default(),
+                    }),
+                );
+                Annotated::new(locks)
+            },
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
