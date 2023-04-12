@@ -453,6 +453,72 @@
 <a href="#452" id="452">452</a>
 <a href="#453" id="453">453</a>
 <a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Error, FromValue, Object, Value};
 
 <span class="doccomment">/// POSIX signal with optional extended data.
@@ -599,6 +665,48 @@
     ///   as the user explicitly captured the exception (and therefore kind of handled it)
     </span><span class="kw">pub </span>handled: Annotated&lt;bool&gt;,
 
+    <span class="doccomment">/// An optional string value describing the source of the exception.
+    ///
+    /// For chained exceptions, this should contain the platform-specific name of the property or
+    /// attribute (on the parent exception) that this exception was acquired from. In the case of
+    /// an array, it should include the zero-based array index as well.
+    ///
+    /// - Python Examples: `&quot;__context__&quot;`, `&quot;__cause__&quot;`, `&quot;exceptions[0]&quot;`, `&quot;exceptions[1]&quot;`
+    ///
+    /// - .NET Examples:  `&quot;InnerException&quot;`, `&quot;InnerExceptions[0]&quot;`, `&quot;InnerExceptions[1]&quot;`
+    ///
+    /// - JavaScript Examples: `&quot;cause&quot;`, `&quot;errors[0]&quot;`, `&quot;errors[1]&quot;`
+    </span><span class="attr">#[metastructure(
+        required = <span class="string">&quot;false&quot;</span>,
+        nonempty = <span class="string">&quot;true&quot;</span>,
+        max_chars = <span class="string">&quot;enumlike&quot;</span>,
+        deny_chars = <span class="string">&quot; \t\r\n&quot;
+    </span>)]
+    </span><span class="kw">pub </span>source: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// An optional boolean value, set `true` when the exception is the platform-specific exception
+    /// group type.  Defaults to `false`.
+    ///
+    /// For example, exceptions of type `ExceptionGroup` (Python), `AggregateException` (.NET), and
+    /// `AggregateError` (JavaScript) should have `&quot;is_exception_group&quot;: true`.  Other exceptions
+    /// can omit this field.
+    </span><span class="kw">pub </span>is_exception_group: Annotated&lt;bool&gt;,
+
+    <span class="doccomment">/// An optional numeric value providing an ID for the exception relative to this specific event.
+    /// It is referenced by the `parent_id` to reconstruct the logical tree of exceptions in an
+    /// exception group.
+    ///
+    /// This should contain an unsigned integer value starting with `0` for the last exception in
+    /// the exception values list, then `1` for the previous exception, etc.
+    </span><span class="kw">pub </span>exception_id: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// An optional numeric value pointing at the `exception_id` that is the direct parent of this
+    /// exception, used to reconstruct the logical tree of exceptions in an exception group.
+    ///
+    /// The last exception in the exception values list should omit this field, because it is the
+    /// root exception and thus has no parent.
+    </span><span class="kw">pub </span>parent_id: Annotated&lt;u64&gt;,
+
     <span class="doccomment">/// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
     #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
@@ -623,6 +731,10 @@
             <span class="kw">pub </span>description: Annotated&lt;String&gt;,
             <span class="kw">pub </span>help_link: Annotated&lt;String&gt;,
             <span class="kw">pub </span>handled: Annotated&lt;bool&gt;,
+            <span class="kw">pub </span>source: Annotated&lt;String&gt;,
+            <span class="kw">pub </span>is_exception_group: Annotated&lt;bool&gt;,
+            <span class="kw">pub </span>exception_id: Annotated&lt;u64&gt;,
+            <span class="kw">pub </span>parent_id: Annotated&lt;u64&gt;,
             <span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
             <span class="kw">pub </span>meta: Annotated&lt;MechanismMeta&gt;,
             <span class="attr">#[metastructure(additional_properties)]
@@ -665,6 +777,10 @@
                         description: mechanism.description,
                         help_link: mechanism.help_link,
                         handled: mechanism.handled,
+                        source: mechanism.source,
+                        is_exception_group: mechanism.is_exception_group,
+                        exception_id: mechanism.exception_id,
+                        parent_id: mechanism.parent_id,
                         data: mechanism.data,
                         meta: mechanism.meta,
                         other: mechanism.other,
@@ -677,6 +793,10 @@
                         description: Annotated::empty(),
                         help_link: Annotated::empty(),
                         handled: Annotated::empty(),
+                        source: Annotated::empty(),
+                        is_exception_group: Annotated::empty(),
+                        exception_id: Annotated::empty(),
+                        parent_id: Annotated::empty(),
                         data: Annotated::new(legacy.other),
                         meta: Annotated::new(MechanismMeta {
                             errno: Annotated::empty(),
@@ -725,6 +845,10 @@
   &quot;description&quot;: &quot;mydescription&quot;,
   &quot;help_link&quot;: &quot;https://developer.apple.com/library/content/qa/qa1367/_index.html&quot;,
   &quot;handled&quot;: false,
+  &quot;source&quot;: &quot;errors[0]&quot;,
+  &quot;is_exception_group&quot;: false,
+  &quot;exception_id&quot;: 1,
+  &quot;parent_id&quot;: 0,
   &quot;data&quot;: {
     &quot;relevant_address&quot;: &quot;0x1&quot;
   },
@@ -761,6 +885,10 @@
                 <span class="string">&quot;https://developer.apple.com/library/content/qa/qa1367/_index.html&quot;</span>.to_string(),
             ),
             handled: Annotated::new(<span class="bool-val">false</span>),
+            source: Annotated::new(<span class="string">&quot;errors[0]&quot;</span>.to_string()),
+            is_exception_group: Annotated::new(<span class="bool-val">false</span>),
+            exception_id: Annotated::new(<span class="number">1</span>),
+            parent_id: Annotated::new(<span class="number">0</span>),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
@@ -875,6 +1003,10 @@
             description: Annotated::empty(),
             help_link: Annotated::empty(),
             handled: Annotated::empty(),
+            source: Annotated::empty(),
+            is_exception_group: Annotated::empty(),
+            exception_id: Annotated::empty(),
+            parent_id: Annotated::empty(),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
