@@ -10,7 +10,8 @@ use relay_log::LogError;
 use relay_system::{Addr, Controller, FromMessage, Interface, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+    SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
+    SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
@@ -31,11 +32,11 @@ const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
-    #[error("failed to store the envelope in the buffer, max size {0} reached")]
-    Full(i64),
-
     #[error("failed to move envelope from disk to memory")]
     CapacityExceeded(#[from] crate::utils::BufferError),
+
+    #[error("failed to spool to disk, reached maximum disk size: {0}")]
+    DatabaseFull(i64),
 
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseFileError(#[from] std::io::Error),
@@ -174,7 +175,8 @@ impl FromMessage<RemoveMany> for Buffer {
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
     max_disk_size: usize,
-    max_envelopes_count: usize,
+    max_memory_size: usize,
+    is_disk_full: bool,
 }
 
 /// [`Buffer`] interface implementation backed by SQLite.
@@ -184,7 +186,7 @@ pub struct BufferService {
     buffer_guard: Arc<BufferGuard>,
     project_cache: Addr<ProjectCache>,
     spool_config: Option<BufferSpoolConfig>,
-    count_mem_envelopes: i64,
+    used_memory: usize,
 
     #[cfg(test)]
     /// Create untracked envelopes when loading from disk. Only use in tests.
@@ -215,7 +217,7 @@ impl BufferService {
             buffer: BTreeMap::new(),
             buffer_guard,
             project_cache,
-            count_mem_envelopes: 0,
+            used_memory: 0,
             spool_config: None,
             #[cfg(test)]
             untracked: false,
@@ -223,7 +225,12 @@ impl BufferService {
 
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         if let Some(path) = config.spool_envelopes_path() {
-            relay_log::info!("Using the buffer file: {}", path.to_string_lossy());
+            relay_log::info!("buffer file {}", path.to_string_lossy());
+            relay_log::info!(
+                "max memory size {}",
+                config.spool_envelopes_max_memory_size()
+            );
+            relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
 
             Self::setup(&path).await?;
 
@@ -242,6 +249,12 @@ impl BufferService {
                 // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
                 // Which guarantees good balance between safety and speed.
                 .synchronous(SqliteSynchronous::Normal)
+                // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
+                // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
+                // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+                //
+                // This will helps us to keep the file size under some control.
+                .auto_vacuum(SqliteAutoVacuum::Full)
                 // If shared-cache mode is enabled and a thread establishes multiple
                 // connections to the same database, the connections share a single data and schema cache.
                 // This can significantly reduce the quantity of memory and IO required by the system.
@@ -256,12 +269,8 @@ impl BufferService {
             let spool_config = BufferSpoolConfig {
                 db,
                 max_disk_size: config.spool_envelopes_max_disk_size(),
-                // It is a rough extimation for how many envelopes we can fit in the
-                // configured memory limit, taking that 1 enveloper is 1 MB.
-                //
-                // TODO: Can we calculate the real size of the envelope?
-                max_envelopes_count: config.spool_envelopes_max_memory_size()
-                    / config.max_envelope_size(),
+                max_memory_size: config.spool_envelopes_max_memory_size(),
+                is_disk_full: false,
             };
 
             service.spool_config = Some(spool_config);
@@ -295,32 +304,34 @@ impl BufferService {
         db: &Pool<Sqlite>,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
+        let envelopes = buffer
+            .into_iter()
+            .flat_map(|(key, values)| values.into_iter().map(move |value| (key, value)))
+            .filter_map(|(key, managed)| match managed.into_envelope().to_vec() {
+                Ok(vec) => Some((key, vec)),
+                Err(err) => {
+                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                    None
+                }
+            });
+
+        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+        // here to prepare the chunks which will be preparing the batch inserts.
+        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
+
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
 
-        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        let mut envelopes = stream::iter(buffer.into_iter())
-            .flat_map(|(key, values)| {
-                stream::iter(values.into_iter())
-                    .map(move |value| (key, value.into_envelope().to_vec()))
-            })
-            .chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| match value {
-                Ok(value) => {
-                    b.push_bind(key.own_key.to_string())
-                        .push_bind(key.sampling_key.to_string())
-                        .push_bind(value);
-                }
-                Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                }
+            query_builder.push_values(chunk, |mut b, (key, value)| {
+                b.push_bind(key.own_key.to_string())
+                    .push_bind(key.sampling_key.to_string())
+                    .push_bind(value);
             });
+
             query_builder.build().execute(db).await?;
             relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
 
@@ -328,6 +339,7 @@ impl BufferService {
             // so it can be reused for another chunk.
             query_builder.reset();
         }
+
         Ok(())
     }
 
@@ -336,41 +348,40 @@ impl BufferService {
     /// It will spool to disk only if the persistent storage enabled in the configuration.
     async fn try_spool(&mut self) -> Result<(), BufferError> {
         let Self {
-            spool_config,
+            ref mut spool_config,
             ref mut buffer,
             ..
         } = self;
 
         // Buffer to disk only if the DB and config are provided.
-        if let Some(BufferSpoolConfig {
+        let Some(BufferSpoolConfig {
             db,
             max_disk_size,
-            max_envelopes_count,
-        }) = spool_config
-        {
-            if self.count_mem_envelopes < *max_envelopes_count as i64 {
-                return Ok(());
-            }
+            max_memory_size,
+            ref mut is_disk_full,
+            ..
+        }) = spool_config else { return Ok(()) };
 
-            let estimated_db_size = Self::estimate_buffer_size(db).await?;
-
-            // Reject all the enqueue requests if we exceed the max size of the buffer.
-            if estimated_db_size as usize > *max_disk_size {
-                return Err(BufferError::Full(estimated_db_size));
-            }
-            let buf = std::mem::take(buffer);
-            self.count_mem_envelopes = 0;
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
-            );
-
-            Self::do_spool(db, buf).await?;
+        if self.used_memory < *max_memory_size {
+            return Ok(());
         }
 
-        Ok(())
+        let estimated_db_size = Self::estimate_buffer_size(db).await?;
+        if estimated_db_size as usize >= *max_disk_size {
+            *is_disk_full = true;
+            return Err(BufferError::DatabaseFull(estimated_db_size));
+        }
+
+        let buf = std::mem::take(buffer);
+        self.used_memory = 0;
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
+        );
+
+        Self::do_spool(db, buf).await
     }
 
-    /// Extreacts the envelope from the `SqliteRow`.
+    /// Extracts the envelope from the `SqliteRow`.
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
@@ -392,15 +403,26 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        self.try_spool().await?;
-
         // save to the internal buffer
+        self.used_memory += managed_envelope.estimated_size();
         self.buffer.entry(key).or_default().push(managed_envelope);
-        self.count_mem_envelopes += 1;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
+
+        // If disk is full, the service stop spooling till the disk has more space.
+        // The auto-vacuum will kick in on each delete from the database, and the spool status will
+        // be checked and we more space is available the `is_disk_full` flag set to `false`.
+        //
+        // It falls back to the `cache.envelope_buffer_size`, and will try to keep the rest
+        // of the incoming envelopes in the memory till the `BufferGuard` is exhausted and it
+        // starts dropping the envelopes.
+        if let Some(ref spool_config) = self.spool_config {
+            if !spool_config.is_disk_full {
+                self.try_spool().await?;
+            }
+        }
 
         Ok(())
     }
@@ -466,6 +488,19 @@ impl BufferService {
         }
     }
 
+    /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
+    async fn refresh_spool_state(&mut self) -> Result<(), BufferError> {
+        let Some(BufferSpoolConfig {
+            db,
+            max_disk_size,
+            ref mut is_disk_full, ..
+        }) = &mut self.spool_config else { return Ok(()); };
+
+        let estimated_size = Self::estimate_buffer_size(db).await?;
+        *is_disk_full = (estimated_size as usize) >= *max_disk_size;
+        Ok(())
+    }
+
     /// Handles the dequeueing messages from the internal buffer.
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
@@ -478,30 +513,30 @@ impl BufferService {
 
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
-                self.count_mem_envelopes -= 1;
+                self.used_memory -= value.estimated_size();
                 sender.send(value).ok();
             }
         }
 
         // Persistent buffer is configured, lets try to get data from the disk.
-        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
-            let mut unused_keys = BTreeSet::new();
+        let Some(BufferSpoolConfig { db, .. }) = &self.spool_config else { return Ok(()) };
+        let mut unused_keys = BTreeSet::new();
 
-            while let Some(key) = keys.pop() {
-                // If the error with a key is returned we must save it for the next iterration.
-                if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
-                    unused_keys.insert(key);
-                };
-            }
-            if !unused_keys.is_empty() {
-                self.project_cache
-                    .send(UpdateBufferIndex::new(project_key, unused_keys))
-            }
+        while let Some(key) = keys.pop() {
+            // If the error with a key is returned we must save it for the next iterration.
+            if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
+                unused_keys.insert(key);
+            };
+        }
 
-            Self::estimate_buffer_size(db).await.ok(); // logs metric
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
-            );
+        self.refresh_spool_state().await?;
+
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
+        );
+        if !unused_keys.is_empty() {
+            self.project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
 
         Ok(())
@@ -514,10 +549,13 @@ impl BufferService {
     /// number of envelopes dropped for the specific project key.
     async fn handle_remove(&mut self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
-        let mut count: u64 = 0;
+        let mut count: usize = 0;
         for key in &keys {
-            count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
-            self.count_mem_envelopes -= count as i64;
+            let (current_count, current_size) = self.buffer.remove(key).map_or((0, 0), |k| {
+                (k.len(), k.into_iter().map(|k| k.estimated_size()).sum())
+            });
+            count += current_count;
+            self.used_memory -= current_size;
         }
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
@@ -529,10 +567,10 @@ impl BufferService {
                         .execute(db)
                         .await?;
 
-                count += result.rows_affected();
+                count += result.rows_affected() as usize;
             }
 
-            Self::estimate_buffer_size(db).await.ok(); // logs metric
+            self.refresh_spool_state().await?;
         }
 
         if count > 0 {
@@ -572,7 +610,7 @@ impl BufferService {
             );
 
             let buf = std::mem::take(&mut self.buffer);
-            self.count_mem_envelopes = 0;
+            self.used_memory = 0;
             Self::do_spool(db, buf).await?;
         }
         Ok(())
@@ -601,7 +639,6 @@ impl Service for BufferService {
                         }
                     }
                     else => break,
-
                 }
             }
         });
@@ -645,7 +682,7 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 3 * Config::default().max_envelope_size(),
+                    "max_memory_size": 2048, // 2KB limit
                 }
             }
         }))
@@ -711,14 +748,17 @@ mod tests {
         assert_debug_snapshot!(captures, @r###"
         [
             "service.back_pressure:0|g|#service:project_cache",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
-            "buffer.envelopes_mem:3|h",
+            "buffer.envelopes_mem:1600|h",
+            "buffer.envelopes_mem:3200|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
+            "buffer.envelopes_mem:1600|h",
+            "buffer.envelopes_mem:3200|h",
+            "buffer.disk_size:24576|h",
+            "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
+            "buffer.envelopes_mem:1600|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
             "buffer.disk_size:24576|h",

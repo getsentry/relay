@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
 use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -204,7 +204,17 @@ pub fn normalize_context(context: &mut Context) {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
         Context::Response(response) => normalize_response(response),
-        _ => (),
+        Context::Device(device) => {
+            if let Some(product_name) = device
+                .as_ref()
+                .model
+                .value()
+                .and_then(|model| ANDROID_MODEL_NAMES.get(model.as_str()))
+            {
+                device.name.set_value(Some(product_name.to_string()))
+            }
+        }
+        _ => {}
     }
 }
 
@@ -214,6 +224,23 @@ mod tests {
 
     use super::*;
     use crate::protocol::LenientString;
+
+    #[test]
+    fn test_get_product_name() {
+        assert_eq!(
+            ANDROID_MODEL_NAMES.get("NE2211").unwrap(),
+            &"OnePlus 10 Pro 5G"
+        );
+
+        assert_eq!(
+            ANDROID_MODEL_NAMES.get("MP04").unwrap(),
+            &"A13 Pro Max 5G EEA"
+        );
+
+        assert_eq!(ANDROID_MODEL_NAMES.get("ZT216_7").unwrap(), &"zyrex");
+
+        assert!(ANDROID_MODEL_NAMES.get("foobar").is_none());
+    }
 
     #[test]
     fn test_dotnet_framework_48_without_build_id() {
