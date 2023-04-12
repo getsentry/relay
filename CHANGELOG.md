@@ -43,6 +43,10 @@ Metrics:
 - Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
+
 ## 23.3.1
 
 **Features**:
