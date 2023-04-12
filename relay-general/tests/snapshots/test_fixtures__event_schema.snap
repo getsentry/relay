@@ -897,6 +897,9 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/ProfileContext"
         },
         {
+          "$ref": "#/definitions/ReplayContext"
+        },
+        {
           "$ref": "#/definitions/MonitorContext"
         },
         {
@@ -2735,6 +2738,29 @@ expression: "relay_general::protocol::event_json_schema()"
     },
     "RegVal": {
       "type": "string"
+    },
+    "ReplayContext": {
+      "description": " Replay context.\n\n The replay context contains the replay_id of the session replay if the event\n occurred during a replay. The replay_id is added onto the dynamic sampling context\n on the javascript SDK which propagates it through the trace. In relay, we take\n this value from the DSC and create a context which contains only the replay_id\n This context is never set on the client for events, only on relay.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "replay_id": {
+              "description": " The replay ID.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/EventId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "Request": {
       "description": " Http request information.\n\n The Request interface contains information on a HTTP request related to the event. In client\n SDKs, this can be an outgoing request, or the request that rendered the current web page. On\n server SDKs, this could be the incoming web request that is being handled.\n\n The data variable should only contain the request body (not the query string). It can either be\n a dictionary (for standard HTTP requests) or a raw request body.\n\n ### Ordered Maps\n\n In the Request interface, several attributes can either be declared as string, object, or list\n of tuples. Sentry attempts to parse structured information from the string representation in\n such cases.\n\n Sometimes, keys can be declared multiple times, or the order of elements matters. In such\n cases, use the tuple representation over a plain object.\n\n Example of request headers as object:\n\n ```json\n {\n   \"content-type\": \"application/json\",\n   \"accept\": \"application/json, application/xml\"\n }\n ```\n\n Example of the same headers as list of tuples:\n\n ```json\n [\n   [\"content-type\", \"application/json\"],\n   [\"accept\", \"application/json\"],\n   [\"accept\", \"application/xml\"]\n ]\n ```\n\n Example of a fully populated request object:\n\n ```json\n {\n   \"request\": {\n     \"method\": \"POST\",\n     \"url\": \"http://absolute.uri/foo\",\n     \"query_string\": \"query=foobar&page=2\",\n     \"data\": {\n       \"foo\": \"bar\"\n     },\n     \"cookies\": \"PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\",\n     \"headers\": {\n       \"content-type\": \"text/html\"\n     },\n     \"env\": {\n       \"REMOTE_ADDR\": \"192.168.0.1\"\n     }\n   }\n }\n ```",

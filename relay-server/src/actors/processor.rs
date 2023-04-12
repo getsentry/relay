@@ -1884,6 +1884,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
             client_hints: envelope.meta().client_hints().to_owned(),
         };
 
@@ -2576,6 +2577,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
