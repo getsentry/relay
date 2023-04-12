@@ -155,7 +155,12 @@ pub struct Mechanism {
     /// - .NET Examples:  `"InnerException"`, `"InnerExceptions[0]"`, `"InnerExceptions[1]"`
     ///
     /// - JavaScript Examples: `"cause"`, `"errors[0]"`, `"errors[1]"`
-    #[metastructure(required = "false", nonempty = "true", max_chars = "enumlike")]
+    #[metastructure(
+        required = "false",
+        nonempty = "true",
+        max_chars = "enumlike",
+        deny_chars = " \t\r\n"
+    )]
     pub source: Annotated<String>,
 
     /// An optional boolean value, set `true` when the exception is the platform-specific exception
