@@ -83,7 +83,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    registry: Box<Registry>,
+    registry: Registry,
     _aggregator_runtime: Arc<Runtime>,
     _outcome_runtime: Arc<Runtime>,
     _project_runtime: Arc<Runtime>,
@@ -198,7 +198,7 @@ impl ServiceState {
             }
         }
 
-        let registry = Box::new(Registry {
+        let registry = Registry {
             aggregator,
             processor,
             health_check,
@@ -209,7 +209,7 @@ impl ServiceState {
             relay_cache,
             project_cache,
             upstream_relay,
-        });
+        };
 
         let state = StateInner {
             buffer_guard: buffer,
