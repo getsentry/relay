@@ -19,7 +19,7 @@ contexts:
     app_build: "1"
     type: app
   device:
-    name: Android SDK built for x86
+    name: Emulator
     family: Android
     model: Android SDK built for x86
     model_id: NYC

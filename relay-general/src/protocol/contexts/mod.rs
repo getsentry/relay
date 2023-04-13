@@ -12,6 +12,8 @@ mod os;
 pub use os::*;
 mod profile;
 pub use profile::*;
+mod replay;
+pub use replay::*;
 mod reprocessing;
 pub use reprocessing::*;
 mod response;
@@ -31,6 +33,10 @@ use crate::user_agent::{ClientHints, RawUserAgentInfo};
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
 pub type OperationType = String;
+
+/// Origin type such as `auto.http`.
+/// Follows the pattern described in the [develop docs](https://develop.sentry.dev/sdk/performance/trace-origin/).
+pub type OriginType = String;
 
 /// A context describes environment info (e.g. device, os or browser).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -53,6 +59,8 @@ pub enum Context {
     Trace(Box<TraceContext>),
     /// Information related to Profiling.
     Profile(Box<ProfileContext>),
+    /// Information related to Replay.
+    Replay(Box<ReplayContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
@@ -85,6 +93,7 @@ impl Context {
             Context::Trace(_) => Some(TraceContext::default_key()),
             Context::Profile(_) => Some(ProfileContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
+            Context::Replay(_) => Some(ReplayContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Otel(_) => Some(OtelContext::default_key()),
             Context::CloudResource(_) => Some(CloudResourceContext::default_key()),

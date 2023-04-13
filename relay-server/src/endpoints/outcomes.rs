@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use relay_config::EmitOutcomes;
 
-use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
+use crate::actors::outcome::{SendOutcomes, SendOutcomesResponse};
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 
@@ -11,7 +11,7 @@ pub async fn handle(state: ServiceState, body: SignedJson<SendOutcomes>) -> impl
         return StatusCode::FORBIDDEN.into_response();
     }
 
-    let producer = OutcomeProducer::from_registry();
+    let producer = &state.outcome_producer();
     for outcome in body.inner.outcomes {
         producer.send(outcome);
     }

@@ -226,6 +226,7 @@ mod tests {
             transaction: transaction.map(|value| value.to_string()),
             sample_rate,
             user: Default::default(),
+            replay_id: Default::default(),
             other: Default::default(),
         }
     }
