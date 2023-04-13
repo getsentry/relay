@@ -8,6 +8,7 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
+use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
 mod utils;
@@ -134,6 +135,8 @@ impl fmt::Debug for ShardedProducer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
+    #[cfg(debug_assertions)]
+    schema_validator: schemas::Validator,
 }
 
 impl KafkaClient {
@@ -144,14 +147,15 @@ impl KafkaClient {
 
     /// Sends message to the provided kafka topic.
     pub fn send_message(
-        &self,
+        &mut self,
         topic: KafkaTopic,
         organization_id: u64,
         message: &impl Message,
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
         #[cfg(debug_assertions)]
-        schemas::validate_message_schema(topic, &serialized)
+        self.schema_validator
+            .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
         self.send(topic, organization_id, &key, message.variant(), &serialized)
@@ -284,6 +288,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
+            schema_validator: Validator::default(),
         }
     }
 }
