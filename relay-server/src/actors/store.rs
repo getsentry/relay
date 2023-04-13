@@ -664,14 +664,11 @@ impl StoreService {
         // message because we can achieve better parallelism when dealing with a single
         // message.
 
-        // Max message size is 15MB.
-        let max_message_size = 1000 * 150000;
-
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
 
         // Remaining bytes can be filled by the payload.
-        let max_payload_size = max_message_size - max_message_metadata_size;
+        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
 
         if item.payload().len() < max_payload_size {
             let message =
