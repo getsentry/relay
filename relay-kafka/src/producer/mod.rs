@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -136,7 +137,7 @@ impl fmt::Debug for ShardedProducer {
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
     #[cfg(debug_assertions)]
-    schema_validator: schemas::Validator,
+    schema_validator: RefCell<schemas::Validator>,
 }
 
 impl KafkaClient {
@@ -147,7 +148,7 @@ impl KafkaClient {
 
     /// Sends message to the provided kafka topic.
     pub fn send_message(
-        &mut self,
+        &self,
         topic: KafkaTopic,
         organization_id: u64,
         message: &impl Message,
@@ -155,6 +156,7 @@ impl KafkaClient {
         let serialized = message.serialize()?;
         #[cfg(debug_assertions)]
         self.schema_validator
+            .borrow_mut()
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
@@ -288,7 +290,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            schema_validator: Validator::default(),
+            schema_validator: Validator::default().into(),
         }
     }
 }

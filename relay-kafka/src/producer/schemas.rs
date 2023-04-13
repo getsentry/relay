@@ -44,6 +44,7 @@ pub enum SchemaError {
     Message(String),
 }
 
+/// Validates payloads for their given topic's schema.
 #[derive(Debug, Default)]
 pub struct Validator {
     /// Caches the schema for given topics.
@@ -51,6 +52,7 @@ pub struct Validator {
 }
 
 impl Validator {
+    /// Validate a message for a given topic's schema.
     pub fn validate_message_schema(
         &mut self,
         topic: KafkaTopic,
@@ -93,7 +95,7 @@ impl Validator {
                     Some(schema)
                 })
             }
-            Entry::Occupied(entry) => entry.get(),
+            Entry::Occupied(entry) => entry.into_mut(),
         }
         .as_ref())
     }
