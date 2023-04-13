@@ -328,15 +328,13 @@ impl Default for FieldAttrs {
 #[derive(Debug, Clone, Eq, Ord, PartialOrd)]
 enum PathItem<'a> {
     StaticKey(&'a str),
+    OwnedKey(String),
     Index(usize),
 }
 
 impl<'a> PartialEq for PathItem<'a> {
     fn eq(&self, other: &PathItem<'a>) -> bool {
-        match *self {
-            PathItem::StaticKey(s) => other.key() == Some(s),
-            PathItem::Index(value) => other.index() == Some(value),
-        }
+        self.key() == other.key() && self.index() == other.index()
     }
 }
 
@@ -344,8 +342,9 @@ impl<'a> PathItem<'a> {
     /// Returns the key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        match *self {
+        match self {
             PathItem::StaticKey(s) => Some(s),
+            PathItem::OwnedKey(s) => Some(s.as_str()),
             PathItem::Index(_) => None,
         }
     }
@@ -353,17 +352,18 @@ impl<'a> PathItem<'a> {
     /// Returns the index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        match *self {
-            PathItem::StaticKey(_) => None,
-            PathItem::Index(idx) => Some(idx),
+        match self {
+            PathItem::StaticKey(_) | PathItem::OwnedKey(_) => None,
+            PathItem::Index(idx) => Some(*idx),
         }
     }
 }
 
 impl<'a> fmt::Display for PathItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
+        match self {
             PathItem::StaticKey(s) => f.pad(s),
+            PathItem::OwnedKey(s) => f.pad(s.as_str()),
             PathItem::Index(val) => write!(f, "{val}"),
         }
     }
@@ -462,6 +462,22 @@ impl<'a> ProcessingState<'a> {
         ProcessingState {
             parent: Some(BoxCow::Borrowed(self)),
             path_item: Some(PathItem::StaticKey(key)),
+            attrs,
+            value_type: value_type.into_iter().collect(),
+            depth: self.depth + 1,
+        }
+    }
+
+    /// Derives a processing state by entering an owned key.
+    pub fn enter_owned(
+        &'a self,
+        key: String,
+        attrs: Option<Cow<'a, FieldAttrs>>,
+        value_type: impl IntoIterator<Item = ValueType>,
+    ) -> Self {
+        ProcessingState {
+            parent: Some(BoxCow::Borrowed(self)),
+            path_item: Some(PathItem::OwnedKey(key)),
             attrs,
             value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
