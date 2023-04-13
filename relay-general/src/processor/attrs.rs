@@ -469,18 +469,21 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering an owned key.
+    ///
+    /// Also takes ownership of the parent.
     pub fn enter_owned(
-        &'a self,
+        self,
         key: String,
         attrs: Option<Cow<'a, FieldAttrs>>,
         value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
+        let depth = self.depth + 1;
         ProcessingState {
-            parent: Some(BoxCow::Borrowed(self)),
+            parent: Some(BoxCow::Owned(self.into())),
             path_item: Some(PathItem::OwnedKey(key)),
             attrs,
             value_type: value_type.into_iter().collect(),
-            depth: self.depth + 1,
+            depth,
         }
     }
 

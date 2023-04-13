@@ -82,17 +82,17 @@ static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
 struct ScrubberTransform<'a> {
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
-    path: Vec<String>, // TODO: use `Path` instead
+    state: ProcessingState<'a>,
 }
 
 impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     fn push_path(&mut self, key: &'de str) {
         // TODO: PII
-        self.path.push(key.to_owned());
+        self.state = std::mem::take(&mut self.state).enter_owned(key.to_owned(), None, None)
     }
 
     fn pop_path(&mut self) {
-        self.path.pop();
+        // TODO: self.state.into_iter().next()
     }
 
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
@@ -100,7 +100,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        dbg!(&self.path, &value);
+        dbg!(&self.state, &value);
         if let Some(ref mut processor) = self.processor1 {
             if processor
                 .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
@@ -266,7 +266,7 @@ impl<'a> RecordingScrubber<'a> {
             transform: Rc::new(RefCell::new(ScrubberTransform {
                 processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
                 processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
-                path: vec![],
+                state: ProcessingState::new_root(None, None),
             })),
         }
     }
