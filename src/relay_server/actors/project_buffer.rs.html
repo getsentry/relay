@@ -801,6 +801,93 @@
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
 <a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -823,6 +910,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, EnvelopeError};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
@@ -1117,14 +1205,20 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
         <span class="kw">let </span>envelopes = buffer
             .into_iter()
-            .flat_map(|(key, values)| values.into_iter().map(<span class="kw">move </span>|value| (key, value)))
-            .filter_map(|(key, managed)| <span class="kw">match </span>managed.into_envelope().to_vec() {
-                <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Some</span>((key, vec)),
-                <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize the envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-                    <span class="prelude-val">None
-                </span>}
-            });
+            .flat_map(|(key, values)| {
+                values
+                    .into_iter()
+                    .map(<span class="kw">move </span>|value| (key, value.received_at().timestamp_millis(), value))
+            })
+            .filter_map(
+                |(key, received_at, managed)| <span class="kw">match </span>managed.into_envelope().to_vec() {
+                    <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Some</span>((key, vec, received_at)),
+                    <span class="prelude-val">Err</span>(err) =&gt; {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize the envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                        <span class="prelude-val">None
+                    </span>}
+                },
+            );
 
         <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
         // here to prepare the chunks which will be preparing the batch inserts.
@@ -1133,12 +1227,14 @@
         <span class="comment">// A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; =
-            QueryBuilder::new(<span class="string">&quot;INSERT INTO envelopes (own_key, sampling_key, envelope) &quot;</span>);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; = QueryBuilder::new(
+            <span class="string">&quot;INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) &quot;</span>,
+        );
 
         <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = envelopes.next().<span class="kw">await </span>{
-            query_builder.push_values(chunk, |<span class="kw-2">mut </span>b, (key, value)| {
-                b.push_bind(key.own_key.to_string())
+            query_builder.push_values(chunk, |<span class="kw-2">mut </span>b, (key, value, received_at)| {
+                b.push_bind(received_at)
+                    .push_bind(key.own_key.to_string())
                     .push_bind(key.sampling_key.to_string())
                     .push_bind(value);
             });
@@ -1198,7 +1294,13 @@
     </span><span class="kw">fn </span>extract_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, row: SqliteRow) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
         <span class="kw">let </span>envelope_row: Vec&lt;u8&gt; = row.try_get(<span class="string">&quot;envelope&quot;</span>)<span class="question-mark">?</span>;
         <span class="kw">let </span>envelope_bytes = bytes::Bytes::from(envelope_row);
-        <span class="kw">let </span>envelope = Envelope::parse_bytes(envelope_bytes)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(envelope_bytes)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>received_at: i64 = row.try_get(<span class="string">&quot;received_at&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
+
+        envelope.set_start_time(start_time.into_inner());
+
         <span class="attr">#[cfg(test)]
         </span><span class="kw">if </span><span class="self">self</span>.untracked {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(ManagedEnvelope::untracked(
@@ -1207,6 +1309,7 @@
                 <span class="self">self</span>.test_store.clone(),
             ));
         }
+
         <span class="kw">let </span>managed_envelope = <span class="self">self</span>.buffer_guard.enter(
             envelope,
             <span class="self">self</span>.outcome_aggregator.clone(),
@@ -1267,7 +1370,11 @@
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
             </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = sqlx::query(
-                <span class="string">&quot;DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope&quot;</span>,
+                <span class="string">&quot;DELETE FROM
+                    envelopes
+                 WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
+                 RETURNING
+                    envelope, received_at&quot;</span>,
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
@@ -1476,6 +1583,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::time::{Duration, Instant};
+
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>relay_common::Uuid;
     <span class="kw">use </span>relay_general::protocol::EventId;
@@ -1501,6 +1610,71 @@
         <span class="kw">let </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), RequestMeta::new(dsn));
         <span class="kw">let </span>(<span class="kw">_</span>, outcome_aggregator, test_store) = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>ensure_start_time_restore() {
+        <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">10</span>).into();
+        <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">&quot;spool&quot;</span>: {
+                <span class="string">&quot;envelopes&quot;</span>: {
+                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+                </span>}
+            }
+        }))
+        .unwrap()
+        .into();
+        <span class="kw">let </span>(project_cache, outcome_aggregator, test_store) = services();
+        <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(
+            buffer_guard,
+            outcome_aggregator,
+            project_cache,
+            test_store,
+            config,
+        )
+        .<span class="kw">await
+        </span>.unwrap();
+        service.untracked = <span class="bool-val">true</span>; <span class="comment">// so we do not panic when dropping envelopes
+        </span><span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx) = mpsc::unbounded_channel();
+
+        <span class="comment">// Test cases:
+        </span><span class="kw">let </span>test_cases = [
+            <span class="comment">// The difference between the `Instant::now` and start_time is 2 seconds,
+            // that the start time is restored to the correct point in time.
+            </span>(<span class="number">2</span>, <span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>),
+            <span class="comment">// There is no delay, and the `Instant::now` must be within the same second.
+            </span>(<span class="number">0</span>, <span class="string">&quot;aaaae32be2584e0bbd7a4cbb95971fff&quot;</span>),
+        ];
+        <span class="kw">for </span>(result, pub_key) <span class="kw">in </span>test_cases {
+            <span class="kw">let </span>project_key = ProjectKey::parse(pub_key).unwrap();
+            <span class="kw">let </span>key = QueueKey {
+                own_key: project_key,
+                sampling_key: project_key,
+            };
+
+            addr.send(Enqueue {
+                key,
+                value: empty_envelope(),
+            });
+
+            <span class="comment">// How long to wait to dequeue the message from the spool.
+            // This will also ensure that the start time will have to be restored to the time
+            // when the request first came in.
+            </span>tokio::time::sleep(Duration::from_millis(<span class="number">1000 </span>* result)).<span class="kw">await</span>;
+
+            addr.send(DequeueMany {
+                project_key,
+                keys: [key].into(),
+                sender: tx.clone(),
+            });
+
+            <span class="kw">let </span>managed_envelope = rx.recv().<span class="kw">await</span>.unwrap();
+            <span class="kw">let </span>start_time = managed_envelope.envelope().meta().start_time();
+
+            <span class="macro">assert_eq!</span>((Instant::now() - start_time).as_secs(), result);
+        }
     }
 
     <span class="attr">#[test]

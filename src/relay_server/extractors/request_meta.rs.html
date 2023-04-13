@@ -656,6 +656,11 @@
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
 <a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -943,6 +948,11 @@
     <span class="doccomment">/// The time at which the request started.
     </span><span class="kw">pub fn </span>start_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
         <span class="self">self</span>.start_time
+    }
+
+    <span class="doccomment">/// Sets the start time for this [`RequestMeta`] on the current envelope.
+    </span><span class="kw">pub fn </span>set_start_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, start_time: Instant) {
+        <span class="self">self</span>.start_time = start_time
     }
 }
 

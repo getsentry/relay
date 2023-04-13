@@ -37,8 +37,46 @@
 <a href="#36" id="36">36</a>
 <a href="#37" id="37">37</a>
 <a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
-<span class="kw">use </span>std::time::Instant;
+<span class="kw">use </span>std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
@@ -58,6 +96,26 @@
     </span><span class="kw">pub fn </span>into_inner(<span class="self">self</span>) -&gt; Instant {
         <span class="self">self</span>.<span class="number">0
     </span>}
+
+    <span class="doccomment">/// Returns the [`StartTime`] corresponding to provided timestamp.
+    </span><span class="kw">pub fn </span>from_timestamp_millis(timestamp: u64) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>ts = Duration::from_millis(timestamp);
+
+        <span class="kw">let </span>elapsed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .checked_sub(ts)
+            .unwrap_or_default();
+
+        <span class="kw">let </span>start_time = Instant::now()
+            <span class="comment">// Subtract the elapsed time from the current `Instant` to get the timestamp
+            // of the start time.
+            </span>.checked_sub(elapsed)
+            <span class="comment">// If we fail to get the `Instant` from the timestamp, we fallback to `now()`.
+            </span>.unwrap_or_else(Instant::now);
+
+        <span class="self">Self</span>(start_time)
+    }
 }
 
 <span class="attr">#[axum::async_trait]
@@ -73,6 +131,24 @@
             </span>.expect(<span class="string">&quot;StartTime middleware is not configured&quot;</span>);
 
         <span class="prelude-val">Ok</span>(start_time)
+    }
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>start_time_from_timestamp() {
+        <span class="kw">let </span>elapsed = <span class="number">10</span>;
+        <span class="kw">let </span>now = Instant::now();
+        <span class="kw">let </span>system_time =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - Duration::from_secs(elapsed);
+        <span class="kw">let </span>start_time =
+            StartTime::from_timestamp_millis(system_time.as_millis() <span class="kw">as </span>u64).into_inner();
+
+        <span class="comment">// Check that the difference between the now and generated start_time is about 10s.
+        </span><span class="macro">assert_eq!</span>((now - start_time).as_secs(), elapsed);
     }
 }
 </code></pre></div>
