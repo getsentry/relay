@@ -35,7 +35,7 @@
 //! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
 //! data that will be used in `relay_server` to perform the sampling decision.
 //!
-//! # Determinism
+//! # Sampling Determinism
 //! The concept of determinism is extremely important for sampling. We want to be able to make the
 //! a deterministic sampling decision for a wide variety of reasons, including:
 //! - Across a **chain of Relays** (e.g., we don't want to drop an event that was retained by a previous
