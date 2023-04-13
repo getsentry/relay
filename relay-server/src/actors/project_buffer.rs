@@ -20,6 +20,7 @@ use crate::actors::outcome::TrackOutcome;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
+use crate::extractors::StartTime;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
@@ -314,14 +315,20 @@ impl BufferService {
     ) -> Result<(), BufferError> {
         let envelopes = buffer
             .into_iter()
-            .flat_map(|(key, values)| values.into_iter().map(move |value| (key, value)))
-            .filter_map(|(key, managed)| match managed.into_envelope().to_vec() {
-                Ok(vec) => Some((key, vec)),
-                Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                    None
-                }
-            });
+            .flat_map(|(key, values)| {
+                values
+                    .into_iter()
+                    .map(move |value| (key, value.received_at().timestamp_millis(), value))
+            })
+            .filter_map(
+                |(key, received_at, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, received_at)),
+                    Err(err) => {
+                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                        None
+                    }
+                },
+            );
 
         // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
         // here to prepare the chunks which will be preparing the batch inserts.
@@ -330,12 +337,14 @@ impl BufferService {
         // A builder type for constructing queries at runtime.
         // This by default creates a prepared sql statement, which is cached and
         // re-used for sequential queries.
-        let mut query_builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ",
+        );
 
         while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| {
-                b.push_bind(key.own_key.to_string())
+            query_builder.push_values(chunk, |mut b, (key, value, received_at)| {
+                b.push_bind(received_at)
+                    .push_bind(key.own_key.to_string())
                     .push_bind(key.sampling_key.to_string())
                     .push_bind(value);
             });
@@ -395,7 +404,13 @@ impl BufferService {
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
         let envelope_row: Vec<u8> = row.try_get("envelope")?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let envelope = Envelope::parse_bytes(envelope_bytes)?;
+        let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
+
+        let received_at: i64 = row.try_get("received_at")?;
+        let start_time = StartTime::from_timestamp_millis(received_at as u64);
+
+        envelope.set_start_time(start_time.into_inner());
+
         #[cfg(test)]
         if self.untracked {
             return Ok(ManagedEnvelope::untracked(
@@ -404,6 +419,7 @@ impl BufferService {
                 self.test_store.clone(),
             ));
         }
+
         let managed_envelope = self.buffer_guard.enter(
             envelope,
             self.outcome_aggregator.clone(),
@@ -464,7 +480,11 @@ impl BufferService {
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
             let mut envelopes = sqlx::query(
-                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
+                "DELETE FROM
+                    envelopes
+                 WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
+                 RETURNING
+                    envelope, received_at",
             )
             .bind(key.own_key.to_string())
             .bind(key.sampling_key.to_string())
@@ -673,6 +693,8 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
     use relay_general::protocol::EventId;
@@ -698,6 +720,71 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
         let (_, outcome_aggregator, test_store) = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn ensure_start_time_restore() {
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        let (project_cache, outcome_aggregator, test_store) = services();
+        let mut service = BufferService::create(
+            buffer_guard,
+            outcome_aggregator,
+            project_cache,
+            test_store,
+            config,
+        )
+        .await
+        .unwrap();
+        service.untracked = true; // so we do not panic when dropping envelopes
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // Test cases:
+        let test_cases = [
+            // The difference between the `Instant::now` and start_time is 2 seconds,
+            // that the start time is restored to the correct point in time.
+            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
+            // There is no delay, and the `Instant::now` must be within the same second.
+            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+        ];
+        for (result, pub_key) in test_cases {
+            let project_key = ProjectKey::parse(pub_key).unwrap();
+            let key = QueueKey {
+                own_key: project_key,
+                sampling_key: project_key,
+            };
+
+            addr.send(Enqueue {
+                key,
+                value: empty_envelope(),
+            });
+
+            // How long to wait to dequeue the message from the spool.
+            // This will also ensure that the start time will have to be restored to the time
+            // when the request first came in.
+            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+
+            addr.send(DequeueMany {
+                project_key,
+                keys: [key].into(),
+                sender: tx.clone(),
+            });
+
+            let managed_envelope = rx.recv().await.unwrap();
+            let start_time = managed_envelope.envelope().meta().start_time();
+
+            assert_eq!((Instant::now() - start_time).as_secs(), result);
+        }
     }
 
     #[test]
