@@ -23,6 +23,10 @@ Metrics:
 - The `route` tag of request metrics uses the route pattern instead of schematic names. There is an exact replacement for every previous route. For example, `"store-default"` is now tagged as `"/api/:project_id/store/"`.
 - Statsd metrics `event.size_bytes.raw` and `event.size_bytes.uncompressed` have been removed.
 
+Replays:
+
+- Lower max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
+
 **Features**:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
