@@ -348,7 +348,7 @@ impl EnvelopeManagerService {
         if let Err(err) = result {
             relay_log::trace!(
                 "failed to submit the envelope, merging buckets back: {}",
-                err
+                LogError(&err)
             );
             self.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));
