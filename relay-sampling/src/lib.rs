@@ -16,7 +16,7 @@
 //!
 //! # Components
 //!
-//! The sampling system implemented in Relay is composed of several important components:
+//! The sampling system implemented in Relay is composed of the following components:
 //! - [`DynamicSamplingContext`]: a struct that contains the trace information.
 //! - [`FieldValueProvider`]: an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
 //! expose fields that are read during matching.
