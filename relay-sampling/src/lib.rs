@@ -1,8 +1,9 @@
 //! Sampling logic for performing sampling decisions of incoming events.
 //!
-//! Relay performs sampling of events in order to allow Sentry to offer performance at scale. The
-//! process of sampling ultimately comes down to generating a random number and given a sample rate
-//! checking whether the generated number is bigger or smaller than the sample rate.
+//! In order to allow Sentry to offer performance at scale, Relay extracts key [`metrics`] from
+//! all transactions, but only forwards a random sample of raw transaction payloads to the upstream.
+//! What exact percentage is sampled is determined by [`dynamic sampling rules`], and depends on
+//! the project, the environment, the transaction name, etc.
 //!
 //! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
 //! [`SamplingRule`]s that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
@@ -33,6 +34,20 @@
 //! sample rate based on the [`SamplingValue`] of the rule.
 //! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
 //! data that will be used in `relay_server` to perform the sampling decision.
+//!
+//! # Determinism
+//! The concept of determinism is extremely important for sampling. We want to be able to make the
+//! a deterministic sampling decision for a wide variety of reasons, including:
+//! - Across a **chain of Relays** (e.g., we don't want to drop an event that was retained by a previous
+//! Relay and vice-versa).
+//! - Across **transactions of the same trace** (e.g., we want to be able to sample all the transactions
+//! of the same trace, even though some exceptions apply).
+//!
+//! In order to perform deterministic sampling, we use the id of the event or trace as the seed
+//! for the random number generator (e.g., all transactions with the same trace id will have the same
+//! random number being generated). _Since we allow the matching of both transaction and trace rules, we might
+//! end up in cases in which we perform inconsistent trace sampling but this is something we decided
+//! to live with as long as there are no big implications on the product._
 //!
 //! # Examples
 //!
