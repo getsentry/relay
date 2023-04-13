@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -21,6 +20,7 @@ use crate::actors::outcome::TrackOutcome;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
+use crate::extractors::StartTime;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
@@ -407,21 +407,9 @@ impl BufferService {
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
         let received_at: i64 = row.try_get("received_at")?;
-        let received_at = Duration::from_millis(received_at as u64);
-        let elapsed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .checked_sub(received_at)
-            .unwrap_or_default();
+        let start_time = StartTime::from_timestmap(received_at as u64);
 
-        let start_time = Instant::now()
-            // Subtract the elapsed time (the time the envelope was kept in the spool) from the current
-            // Instant to get the timestamp when the request started.
-            .checked_sub(elapsed)
-            // If we fail to get the instant from the timestamp, we fallback to `now()`.
-            .unwrap_or_else(Instant::now);
-
-        envelope.set_start_time(start_time);
+        envelope.set_start_time(start_time.into_inner());
 
         #[cfg(test)]
         if self.untracked {
@@ -431,6 +419,7 @@ impl BufferService {
                 self.test_store.clone(),
             ));
         }
+
         let managed_envelope = self.buffer_guard.enter(
             envelope,
             self.outcome_aggregator.clone(),
@@ -704,6 +693,8 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
     use relay_general::protocol::EventId;
@@ -729,6 +720,71 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
         let (_, outcome_aggregator, test_store) = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn ensure_start_time_restore() {
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        let (project_cache, outcome_aggregator, test_store) = services();
+        let mut service = BufferService::create(
+            buffer_guard,
+            outcome_aggregator,
+            project_cache,
+            test_store,
+            config,
+        )
+        .await
+        .unwrap();
+        service.untracked = true; // so we do not panic when dropping envelopes
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // Test cases:
+        let test_cases = [
+            // The difference between the `Instant::now` and start_time is 2 seconds,
+            // that the start time is restored to the correct point in time.
+            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
+            // There is no delay, and the `Instant::now` must be within the same second.
+            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+        ];
+        for (result, pub_key) in test_cases {
+            let project_key = ProjectKey::parse(pub_key).unwrap();
+            let key = QueueKey {
+                own_key: project_key,
+                sampling_key: project_key,
+            };
+
+            addr.send(Enqueue {
+                key,
+                value: empty_envelope(),
+            });
+
+            // How long to wait to dequeue the message from the spool.
+            // This will also ensure that the start time will have to be restored to the time
+            // when the request first came in.
+            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+
+            addr.send(DequeueMany {
+                project_key,
+                keys: [key].into(),
+                sender: tx.clone(),
+            });
+
+            let managed_envelope = rx.recv().await.unwrap();
+            let start_time = managed_envelope.envelope().meta().start_time();
+
+            assert_eq!((Instant::now() - start_time).as_secs(), result);
+        }
     }
 
     #[test]
