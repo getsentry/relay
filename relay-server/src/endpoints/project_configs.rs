@@ -11,7 +11,7 @@ use relay_dynamic_config::ErrorBoundary;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
-use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
+use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
 use crate::extractors::SignedJson;
@@ -93,10 +93,12 @@ struct GetProjectStatesRequest {
 }
 
 async fn inner(
+    state: ServiceState,
     Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
+    let project_cache = &state.project_cache().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
@@ -105,11 +107,11 @@ async fn inner(
     let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
         let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
-            ProjectCache::from_registry()
+            project_cache
                 .send(GetCachedProjectState::new(project_key))
                 .await
         } else {
-            ProjectCache::from_registry()
+            project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .await
                 .map(Some)

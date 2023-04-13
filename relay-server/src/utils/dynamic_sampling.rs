@@ -129,7 +129,7 @@ mod tests {
             options: EqCondOptions { ignore_case },
         })
     }
-
+    
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
             id: Annotated::new(EventId::new()),

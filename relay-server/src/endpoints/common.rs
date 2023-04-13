@@ -9,8 +9,8 @@ use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};
-use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
+use crate::actors::processor::ProcessMetrics;
+use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
@@ -248,12 +248,13 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager's queue and
+/// - Metrics are directly sent to the [`crate::actors::processor::EnvelopeProcessor`], bypassing the manager's queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
+    state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
@@ -267,7 +268,7 @@ fn queue_envelope(
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
-        EnvelopeProcessor::from_registry().send(ProcessMetrics {
+        state.processor().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
@@ -283,11 +284,17 @@ fn queue_envelope(
         relay_log::trace!("queueing separate envelope for non-event items");
 
         // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard.enter(event_envelope)?;
+        let event_context = buffer_guard.enter(
+            event_envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+        )?;
 
         // Update the old context after successful forking.
         managed_envelope.update();
-        ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
+        state
+            .project_cache()
+            .send(ValidateEnvelope::new(event_context));
     }
 
     if managed_envelope.envelope().is_empty() {
@@ -296,7 +303,9 @@ fn queue_envelope(
         managed_envelope.accept();
     } else {
         relay_log::trace!("queueing envelope");
-        ProjectCache::from_registry().send(ValidateEnvelope::new(managed_envelope));
+        state
+            .project_cache()
+            .send(ValidateEnvelope::new(managed_envelope));
     }
 
     Ok(())
@@ -316,7 +325,11 @@ pub async fn handle_envelope(
 ) -> Result<Option<EventId>, BadStoreRequest> {
     let buffer_guard = state.buffer_guard();
     let mut managed_envelope = buffer_guard
-        .enter(envelope)
+        .enter(
+            envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+        )
         .map_err(BadStoreRequest::QueueFailed)?;
 
     // If configured, remove unknown items at the very beginning. If the envelope is
@@ -330,7 +343,8 @@ pub async fn handle_envelope(
         return Ok(event_id);
     }
 
-    let checked = ProjectCache::from_registry()
+    let checked = state
+        .project_cache()
         .send(CheckEnvelope::new(managed_envelope))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?
@@ -345,7 +359,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow);
     }
 
-    queue_envelope(managed_envelope, buffer_guard)?;
+    queue_envelope(state, managed_envelope, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
         Err(BadStoreRequest::RateLimited(checked.rate_limits))

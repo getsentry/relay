@@ -1229,6 +1229,8 @@ pub struct DynamicSamplingContext {
     /// user object).
     #[serde(flatten, default)]
     pub user: TraceUserContext,
+    /// If the event occurred during a session replay, the associated replay_id is added to the DSC.
+    pub replay_id: Option<Uuid>,
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
@@ -1262,6 +1264,7 @@ impl DynamicSamplingContext {
             release: event.release.as_str().map(str::to_owned),
             environment: event.environment.value().cloned(),
             transaction: event.transaction.value().cloned(),
+            replay_id: None,
             sample_rate: None,
             user: TraceUserContext {
                 user_segment: user
@@ -1383,6 +1386,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             user: TraceUserContext::default(),
+            replay_id: None,
             other: BTreeMap::new(),
         }
     }
@@ -1485,6 +1489,7 @@ mod tests {
                 user_segment: user_segment.to_string(),
                 user_id: user_id.to_string(),
             },
+            replay_id: Default::default(),
             other: Default::default(),
         }
     }
@@ -1777,6 +1782,7 @@ mod tests {
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            replay_id: Some(Uuid::new_v4()),
             other: BTreeMap::new(),
         };
 
@@ -1812,6 +1818,7 @@ mod tests {
             environment: None,
             transaction: None,
             sample_rate: None,
+            replay_id: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.release"));
@@ -1828,6 +1835,7 @@ mod tests {
             environment: None,
             transaction: None,
             sample_rate: None,
+            replay_id: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
@@ -1932,6 +1940,7 @@ mod tests {
                 user_segment: "vip".into(),
                 user_id: "user-id".into(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2107,6 +2116,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2169,6 +2179,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2208,6 +2219,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2270,6 +2282,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2657,6 +2670,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2677,6 +2691,7 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: TraceUserContext::default(),
+            replay_id: Some(Uuid::new_v4()),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2700,6 +2715,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: None,
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2723,6 +2739,7 @@ mod tests {
                 user_segment: "vip".to_owned(),
                 user_id: "user-id".to_owned(),
             },
+            replay_id: None,
             environment: Some("debug".to_string()),
             transaction: None,
             sample_rate: None,
@@ -2739,6 +2756,7 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),
+            replay_id: None,
             environment: None,
             transaction: None,
             sample_rate: None,
@@ -3134,6 +3152,7 @@ mod tests {
           "environment": None,
           "transaction": None,
           "user_id": "hello",
+          "replay_id": None,
         }
         "###);
     }
@@ -3158,6 +3177,7 @@ mod tests {
           "transaction": None,
           "sample_rate": "0.5",
           "user_id": "hello",
+          "replay_id": None,
         }
         "###);
     }
@@ -3182,6 +3202,7 @@ mod tests {
           "transaction": None,
           "sample_rate": "0.00001",
           "user_id": "hello",
+          "replay_id": None,
         }
         "###);
     }
