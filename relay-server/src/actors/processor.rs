@@ -23,7 +23,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1995,8 +1995,8 @@ impl EnvelopeProcessorService {
 
         // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
         // below already checks for the event type.
-        let Some(event) = state.event.value() else { return };
-        let Some(key_config) = state.project_state.get_public_key_config() else { return };
+        let Some(event) = state.event.value() else { return; };
+        let Some(key_config) = state.project_state.get_public_key_config() else { return; };
 
         if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
@@ -2008,26 +2008,44 @@ impl EnvelopeProcessorService {
     fn apply_trace_rules_if_error(&self, state: &mut ProcessEnvelopeState) {
         // Only if the extracted event is an error we want to run this logic, otherwise we don't
         // do anything.
+        println!("{:?}", state.event_type());
         if let Some(EventType::Error) = state.event_type() {
+            let sampling_result = utils::should_keep_event_with_trace_rules(
+                self.config.processing_enabled(),
+                state.sampling_project_state.as_deref(),
+                state.envelope().dsc(),
+                state.envelope().meta().client_addr(),
+            );
+
+            // In case the sampling result is positive, we assume that all the transactions
+            // that have this DSC will be sampled and thus we mark the error as "having
+            // a full trace".
             match state.event.value_mut() {
                 Some(event) => {
-                    let sampling_result = utils::should_keep_event_with_trace_rules(
-                        self.config.processing_enabled(),
-                        state.sampling_project_state.as_deref(),
-                        state.envelope().dsc(),
-                        state.envelope().meta().client_addr(),
-                    );
+                    let context = event
+                        .contexts
+                        .value_mut()
+                        .as_mut()
+                        .map_or(None, |mut contexts| {
+                            contexts.get_context_mut(TraceContext::default_key())
+                        });
 
-                    // In case the sampling result is positive, we assume that all the transactions
-                    // that have this DSC will be sampled and thus we mark the error as "having
-                    // a full trace".
-                    event.has_full_trace = Annotated::new(match sampling_result {
-                        SamplingResult::Keep => true,
-                        SamplingResult::Drop(_) => false,
-                    })
+                    // We want to mutate the has_full_trace after the "fake" sampling has been performed.
+                    if let Some(protocol::Context::Trace(boxed_context)) = context {
+                        if let TraceContext {
+                            ref mut has_full_trace,
+                            ..
+                        } = **boxed_context
+                        {
+                            *has_full_trace = Annotated::new(match sampling_result {
+                                SamplingResult::Keep => true,
+                                SamplingResult::Drop(_) => false,
+                            });
+                        }
+                    }
                 }
                 None => {}
-            };
+            }
         }
     }
 
@@ -2364,6 +2382,9 @@ impl EnvelopeProcessorService {
                 self.create_placeholders(state);
             });
 
+            println!("PROCESSING");
+            println!("{:?}", state.event);
+
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
@@ -2392,7 +2413,6 @@ impl EnvelopeProcessorService {
 
         if state.has_event() {
             self.scrub_event(state)?;
-            // TODO: add here the information to the event payload.
             self.serialize_event(state)?;
         }
 
@@ -2406,7 +2426,6 @@ impl EnvelopeProcessorService {
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut state = self.prepare_state(message)?;
-        println!("{:?}", state.event);
         let project_id = state.project_id;
         let client = state.envelope().meta().client().map(str::to_owned);
         let user_agent = state.envelope().meta().user_agent().map(str::to_owned);
@@ -2799,6 +2818,7 @@ mod tests {
         );
         assert!(!args.run_session_producer());
     }
+
     #[tokio::test]
     async fn test_process_session_invalid_timestamp() {
         let mut args = TestProcessSessionArguments::default();
@@ -3071,6 +3091,45 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    #[tokio::test]
+    async fn test_has_full_trace_injection() {
+        let processor = create_test_processor(Default::default());
+        let event_id = protocol::EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                  "type": "error",
+                  "event_id": "52df9022835246eeb317dbd739ccd059"
+                }"#,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3393,7 +3452,7 @@ mod tests {
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
             Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
                 RuleId(123),
-                RuleId(456)
+                RuleId(456),
             ])))
         );
 

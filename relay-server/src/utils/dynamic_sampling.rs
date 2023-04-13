@@ -5,9 +5,7 @@ use std::net::IpAddr;
 use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
-use relay_sampling::{
-    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
-};
+use relay_sampling::{merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch, SamplingConfig};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -26,8 +24,56 @@ pub enum SamplingResult {
     Drop(MatchedRuleIds),
 }
 
-/// Matches the incoming event with the SamplingConfig(s) of the project and root project.
-fn get_sampling_match(
+impl SamplingResult {
+    fn from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
+        match sampling_match {
+            Some(SamplingMatch {
+                sample_rate,
+                matched_rule_ids,
+                seed,
+            }) => {
+                let random_number = relay_sampling::pseudo_random_from_uuid(seed);
+                relay_log::trace!("sampling event with sample rate {}", sample_rate);
+                if random_number >= sample_rate {
+                    relay_log::trace!("dropping event that matched the configuration");
+                    SamplingResult::Drop(matched_rule_ids)
+                } else {
+                    relay_log::trace!("keeping event that matched the configuration");
+                    SamplingResult::Keep
+                }
+            }
+            None => {
+                relay_log::trace!("keeping event that didn't match the configuration");
+                SamplingResult::Keep
+            }
+        }
+    }
+}
+
+/// Checks whether unsupported rules result in a direct keep of the event or depending on the
+/// type of Relay an ignore of unsupported rules.
+fn check_unsupported_rules(
+    processing_enabled: bool,
+    sampling_config: &SamplingConfig,
+    root_sampling_config: Option<&SamplingConfig>,
+) -> Option<()> {
+    // When we have unsupported rules disable sampling for non processing relays.
+    if sampling_config.has_unsupported_rules()
+        || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
+    {
+        if !processing_enabled {
+            return None;
+        } else {
+            relay_log::error!("found unsupported rules even as processing relay");
+        }
+    }
+
+    Some(())
+}
+
+/// Gets the sampling match result by creating the merged configuration and matching it against
+/// the sampling configuration.
+fn get_sampling_match_result(
     processing_enabled: bool,
     project_state: &ProjectState,
     root_project_state: Option<&ProjectState>,
@@ -72,7 +118,7 @@ pub fn should_keep_event(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
-    match get_sampling_match(
+    SamplingResult::from_sampling_match(get_sampling_match_result(
         processing_enabled,
         project_state,
         root_project_state,
@@ -82,27 +128,7 @@ pub fn should_keep_event(
         // For consistency reasons we take a snapshot in time and use that time across all code that
         // requires it.
         Utc::now(),
-    ) {
-        Some(SamplingMatch {
-            sample_rate,
-            matched_rule_ids,
-            seed,
-        }) => {
-            let random_number = relay_sampling::pseudo_random_from_uuid(seed);
-            relay_log::trace!("sampling event with sample rate {}", sample_rate);
-            if random_number >= sample_rate {
-                relay_log::trace!("dropping event that matched the configuration");
-                SamplingResult::Drop(matched_rule_ids)
-            } else {
-                relay_log::trace!("keeping event that matched the configuration");
-                SamplingResult::Keep
-            }
-        }
-        None => {
-            relay_log::trace!("keeping event that didn't match the configuration");
-            SamplingResult::Keep
-        }
-    }
+    ))
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
