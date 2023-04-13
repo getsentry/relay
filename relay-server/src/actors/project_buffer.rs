@@ -17,7 +17,9 @@ use sqlx::sqlite::{
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::sync::mpsc;
 
+use crate::actors::outcome::TrackOutcome;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
+use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
@@ -176,7 +178,7 @@ impl FromMessage<RemoveMany> for Buffer {
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
     max_disk_size: usize,
-    max_envelopes_count: usize,
+    max_memory_size: usize,
     is_disk_full: bool,
 }
 
@@ -185,9 +187,11 @@ struct BufferSpoolConfig {
 pub struct BufferService {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
+    outcome_aggregator: Addr<TrackOutcome>,
     project_cache: Addr<ProjectCache>,
+    test_store: Addr<TestStore>,
     spool_config: Option<BufferSpoolConfig>,
-    count_mem_envelopes: i64,
+    used_memory: usize,
 
     #[cfg(test)]
     /// Create untracked envelopes when loading from disk. Only use in tests.
@@ -211,14 +215,18 @@ impl BufferService {
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
         buffer_guard: Arc<BufferGuard>,
+        outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        test_store: Addr<TestStore>,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let mut service = Self {
             buffer: BTreeMap::new(),
             buffer_guard,
+            outcome_aggregator,
             project_cache,
-            count_mem_envelopes: 0,
+            test_store,
+            used_memory: 0,
             spool_config: None,
             #[cfg(test)]
             untracked: false,
@@ -270,12 +278,7 @@ impl BufferService {
             let spool_config = BufferSpoolConfig {
                 db,
                 max_disk_size: config.spool_envelopes_max_disk_size(),
-                // It is a rough extimation for how many envelopes we can fit in the
-                // configured memory limit, taking that 1 enveloper is 1 MB.
-                //
-                // TODO: Can we calculate the real size of the envelope?
-                max_envelopes_count: config.spool_envelopes_max_memory_size()
-                    / config.max_envelope_size(),
+                max_memory_size: config.spool_envelopes_max_memory_size(),
                 is_disk_full: false,
             };
 
@@ -371,12 +374,12 @@ impl BufferService {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
-            max_envelopes_count,
+            max_memory_size,
             ref mut is_disk_full,
             ..
         }) = spool_config else { return Ok(()) };
 
-        if self.count_mem_envelopes < *max_envelopes_count as i64 {
+        if self.used_memory < *max_memory_size {
             return Ok(());
         }
 
@@ -387,9 +390,9 @@ impl BufferService {
         }
 
         let buf = std::mem::take(buffer);
-        self.count_mem_envelopes = 0;
+        self.used_memory = 0;
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
 
         Self::do_spool(db, buf).await
@@ -422,9 +425,17 @@ impl BufferService {
 
         #[cfg(test)]
         if self.untracked {
-            return Ok(ManagedEnvelope::untracked(envelope));
+            return Ok(ManagedEnvelope::untracked(
+                envelope,
+                self.outcome_aggregator.clone(),
+                self.test_store.clone(),
+            ));
         }
-        let managed_envelope = self.buffer_guard.enter(envelope)?;
+        let managed_envelope = self.buffer_guard.enter(
+            envelope,
+            self.outcome_aggregator.clone(),
+            self.test_store.clone(),
+        )?;
         Ok(managed_envelope)
     }
 
@@ -436,11 +447,11 @@ impl BufferService {
         } = message;
 
         // save to the internal buffer
+        self.used_memory += managed_envelope.estimated_size();
         self.buffer.entry(key).or_default().push(managed_envelope);
-        self.count_mem_envelopes += 1;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
 
         // If disk is full, the service stop spooling till the disk has more space.
@@ -549,7 +560,7 @@ impl BufferService {
 
         for key in &keys {
             for value in self.buffer.remove(key).unwrap_or_default() {
-                self.count_mem_envelopes -= 1;
+                self.used_memory -= value.estimated_size();
                 sender.send(value).ok();
             }
         }
@@ -568,7 +579,7 @@ impl BufferService {
         self.refresh_spool_state().await?;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.count_mem_envelopes as f64
+            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
         if !unused_keys.is_empty() {
             self.project_cache
@@ -585,10 +596,13 @@ impl BufferService {
     /// number of envelopes dropped for the specific project key.
     async fn handle_remove(&mut self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
-        let mut count: u64 = 0;
+        let mut count: usize = 0;
         for key in &keys {
-            count += self.buffer.remove(key).map_or(0, |k| k.len() as u64);
-            self.count_mem_envelopes -= count as i64;
+            let (current_count, current_size) = self.buffer.remove(key).map_or((0, 0), |k| {
+                (k.len(), k.into_iter().map(|k| k.estimated_size()).sum())
+            });
+            count += current_count;
+            self.used_memory -= current_size;
         }
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
@@ -600,7 +614,7 @@ impl BufferService {
                         .execute(db)
                         .await?;
 
-                count += result.rows_affected();
+                count += result.rows_affected() as usize;
             }
 
             self.refresh_spool_state().await?;
@@ -643,7 +657,7 @@ impl BufferService {
             );
 
             let buf = std::mem::take(&mut self.buffer);
-            self.count_mem_envelopes = 0;
+            self.used_memory = 0;
             Self::do_spool(db, buf).await?;
         }
         Ok(())
@@ -699,13 +713,22 @@ mod tests {
 
     use super::*;
 
+    fn services() -> (Addr<ProjectCache>, Addr<TrackOutcome>, Addr<TestStore>) {
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+
+        (project_cache, outcome_aggregator, test_store)
+    }
+
     fn empty_envelope() -> ManagedEnvelope {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
-        ManagedEnvelope::untracked(envelope)
+        let (_, outcome_aggregator, test_store) = services();
+        ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
     }
 
     #[test]
@@ -715,7 +738,7 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 3 * Config::default().max_envelope_size(),
+                    "max_memory_size": 2048, // 2KB limit
                 }
             }
         }))
@@ -733,13 +756,16 @@ mod tests {
             .unwrap();
         let _guard = rt.enter();
 
+        let (project_cache, outcome_aggregator, test_store) = services();
+
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
                 let mut service = BufferService::create(
-                    buffer_guard.clone(),
-                    project_cache.clone(),
-                    config.clone(),
+                    buffer_guard,
+                    outcome_aggregator,
+                    project_cache,
+                    test_store,
+                    config,
                 )
                 .await
                 .unwrap();
@@ -778,17 +804,25 @@ mod tests {
             })
         });
 
+        // Collect only the buffer metrics.
+        let captures: Vec<_> = captures
+            .into_iter()
+            .filter(|name| name.contains("buffer."))
+            .collect();
+
         assert_debug_snapshot!(captures, @r###"
         [
-            "service.back_pressure:0|g|#service:project_cache",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
-            "buffer.envelopes_mem:3|h",
+            "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem:4000|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:1|h",
-            "buffer.envelopes_mem:2|h",
+            "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem:4000|h",
+            "buffer.disk_size:24576|h",
+            "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
+            "buffer.envelopes_mem:2000|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
             "buffer.disk_size:24576|h",

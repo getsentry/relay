@@ -20,9 +20,7 @@ use relay_log::LogError;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
-use crate::actors::upstream::{
-    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
-};
+use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
@@ -215,7 +213,7 @@ async fn handle(
         sender: tx,
     };
 
-    UpstreamRelay::from_registry().send(SendRequest(request));
+    state.upstream_relay().send(SendRequest(request));
     let (status, headers, body) = rx.await??;
 
     Ok(if headers.contains_key(header::CONTENT_TYPE) {

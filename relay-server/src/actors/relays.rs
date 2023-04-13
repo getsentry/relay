@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::service::REGISTRY;
 use crate::utils::{RetryBackoff, SleepHandle};
 
 /// Resolves [`RelayInfo`] by it's [identifier](RelayId).
@@ -36,12 +35,6 @@ pub type GetRelayResult = Option<RelayInfo>;
 /// Manages authentication information for downstream Relays.
 #[derive(Debug)]
 pub struct RelayCache(GetRelay, BroadcastSender<GetRelayResult>);
-
-impl RelayCache {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().relay_cache.clone()
-    }
-}
 
 impl Interface for RelayCache {}
 
