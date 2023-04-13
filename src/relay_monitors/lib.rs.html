@@ -287,6 +287,11 @@
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -402,6 +407,10 @@
     <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
     </span>status: CheckInStatus,
 
+    <span class="doccomment">/// The environment to associate the check-in with
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
+
     <span class="doccomment">/// Duration of this check since it has started in seconds.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
@@ -461,6 +470,7 @@
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;environment&quot;: &quot;production&quot;,
   &quot;duration&quot;: 21.0
 }&quot;#</span>;
 
