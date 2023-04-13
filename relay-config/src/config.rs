@@ -766,9 +766,7 @@ pub struct EnvelopeSpool {
     max_disk_size: usize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
-    /// This is a hard upper bound. Internally, this is converted to an envelope count by dividing
-    /// this number by the maximum envelope size, so in practice, because the avg. envelope
-    /// size is well below the maximum, we start spooling to disk long before this hard limit is reached.
+    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: usize,
 }

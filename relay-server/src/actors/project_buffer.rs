@@ -167,6 +167,10 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+/// Contains the spool related configuration.
+///
+/// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
+/// and on disk spool. All the sized are in bytes.
 #[derive(Debug)]
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
