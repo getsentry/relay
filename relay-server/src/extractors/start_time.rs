@@ -21,7 +21,7 @@ impl StartTime {
     }
 
     /// Returns the [`StartTime`] corresponding to provided timestamp.
-    pub fn from_timestmap(timestamp: u64) -> Self {
+    pub fn from_timestamp_millis(timestamp: u64) -> Self {
         let ts = Duration::from_millis(timestamp);
 
         let elapsed = SystemTime::now()
@@ -67,7 +67,8 @@ mod tests {
         let now = Instant::now();
         let system_time =
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - Duration::from_secs(elapsed);
-        let start_time = StartTime::from_timestmap(system_time.as_millis() as u64).into_inner();
+        let start_time =
+            StartTime::from_timestamp_millis(system_time.as_millis() as u64).into_inner();
 
         // Check that the difference between the now and generated start_time is about 10s.
         assert_eq!((now - start_time).as_secs(), elapsed);

@@ -407,7 +407,7 @@ impl BufferService {
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
         let received_at: i64 = row.try_get("received_at")?;
-        let start_time = StartTime::from_timestmap(received_at as u64);
+        let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
         envelope.set_start_time(start_time.into_inner());
 
