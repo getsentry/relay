@@ -897,6 +897,9 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/ProfileContext"
         },
         {
+          "$ref": "#/definitions/ReplayContext"
+        },
+        {
           "$ref": "#/definitions/MonitorContext"
         },
         {
@@ -2206,6 +2209,16 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "exception_id": {
+              "description": " An optional numeric value providing an ID for the exception relative to this specific event.\n It is referenced by the `parent_id` to reconstruct the logical tree of exceptions in an\n exception group.\n\n This should contain an unsigned integer value starting with `0` for the last exception in\n the exception values list, then `1` for the previous exception, etc.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "handled": {
               "description": " Flag indicating whether this exception was handled.\n\n This is a best-effort guess at whether the exception was handled by user code or not. For\n example:\n\n - Exceptions leading to a 500 Internal Server Error or to a hard process crash are\n   `handled=false`, as the SDK typically has an integration that automatically captures the\n   error.\n\n - Exceptions captured using `capture_exception` (called from user code) are `handled=true`\n   as the user explicitly captured the exception (and therefore kind of handled it)",
               "default": null,
@@ -2222,6 +2235,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "is_exception_group": {
+              "description": " An optional boolean value, set `true` when the exception is the platform-specific exception\n group type.  Defaults to `false`.\n\n For example, exceptions of type `ExceptionGroup` (Python), `AggregateException` (.NET), and\n `AggregateError` (JavaScript) should have `\"is_exception_group\": true`.  Other exceptions\n can omit this field.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "meta": {
               "description": " Operating system or runtime meta information.",
               "default": null,
@@ -2232,6 +2253,24 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "parent_id": {
+              "description": " An optional numeric value pointing at the `exception_id` that is the direct parent of this\n exception, used to reconstruct the logical tree of exceptions in an exception group.\n\n The last exception in the exception values list should omit this field, because it is the\n root exception and thus has no parent.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "description": " An optional string value describing the source of the exception.\n\n For chained exceptions, this should contain the platform-specific name of the property or\n attribute (on the parent exception) that this exception was acquired from. In the case of\n an array, it should include the zero-based array index as well.\n\n - Python Examples: `\"__context__\"`, `\"__cause__\"`, `\"exceptions[0]\"`, `\"exceptions[1]\"`\n\n - .NET Examples:  `\"InnerException\"`, `\"InnerExceptions[0]\"`, `\"InnerExceptions[1]\"`\n\n - JavaScript Examples: `\"cause\"`, `\"errors[0]\"`, `\"errors[1]\"`",
+              "default": null,
+              "type": [
+                "string",
+                "null"
               ]
             },
             "synthetic": {
@@ -2736,6 +2775,29 @@ expression: "relay_general::protocol::event_json_schema()"
     "RegVal": {
       "type": "string"
     },
+    "ReplayContext": {
+      "description": " Replay context.\n\n The replay context contains the replay_id of the session replay if the event\n occurred during a replay. The replay_id is added onto the dynamic sampling context\n on the javascript SDK which propagates it through the trace. In relay, we take\n this value from the DSC and create a context which contains only the replay_id\n This context is never set on the client for events, only on relay.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "replay_id": {
+              "description": " The replay ID.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/EventId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "Request": {
       "description": " Http request information.\n\n The Request interface contains information on a HTTP request related to the event. In client\n SDKs, this can be an outgoing request, or the request that rendered the current web page. On\n server SDKs, this could be the incoming web request that is being handled.\n\n The data variable should only contain the request body (not the query string). It can either be\n a dictionary (for standard HTTP requests) or a raw request body.\n\n ### Ordered Maps\n\n In the Request interface, several attributes can either be declared as string, object, or list\n of tuples. Sentry attempts to parse structured information from the string representation in\n such cases.\n\n Sometimes, keys can be declared multiple times, or the order of elements matters. In such\n cases, use the tuple representation over a plain object.\n\n Example of request headers as object:\n\n ```json\n {\n   \"content-type\": \"application/json\",\n   \"accept\": \"application/json, application/xml\"\n }\n ```\n\n Example of the same headers as list of tuples:\n\n ```json\n [\n   [\"content-type\", \"application/json\"],\n   [\"accept\", \"application/json\"],\n   [\"accept\", \"application/xml\"]\n ]\n ```\n\n Example of a fully populated request object:\n\n ```json\n {\n   \"request\": {\n     \"method\": \"POST\",\n     \"url\": \"http://absolute.uri/foo\",\n     \"query_string\": \"query=foobar&page=2\",\n     \"data\": {\n       \"foo\": \"bar\"\n     },\n     \"cookies\": \"PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\",\n     \"headers\": {\n       \"content-type\": \"text/html\"\n     },\n     \"env\": {\n       \"REMOTE_ADDR\": \"192.168.0.1\"\n     }\n   }\n }\n ```",
       "anyOf": [
@@ -3185,24 +3247,30 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "held_locks": {
+              "description": " Represents a collection of locks (java monitor objects) held by a thread.\n\n A map of lock object addresses and their respective lock reason/details.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/LockReason"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
             "id": {
               "description": " The ID of the thread. Typically a number or numeric string.\n\n Needs to be unique among the threads. An exception can set the `thread_id` attribute to cross-reference this thread.",
               "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "lock_reason": {
-              "description": " Represents an instance of a held lock (java monitor object) in a thread.",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/LockReason"
                 },
                 {
                   "type": "null"
@@ -3305,6 +3373,14 @@ expression: "relay_general::protocol::event_json_schema()"
             },
             "op": {
               "description": " Span type (see `OperationType` docs).",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "origin": {
+              "description": " The origin of the trace indicates what created the trace (see [OriginType] docs).",
               "default": null,
               "type": [
                 "string",

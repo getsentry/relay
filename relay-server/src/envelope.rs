@@ -34,6 +34,7 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -958,6 +959,11 @@ impl Envelope {
     /// Sets the timestamp at which an envelope is sent to the upstream.
     pub fn set_sent_at(&mut self, sent_at: DateTime<Utc>) {
         self.headers.sent_at = Some(sent_at);
+    }
+
+    /// Sets the start time to the provided `Instant`.
+    pub fn set_start_time(&mut self, start_time: Instant) {
+        self.headers.meta.set_start_time(start_time)
     }
 
     /// Sets the data retention in days for items in this envelope.

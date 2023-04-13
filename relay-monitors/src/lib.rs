@@ -113,6 +113,10 @@ struct CheckIn {
     /// Status of this check-in. Defaults to `"unknown"`.
     status: CheckInStatus,
 
+    /// The environment to associate the check-in with
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    environment: Option<String>,
+
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     duration: Option<f64>,
@@ -172,6 +176,7 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
+  "environment": "production",
   "duration": 21.0
 }"#;
 
