@@ -2,12 +2,6 @@
 
 ## Unreleased
 
-**Internal**:
-
-- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
-- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
-- Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
-
 **Breaking Changes**:
 
 This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
@@ -38,13 +32,18 @@ Metrics:
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 - Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
 - Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
+- Change `lock_reason` attribute to a `held_locks` dictionary in the `thread` interface. ([#2018](https://github.com/getsentry/relay/pull/2018))
 
 **Internal**:
 
+- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 - Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
+- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
+- Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
 
 ## 23.3.1
 

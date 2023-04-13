@@ -233,9 +233,10 @@ pub struct Thread {
     #[metastructure(skip_serialization = "empty")]
     pub state: Annotated<String>,
 
-    /// Represents an instance of a held lock (java monitor object) in a thread.
-    #[metastructure(skip_serialization = "empty")]
-    pub lock_reason: Annotated<LockReason>,
+    /// Represents a collection of locks (java monitor objects) held by a thread.
+    ///
+    /// A map of lock object addresses and their respective lock reason/details.
+    pub held_locks: Annotated<Object<LockReason>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -292,7 +293,7 @@ mod tests {
             current: Annotated::new(true),
             main: Annotated::new(true),
             state: Annotated::new("RUNNABLE".to_string()),
-            lock_reason: Annotated::empty(),
+            held_locks: Annotated::empty(),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -326,11 +327,19 @@ mod tests {
   "current": true,
   "main": true,
   "state": "BLOCKED",
-  "lock_reason": {
-    "type": 1,
-    "package_name": "android.database.sqlite",
-    "class_name": "SQLiteConnection",
-    "thread_id": 2
+  "held_locks": {
+    "0x07d7437b": {
+      "type": 2,
+      "package_name": "io.sentry.samples",
+      "class_name": "MainActivity",
+      "thread_id": 7
+    },
+    "0x0d3a2f0a": {
+      "type": 1,
+      "package_name": "android.database.sqlite",
+      "class_name": "SQLiteConnection",
+      "thread_id": 2
+    }
   },
   "other": "value"
 }"#;
@@ -343,14 +352,32 @@ mod tests {
             current: Annotated::new(true),
             main: Annotated::new(true),
             state: Annotated::new("BLOCKED".to_string()),
-            lock_reason: Annotated::new(LockReason {
-                ty: Annotated::new(LockReasonType::Locked),
-                address: Annotated::empty(),
-                package_name: Annotated::new("android.database.sqlite".to_string()),
-                class_name: Annotated::new("SQLiteConnection".to_string()),
-                thread_id: Annotated::new(ThreadId::Int(2)),
-                other: Default::default(),
-            }),
+            held_locks: {
+                let mut locks = Object::new();
+                locks.insert(
+                    "0x07d7437b".to_string(),
+                    Annotated::new(LockReason {
+                        ty: Annotated::new(LockReasonType::Waiting),
+                        address: Annotated::empty(),
+                        package_name: Annotated::new("io.sentry.samples".to_string()),
+                        class_name: Annotated::new("MainActivity".to_string()),
+                        thread_id: Annotated::new(ThreadId::Int(7)),
+                        other: Default::default(),
+                    }),
+                );
+                locks.insert(
+                    "0x0d3a2f0a".to_string(),
+                    Annotated::new(LockReason {
+                        ty: Annotated::new(LockReasonType::Locked),
+                        address: Annotated::empty(),
+                        package_name: Annotated::new("android.database.sqlite".to_string()),
+                        class_name: Annotated::new("SQLiteConnection".to_string()),
+                        thread_id: Annotated::new(ThreadId::Int(2)),
+                        other: Default::default(),
+                    }),
+                );
+                Annotated::new(locks)
+            },
             other: {
                 let mut map = Map::new();
                 map.insert(
