@@ -11,6 +11,7 @@ use std::sync::Mutex;
 //use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
+use syn::token::Enum;
 use syn::{
     Attribute, Field, Item, ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, UsePath, UseTree,
     Variant,
@@ -25,7 +26,29 @@ use std::cell::RefCell;
 static mut VISITED_TYPES: Vec<String> = Vec::new();
 
 lazy_static::lazy_static! {
-    static ref PII_TYPES: Mutex<HashSet<Vec<String>>> = Mutex::new(HashSet::new());
+    static ref PII_TYPES: Mutex<HashSet<Vec<TypeAndField>>> = Mutex::new(HashSet::new());
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+struct TypeAndField {
+    type_name: String,
+    field_name: String,
+}
+
+impl TypeAndField {
+    fn flat_rep(vec: &Vec<Self>) -> String {
+        if vec.is_empty() {
+            return "".to_string();
+        }
+        let mut mystring = String::new();
+
+        mystring.push_str(&vec[0].type_name);
+
+        for x in &vec[1..] {
+            mystring.push_str(&format!(".{}", x.field_name));
+        }
+        mystring
+    }
 }
 
 fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
@@ -44,6 +67,7 @@ fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
     rs_files
 }
 
+#[derive(Debug, Clone)]
 enum EnumOrStruct {
     ItemStruct(ItemStruct),
     ItemEnum(ItemEnum),
@@ -59,8 +83,8 @@ struct TypeVisitor {
     use_statements: Vec<syn::ItemUse>,
     module_path: String,
     current_path: Vec<String>,
-    output_path: Vec<String>,
-    all_types: HashMap<String, ItemStruct>,
+    output_path: Vec<TypeAndField>,
+    all_types: HashMap<String, EnumOrStruct>,
     first_iter: bool,
 }
 
@@ -89,7 +113,8 @@ impl<'ast> Visit<'ast> for TypeVisitor {
             let x = get_item_path_from_full(struct_name.clone());
             let x = x.replace("src::", "");
             let x = x.replace("-", "_");
-            self.all_types.insert(x, node.clone());
+            self.all_types
+                .insert(x, EnumOrStruct::ItemStruct(node.clone()));
         }
 
         syn::visit::visit_item_struct(self, node);
@@ -104,6 +129,12 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                     self.visit_field(field);
                 }
             }
+        } else {
+            let x = get_item_path_from_full(enum_name.clone());
+            let x = x.replace("src::", "");
+            let x = x.replace("-", "_");
+            self.all_types
+                .insert(x, EnumOrStruct::ItemEnum(node.clone()));
         }
         syn::visit::visit_item_enum(self, node);
     }
@@ -154,22 +185,25 @@ impl<'ast> Visit<'ast> for TypeVisitor {
             if let Some(y) = self.all_types.get(&type_in_current_path) {
                 if !self.current_path.contains(&type_in_current_path) {
                     self.current_path.push(type_in_current_path.clone());
-                    if self.output_path.is_empty() {
-                        self.output_path.push(field_type.clone());
-                    } else {
-                        self.output_path.push(
-                            node.clone()
-                                .ident
-                                .map(|i| i.to_string())
-                                .unwrap_or_else(|| "{{Anon}}".to_string()),
-                        );
-                    }
+                    self.output_path.push(TypeAndField {
+                        type_name: field_type.clone(),
+                        field_name: node
+                            .clone()
+                            .ident
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "{{Anon}}".to_string()),
+                    });
 
                     if is_pii {
                         PII_TYPES.lock().unwrap().insert(self.output_path.clone());
                     }
                     //dbg!(&y.ident.to_string());
-                    self.visit_item_struct(&y.clone());
+                    match y {
+                        EnumOrStruct::ItemStruct(itemstruct) => {
+                            self.visit_item_struct(&itemstruct.clone())
+                        }
+                        EnumOrStruct::ItemEnum(itemenum) => self.visit_item_enum(&itemenum.clone()),
+                    }
                     //dbg!(&self.current_path);
                     self.current_path.pop();
                     self.output_path.pop();
@@ -203,21 +237,27 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                                 if !self.current_path.contains(&type_in_current_path) {
                                     self.current_path.push(type_in_current_path.clone());
 
-                                    if self.output_path.is_empty() {
-                                        self.output_path.push(field_type.clone());
-                                    } else {
-                                        self.output_path.push(
-                                            node.clone()
-                                                .ident
-                                                .map(|i| i.to_string())
-                                                .unwrap_or_else(|| "{{Anon}}".to_string()),
-                                        );
-                                    }
+                                    self.output_path.push(TypeAndField {
+                                        type_name: field_type.clone(),
+                                        field_name: node
+                                            .clone()
+                                            .ident
+                                            .map(|x| x.to_string())
+                                            .unwrap_or_else(|| "{{Anon}}".to_string()),
+                                    });
+
                                     if is_pii {
                                         PII_TYPES.lock().unwrap().insert(self.output_path.clone());
                                     }
                                     //dbg!(&self.current_path);
-                                    self.visit_item_struct(&y.clone());
+                                    match y {
+                                        EnumOrStruct::ItemStruct(itemstruct) => {
+                                            self.visit_item_struct(&itemstruct.clone())
+                                        }
+                                        EnumOrStruct::ItemEnum(itemenum) => {
+                                            self.visit_item_enum(&itemenum.clone())
+                                        }
+                                    }
                                     self.current_path.pop();
                                     self.output_path.pop();
                                 }
@@ -317,9 +357,9 @@ fn process_type(ty: &Type, segments: &mut Vec<String>) {
 
 fn process_rust_file(
     file_path: &Path,
-    all_types: HashMap<String, ItemStruct>,
+    all_types: HashMap<String, EnumOrStruct>,
     first_iter: bool,
-) -> Result<HashMap<String, ItemStruct>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<String, EnumOrStruct>, Box<dyn std::error::Error>> {
     let file_content = fs::read_to_string(file_path)?;
 
     let syntax_tree: syn::File = syn::parse_file(&file_content)?;
@@ -385,7 +425,7 @@ pub fn get_item_path_from_full(full: String) -> String {
 
 fn main() {
     let paths = find_rs_files("/Users/tor/prog/rust/relay/");
-    let mut all_types: HashMap<String, ItemStruct> = HashMap::new();
+    let mut all_types: HashMap<String, EnumOrStruct> = HashMap::new();
     for path in paths.clone() {
         all_types = process_rust_file(path.as_path(), all_types.clone(), true).unwrap();
     }
@@ -394,21 +434,41 @@ fn main() {
     }
     //dbg!(all_types);
 
-    let mut foo = vec![];
-    if let Ok(x) = PII_TYPES.lock() {
-        for y in &*x {
-            if y.len() == 1 {
-                //continue;
+    let mut pii_types = PII_TYPES.lock().unwrap().clone();
+    pii_types.retain(|vec| vec.len() > 1);
+
+    dbg!(pii_types.len());
+
+    let mut to_remove = HashSet::new();
+
+    for vec in pii_types.iter() {
+        let string_vec: Vec<String> = vec
+            .iter()
+            .map(|type_and_field| type_and_field.type_name.clone())
+            .collect();
+        for other_vec in pii_types.iter() {
+            let other_string_vec: Vec<String> = other_vec
+                .iter()
+                .map(|type_and_field| type_and_field.type_name.clone())
+                .collect();
+            if other_string_vec != string_vec && is_subset(&string_vec, &other_string_vec) {
+                to_remove.insert(vec.clone());
+                break;
             }
-            let hmm = y.join(".");
-            foo.push(hmm.clone());
         }
     }
 
-    foo.sort();
+    for vec in to_remove {
+        pii_types.remove(&vec);
+    }
 
-    for f in foo {
-        println!("{f}");
+    let piivec: HashSet<String> = pii_types.iter().map(TypeAndField::flat_rep).collect();
+    let mut piivec: Vec<String> = piivec.into_iter().collect();
+    piivec.sort();
+    dbg!(piivec.len());
+
+    for pii in piivec {
+        println!("{pii}");
     }
 
     for key in all_types.keys() {
@@ -425,7 +485,7 @@ fn rust_file_to_use_path(file_path: &Path) -> Result<String, Box<dyn std::error:
     let parent_dir = file_path.parent().unwrap();
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
 
-    let mod_rs_path = parent_dir.join("mod.rs");
+    //let mod_rs_path = parent_dir.join("mod.rs");
     let is_module = is_file_module(file_path)?;
 
     let mut module_path = parent_dir
@@ -506,4 +566,16 @@ fn has_pii_true(field: &Field) -> bool {
         }
     }
     false
+}
+
+fn is_subset<T: PartialEq>(subset: &[T], superset: &[T]) -> bool {
+    let mut superset_iter = superset.iter();
+    for item in subset {
+        if superset_iter.any(|x| x == item) {
+            continue;
+        } else {
+            return false;
+        }
+    }
+    true
 }
