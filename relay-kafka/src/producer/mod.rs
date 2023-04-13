@@ -1,3 +1,4 @@
+#[cfg(debug_assertions)]
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -9,6 +10,7 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
+#[cfg(debug_assertions)]
 use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
