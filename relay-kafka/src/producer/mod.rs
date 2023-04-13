@@ -290,6 +290,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
+            #[cfg(debug_assertions)]
             schema_validator: Validator::default().into(),
         }
     }
