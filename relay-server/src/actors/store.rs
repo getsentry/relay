@@ -664,8 +664,8 @@ impl StoreService {
         // message because we can achieve better parallelism when dealing with a single
         // message.
 
-        // Max message size is 1MB.
-        let max_message_size = 1000 * 1000;
+        // Max message size is 15MB.
+        let max_message_size = 1000 * 150000;
 
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
