@@ -43,6 +43,7 @@ Metrics:
 - Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
 - Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
+- Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
 
 ## 23.3.1
 

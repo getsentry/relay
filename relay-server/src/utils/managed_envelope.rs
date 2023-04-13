@@ -6,6 +6,7 @@ use std::time::Instant;
 use chrono::{DateTime, Utc};
 use relay_common::DataCategory;
 use relay_quotas::Scoping;
+use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
@@ -81,11 +82,18 @@ struct EnvelopeContext {
 pub struct ManagedEnvelope {
     envelope: Box<Envelope>,
     context: EnvelopeContext,
+    outcome_aggregator: Addr<TrackOutcome>,
+    test_store: Addr<TestStore>,
 }
 
 impl ManagedEnvelope {
     /// Computes a managed envelope from the given envelope.
-    fn new_internal(envelope: Box<Envelope>, slot: Option<SemaphorePermit>) -> Self {
+    fn new_internal(
+        envelope: Box<Envelope>,
+        slot: Option<SemaphorePermit>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
         let scoping = meta.get_partial_scoping();
@@ -97,6 +105,8 @@ impl ManagedEnvelope {
                 slot,
                 done: false,
             },
+            outcome_aggregator,
+            test_store,
         }
     }
 
@@ -105,13 +115,21 @@ impl ManagedEnvelope {
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
     #[cfg(test)]
-    pub fn standalone(envelope: Box<Envelope>) -> Self {
-        Self::new_internal(envelope, None)
+    pub fn standalone(
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Self {
+        Self::new_internal(envelope, None, outcome_aggregator, test_store)
     }
 
     #[cfg(test)]
-    pub fn untracked(envelope: Box<Envelope>) -> Self {
-        let mut envelope = Self::new_internal(envelope, None);
+    pub fn untracked(
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Self {
+        let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
         envelope.context.done = true;
         envelope
     }
@@ -119,8 +137,13 @@ impl ManagedEnvelope {
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
-    pub fn new(envelope: Box<Envelope>, slot: SemaphorePermit) -> Self {
-        Self::new_internal(envelope, Some(slot))
+    pub fn new(
+        envelope: Box<Envelope>,
+        slot: SemaphorePermit,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Self {
+        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store)
     }
 
     /// Returns a reference to the contained [`Envelope`].
@@ -206,8 +229,7 @@ impl ManagedEnvelope {
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
-        let outcome_aggregator = TrackOutcome::from_registry();
-        outcome_aggregator.send(TrackOutcome {
+        self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
             scoping: self.context.scoping,
             outcome,
@@ -272,7 +294,8 @@ impl ManagedEnvelope {
         }
 
         // TODO: This could be optimized with Capture::should_capture
-        TestStore::from_registry().send(Capture::rejected(self.envelope.event_id(), &outcome));
+        self.test_store
+            .send(Capture::rejected(self.envelope.event_id(), &outcome));
 
         if let Some(category) = self.event_category() {
             self.track_outcome(outcome.clone(), category, 1);
@@ -311,11 +334,11 @@ impl ManagedEnvelope {
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
     pub fn estimated_size(&self) -> usize {
-        // Always round it up to next 100 bytes.
+        // Always round it up to next 1KB.
         (f64::ceil(
             (self.context.summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64
-                / 100.,
-        ) * 100.) as usize
+                / 1000.,
+        ) * 1000.) as usize
     }
 
     /// Returns the instant at which the envelope was received at this Relay.
