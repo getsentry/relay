@@ -76,13 +76,9 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
         )
     };
 
-    println!("{}", raw_event);
-
     let bytes = Bytes::from(raw_event);
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-
-    println!("{:?}", *envelope);
 
     let item1 = Item::new(ItemType::Transaction);
     envelope.add_item(item1);
