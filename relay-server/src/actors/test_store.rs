@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 use relay_general::protocol::EventId;
-use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender};
+use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::actors::outcome::Outcome;
 use crate::envelope::Envelope;
-use crate::service::REGISTRY;
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Box<Envelope>, String>;
@@ -59,12 +58,6 @@ pub struct GetCapturedEnvelope {
 pub enum TestStore {
     Capture(Box<Capture>),
     Get(GetCapturedEnvelope, Sender<Option<CapturedEnvelope>>),
-}
-
-impl TestStore {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().test_store.clone()
-    }
 }
 
 impl relay_system::Interface for TestStore {}

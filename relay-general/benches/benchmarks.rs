@@ -92,6 +92,7 @@ fn bench_store_processor(c: &mut Criterion) {
         breakdowns: None,
         span_attributes: Default::default(),
         client_sample_rate: None,
+        replay_id: None,
         client_hints: ClientHints::default(),
     };
 
