@@ -262,6 +262,7 @@ mod http;
 mod metrics_extraction;
 mod middlewares;
 mod service;
+mod sql;
 mod statsd;
 mod utils;
 
