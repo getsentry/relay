@@ -138,23 +138,15 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_general::protocol::EventId;
-<span class="kw">use </span>relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender};
+<span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.
 </span><span class="kw">pub type </span>CapturedEnvelope = <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, String&gt;;
@@ -206,12 +198,6 @@
 </span><span class="kw">pub enum </span>TestStore {
     Capture(Box&lt;Capture&gt;),
     Get(GetCapturedEnvelope, Sender&lt;<span class="prelude-ty">Option</span>&lt;CapturedEnvelope&gt;&gt;),
-}
-
-<span class="kw">impl </span>TestStore {
-    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
-        REGISTRY.get().unwrap().test_store.clone()
-    }
 }
 
 <span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>TestStore {}

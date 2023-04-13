@@ -30,22 +30,30 @@
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>futures::future;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
+<span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="doccomment">/// Handles the Relay public keys endpoint.
 ///
 /// Note that this has nothing to do with Sentry public keys, which refer to the public key portion
 /// of a DSN used for authenticating event submission. This endpoint is for Relay&#39;s public keys,
 /// which authenticate entire Relays.
-</span><span class="kw">pub async fn </span>handle(body: SignedJson&lt;GetRelays&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
-    <span class="kw">let </span>relay_cache = RelayCache::from_registry();
+</span><span class="kw">pub async fn </span>handle(
+    state: ServiceState,
+    body: SignedJson&lt;GetRelays&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
+    <span class="kw">let </span>relay_cache = <span class="kw-2">&amp;</span>state.relay_cache();
 
     <span class="kw">let </span>relay_ids = body.inner.relay_ids.into_iter();
     <span class="kw">let </span>futures = relay_ids.map(|relay_id| {

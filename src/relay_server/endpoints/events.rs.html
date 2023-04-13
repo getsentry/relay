@@ -26,6 +26,9 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Returns captured events.
 
 </span><span class="kw">use </span>axum::extract::Path;
@@ -33,14 +36,17 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{GetCapturedEnvelope, TestStore};
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::GetCapturedEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::envelope;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="kw">pub async fn </span>handle(
+    state: ServiceState,
     Path(event_id): Path&lt;EventId&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
-    <span class="kw">let </span>envelope_opt = TestStore::from_registry()
+    <span class="kw">let </span>envelope_opt = state
+        .test_store()
         .send(GetCapturedEnvelope { event_id })
         .<span class="kw">await</span><span class="question-mark">?</span>;
 

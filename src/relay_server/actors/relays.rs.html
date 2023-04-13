@@ -357,13 +357,6 @@
 <a href="#356" id="356">356</a>
 <a href="#357" id="357">357</a>
 <a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
@@ -379,7 +372,6 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, SleepHandle};
 
 <span class="doccomment">/// Resolves [`RelayInfo`] by it&#39;s [identifier](RelayId).
@@ -402,12 +394,6 @@
 <span class="doccomment">/// Manages authentication information for downstream Relays.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RelayCache(GetRelay, BroadcastSender&lt;GetRelayResult&gt;);
-
-<span class="kw">impl </span>RelayCache {
-    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
-        REGISTRY.get().unwrap().relay_cache.clone()
-    }
-}
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>RelayCache {}
 

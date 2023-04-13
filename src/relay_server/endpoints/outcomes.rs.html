@@ -23,7 +23,7 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_config::EmitOutcomes;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{SendOutcomes, SendOutcomesResponse};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
@@ -32,7 +32,7 @@
         <span class="kw">return </span>StatusCode::FORBIDDEN.into_response();
     }
 
-    <span class="kw">let </span>producer = OutcomeProducer::from_registry();
+    <span class="kw">let </span>producer = <span class="kw-2">&amp;</span>state.outcome_producer();
     <span class="kw">for </span>outcome <span class="kw">in </span>body.inner.outcomes {
         producer.send(outcome);
     }

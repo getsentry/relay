@@ -413,6 +413,11 @@
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
@@ -474,6 +479,7 @@
 </span><span class="kw">pub struct </span>SendEnvelope {
     <span class="kw">pub </span>envelope_body: Vec&lt;u8&gt;,
     <span class="kw">pub </span>envelope_meta: RequestMeta,
+    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>scoping: Scoping,
     <span class="kw">pub </span>http_encoding: HttpEncoding,
     <span class="kw">pub </span>response_sender: oneshot::Sender&lt;<span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt;&gt;,
@@ -519,7 +525,7 @@
                 <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>response) =&gt; response.consume().<span class="kw">await</span>.map_err(UpstreamRequestError::Http),
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="kw">if let </span>UpstreamRequestError::RateLimited(<span class="kw-2">ref </span>upstream_limits) = error {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        <span class="self">self</span>.project_cache.send(UpdateRateLimits::new(
                             <span class="self">self</span>.project_key,
                             upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
                         ));
@@ -612,6 +618,7 @@
     config: Arc&lt;Config&gt;,
     aggregator: Addr&lt;Aggregator&gt;,
     enveloper_processor: Addr&lt;EnvelopeProcessor&gt;,
+    project_cache: Addr&lt;ProjectCache&gt;,
     test_store: Addr&lt;TestStore&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -624,6 +631,7 @@
         config: Arc&lt;Config&gt;,
         aggregator: Addr&lt;Aggregator&gt;,
         enveloper_processor: Addr&lt;EnvelopeProcessor&gt;,
+        project_cache: Addr&lt;ProjectCache&gt;,
         test_store: Addr&lt;TestStore&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
     ) -&gt; <span class="self">Self </span>{
@@ -631,6 +639,7 @@
             config,
             aggregator,
             enveloper_processor,
+            project_cache,
             test_store,
             upstream_relay,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -686,6 +695,7 @@
         <span class="kw">let </span>request = SendEnvelope {
             envelope_body,
             envelope_meta: envelope.meta().clone(),
+            project_cache: <span class="self">self</span>.project_cache.clone(),
             scoping,
             http_encoding: <span class="self">self</span>.config.http_encoding(),
             response_sender: tx,

@@ -427,6 +427,20 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -438,8 +452,8 @@
 <span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessMetrics};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -677,12 +691,13 @@
 ///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager&#39;s queue and
+/// - Metrics are directly sent to the [`crate::actors::processor::EnvelopeProcessor`], bypassing the manager&#39;s queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 </span><span class="kw">fn </span>queue_envelope(
+    state: <span class="kw-2">&amp;</span>ServiceState,
     <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
     buffer_guard: <span class="kw-2">&amp;</span>BufferGuard,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {
@@ -696,7 +711,7 @@
 
     <span class="kw">if </span>!metric_items.is_empty() {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending metrics into processing queue&quot;</span>);
-        EnvelopeProcessor::from_registry().send(ProcessMetrics {
+        state.processor().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
@@ -712,11 +727,17 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing separate envelope for non-event items&quot;</span>);
 
         <span class="comment">// The envelope has been split, so we need to fork the context.
-        </span><span class="kw">let </span>event_context = buffer_guard.enter(event_envelope)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>event_context = buffer_guard.enter(
+            event_envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+        )<span class="question-mark">?</span>;
 
         <span class="comment">// Update the old context after successful forking.
         </span>managed_envelope.update();
-        ProjectCache::from_registry().send(ValidateEnvelope::new(event_context));
+        state
+            .project_cache()
+            .send(ValidateEnvelope::new(event_context));
     }
 
     <span class="kw">if </span>managed_envelope.envelope().is_empty() {
@@ -725,7 +746,9 @@
         </span>managed_envelope.accept();
     } <span class="kw">else </span>{
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing envelope&quot;</span>);
-        ProjectCache::from_registry().send(ValidateEnvelope::new(managed_envelope));
+        state
+            .project_cache()
+            .send(ValidateEnvelope::new(managed_envelope));
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -745,7 +768,11 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventId&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>buffer_guard = state.buffer_guard();
     <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = buffer_guard
-        .enter(envelope)
+        .enter(
+            envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+        )
         .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
 
     <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
@@ -759,7 +786,8 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(event_id);
     }
 
-    <span class="kw">let </span>checked = ProjectCache::from_registry()
+    <span class="kw">let </span>checked = state
+        .project_cache()
         .send(CheckEnvelope::new(managed_envelope))
         .<span class="kw">await
         </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::ScheduleFailed)<span class="question-mark">?
@@ -774,7 +802,7 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::Overflow);
     }
 
-    queue_envelope(managed_envelope, buffer_guard)<span class="question-mark">?</span>;
+    queue_envelope(state, managed_envelope, buffer_guard)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>checked.rate_limits.is_limited() {
         <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits))

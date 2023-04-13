@@ -181,6 +181,8 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>axum::extract::Query;
@@ -194,7 +196,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::forward;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
@@ -276,10 +278,12 @@
 }
 
 <span class="kw">async fn </span>inner(
+    state: ServiceState,
     Query(version): Query&lt;VersionQuery&gt;,
     body: SignedJson&lt;GetProjectStatesRequest&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
     <span class="kw">let </span>SignedJson { inner, relay } = body;
+    <span class="kw">let </span>project_cache = <span class="kw-2">&amp;</span>state.project_cache().clone();
 
     <span class="kw">let </span>no_cache = inner.no_cache;
     <span class="kw">let </span>keys_len = inner.public_keys.len();
@@ -288,11 +292,11 @@
     </span><span class="kw">let </span>valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     <span class="kw">let </span>futures = valid_keys.map(|project_key| <span class="kw">async move </span>{
         <span class="kw">let </span>state_result = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
-            ProjectCache::from_registry()
+            project_cache
                 .send(GetCachedProjectState::new(project_key))
                 .<span class="kw">await
         </span>} <span class="kw">else </span>{
-            ProjectCache::from_registry()
+            project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .<span class="kw">await
                 </span>.map(<span class="prelude-val">Some</span>)

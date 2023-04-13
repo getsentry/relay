@@ -281,8 +281,6 @@
 <a href="#280" id="280">280</a>
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Server endpoint that proxies any request to the upstream.
 //!
 //! This endpoint will issue a client request to the upstream and append relay&#39;s own headers
@@ -305,9 +303,7 @@
 <span class="kw">use </span>tokio::sync::oneshot;
 <span class="kw">use </span>tokio::sync::oneshot::error::RecvError;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
-    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
-};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder, Response <span class="kw">as </span>UpstreamResponse};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
@@ -500,7 +496,7 @@
         sender: tx,
     };
 
-    UpstreamRelay::from_registry().send(SendRequest(request));
+    state.upstream_relay().send(SendRequest(request));
     <span class="kw">let </span>(status, headers, body) = rx.<span class="kw">await</span><span class="question-mark">??</span>;
 
     <span class="prelude-val">Ok</span>(<span class="kw">if </span>headers.contains_key(header::CONTENT_TYPE) {

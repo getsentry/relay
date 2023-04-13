@@ -897,6 +897,16 @@
 <a href="#896" id="896">896</a>
 <a href="#897" id="897">897</a>
 <a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -922,9 +932,9 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
 
-<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, BufferGuard, GarbageDisposal, ManagedEnvelope};
 
@@ -1109,12 +1119,6 @@
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
-}
-
-<span class="kw">impl </span>ProjectCache {
-    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
-        REGISTRY.get().unwrap().project_cache.clone()
-    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>ProjectCache {}
@@ -1306,33 +1310,33 @@
 <span class="doccomment">/// Holds the addresses of all services required for [`ProjectCache`].
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Services {
-    buffer: Arc&lt;BufferGuard&gt;,
     <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
     <span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
 
 <span class="kw">impl </span>Services {
     <span class="doccomment">/// Creates new [`Services`] context.
     </span><span class="kw">pub fn </span>new(
-        buffer: Arc&lt;BufferGuard&gt;,
         aggregator: Addr&lt;Aggregator&gt;,
         envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         envelope_manager: Addr&lt;EnvelopeManager&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
+        test_store: Addr&lt;TestStore&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            buffer,
             aggregator,
             envelope_processor,
             envelope_manager,
             outcome_aggregator,
             project_cache,
+            test_store,
             upstream_relay,
         }
     }
@@ -1697,6 +1701,7 @@
 <span class="doccomment">/// Service implementing the [`ProjectCache`] interface.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProjectCacheService {
+    buffer_guard: Arc&lt;BufferGuard&gt;,
     config: Arc&lt;Config&gt;,
     services: Services,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
@@ -1704,8 +1709,14 @@
 
 <span class="kw">impl </span>ProjectCacheService {
     <span class="doccomment">/// Creates a new `ProjectCacheService`.
-    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, services: Services, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(
+        config: Arc&lt;Config&gt;,
+        buffer_guard: Arc&lt;BufferGuard&gt;,
+        services: Services,
+        redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
+            buffer_guard,
             config,
             services,
             redis,
@@ -1718,12 +1729,14 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span><span class="self">Self </span>{
+            buffer_guard,
             config,
             services,
             redis,
         } = <span class="self">self</span>;
-        <span class="kw">let </span>buffer_guard = services.buffer.clone();
         <span class="kw">let </span>project_cache = services.project_cache.clone();
+        <span class="kw">let </span>outcome_aggregator = services.outcome_aggregator.clone();
+        <span class="kw">let </span>test_store = services.test_store.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -1734,16 +1747,23 @@
 
             <span class="comment">// Channel for envelope buffering.
             </span><span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
-            <span class="kw">let </span>buffer =
-                <span class="kw">match </span>BufferService::create(buffer_guard, project_cache, config.clone()).<span class="kw">await </span>{
-                    <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
-                    <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to start buffer service: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-                        <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
-                        // opened or the migrations could not be run.
-                        </span>std::process::exit(<span class="number">1</span>);
-                    }
-                };
+            <span class="kw">let </span>buffer = <span class="kw">match </span>BufferService::create(
+                buffer_guard,
+                outcome_aggregator,
+                project_cache,
+                test_store,
+                config.clone(),
+            )
+            .<span class="kw">await
+            </span>{
+                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to start buffer service: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
+                    // opened or the migrations could not be run.
+                    </span>std::process::exit(<span class="number">1</span>);
+                }
+            };
 
             <span class="comment">// Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.

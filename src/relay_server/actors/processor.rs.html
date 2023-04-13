@@ -3463,9 +3463,6 @@
 <a href="#3462" id="3462">3462</a>
 <a href="#3463" id="3463">3463</a>
 <a href="#3464" id="3464">3464</a>
-<a href="#3465" id="3465">3465</a>
-<a href="#3466" id="3466">3466</a>
-<a href="#3467" id="3467">3467</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3528,7 +3525,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
-<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
@@ -3949,12 +3945,6 @@
     EncodeEnvelope(Box&lt;EncodeEnvelope&gt;),
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>RateLimitFlushBuckets(RateLimitFlushBuckets),
-}
-
-<span class="kw">impl </span>EnvelopeProcessor {
-    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
-        REGISTRY.get().unwrap().processor.clone()
-    }
 }
 
 <span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>EnvelopeProcessor {}
@@ -6061,8 +6051,8 @@
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
     <span class="kw">use </span><span class="kw">crate</span>::utils::Semaphore <span class="kw">as </span>TestSemaphore;
 
@@ -6207,21 +6197,22 @@
             .unwrap()
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_it_keeps_or_drops_transactions() {
+    <span class="kw">fn </span>services() -&gt; (Addr&lt;TrackOutcome&gt;, Addr&lt;TestStore&gt;) {
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">&quot;test_store&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        (outcome_aggregator, test_store)
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_it_keeps_or_drops_transactions() {
         relay_test::setup();
+
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
 
         <span class="comment">// an empty json still produces a valid config
         </span><span class="kw">let </span>json_config = <span class="macro">serde_json::json!</span>({});
 
-        <span class="kw">let </span>config = Config::from_json_value(json_config.clone()).unwrap();
-        <span class="kw">let </span>arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
-
-        <span class="comment">// it really shouldn&#39;t be necessary to start an entire service for a unit test
-        // it was ported from a python integration test. Instead, we should inject dependencies
-        </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;test-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>_guard = runtime.enter();
-        ServiceState::start(arconfig).unwrap();
+        <span class="kw">let </span>config = Config::from_json_value(json_config).unwrap();
 
         <span class="kw">let </span>service = create_test_processor(config);
 
@@ -6256,6 +6247,8 @@
                 managed_envelope: ManagedEnvelope::new(
                     new_envelope(<span class="bool-val">false</span>, <span class="string">&quot;foo&quot;</span>),
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
+                    outcome_aggregator.clone(),
+                    test_store.clone(),
                 ),
             };
 
@@ -6408,6 +6401,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_user_report_invalid() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
         <span class="kw">let </span>event_id = protocol::EventId::new();
 
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
@@ -6430,7 +6424,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
@@ -6446,6 +6440,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_browser_version_extraction_with_pii_like_data() {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
         <span class="kw">let </span>event_id = protocol::EventId::new();
 
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
@@ -6499,7 +6494,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.config = config;
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
@@ -6531,12 +6526,10 @@
         );
     }
 
-    <span class="attr">#[test]
-    #[ignore = <span class="string">&quot;The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
-                hence this test fails. The old SystemRegistry returned dummy Addr&#39;s hence this did
-                not fail.&quot;</span>]
-    </span><span class="kw">fn </span>test_client_report_removal() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_client_report_removal() {
         relay_test::setup();
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
 
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
             <span class="string">&quot;outcomes&quot;</span>: {
@@ -6571,7 +6564,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
@@ -6583,6 +6576,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_client_report_forwarding() {
         relay_test::setup();
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
 
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
             <span class="string">&quot;outcomes&quot;</span>: {
@@ -6618,7 +6612,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };
@@ -6631,11 +6625,11 @@
         ctx.accept(); <span class="comment">// do not try to capture or emit outcomes
     </span>}
 
-    <span class="attr">#[test]
+    <span class="attr">#[tokio::test]
     #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[ignore = <span class="string">&quot;requires registry for the TestStore&quot;</span>]
-    </span><span class="kw">fn </span>test_client_report_removal_in_processing() {
+    </span><span class="kw">async fn </span>test_client_report_removal_in_processing() {
         relay_test::setup();
+        <span class="kw">let </span>(outcome_aggregator, test_store) = services();
 
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
             <span class="string">&quot;outcomes&quot;</span>: {
@@ -6674,7 +6668,7 @@
         });
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
         };

@@ -349,6 +349,29 @@
 <a href="#348" id="348">348</a>
 <a href="#349" id="349">349</a>
 <a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -357,6 +380,7 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::DataCategory;
 <span class="kw">use </span>relay_quotas::Scoping;
+<span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
@@ -432,11 +456,18 @@
 </span><span class="kw">pub struct </span>ManagedEnvelope {
     envelope: Box&lt;Envelope&gt;,
     context: EnvelopeContext,
+    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    test_store: Addr&lt;TestStore&gt;,
 }
 
 <span class="kw">impl </span>ManagedEnvelope {
     <span class="doccomment">/// Computes a managed envelope from the given envelope.
-    </span><span class="kw">fn </span>new_internal(envelope: Box&lt;Envelope&gt;, slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>new_internal(
+        envelope: Box&lt;Envelope&gt;,
+        slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span>envelope.meta();
         <span class="kw">let </span>summary = EnvelopeSummary::compute(envelope.as_ref());
         <span class="kw">let </span>scoping = meta.get_partial_scoping();
@@ -448,6 +479,8 @@
                 slot,
                 done: <span class="bool-val">false</span>,
             },
+            outcome_aggregator,
+            test_store,
         }
     }
 
@@ -456,13 +489,21 @@
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
     </span><span class="attr">#[cfg(test)]
-    </span><span class="kw">pub fn </span>standalone(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>)
+    </span><span class="kw">pub fn </span>standalone(
+        envelope: Box&lt;Envelope&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store)
     }
 
     <span class="attr">#[cfg(test)]
-    </span><span class="kw">pub fn </span>untracked(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>);
+    </span><span class="kw">pub fn </span>untracked(
+        envelope: Box&lt;Envelope&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store);
         envelope.context.done = <span class="bool-val">true</span>;
         envelope
     }
@@ -470,8 +511,13 @@
     <span class="doccomment">/// Computes a managed envelope from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
-    </span><span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;, slot: SemaphorePermit) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">Some</span>(slot))
+    </span><span class="kw">pub fn </span>new(
+        envelope: Box&lt;Envelope&gt;,
+        slot: SemaphorePermit,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">Some</span>(slot), outcome_aggregator, test_store)
     }
 
     <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
@@ -557,8 +603,7 @@
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     </span><span class="kw">fn </span>track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, outcome: Outcome, category: DataCategory, quantity: usize) {
-        <span class="kw">let </span>outcome_aggregator = TrackOutcome::from_registry();
-        outcome_aggregator.send(TrackOutcome {
+        <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
             timestamp: <span class="self">self</span>.received_at(),
             scoping: <span class="self">self</span>.context.scoping,
             outcome,
@@ -623,7 +668,8 @@
         }
 
         <span class="comment">// TODO: This could be optimized with Capture::should_capture
-        </span>TestStore::from_registry().send(Capture::rejected(<span class="self">self</span>.envelope.event_id(), <span class="kw-2">&amp;</span>outcome));
+        </span><span class="self">self</span>.test_store
+            .send(Capture::rejected(<span class="self">self</span>.envelope.event_id(), <span class="kw-2">&amp;</span>outcome));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = <span class="self">self</span>.event_category() {
             <span class="self">self</span>.track_outcome(outcome.clone(), category, <span class="number">1</span>);
@@ -662,11 +708,11 @@
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
     </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="comment">// Always round it up to next 100 bytes.
+        <span class="comment">// Always round it up to next 1KB.
         </span>(f64::ceil(
             (<span class="self">self</span>.context.summary.payload_size + size_of::&lt;<span class="self">Self</span>&gt;() + size_of::&lt;Envelope&gt;()) <span class="kw">as </span>f64
-                / <span class="number">100.</span>,
-        ) * <span class="number">100.</span>) <span class="kw">as </span>usize
+                / <span class="number">1000.</span>,
+        ) * <span class="number">1000.</span>) <span class="kw">as </span>usize
     }
 
     <span class="doccomment">/// Returns the instant at which the envelope was received at this Relay.

@@ -26,6 +26,7 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A simple health check endpoint for the relay.
 
 </span><span class="kw">use </span>axum::extract::Path;
@@ -33,15 +34,16 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, IsHealthy};
+<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::IsHealthy;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="attr">#[derive(Serialize)]
 </span><span class="kw">struct </span>Status {
     is_healthy: bool,
 }
 
-<span class="kw">pub async fn </span>handle(Path(kind): Path&lt;IsHealthy&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
-    <span class="kw">match </span>HealthCheck::from_registry().send(kind).<span class="kw">await </span>{
+<span class="kw">pub async fn </span>handle(state: ServiceState, Path(kind): Path&lt;IsHealthy&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+    <span class="kw">match </span>state.health_check().send(kind).<span class="kw">await </span>{
         <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; (StatusCode::OK, axum::Json(Status { is_healthy: <span class="bool-val">true </span>})),
         <span class="kw">_ </span>=&gt; (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -50,8 +52,8 @@
     }
 }
 
-<span class="kw">pub async fn </span>handle_live() -&gt; <span class="kw">impl </span>IntoResponse {
-    handle(Path(IsHealthy::Liveness)).<span class="kw">await
+<span class="kw">pub async fn </span>handle_live(state: ServiceState) -&gt; <span class="kw">impl </span>IntoResponse {
+    handle(state, Path(IsHealthy::Liveness)).<span class="kw">await
 </span>}
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

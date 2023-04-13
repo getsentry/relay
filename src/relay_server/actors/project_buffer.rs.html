@@ -768,6 +768,39 @@
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -786,7 +819,9 @@
 <span class="kw">use </span>sqlx::{Pool, QueryBuilder, Row, Sqlite};
 <span class="kw">use </span>tokio::sync::mpsc;
 
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::TrackOutcome;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, UpdateBufferIndex};
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, EnvelopeError};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
@@ -954,7 +989,9 @@
 </span><span class="kw">pub struct </span>BufferService {
     buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
+    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
+    test_store: Addr&lt;TestStore&gt;,
     spool_config: <span class="prelude-ty">Option</span>&lt;BufferSpoolConfig&gt;,
     used_memory: usize,
 
@@ -980,13 +1017,17 @@
     <span class="doccomment">/// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     </span><span class="kw">pub async fn </span>create(
         buffer_guard: Arc&lt;BufferGuard&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
+        test_store: Addr&lt;TestStore&gt;,
         config: Arc&lt;Config&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, BufferError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>service = <span class="self">Self </span>{
             buffer: BTreeMap::new(),
             buffer_guard,
+            outcome_aggregator,
             project_cache,
+            test_store,
             used_memory: <span class="number">0</span>,
             spool_config: <span class="prelude-val">None</span>,
             <span class="attr">#[cfg(test)]
@@ -1160,9 +1201,17 @@
         <span class="kw">let </span>envelope = Envelope::parse_bytes(envelope_bytes)<span class="question-mark">?</span>;
         <span class="attr">#[cfg(test)]
         </span><span class="kw">if </span><span class="self">self</span>.untracked {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(ManagedEnvelope::untracked(envelope));
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(ManagedEnvelope::untracked(
+                envelope,
+                <span class="self">self</span>.outcome_aggregator.clone(),
+                <span class="self">self</span>.test_store.clone(),
+            ));
         }
-        <span class="kw">let </span>managed_envelope = <span class="self">self</span>.buffer_guard.enter(envelope)<span class="question-mark">?</span>;
+        <span class="kw">let </span>managed_envelope = <span class="self">self</span>.buffer_guard.enter(
+            envelope,
+            <span class="self">self</span>.outcome_aggregator.clone(),
+            <span class="self">self</span>.test_store.clone(),
+        )<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(managed_envelope)
     }
 
@@ -1436,13 +1485,22 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">fn </span>services() -&gt; (Addr&lt;ProjectCache&gt;, Addr&lt;TrackOutcome&gt;, Addr&lt;TestStore&gt;) {
+        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">&quot;test_store&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+
+        (project_cache, outcome_aggregator, test_store)
+    }
+
     <span class="kw">fn </span>empty_envelope() -&gt; ManagedEnvelope {
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
             </span>.parse()
             .unwrap();
 
         <span class="kw">let </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), RequestMeta::new(dsn));
-        ManagedEnvelope::untracked(envelope)
+        <span class="kw">let </span>(<span class="kw">_</span>, outcome_aggregator, test_store) = services();
+        ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
     }
 
     <span class="attr">#[test]
@@ -1470,13 +1528,16 @@
             .unwrap();
         <span class="kw">let </span>_guard = rt.enter();
 
+        <span class="kw">let </span>(project_cache, outcome_aggregator, test_store) = services();
+
         <span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(<span class="kw">async </span>{
-                <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
                 <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(
-                    buffer_guard.clone(),
-                    project_cache.clone(),
-                    config.clone(),
+                    buffer_guard,
+                    outcome_aggregator,
+                    project_cache,
+                    test_store,
+                    config,
                 )
                 .<span class="kw">await
                 </span>.unwrap();
@@ -1515,20 +1576,25 @@
             })
         });
 
+        <span class="comment">// Collect only the buffer metrics.
+        </span><span class="kw">let </span>captures: Vec&lt;<span class="kw">_</span>&gt; = captures
+            .into_iter()
+            .filter(|name| name.contains(<span class="string">&quot;buffer.&quot;</span>))
+            .collect();
+
         <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;service.back_pressure:0|g|#service:project_cache&quot;,
-            &quot;buffer.envelopes_mem:1600|h&quot;,
-            &quot;buffer.envelopes_mem:3200|h&quot;,
+            &quot;buffer.envelopes_mem:2000|h&quot;,
+            &quot;buffer.envelopes_mem:4000|h&quot;,
             &quot;buffer.disk_size:24576|h&quot;,
             &quot;buffer.envelopes_mem:0|h&quot;,
             &quot;buffer.writes:1|c&quot;,
-            &quot;buffer.envelopes_mem:1600|h&quot;,
-            &quot;buffer.envelopes_mem:3200|h&quot;,
+            &quot;buffer.envelopes_mem:2000|h&quot;,
+            &quot;buffer.envelopes_mem:4000|h&quot;,
             &quot;buffer.disk_size:24576|h&quot;,
             &quot;buffer.envelopes_mem:0|h&quot;,
             &quot;buffer.writes:1|c&quot;,
-            &quot;buffer.envelopes_mem:1600|h&quot;,
+            &quot;buffer.envelopes_mem:2000|h&quot;,
             &quot;buffer.reads:1|c&quot;,
             &quot;buffer.reads:1|c&quot;,
             &quot;buffer.disk_size:24576|h&quot;,

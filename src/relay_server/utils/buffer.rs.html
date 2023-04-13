@@ -68,8 +68,26 @@
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
+<span class="kw">use </span>relay_system::Addr;
+
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::TrackOutcome;
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, Semaphore};
@@ -122,7 +140,12 @@
     /// be reused by a subsequent call to `enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
-    </span><span class="kw">pub fn </span>enter(<span class="kw-2">&amp;</span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
+    </span><span class="kw">pub fn </span>enter(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        envelope: Box&lt;Envelope&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
         <span class="kw">let </span>permit = <span class="self">self</span>.inner.try_acquire().ok_or(BufferError)<span class="question-mark">?</span>;
 
         <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::EnvelopeQueueSize) = <span class="self">self</span>.used() <span class="kw">as </span>u64);
@@ -134,7 +157,12 @@
             }
         );
 
-        <span class="prelude-val">Ok</span>(ManagedEnvelope::new(envelope, permit))
+        <span class="prelude-val">Ok</span>(ManagedEnvelope::new(
+            envelope,
+            permit,
+            outcome_aggregator,
+            test_store,
+        ))
     }
 }
 </code></pre></div>
