@@ -171,6 +171,7 @@ impl DataCategory {
             Self::Attachment => "attachment",
             Self::Session => "session",
             Self::Profile => "profile",
+            Self::ProfileIndexed => "profile_indexed",
             Self::Replay => "replay",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
