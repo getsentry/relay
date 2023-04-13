@@ -1,3 +1,5 @@
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
 use std::fmt::Write;
 
 use jsonschema::JSONSchema;
@@ -42,31 +44,59 @@ pub enum SchemaError {
     Message(String),
 }
 
-pub fn validate_message_schema(topic: KafkaTopic, message: &[u8]) -> Result<(), SchemaError> {
-    let default_assignments = TopicAssignments::default();
-    let logical_topic_name = match default_assignments.get(topic) {
-        TopicAssignment::Primary(logical_topic_name) => logical_topic_name,
-        _ => return Err(SchemaError::LogicalTopic),
-    };
+/// Validates payloads for their given topic's schema.
+#[derive(Debug, Default)]
+pub struct Validator {
+    /// Caches the schema for given topics.
+    schemas: BTreeMap<KafkaTopic, Option<JSONSchema>>,
+}
 
-    let schema = match sentry_kafka_schemas::get_schema(logical_topic_name, None) {
-        Ok(schema) => schema,
-        // No topic found
-        Err(_) => return Ok(()),
-    };
-    let schema = serde_json::from_str(&schema.schema).map_err(SchemaError::SchemaJson)?;
-    let schema =
-        JSONSchema::compile(&schema).map_err(|e| SchemaError::SchemaCompiled(e.to_string()))?;
-    let message_value = serde_json::from_slice(message).map_err(SchemaError::MessageJson)?;
+impl Validator {
+    /// Validate a message for a given topic's schema.
+    pub fn validate_message_schema(
+        &mut self,
+        topic: KafkaTopic,
+        message: &[u8],
+    ) -> Result<(), SchemaError> {
+        let Some(schema) = self.get_schema(topic)? else { return Ok(())};
+        let message_value = serde_json::from_slice(message).map_err(SchemaError::MessageJson)?;
 
-    if let Err(e) = schema.validate(&message_value) {
-        let mut result = String::new();
-        for error in e {
-            writeln!(result, "{}", error).unwrap();
+        if let Err(e) = schema.validate(&message_value) {
+            let mut result = String::new();
+            for error in e {
+                writeln!(result, "{}", error).unwrap();
+            }
+
+            return Err(SchemaError::Message(result));
         }
 
-        return Err(SchemaError::Message(result));
+        Ok(())
     }
 
-    Ok(())
+    fn get_schema(&mut self, topic: KafkaTopic) -> Result<Option<&JSONSchema>, SchemaError> {
+        Ok(match self.schemas.entry(topic) {
+            Entry::Vacant(entry) => {
+                entry.insert({
+                    let default_assignments = TopicAssignments::default();
+                    let logical_topic_name = match default_assignments.get(topic) {
+                        TopicAssignment::Primary(logical_topic_name) => logical_topic_name,
+                        _ => return Err(SchemaError::LogicalTopic),
+                    };
+
+                    let schema = match sentry_kafka_schemas::get_schema(logical_topic_name, None) {
+                        Ok(schema) => schema,
+                        // No topic found
+                        Err(_) => return Ok(None),
+                    };
+                    let schema =
+                        serde_json::from_str(&schema.schema).map_err(SchemaError::SchemaJson)?;
+                    let schema = JSONSchema::compile(&schema)
+                        .map_err(|e| SchemaError::SchemaCompiled(e.to_string()))?;
+                    Some(schema)
+                })
+            }
+            Entry::Occupied(entry) => entry.into_mut(),
+        }
+        .as_ref())
+    }
 }

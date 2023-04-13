@@ -1,3 +1,5 @@
+#[cfg(debug_assertions)]
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -8,6 +10,8 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
+#[cfg(debug_assertions)]
+use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
 mod utils;
@@ -134,6 +138,8 @@ impl fmt::Debug for ShardedProducer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
+    #[cfg(debug_assertions)]
+    schema_validator: RefCell<schemas::Validator>,
 }
 
 impl KafkaClient {
@@ -151,7 +157,9 @@ impl KafkaClient {
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
         #[cfg(debug_assertions)]
-        schemas::validate_message_schema(topic, &serialized)
+        self.schema_validator
+            .borrow_mut()
+            .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
         self.send(topic, organization_id, &key, message.variant(), &serialized)
@@ -284,6 +292,8 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
+            #[cfg(debug_assertions)]
+            schema_validator: Validator::default().into(),
         }
     }
 }
