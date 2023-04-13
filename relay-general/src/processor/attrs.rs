@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::ops::RangeInclusive;
+use std::ops::{Deref, RangeInclusive};
 
 use enumset::{EnumSet, EnumSetType};
 use smallvec::SmallVec;
@@ -369,6 +369,23 @@ impl<'a> fmt::Display for PathItem<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
+enum BoxCow<'a, T> {
+    Borrowed(&'a T),
+    Owned(Box<T>),
+}
+
+impl<T> Deref for BoxCow<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            BoxCow::Borrowed(slf) => slf,
+            BoxCow::Owned(slf) => slf.deref(),
+        }
+    }
+}
+
 /// An event's processing state.
 ///
 /// The processing state describes an item in an event which is being processed, an example
@@ -384,7 +401,7 @@ impl<'a> fmt::Display for PathItem<'a> {
 /// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
-    parent: Option<&'a ProcessingState<'a>>,
+    parent: Option<BoxCow<'a, ProcessingState<'a>>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
     value_type: EnumSet<ValueType>,
@@ -427,7 +444,7 @@ impl<'a> ProcessingState<'a> {
         value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
-            parent: Some(self),
+            parent: Some(BoxCow::Borrowed(self)),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
             value_type: value_type.into_iter().collect(),
@@ -443,7 +460,7 @@ impl<'a> ProcessingState<'a> {
         value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
-            parent: Some(self),
+            parent: Some(BoxCow::Borrowed(self)),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
             value_type: value_type.into_iter().collect(),
@@ -459,7 +476,7 @@ impl<'a> ProcessingState<'a> {
         value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
-            parent: Some(self),
+            parent: Some(BoxCow::Borrowed(self)),
             path_item: Some(PathItem::Index(idx)),
             attrs,
             value_type: value_type.into_iter().collect(),
@@ -472,7 +489,7 @@ impl<'a> ProcessingState<'a> {
         ProcessingState {
             attrs,
             path_item: None,
-            parent: Some(self),
+            parent: Some(BoxCow::Borrowed(self)),
             ..self.clone()
         }
     }
@@ -523,7 +540,7 @@ impl<'a> ProcessingState<'a> {
     ///
     /// This is `false` when we entered a newtype struct.
     pub fn entered_anything(&'a self) -> bool {
-        if let Some(parent) = self.parent {
+        if let Some(parent) = self.parent.as_deref() {
             parent.depth() != self.depth()
         } else {
             true
@@ -553,7 +570,7 @@ impl<'a> Iterator for ProcessingStateIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let current = self.state?;
-        self.state = current.parent;
+        self.state = current.parent.as_deref();
         Some(current)
     }
 
