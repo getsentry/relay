@@ -44,6 +44,7 @@ Metrics:
 - Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
+- Change data category for profiles to match transactions. ([#2025](https://github.com/getsentry/relay/pull/2025))
 
 Monitors:
 
