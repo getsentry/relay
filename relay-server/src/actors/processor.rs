@@ -2008,7 +2008,6 @@ impl EnvelopeProcessorService {
     fn apply_trace_rules_if_error(&self, state: &mut ProcessEnvelopeState) {
         // Only if the extracted event is an error we want to run this logic, otherwise we don't
         // do anything.
-        println!("{:?}", state.event_type());
         if let Some(EventType::Error) = state.event_type() {
             let sampling_result = utils::should_keep_event_with_trace_rules(
                 self.config.processing_enabled(),
@@ -2016,6 +2015,7 @@ impl EnvelopeProcessorService {
                 state.envelope().dsc(),
                 state.envelope().meta().client_addr(),
             );
+            println!("{:?}", sampling_result);
 
             // In case the sampling result is positive, we assume that all the transactions
             // that have this DSC will be sampled and thus we mark the error as "having
@@ -2863,10 +2863,67 @@ mod tests {
             .unwrap()
     }
 
+
     fn services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
         (outcome_aggregator, test_store)
+    }
+
+    #[test]
+    fn test_apply_trace_rules_if_error() {
+        relay_test::setup();
+
+        // an empty json still produces a valid config
+        let json_config = serde_json::json!({});
+
+        let config = Config::from_json_value(json_config.clone()).unwrap();
+        let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
+
+        let runtime = crate::service::create_runtime("test-rt", 1);
+        let _guard = runtime.enter();
+        ServiceState::start(arconfig).unwrap();
+
+        let service = create_test_processor(config);
+
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Error),
+            ..Event::default()
+        };
+
+        let project_state = state_with_rule_and_condition(
+            Some(1.0),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        let sampling_project_state = state_with_rule_and_condition(
+            Some(1.0),
+            RuleType::Trace,
+            SamplingMode::Received,
+            RuleCondition::all(),
+        );
+
+        let mut state = ProcessEnvelopeState {
+            event: Annotated::from(event.clone()),
+            transaction_metrics_extracted: false,
+            metrics: Default::default(),
+            sample_rates: None,
+            sampling_result: SamplingResult::Keep,
+            extracted_metrics: Default::default(),
+            project_state: Arc::new(project_state),
+            sampling_project_state: Some(Arc::new(sampling_project_state)),
+            project_id: ProjectId::new(42),
+            managed_envelope: ManagedEnvelope::new(
+                new_envelope(true, "foo"),
+                TestSemaphore::new(42).try_acquire().unwrap(),
+            ),
+        };
+
+        service.apply_trace_rules_if_error(&mut state);
+        // TODO: assert that tracecontext is modified on match.
     }
 
     #[tokio::test]
