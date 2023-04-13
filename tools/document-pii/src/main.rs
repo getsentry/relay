@@ -3,11 +3,18 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::Hash;
+use std::io::BufRead;
+use std::sync::Mutex;
+//use syn::meta::ParseNestedMeta;
+use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
-use syn::{Field, Item, ItemStruct, Lit, Meta, MetaNameValue, Type, UsePath, UseTree, Variant};
+use syn::{
+    Attribute, Field, Item, ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, UsePath, UseTree,
+    Variant,
+};
 
 use walkdir::WalkDir;
 
@@ -16,6 +23,10 @@ use std::cell::RefCell;
 
 // global var since i cant add extra arguments to trait methods
 static mut VISITED_TYPES: Vec<String> = Vec::new();
+
+lazy_static::lazy_static! {
+    static ref PII_TYPES: Mutex<HashSet<Vec<String>>> = Mutex::new(HashSet::new());
+}
 
 fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
     let walker = WalkDir::new(dir).into_iter();
@@ -33,15 +44,22 @@ fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
     rs_files
 }
 
+enum EnumOrStruct {
+    ItemStruct(ItemStruct),
+    ItemEnum(ItemEnum),
+}
+
 use std::env;
 use std::path::{Path, PathBuf};
 
 use syn::{visit::Visit, ItemEnum};
 
+#[derive(Default)]
 struct TypeVisitor {
     use_statements: Vec<syn::ItemUse>,
     module_path: String,
     current_path: Vec<String>,
+    output_path: Vec<String>,
     all_types: HashMap<String, ItemStruct>,
     first_iter: bool,
 }
@@ -49,7 +67,11 @@ struct TypeVisitor {
 impl TypeVisitor {
     pub fn get_crate_root(&self) -> String {
         let x: Vec<&str> = self.module_path.split("relay::").collect();
-        let x = x[1].split_once("::").unwrap().0;
+        let x = if let Some(x) = x[1].split_once("::") {
+            x.0
+        } else {
+            x[1]
+        };
         x.to_owned()
     }
 }
@@ -58,13 +80,13 @@ impl<'ast> Visit<'ast> for TypeVisitor {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         unsafe { VISITED_TYPES.clear() }
         let struct_name = format!("{}::{}", self.module_path, node.ident);
-        println!("{struct_name}");
+        // dbg!(&struct_name);
         if !self.first_iter {
             for field in node.fields.iter() {
                 self.visit_field(field);
             }
         } else {
-            let x = get_item_path_from_full(struct_name);
+            let x = get_item_path_from_full(struct_name.clone());
             let x = x.replace("src::", "");
             let x = x.replace("-", "_");
             self.all_types.insert(x, node.clone());
@@ -99,21 +121,116 @@ impl<'ast> Visit<'ast> for TypeVisitor {
         if self.first_iter {
             return;
         }
-        //println!("  Field: {}", node.ident.as_ref().unwrap());
-        let mut x = type_to_string(&node.ty);
-        let types: Vec<String> = x.split(",").map(|s| s.to_owned()).collect();
-        for x in types {
-            for bro in &self.use_statements {
-                for wtf in use_tree_to_paths(&bro.tree) {
-                    if wtf.ends_with(&x.trim()) && unsafe { !VISITED_TYPES.contains(&wtf) } {
-                        let x = wtf.replace("crate::", &format!("{}::", self.get_crate_root()));
+        if self.current_path.len() > 3 {
+            //dbg!(&self.current_path);
+            //panic!();
+        }
 
-                        if self.all_types.get(&x).is_none() {
-                            dbg!(&x);
-                            dbg!(self.all_types.get(&x));
+        let is_pii = has_pii_true(node);
+
+        // println!("  Field: {}", node.ident.as_ref().unwrap());
+        //dbg!(&node.ty);
+        let field_types = type_to_string(&node.ty);
+        if is_pii {
+            //dbg!(&field_types);
+            //    dbg!(&self.module_path);
+        }
+        for field_type in field_types {
+            let current_module = self
+                .module_path
+                .clone()
+                .split_once("relay::")
+                .unwrap()
+                .1
+                .to_string();
+            let type_in_current_path =
+                format!("{}::{}", current_module, field_type).replace("-", "_");
+            if type_in_current_path.contains("Query") {
+                // dbg!(&type_in_current_path);
+                //  panic!();
+            }
+
+            // if the field type is defined in the same module and not with any use statements
+            if let Some(y) = self.all_types.get(&type_in_current_path) {
+                if !self.current_path.contains(&type_in_current_path) {
+                    self.current_path.push(type_in_current_path.clone());
+                    if self.output_path.is_empty() {
+                        self.output_path.push(field_type.clone());
+                    } else {
+                        self.output_path.push(
+                            node.clone()
+                                .ident
+                                .map(|i| i.to_string())
+                                .unwrap_or_else(|| "{{Anon}}".to_string()),
+                        );
+                    }
+
+                    if is_pii {
+                        PII_TYPES.lock().unwrap().insert(self.output_path.clone());
+                    }
+                    //dbg!(&y.ident.to_string());
+                    self.visit_item_struct(&y.clone());
+                    //dbg!(&self.current_path);
+                    self.current_path.pop();
+                    self.output_path.pop();
+                }
+
+                //panic!();
+                return;
+            }
+
+            for use_statement in self.use_statements.clone() {
+                for use_path in use_tree_to_paths(&use_statement.tree) {
+                    if is_pii {
+                        //            dbg!(&use_path);
+                    }
+                    let use_path_ident = use_path.split("::").last();
+                    if let Some(use_path_ident) = use_path_ident {
+                        if is_pii {
+                            //dbg!(&use_path_ident, &field_type);
                         }
-                        unsafe {
-                            VISITED_TYPES.push(x.clone());
+                        if use_path_ident.trim() == field_type.trim()
+                            && unsafe { !VISITED_TYPES.contains(&use_path) }
+                        {
+                            let normalized_use_path = use_path
+                                .replace("crate::", &format!("{}::", self.get_crate_root()));
+                            let normalized_use_path = normalized_use_path.replace("-", "_");
+
+                            if is_pii {
+                                //        dbg!(&normalized_use_path);
+                            }
+                            if let Some(y) = self.all_types.get(&normalized_use_path) {
+                                if !self.current_path.contains(&type_in_current_path) {
+                                    self.current_path.push(type_in_current_path.clone());
+
+                                    if self.output_path.is_empty() {
+                                        self.output_path.push(field_type.clone());
+                                    } else {
+                                        self.output_path.push(
+                                            node.clone()
+                                                .ident
+                                                .map(|i| i.to_string())
+                                                .unwrap_or_else(|| "{{Anon}}".to_string()),
+                                        );
+                                    }
+                                    if is_pii {
+                                        PII_TYPES.lock().unwrap().insert(self.output_path.clone());
+                                    }
+                                    //dbg!(&self.current_path);
+                                    self.visit_item_struct(&y.clone());
+                                    self.current_path.pop();
+                                    self.output_path.pop();
+                                }
+                                //  dbg!(&use_path_ident, &field_type);
+                                //  dbg!(&use_path);
+                                //dbg!(&x);
+                                //self.visit_item_struct(&y.clone());
+                            } else {
+                            }
+                            //dbg!(self.all_types.get(&x));
+                            unsafe {
+                                VISITED_TYPES.push(field_type.clone());
+                            }
                         }
                     }
                 }
@@ -148,21 +265,24 @@ fn should_keep_itemuse(node: &syn::ItemUse) -> bool {
     false
 }
 
-fn type_to_string(ty: &Type) -> String {
+fn type_to_string(ty: &Type) -> Vec<String> {
     let mut segments: Vec<String> = Vec::new();
     process_type(ty, &mut segments);
-    segments.join(", ")
+    segments
+    //  segments.join(", ")
     //format!("/::{}", segments.join(", "))
 }
 
 fn process_type(ty: &Type, segments: &mut Vec<String>) {
     match ty {
         Type::Path(type_path) => {
-            for segment in type_path.path.segments.iter() {
-                let ident = segment.ident.to_string();
-                segments.push(ident);
+            let mut path_iter = type_path.path.segments.iter();
+            let first_segment = path_iter.next();
 
-                let args = &segment.arguments;
+            if let Some(first_segment) = first_segment {
+                let mut ident = first_segment.ident.to_string();
+
+                let args = &first_segment.arguments;
                 match args {
                     syn::PathArguments::AngleBracketed(angle_bracketed) => {
                         for generic_arg in angle_bracketed.args.iter() {
@@ -175,6 +295,14 @@ fn process_type(ty: &Type, segments: &mut Vec<String>) {
                         }
                     }
                     _ => {}
+                }
+
+                if let Some(second_segment) = path_iter.next() {
+                    ident.push_str("::");
+                    ident.push_str(&second_segment.ident.to_string());
+                    segments.push(ident);
+                } else {
+                    segments.push(ident);
                 }
             }
         }
@@ -195,19 +323,13 @@ fn process_rust_file(
     let file_content = fs::read_to_string(file_path)?;
 
     let syntax_tree: syn::File = syn::parse_file(&file_content)?;
-    let module_path = file_path
-        .with_extension("")
-        .iter()
-        .map(|part| part.to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("::");
+    let module_path = rust_file_to_use_path(file_path).unwrap();
 
     let mut visitor = TypeVisitor {
         module_path: module_path.clone(),
-        use_statements: vec![],
-        current_path: vec![],
         all_types,
         first_iter,
+        ..Default::default()
     };
 
     visitor.visit_file(&syntax_tree);
@@ -224,7 +346,9 @@ fn use_tree_to_paths(use_tree: &UseTree) -> Vec<String> {
     );
     let mut retvec = vec![];
     for y in x.split(',') {
-        retvec.push(y.replace(" ", ""));
+        let y = y.replace(" ", "");
+        let y = y.replace("-", "_");
+        retvec.push(y);
     }
     retvec
 }
@@ -270,9 +394,116 @@ fn main() {
     }
     //dbg!(all_types);
 
+    let mut foo = vec![];
+    if let Ok(x) = PII_TYPES.lock() {
+        for y in &*x {
+            if y.len() == 1 {
+                //continue;
+            }
+            let hmm = y.join(".");
+            foo.push(hmm.clone());
+        }
+    }
+
+    foo.sort();
+
+    for f in foo {
+        println!("{f}");
+    }
+
     for key in all_types.keys() {
-        if key.contains("EventId") {
+        if key.contains("Query") {
             dbg!(key);
         }
     }
+}
+
+//relay_server::actors::upstream::UpstreamRelay
+//relay_server::actors::upstream::UpstreamRelayService
+
+fn rust_file_to_use_path(file_path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let parent_dir = file_path.parent().unwrap();
+    let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
+
+    let mod_rs_path = parent_dir.join("mod.rs");
+    let is_module = is_file_module(file_path)?;
+
+    let mut module_path = parent_dir
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().to_string())
+        .filter(|part| part != "src")
+        .collect::<Vec<_>>();
+
+    if is_module {
+        module_path.push(file_stem);
+    }
+
+    let mut use_path = module_path.join("::");
+    use_path = use_path.split_once("rust::").unwrap().1.into();
+    use_path = format!("rust::{}", use_path);
+
+    Ok(use_path)
+}
+
+fn is_file_module(file_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    let parent_dir = file_path.parent().unwrap();
+    let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
+
+    let mod_rs_path = parent_dir.join("mod.rs");
+    if mod_rs_path.exists() {
+        let mod_rs_file = fs::File::open(mod_rs_path)?;
+        let reader = std::io::BufReader::new(mod_rs_file);
+
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().starts_with("pub mod") && line.contains(&file_stem) {
+                return Ok(true);
+            }
+        }
+    }
+
+    for entry in fs::read_dir(parent_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().map_or(false, |ext| ext == "rs") && path != *file_path {
+            let file = fs::File::open(path)?;
+            let reader = std::io::BufReader::new(file);
+
+            for line in reader.lines() {
+                let line = line?;
+                if line.trim().starts_with("pub mod") && line.contains(&file_stem) {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn get_attr_value(attr: &Attribute, name: &str) -> Option<bool> {
+    if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+        if meta_list.path.is_ident("metastructure") {
+            for nested_meta in meta_list.nested {
+                if let syn::NestedMeta::Meta(Meta::NameValue(MetaNameValue { path, lit, .. })) =
+                    nested_meta
+                {
+                    if path.is_ident(name) {
+                        if let Lit::Str(lit_str) = lit {
+                            return Some(lit_str.value() == "true");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn has_pii_true(field: &Field) -> bool {
+    for attr in &field.attrs {
+        if let Some(value) = get_attr_value(attr, "pii") {
+            return value;
+        }
+    }
+    false
 }
