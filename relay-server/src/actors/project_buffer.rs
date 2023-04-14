@@ -287,7 +287,7 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let mut rows = sqlx::query("pragma page_count; pragma page_size;").fetch(db);
+        let mut rows = sql::current_size().fetch(db);
         let page_count: i64 = match rows.next().await {
             Some(row) => row?.try_get(0)?,
             None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),

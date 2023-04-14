@@ -42,6 +42,13 @@ pub fn delete<'a>(key: QueueKey) -> Query<'a, Sqlite, SqliteArguments<'a>> {
         .bind(key.sampling_key.to_string())
 }
 
+/// Creates a query which fetches the current page count and page size.
+///
+/// This info used to calculate the current allocated database size.
+pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("pragma page_count; pragma page_size;")
+}
+
 /// Descibes the chunk item which is handled by insert statement.
 type ChunkItem = (QueueKey, Vec<u8>, i64);
 
