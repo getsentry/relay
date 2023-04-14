@@ -30,7 +30,13 @@
                             "payload_size_bytes": 2949,
                             "events_ingested": 5
                         }
-                    }
+                    },
+                    "scrub_this": "scrub this",
+                    "outer_key": [
+                        {
+                            "inner_key": "scrub this too"
+                        }
+                    ]
                 }
             }
         }

@@ -362,6 +362,7 @@ mod tests {
     // End to end test coverage.
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_general::processor::{SelectorPathItem, SelectorSpec};
 
     use super::RecordingScrubber;
 
@@ -578,15 +579,51 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
 
         let mut transcoded = Vec::new();
-        let config = default_pii_config();
+        let mut config = default_pii_config();
+
+        // Add some custom selectors to test advanced behavior:
+        config.applications.insert(
+            SelectorSpec::Or(vec![
+                SelectorSpec::Path(vec![
+                    SelectorPathItem::Key("data".to_owned()),
+                    SelectorPathItem::Key("payload".to_owned()),
+                    SelectorPathItem::Key("data".to_owned()),
+                    SelectorPathItem::Key("scrub_this".to_owned()),
+                ]),
+                SelectorSpec::Path(vec![
+                    SelectorPathItem::DeepWildcard,
+                    SelectorPathItem::Key("outer_key".to_owned()),
+                    SelectorPathItem::Key("inner_key".to_owned()),
+                ]),
+            ]),
+            vec!["@anything:filter".to_owned()],
+        );
+
         scrubber(&config)
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
         let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
         let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
+
+        // Normal fields are not scrubbed:
+        assert_eq!(scrubbed[0]["data"]["payload"]["data"]["method"], "POST");
+
+        // `api_key` is caught by default scrubbing rules:
         assert_eq!(
             scrubbed[0]["data"]["payload"]["data"]["request"]["body"]["api_key"],
+            "[Filtered]"
+        );
+
+        // Custom path only scrubbed by custom rule:
+        assert_eq!(
+            scrubbed[0]["data"]["payload"]["data"]["scrub_this"],
+            "[Filtered]"
+        );
+
+        // Works with lists as well:
+        assert_eq!(
+            scrubbed[0]["data"]["payload"]["data"]["outer_key"][0]["inner_key"],
             "[Filtered]"
         );
     }
