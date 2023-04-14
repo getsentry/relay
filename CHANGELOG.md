@@ -46,6 +46,10 @@ Metrics:
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
 - Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
 
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
+
 ## 23.3.1
 
 **Features**:

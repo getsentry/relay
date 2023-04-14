@@ -16,13 +16,11 @@ use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_buffer::{
-    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
-};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::actors::spooler::{Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany};
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::UpstreamRelay;
 

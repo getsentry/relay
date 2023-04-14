@@ -13,10 +13,6 @@ use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, 
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Clone, Debug, Default)]
 pub struct TransactionNameConfig<'r> {
-    /// True if transaction names scrubbed by regex patterns should be marked as [`TransactionSource::Sanitized`].
-    ///
-    /// Transaction names modified by clusterer rules are always marked as such.
-    pub mark_scrubbed_as_sanitized: bool,
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
 }
@@ -367,10 +363,7 @@ impl Processor for TransactionsProcessor<'_> {
             sanitized = true;
         }
 
-        if sanitized
-            && matches!(event.get_transaction_source(), &TransactionSource::Url)
-            && self.name_config.mark_scrubbed_as_sanitized
-        {
+        if sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -1462,7 +1455,7 @@ mod tests {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0",
           "transaction_info": {
-            "source": "url"
+            "source": "sanitized"
           },
           "modules": {
             "rack": "1.2.3"
@@ -1570,10 +1563,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
-                ..Default::default()
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1673,7 +1663,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1735,7 +1724,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1832,7 +1820,6 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -1897,10 +1884,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[rule],
-                ..Default::default()
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2120,7 +2104,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
@@ -2164,7 +2147,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/**".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
@@ -2202,10 +2184,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
-                rules: &[],
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
