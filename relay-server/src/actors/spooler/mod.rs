@@ -21,9 +21,10 @@ use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
-use crate::sql;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
+
+mod sql;
 
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
@@ -327,7 +328,7 @@ impl BufferService {
                 },
             );
 
-        sql::insert_with_exec(stream::iter(envelopes), db)
+        sql::do_insert(stream::iter(envelopes), db)
             .await
             .map_err(BufferError::from)
     }

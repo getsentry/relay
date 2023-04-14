@@ -3,7 +3,7 @@ use sqlx::query::Query;
 use sqlx::sqlite::SqliteArguments;
 use sqlx::{Pool, QueryBuilder, Sqlite};
 
-use crate::actors::project_buffer::QueueKey;
+use crate::actors::spooler::QueueKey;
 use crate::statsd::RelayCounters;
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
@@ -53,7 +53,7 @@ pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
 type ChunkItem = (QueueKey, Vec<u8>, i64);
 
 /// Creates an INSERT query for the chunk of provided data.
-pub fn insert_with_builder<'a>(
+fn build_insert<'a>(
     builder: &'a mut QueryBuilder<Sqlite>,
     chunk: Vec<ChunkItem>,
 ) -> Query<'a, Sqlite, SqliteArguments<'a>> {
@@ -71,7 +71,7 @@ pub fn insert_with_builder<'a>(
 ///
 /// This function internally will split the provided stream into chunks and will prepare the
 /// insert statement for each chunk.
-pub async fn insert_with_exec(
+pub async fn do_insert(
     stream: impl Stream<Item = ChunkItem> + std::marker::Unpin,
     db: &Pool<Sqlite>,
 ) -> Result<(), sqlx::Error> {
@@ -86,9 +86,7 @@ pub async fn insert_with_exec(
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
 
     while let Some(chunk) = envelopes.next().await {
-        insert_with_builder(&mut query_builder, chunk)
-            .execute(db)
-            .await?;
+        build_insert(&mut query_builder, chunk).execute(db).await?;
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
 
         // Reset the builder to initial state set by `QueryBuilder::new` function,
