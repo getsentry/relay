@@ -905,8 +905,6 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -925,13 +923,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_buffer::{
-    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
-};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::spooler::{Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
 

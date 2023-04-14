@@ -372,6 +372,10 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -707,6 +711,10 @@
     ///
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
+    ///
+    /// NOTE: Current implementation counts in only the size of the items payload and stack
+    /// allocated parts of [`Envelope`] and [`ManagedEnvelope`]. All the heap allocated fields
+    /// within early mentioned types are skipped.
     </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="comment">// Always round it up to next 1KB.
         </span>(f64::ceil(

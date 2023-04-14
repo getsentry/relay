@@ -1996,8 +1996,6 @@
 <a href="#1995" id="1995">1995</a>
 <a href="#1996" id="1996">1996</a>
 <a href="#1997" id="1997">1997</a>
-<a href="#1998" id="1998">1998</a>
-<a href="#1999" id="1999">1999</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2727,14 +2725,14 @@
 }
 
 <span class="doccomment">/// Default for max memory size, 500 MB.
-</span><span class="kw">fn </span>spool_envelopes_max_memory_size() -&gt; usize {
-    <span class="number">524288000
-</span>}
+</span><span class="kw">fn </span>spool_envelopes_max_memory_size() -&gt; ByteSize {
+    ByteSize::mebibytes(<span class="number">500</span>)
+}
 
 <span class="doccomment">/// Default for max disk size, 500 MB.
-</span><span class="kw">fn </span>spool_envelopes_max_disk_size() -&gt; usize {
-    <span class="number">524288000
-</span>}
+</span><span class="kw">fn </span>spool_envelopes_max_disk_size() -&gt; ByteSize {
+    ByteSize::mebibytes(<span class="number">500</span>)
+}
 
 <span class="doccomment">/// Default for min connections to keep open in the pool.
 </span><span class="kw">fn </span>spool_envelopes_min_connections() -&gt; u32 {
@@ -2747,7 +2745,7 @@
 </span>}
 
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
     <span class="doccomment">/// The path to the persistent spool file.
     ///
@@ -2763,14 +2761,12 @@
     ///
     /// If not set the befault is 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_disk_size&quot;</span>)]
-    </span>max_disk_size: usize,
+    </span>max_disk_size: ByteSize,
     <span class="doccomment">/// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
-    /// This is a hard upper bound. Internally, this is converted to an envelope count by dividing
-    /// this number by the maximum envelope size, so in practice, because the avg. envelope
-    /// size is well below the maximum, we start spooling to disk long before this hard limit is reached.
+    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_memory_size&quot;</span>)]
-    </span>max_memory_size: usize,
+    </span>max_memory_size: ByteSize,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>EnvelopeSpool {
@@ -2786,7 +2782,7 @@
 }
 
 <span class="doccomment">/// Persistent buffering configuration.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize, Default)]
 </span><span class="kw">pub struct </span>Spool {
     <span class="attr">#[serde(default)]
     </span>envelopes: EnvelopeSpool,
@@ -3756,12 +3752,12 @@
 
     <span class="doccomment">/// The maximum size of the buffer, in bytes.
     </span><span class="kw">pub fn </span>spool_envelopes_max_disk_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.spool.envelopes.max_disk_size
+        <span class="self">self</span>.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
     <span class="doccomment">/// The maximum size of the memory buffer, in bytes.
     </span><span class="kw">pub fn </span>spool_envelopes_max_memory_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.spool.envelopes.max_memory_size
+        <span class="self">self</span>.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

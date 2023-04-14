@@ -1,5 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project_buffer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project_buffer.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html">
-                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/spooler/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html">
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -844,50 +844,6 @@
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
 <a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -903,7 +859,7 @@
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
     SqliteSynchronous,
 };
-<span class="kw">use </span>sqlx::{Pool, QueryBuilder, Row, Sqlite};
+<span class="kw">use </span>sqlx::{Pool, Row, Sqlite};
 <span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::TrackOutcome;
@@ -914,13 +870,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
-<span class="doccomment">/// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
-///
-/// To prevent excessive memory allocations, the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER,
-/// which defaults to 999 for SQLite versions prior to 3.32.0 (2020-05-22) or 32766 for SQLite versions after 3.32.0.
-///
-/// Keep it on the lower side for now.
-</span><span class="kw">const </span>SQLITE_LIMIT_VARIABLE_NUMBER: usize = <span class="number">999</span>;
+<span class="kw">mod </span>sql;
 
 <span class="doccomment">/// The set of errors which can happend while working the the buffer.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -1064,7 +1014,11 @@
     }
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="doccomment">/// Contains the spool related configuration.
+///
+/// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
+/// and on disk spool. All the sized are in bytes.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>BufferSpoolConfig {
     db: Pool&lt;Sqlite&gt;,
     max_disk_size: usize,
@@ -1180,7 +1134,7 @@
 
     <span class="doccomment">/// Estimates the db size by multiplying `page_count * page_size`.
     </span><span class="kw">async fn </span>estimate_buffer_size(db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;i64, BufferError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>rows = sqlx::query(<span class="string">&quot;pragma page_count; pragma page_size;&quot;</span>).fetch(db);
+        <span class="kw">let </span><span class="kw-2">mut </span>rows = sql::current_size().fetch(db);
         <span class="kw">let </span>page_count: i64 = <span class="kw">match </span>rows.next().<span class="kw">await </span>{
             <span class="prelude-val">Some</span>(row) =&gt; row<span class="question-mark">?</span>.try_get(<span class="number">0</span>)<span class="question-mark">?</span>,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
@@ -1220,34 +1174,9 @@
                 },
             );
 
-        <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / <span class="number">3</span>);
-
-        <span class="comment">// A builder type for constructing queries at runtime.
-        // This by default creates a prepared sql statement, which is cached and
-        // re-used for sequential queries.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; = QueryBuilder::new(
-            <span class="string">&quot;INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) &quot;</span>,
-        );
-
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = envelopes.next().<span class="kw">await </span>{
-            query_builder.push_values(chunk, |<span class="kw-2">mut </span>b, (key, value, received_at)| {
-                b.push_bind(received_at)
-                    .push_bind(key.own_key.to_string())
-                    .push_bind(key.sampling_key.to_string())
-                    .push_bind(value);
-            });
-
-            query_builder.build().execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWrites) += <span class="number">1</span>);
-
-            <span class="comment">// Reset the builder to initial state set by `QueryBuilder::new` function,
-            // so it can be reused for another chunk.
-            </span>query_builder.reset();
-        }
-
-        <span class="prelude-val">Ok</span>(())
+        sql::do_insert(stream::iter(envelopes), db)
+            .<span class="kw">await
+            </span>.map_err(BufferError::from)
     }
 
     <span class="doccomment">/// Tries to save in-memory buffer to disk.
@@ -1355,31 +1284,21 @@
     /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
-    </span><span class="kw">async fn </span>fetch_and_delete(
+    </span><span class="kw">async fn </span>delete_and_fetch(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;,
         key: QueueKey,
         sender: <span class="kw-2">&amp;</span>mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), QueueKey&gt; {
         <span class="kw">loop </span>{
-            <span class="comment">// By default this creates a prepared statement which is cached and re-used.
-            //
-            // Removing envelopes from the on-disk buffer in batches has following implications:
+            <span class="comment">// Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = sqlx::query(
-                <span class="string">&quot;DELETE FROM
-                    envelopes
-                 WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
-                 RETURNING
-                    envelope, received_at&quot;</span>,
-            )
-            .bind(key.own_key.to_string())
-            .bind(key.sampling_key.to_string())
-            .fetch(db).peekable();
-
+            //
+            // Right now we use 100 for batch size.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = sql::delete_and_fetch(key, <span class="number">100</span>).fetch(db).peekable();
             <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReads) += <span class="number">1</span>);
 
             <span class="comment">// Stream is empty, we can break the loop, since we read everything by now.
@@ -1450,7 +1369,7 @@
 
         <span class="kw">while let </span><span class="prelude-val">Some</span>(key) = keys.pop() {
             <span class="comment">// If the error with a key is returned we must save it for the next iterration.
-            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(key) = <span class="self">self</span>.fetch_and_delete(db, key, <span class="kw-2">&amp;</span>sender).<span class="kw">await </span>{
+            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(key) = <span class="self">self</span>.delete_and_fetch(db, key, <span class="kw-2">&amp;</span>sender).<span class="kw">await </span>{
                 unused_keys.insert(key);
             };
         }
@@ -1486,16 +1405,9 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(BufferSpoolConfig { db, .. }) = <span class="kw-2">&amp;</span><span class="self">self</span>.spool_config {
             <span class="kw">for </span>key <span class="kw">in </span>keys {
-                <span class="kw">let </span>result =
-                    sqlx::query(<span class="string">&quot;DELETE FROM envelopes where own_key = ? AND sampling_key = ?&quot;</span>)
-                        .bind(key.own_key.to_string())
-                        .bind(key.sampling_key.to_string())
-                        .execute(db)
-                        .<span class="kw">await</span><span class="question-mark">?</span>;
-
+                <span class="kw">let </span>result = sql::delete(key).execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
                 count += result.rows_affected() <span class="kw">as </span>usize;
             }
-
             <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span><span class="question-mark">?</span>;
         }
 
@@ -1778,4 +1690,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
