@@ -77,7 +77,9 @@ const FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
 struct ScrubberTransform<'a> {
+    /// PII processors that are applied one by one on each value.
     processors: Vec<PiiProcessor<'a>>,
+    /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
     state: ProcessingState<'a>,
 }
 
@@ -217,16 +219,22 @@ where
 
 /// Config that will be applied in addition to any dynamic config added via `new()`.
 static STATIC_PII_CONFIG: Lazy<PiiConfig> = Lazy::new(|| {
+    let filter_paths = [vec![
+        "data", "payload", "data", "request", "body", "api_key",
+    ]];
     let mut config = PiiConfig::default();
     config.applications.insert(
-        SelectorSpec::Path(vec![
-            SelectorPathItem::Key("data".to_owned()),
-            SelectorPathItem::Key("payload".to_owned()),
-            SelectorPathItem::Key("data".to_owned()),
-            SelectorPathItem::Key("request".to_owned()),
-            SelectorPathItem::Key("body".to_owned()),
-            SelectorPathItem::Key("api_key".to_owned()),
-        ]),
+        SelectorSpec::Or(
+            filter_paths
+                .map(|path| {
+                    SelectorSpec::Path(
+                        path.into_iter()
+                            .map(|key| SelectorPathItem::Key(key.to_owned()))
+                            .collect(),
+                    )
+                })
+                .to_vec(),
+        ),
         vec!["@anything:filter".to_owned()],
     );
     config

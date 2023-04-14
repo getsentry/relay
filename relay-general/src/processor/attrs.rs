@@ -369,6 +369,15 @@ impl<'a> fmt::Display for PathItem<'a> {
     }
 }
 
+/// Like [`std::borrow::Cow`], but with a boxed value.
+///
+/// This is useful for types that contain themselves, where otherwise the layout of the type
+/// cannot be computed, for example
+///
+/// ```rust
+/// struct Foo<'a>(Cow<'a, Foo<'a>>); // will not compile
+/// struct Bar<'a>(BoxCow<'a, Bar<'a>>); // will compile
+/// ```
 #[derive(Debug, Clone)]
 enum BoxCow<'a, T> {
     Borrowed(&'a T),
@@ -470,7 +479,7 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives a processing state by entering an owned key.
     ///
-    /// Also takes ownership of the parent.
+    /// The new (child) state takes ownership of the current (parent) state.
     pub fn enter_owned(
         self,
         key: String,
@@ -571,7 +580,7 @@ impl<'a> ProcessingState<'a> {
     ///
     /// This is `false` when we entered a newtype struct.
     pub fn entered_anything(&'a self) -> bool {
-        if let Some(parent) = self.parent.as_deref() {
+        if let Some(parent) = &self.parent {
             parent.depth() != self.depth()
         } else {
             true
