@@ -92,7 +92,9 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn pop_path(&mut self) {
-        // TODO: self.state.into_iter().next()
+        if let Ok(Some(parent)) = std::mem::take(&mut self.state).try_into_parent() {
+            self.state = parent;
+        }
     }
 
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {

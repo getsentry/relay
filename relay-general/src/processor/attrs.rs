@@ -550,6 +550,18 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
+    /// Return the contained parent state.
+    ///
+    /// - Returns `Ok(None)` if the current state is the root.
+    /// - Returns `Err(self)` if the current state does not own the parent state.
+    pub fn try_into_parent(self) -> Result<Option<Self>, Self> {
+        match self.parent {
+            Some(BoxCow::Borrowed(_)) => Err(self),
+            Some(BoxCow::Owned(parent)) => Ok(Some(*parent)),
+            None => Ok(None),
+        }
+    }
+
     /// Return the depth (~ indentation level) of the currently processed value.
     pub fn depth(&'a self) -> usize {
         self.depth
