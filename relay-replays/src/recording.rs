@@ -21,7 +21,9 @@ use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+use relay_general::processor::{
+    FieldAttrs, Pii, ProcessingState, Processor, SelectorPathItem, SelectorSpec, ValueType,
+};
 use relay_general::types::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
@@ -74,8 +76,7 @@ const FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
 struct ScrubberTransform<'a> {
-    processor1: Option<PiiProcessor<'a>>,
-    processor2: Option<PiiProcessor<'a>>,
+    processors: Vec<PiiProcessor<'a>>,
     state: ProcessingState<'a>,
 }
 
@@ -99,16 +100,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        if let Some(ref mut processor) = self.processor1 {
-            if processor
-                .process_string(&mut value, &mut Meta::default(), &self.state)
-                .is_err()
-            {
-                return Cow::Borrowed("");
-            }
-        }
-
-        if let Some(ref mut processor) = self.processor2 {
+        for processor in &mut self.processors {
             if processor
                 .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
@@ -262,8 +254,12 @@ impl<'a> RecordingScrubber<'a> {
         Self {
             limit,
             transform: Rc::new(RefCell::new(ScrubberTransform {
-                processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
-                processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+                processors: config1
+                    .iter()
+                    .chain(config2.iter())
+                    .map(|c| PiiProcessor::new(c.compiled()))
+                    .collect(),
+
                 state: ProcessingState::new_root(None, None),
             })),
         }
@@ -272,7 +268,7 @@ impl<'a> RecordingScrubber<'a> {
     /// Returns `true` if both configs are empty and no scrubbing would occur.
     pub fn is_empty(&self) -> bool {
         let tmp = self.transform.borrow();
-        tmp.processor1.is_none() && tmp.processor2.is_none()
+        tmp.processors.is_empty()
     }
 
     fn scrub_replay<W>(&mut self, json: &[u8], write: W) -> Result<(), ParseRecordingError>
