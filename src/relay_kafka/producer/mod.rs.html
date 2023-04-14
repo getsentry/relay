@@ -329,7 +329,30 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
-</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+</pre><pre class="rust"><code><span class="attr">#[cfg(debug_assertions)]
+</span><span class="kw">use </span>std::cell::RefCell;
+<span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -339,10 +362,15 @@
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{KafkaConfig, KafkaParams, KafkaTopic};
+<span class="attr">#[cfg(debug_assertions)]
+</span><span class="kw">use </span><span class="kw">crate</span>::producer::schemas::Validator;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::KafkaHistograms;
 
 <span class="kw">mod </span>utils;
 <span class="kw">use </span>utils::{CaptureErrorContext, ThreadedProducer};
+
+<span class="attr">#[cfg(debug_assertions)]
+</span><span class="kw">mod </span>schemas;
 
 <span class="doccomment">/// Kafka producer errors.
 </span><span class="attr">#[derive(Error, Debug)]
@@ -366,6 +394,11 @@
     <span class="doccomment">/// Failed to serialize the json message using serde.
     </span><span class="attr">#[error(<span class="string">&quot;failed to serialize json message&quot;</span>)]
     </span>InvalidJson(<span class="attr">#[source] </span>serde_json::Error),
+
+    <span class="doccomment">/// Failed to run schema validation on message.
+    </span><span class="attr">#[cfg(debug_assertions)]
+    #[error(<span class="string">&quot;failed to run schema validation on message&quot;</span>)]
+    </span>SchemaValidationFailed(<span class="attr">#[source] </span>schemas::SchemaError),
 
     <span class="doccomment">/// Configuration is wrong and it cannot be used to identify the number of a shard.
     </span><span class="attr">#[error(<span class="string">&quot;invalid kafka shard&quot;</span>)]
@@ -457,6 +490,8 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>KafkaClient {
     producers: HashMap&lt;KafkaTopic, Producer&gt;,
+    <span class="attr">#[cfg(debug_assertions)]
+    </span>schema_validator: RefCell&lt;schemas::Validator&gt;,
 }
 
 <span class="kw">impl </span>KafkaClient {
@@ -473,6 +508,11 @@
         message: <span class="kw-2">&amp;</span><span class="kw">impl </span>Message,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ClientError&gt; {
         <span class="kw">let </span>serialized = message.serialize()<span class="question-mark">?</span>;
+        <span class="attr">#[cfg(debug_assertions)]
+        </span><span class="self">self</span>.schema_validator
+            .borrow_mut()
+            .validate_message_schema(topic, <span class="kw-2">&amp;</span>serialized)
+            .map_err(ClientError::SchemaValidationFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>key = message.key();
         <span class="self">self</span>.send(topic, organization_id, <span class="kw-2">&amp;</span>key, message.variant(), <span class="kw-2">&amp;</span>serialized)
     }
@@ -604,6 +644,8 @@
     </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; KafkaClient {
         KafkaClient {
             producers: <span class="self">self</span>.producers,
+            <span class="attr">#[cfg(debug_assertions)]
+            </span>schema_validator: Validator::default().into(),
         }
     }
 }

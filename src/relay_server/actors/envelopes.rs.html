@@ -768,7 +768,7 @@
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = result {
             <span class="macro">relay_log::trace!</span>(
                 <span class="string">&quot;failed to submit the envelope, merging buckets back: {}&quot;</span>,
-                err
+                LogError(<span class="kw-2">&amp;</span>err)
             );
             <span class="self">self</span>.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));

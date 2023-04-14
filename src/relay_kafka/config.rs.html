@@ -413,7 +413,7 @@
 }
 
 <span class="doccomment">/// Define the topics over which Relay communicates with Sentry.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 </span><span class="kw">pub enum </span>KafkaTopic {
     <span class="doccomment">/// Simple events (without attachments) topic.
     </span>Events,
