@@ -13,10 +13,6 @@ use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, 
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Clone, Debug, Default)]
 pub struct TransactionNameConfig<'r> {
-    /// True if transaction names scrubbed by regex patterns should be marked as [`TransactionSource::Sanitized`].
-    ///
-    /// Transaction names modified by clusterer rules are always marked as such.
-    pub mark_scrubbed_as_sanitized: bool,
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
 }
@@ -367,10 +363,7 @@ impl Processor for TransactionsProcessor<'_> {
             sanitized = true;
         }
 
-        if sanitized
-            && matches!(event.get_transaction_source(), &TransactionSource::Url)
-            && self.name_config.mark_scrubbed_as_sanitized
-        {
+        if sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
