@@ -15,7 +15,7 @@ pub enum ConfigError {
 }
 
 /// Define the topics over which Relay communicates with Sentry.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum KafkaTopic {
     /// Simple events (without attachments) topic.
     Events,
