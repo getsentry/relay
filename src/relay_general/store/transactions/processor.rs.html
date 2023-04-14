@@ -2193,27 +2193,6 @@
 <a href="#2192" id="2192">2192</a>
 <a href="#2193" id="2193">2193</a>
 <a href="#2194" id="2194">2194</a>
-<a href="#2195" id="2195">2195</a>
-<a href="#2196" id="2196">2196</a>
-<a href="#2197" id="2197">2197</a>
-<a href="#2198" id="2198">2198</a>
-<a href="#2199" id="2199">2199</a>
-<a href="#2200" id="2200">2200</a>
-<a href="#2201" id="2201">2201</a>
-<a href="#2202" id="2202">2202</a>
-<a href="#2203" id="2203">2203</a>
-<a href="#2204" id="2204">2204</a>
-<a href="#2205" id="2205">2205</a>
-<a href="#2206" id="2206">2206</a>
-<a href="#2207" id="2207">2207</a>
-<a href="#2208" id="2208">2208</a>
-<a href="#2209" id="2209">2209</a>
-<a href="#2210" id="2210">2210</a>
-<a href="#2211" id="2211">2211</a>
-<a href="#2212" id="2212">2212</a>
-<a href="#2213" id="2213">2213</a>
-<a href="#2214" id="2214">2214</a>
-<a href="#2215" id="2215">2215</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_common::SpanStatus;
@@ -2229,10 +2208,6 @@
 <span class="doccomment">/// Configuration around removing high-cardinality parts of URL transactions.
 </span><span class="attr">#[derive(Clone, Debug, Default)]
 </span><span class="kw">pub struct </span>TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt; {
-    <span class="doccomment">/// True if transaction names scrubbed by regex patterns should be marked as [`TransactionSource::Sanitized`].
-    ///
-    /// Transaction names modified by clusterer rules are always marked as such.
-    </span><span class="kw">pub </span>mark_scrubbed_as_sanitized: bool,
     <span class="doccomment">/// Rules for identifier replacement that were discovered by Sentry&#39;s transaction clusterer.
     </span><span class="kw">pub </span>rules: <span class="kw-2">&amp;</span><span class="lifetime">&#39;r </span>[TransactionNameRule],
 }
@@ -2583,10 +2558,7 @@
             sanitized = <span class="bool-val">true</span>;
         }
 
-        <span class="kw">if </span>sanitized
-            &amp;&amp; <span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url)
-            &amp;&amp; <span class="self">self</span>.name_config.mark_scrubbed_as_sanitized
-        {
+        <span class="kw">if </span>sanitized &amp;&amp; <span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url) {
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -3678,7 +3650,7 @@
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0&quot;,
           &quot;transaction_info&quot;: {
-            &quot;source&quot;: &quot;url&quot;
+            &quot;source&quot;: &quot;sanitized&quot;
           },
           &quot;modules&quot;: {
             &quot;rack&quot;: &quot;1.2.3&quot;
@@ -3786,10 +3758,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">true</span>,
-                ..Default::default()
-            }),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3889,8 +3858,7 @@
         process_value(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">false</span>, <span class="comment">// ensure `source` is set by rule application
-                </span>rules: rules.as_ref(),
+                rules: rules.as_ref(),
             }),
             ProcessingState::root(),
         )
@@ -3951,8 +3919,7 @@
         process_value(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">false</span>, <span class="comment">// ensure `source` is set by rule application
-                </span>rules: rules.as_ref(),
+                rules: rules.as_ref(),
             }),
             ProcessingState::root(),
         )
@@ -4048,7 +4015,6 @@
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
@@ -4113,10 +4079,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                rules: <span class="kw-2">&amp;</span>[rule],
-                ..Default::default()
-            }),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4336,7 +4299,6 @@
         process_value(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">true</span>,
                 rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                     pattern: LazyGlob::new(<span class="string">&quot;/remains/*/1234567890/&quot;</span>.to_owned()),
                     expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
@@ -4380,7 +4342,6 @@
         process_value(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">true</span>,
                 rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                     pattern: LazyGlob::new(<span class="string">&quot;/remains/*/**&quot;</span>.to_owned()),
                     expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
@@ -4418,10 +4379,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: <span class="bool-val">true</span>,
-                rules: <span class="kw-2">&amp;</span>[],
-            }),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();

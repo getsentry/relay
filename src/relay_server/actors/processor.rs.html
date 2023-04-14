@@ -3459,10 +3459,6 @@
 <a href="#3458" id="3458">3458</a>
 <a href="#3459" id="3459">3459</a>
 <a href="#3460" id="3460">3460</a>
-<a href="#3461" id="3461">3461</a>
-<a href="#3462" id="3462">3462</a>
-<a href="#3463" id="3463">3463</a>
-<a href="#3464" id="3464">3464</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5674,9 +5670,6 @@
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
-                    mark_scrubbed_as_sanitized: state
-                        .project_state
-                        .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
                     rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
                 },
                 device_class_synthesis_config: state
@@ -6826,7 +6819,6 @@
             log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>event, |event| {
                 <span class="kw">let </span>config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
-                        mark_scrubbed_as_sanitized: <span class="bool-val">false</span>,
                         rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                             pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_owned()),
                             expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
@@ -6849,7 +6841,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/nothing&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized&quot;,
         ]
         &quot;###</span>);
     }
@@ -6869,7 +6861,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/something/12345&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized&quot;,
         ]
         &quot;###</span>);
     }
