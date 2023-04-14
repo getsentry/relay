@@ -1455,7 +1455,7 @@ mod tests {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0",
           "transaction_info": {
-            "source": "url"
+            "source": "sanitized"
           },
           "modules": {
             "rack": "1.2.3"
@@ -1563,10 +1563,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
-                ..Default::default()
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1666,7 +1663,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1728,7 +1724,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: false, // ensure `source` is set by rule application
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1890,10 +1885,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[rule],
-                ..Default::default()
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2113,7 +2105,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
@@ -2157,7 +2148,6 @@ mod tests {
         process_value(
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/**".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
@@ -2195,10 +2185,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                mark_scrubbed_as_sanitized: true,
-                rules: &[],
-            }),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
