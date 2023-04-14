@@ -20,7 +20,6 @@ use std::rc::Rc;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use once_cell::sync::Lazy;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
@@ -68,13 +67,8 @@ impl From<serde_json::Error> for ParseRecordingError {
     }
 }
 
-static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
-    ProcessingState::root().enter_static(
-        "",
-        Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
-        Some(ValueType::String),
-    )
-});
+/// Static field attributes used for every field.
+const FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
@@ -87,8 +81,11 @@ struct ScrubberTransform<'a> {
 
 impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     fn push_path(&mut self, key: &'de str) {
-        // TODO: PII
-        self.state = std::mem::take(&mut self.state).enter_owned(key.to_owned(), None, None)
+        self.state = std::mem::take(&mut self.state).enter_owned(
+            key.to_owned(),
+            Some(Cow::Borrowed(&FIELD_ATTRS)),
+            Some(ValueType::String), // Pretend everything is a string.
+        )
     }
 
     fn pop_path(&mut self) {
@@ -102,10 +99,9 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        dbg!(&self.state, &value);
         if let Some(ref mut processor) = self.processor1 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
@@ -114,7 +110,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
 
         if let Some(ref mut processor) = self.processor2 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
