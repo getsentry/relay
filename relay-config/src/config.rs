@@ -727,13 +727,13 @@ impl Default for Http {
 }
 
 /// Default for max memory size, 500 MB.
-fn spool_envelopes_max_memory_size() -> usize {
-    524288000
+fn spool_envelopes_max_memory_size() -> ByteSize {
+    ByteSize::mebibytes(500)
 }
 
 /// Default for max disk size, 500 MB.
-fn spool_envelopes_max_disk_size() -> usize {
-    524288000
+fn spool_envelopes_max_disk_size() -> ByteSize {
+    ByteSize::mebibytes(500)
 }
 
 /// Default for min connections to keep open in the pool.
@@ -747,7 +747,7 @@ fn spool_envelopes_max_connections() -> u32 {
 }
 
 /// Persistent buffering configuration for incoming envelopes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
     /// The path to the persistent spool file.
     ///
@@ -763,12 +763,12 @@ pub struct EnvelopeSpool {
     ///
     /// If not set the befault is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
-    max_disk_size: usize,
+    max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
-    max_memory_size: usize,
+    max_memory_size: ByteSize,
 }
 
 impl Default for EnvelopeSpool {
@@ -784,7 +784,7 @@ impl Default for EnvelopeSpool {
 }
 
 /// Persistent buffering configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Spool {
     #[serde(default)]
     envelopes: EnvelopeSpool,
@@ -1754,12 +1754,12 @@ impl Config {
 
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
-        self.values.spool.envelopes.max_disk_size
+        self.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
-        self.values.spool.envelopes.max_memory_size
+        self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     /// Returns the maximum size of an event payload in bytes.
