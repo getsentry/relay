@@ -45,6 +45,10 @@ Metrics:
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
 
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
+
 ## 23.3.1
 
 **Features**:
