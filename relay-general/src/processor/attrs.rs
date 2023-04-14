@@ -374,7 +374,7 @@ impl<'a> fmt::Display for PathItem<'a> {
 /// This is useful for types that contain themselves, where otherwise the layout of the type
 /// cannot be computed, for example
 ///
-/// ```rust
+/// ```rust,ignore
 /// struct Foo<'a>(Cow<'a, Foo<'a>>); // will not compile
 /// struct Bar<'a>(BoxCow<'a, Bar<'a>>); // will compile
 /// ```
