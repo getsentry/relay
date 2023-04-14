@@ -20,6 +20,7 @@ use std::rc::Rc;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
+use once_cell::sync::Lazy;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
     FieldAttrs, Pii, ProcessingState, Processor, SelectorPathItem, SelectorSpec, ValueType,
@@ -214,6 +215,23 @@ where
     D::custom(s.to_string())
 }
 
+/// Config that will be applied in addition to any dynamic config added via `new()`.
+static STATIC_PII_CONFIG: Lazy<PiiConfig> = Lazy::new(|| {
+    let mut config = PiiConfig::default();
+    config.applications.insert(
+        SelectorSpec::Path(vec![
+            SelectorPathItem::Key("data".to_owned()),
+            SelectorPathItem::Key("payload".to_owned()),
+            SelectorPathItem::Key("data".to_owned()),
+            SelectorPathItem::Key("request".to_owned()),
+            SelectorPathItem::Key("body".to_owned()),
+            SelectorPathItem::Key("api_key".to_owned()),
+        ]),
+        vec!["@anything:filter".to_owned()],
+    );
+    config
+});
+
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
 /// ### Example
@@ -251,27 +269,23 @@ impl<'a> RecordingScrubber<'a> {
         config1: Option<&'a PiiConfig>,
         config2: Option<&'a PiiConfig>,
     ) -> Self {
-        Self {
+        Self::from_configs(
             limit,
-            transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: config1
-                    .iter()
-                    .chain(config2.iter())
-                    .map(|c| PiiProcessor::new(c.compiled()))
-                    .collect(),
-
-                state: ProcessingState::new_root(None, None),
-            })),
-        }
+            config1
+                .into_iter()
+                .chain(config2)
+                .chain(Some(&*STATIC_PII_CONFIG)),
+        )
     }
 
-    /// Create a scrubber with a custom config. Used in tests.
-    #[cfg(test)]
-    fn custom(limit: usize, config: &'a PiiConfig) -> Self {
+    /// Internal helper to create an instance from multiple configs.
+    ///
+    /// External users should use `new` instead.
+    fn from_configs(limit: usize, configs: impl Iterator<Item = &'a PiiConfig>) -> Self {
         Self {
             limit,
             transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: vec![PiiProcessor::new(config.compiled())],
+                processors: configs.map(|c| PiiProcessor::new(c.compiled())).collect(),
                 state: ProcessingState::new_root(None, None),
             })),
         }
@@ -370,7 +384,6 @@ mod tests {
     // End to end test coverage.
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-    use relay_general::processor::{SelectorPathItem, SelectorSpec};
 
     use super::RecordingScrubber;
 
@@ -607,26 +620,13 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_pii_key_based_custom_rules() {
+    fn test_scrub_pii_key_based_static_rules() {
         let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
 
         let mut transcoded = Vec::new();
-        let mut config = PiiConfig::default();
 
-        // Add some custom selectors to test advanced behavior:
-        config.applications.insert(
-            SelectorSpec::Path(vec![
-                SelectorPathItem::Key("data".to_owned()),
-                SelectorPathItem::Key("payload".to_owned()),
-                SelectorPathItem::Key("data".to_owned()),
-                SelectorPathItem::Key("request".to_owned()),
-                SelectorPathItem::Key("body".to_owned()),
-                SelectorPathItem::Key("api_key".to_owned()),
-            ]),
-            vec!["@anything:filter".to_owned()],
-        );
-
-        RecordingScrubber::custom(usize::MAX, &config)
+        // Apply only static rules:
+        RecordingScrubber::new(usize::MAX, None, None)
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
