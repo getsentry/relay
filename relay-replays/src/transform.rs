@@ -5,9 +5,10 @@ use std::fmt;
 
 use serde::de;
 
-/// field1 transform for deserialized values.
-///field2/// This transffield3rmer defines field1allbacks that wilfield2 be called by a [`Deserializer`] during
-/// deserialization to map valufield1s inline. The default for every transfofield2m callback is tfield3e identity
+/// A transform for deserialized values.
+///
+/// This transformer defines callbacks that will be called by a [`Deserializer`] during
+/// deserialization to map values inline. The default for every transform callback is the identity
 /// function, which will not change the value.
 ///
 /// There is a default implementation for all functions with a matching signature, for example
