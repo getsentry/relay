@@ -1820,7 +1820,6 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             }),
             ProcessingState::root(),
         )
