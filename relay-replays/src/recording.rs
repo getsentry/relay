@@ -265,6 +265,18 @@ impl<'a> RecordingScrubber<'a> {
         }
     }
 
+    /// Create a scrubber with a custom config. Used in tests.
+    #[cfg(test)]
+    fn custom(limit: usize, config: &'a PiiConfig) -> Self {
+        Self {
+            limit,
+            transform: Rc::new(RefCell::new(ScrubberTransform {
+                processors: vec![PiiProcessor::new(config.compiled())],
+                state: ProcessingState::new_root(None, None),
+            })),
+        }
+    }
+
     /// Returns `true` if both configs are empty and no scrubbing would occur.
     pub fn is_empty(&self) -> bool {
         let tmp = self.transform.borrow();
@@ -614,7 +626,7 @@ mod tests {
             vec!["@anything:filter".to_owned()],
         );
 
-        scrubber(&config)
+        RecordingScrubber::custom(usize::MAX, &config)
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
