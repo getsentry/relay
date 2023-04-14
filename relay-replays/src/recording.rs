@@ -289,11 +289,14 @@ impl<'a> RecordingScrubber<'a> {
     /// Internal helper to create an instance from multiple configs.
     ///
     /// External users should use `new` instead.
-    fn from_configs(limit: usize, configs: impl Iterator<Item = &'a PiiConfig>) -> Self {
+    fn from_configs(limit: usize, configs: impl IntoIterator<Item = &'a PiiConfig>) -> Self {
         Self {
             limit,
             transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: configs.map(|c| PiiProcessor::new(c.compiled())).collect(),
+                processors: configs
+                    .into_iter()
+                    .map(|c| PiiProcessor::new(c.compiled()))
+                    .collect(),
                 state: ProcessingState::new_root(None, None),
             })),
         }
@@ -604,13 +607,13 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_pii_key_based_default_config() {
+    fn test_scrub_pii_key_based_default_config_without_static_rules() {
         let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
 
         let mut transcoded = Vec::new();
         let config = default_pii_config();
 
-        scrubber(&config)
+        RecordingScrubber::from_configs(usize::MAX, Some(&config))
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
