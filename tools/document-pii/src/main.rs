@@ -21,7 +21,8 @@ lazy_static::lazy_static! {
     static ref CURRENT_PATH: Mutex<Vec<TypeAndField>> = Mutex::new(vec![]);
     // a set of CURRENT_PATH whenever it hits a pii=true field
     static ref PII_TYPES: Mutex<HashSet<Vec<TypeAndField>>> = Mutex::new(HashSet::new());
-    // All the structs and enums, where the key is the full path
+    // All the structs and enums, where the key is the full path. The string in the tuple represents
+    // the module path to the item. Now that I think of it, should be able to just get it from the key.
     static ref ALL_TYPES: Mutex<HashMap<String, (EnumOrStruct, String)>> = Mutex::new(HashMap::new());
 
     #[derive(Debug)]
@@ -55,7 +56,7 @@ enum EnumOrStruct {
     ItemEnum(ItemEnum),
 }
 
-// Need this to wrap ALL_TYPES in a mutex, which is needed for lazy_static
+// Need this to wrap lazy_statics in a mutex. everything is single-threaded so it shouldn't matter.
 unsafe impl Send for EnumOrStruct {}
 
 // In practice this is used as a way to keep state between the different methods on the visitor
@@ -69,13 +70,14 @@ struct TypeVisitor {
 
 impl TypeVisitor {
     pub fn get_crate_root(&self) -> String {
-        let x: Vec<&str> = self.module_path.split("relay::").collect();
-        let x = if let Some(x) = x[1].split_once("::") {
-            x.0
-        } else {
-            x[1]
-        };
-        x.to_owned()
+        self.module_path
+            .split("relay::")
+            .nth(1)
+            .expect("Expected 'relay::' substring not found in module_path")
+            .split_once("::")
+            .expect("Expected second '::' substring not found in module_path")
+            .0
+            .to_owned()
     }
 }
 
