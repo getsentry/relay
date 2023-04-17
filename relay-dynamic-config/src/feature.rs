@@ -30,16 +30,16 @@ impl<'de> Deserialize<'de> for Feature {
         D: serde::Deserializer<'de>,
     {
         let feature_name = Cow::<str>::deserialize(deserializer)?;
-        match feature_name.trim() {
-            "organizations:profiling" => Ok(Feature::Profiling),
-            "organizations:session-replay" => Ok(Feature::SessionReplay),
+        Ok(match feature_name.as_ref() {
+            "organizations:profiling" => Feature::Profiling,
+            "organizations:session-replay" => Feature::SessionReplay,
             "organizations:session-replay-recording-scrubbing" => {
-                Ok(Feature::SessionReplayRecordingScrubbing)
+                Feature::SessionReplayRecordingScrubbing
             }
-            "organizations:device-class-synthesis" => Ok(Feature::DeviceClassSynthesis),
-            "organizations:metrics-extraction" => Ok(Feature::Deprecated1),
-            _ => Ok(Feature::Unknown(feature_name.to_string())),
-        }
+            "organizations:device-class-synthesis" => Feature::DeviceClassSynthesis,
+            "organizations:metrics-extraction" => Feature::Deprecated1,
+            _ => Feature::Unknown(feature_name.to_string()),
+        })
     }
 }
 
