@@ -147,6 +147,22 @@ make build
 .venv/bin/pytest tests/integration -k <test_name>
 ```
 
+#### Snapshot tests
+
+We use `insta` for snapshot testing. It will run as part of the `make test` command 
+to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
+```bash
+cargo install cargo-insta
+```
+
+After that you'll be able to review and automatically update snapshot files by running:
+```bash
+cargo insta review
+```
+
+Make sure to run the command if you've made any changed to the event schema/protocol.
+For more information see https://insta.rs/docs/.
+
 ### Linting
 
 We use `rustfmt` and `clippy` from the latest stable channel for code formatting

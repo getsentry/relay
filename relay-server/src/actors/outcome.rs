@@ -33,7 +33,6 @@ use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
-use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
 
@@ -124,12 +123,6 @@ pub struct TrackOutcome {
     pub category: DataCategory,
     /// The number of events or total attachment size in bytes.
     pub quantity: u32,
-}
-
-impl TrackOutcome {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().outcome_aggregator.clone()
-    }
 }
 
 impl TrackOutcomeLike for TrackOutcome {
@@ -747,12 +740,6 @@ impl KafkaOutcomesProducer {
 pub enum OutcomeProducer {
     TrackOutcome(TrackOutcome),
     TrackRawOutcome(TrackRawOutcome),
-}
-
-impl OutcomeProducer {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().outcome_producer.clone()
-    }
 }
 
 impl Interface for OutcomeProducer {}

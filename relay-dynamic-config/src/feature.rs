@@ -12,11 +12,6 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// True if transaction names scrubbed by regex patterns should be marked as "sanitized".
-    ///
-    /// Transaction names modified by clusterer rules are always marked as such.
-    #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
-    TransactionNameMarkScrubbedAsSanitized,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

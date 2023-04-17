@@ -16,16 +16,14 @@ use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_buffer::{
-    Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
-};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::actors::spooler::{Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany};
+use crate::actors::test_store::TestStore;
 use crate::actors::upstream::UpstreamRelay;
 
-use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
 
@@ -210,12 +208,6 @@ pub enum ProjectCache {
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
-}
-
-impl ProjectCache {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().project_cache.clone()
-    }
 }
 
 impl Interface for ProjectCache {}
@@ -407,33 +399,33 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
-    buffer: Arc<BufferGuard>,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
+    pub test_store: Addr<TestStore>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl Services {
     /// Creates new [`Services`] context.
     pub fn new(
-        buffer: Arc<BufferGuard>,
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         Self {
-            buffer,
             aggregator,
             envelope_processor,
             envelope_manager,
             outcome_aggregator,
             project_cache,
+            test_store,
             upstream_relay,
         }
     }
@@ -798,6 +790,7 @@ impl ProjectCacheBroker {
 /// Service implementing the [`ProjectCache`] interface.
 #[derive(Debug)]
 pub struct ProjectCacheService {
+    buffer_guard: Arc<BufferGuard>,
     config: Arc<Config>,
     services: Services,
     redis: Option<RedisPool>,
@@ -805,8 +798,14 @@ pub struct ProjectCacheService {
 
 impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
-    pub fn new(config: Arc<Config>, services: Services, redis: Option<RedisPool>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        buffer_guard: Arc<BufferGuard>,
+        services: Services,
+        redis: Option<RedisPool>,
+    ) -> Self {
         Self {
+            buffer_guard,
             config,
             services,
             redis,
@@ -819,12 +818,14 @@ impl Service for ProjectCacheService {
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
+            buffer_guard,
             config,
             services,
             redis,
         } = self;
-        let buffer_guard = services.buffer.clone();
         let project_cache = services.project_cache.clone();
+        let outcome_aggregator = services.outcome_aggregator.clone();
+        let test_store = services.test_store.clone();
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
@@ -835,16 +836,23 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer =
-                match BufferService::create(buffer_guard, project_cache, config.clone()).await {
-                    Ok(buffer) => buffer.start(),
-                    Err(err) => {
-                        relay_log::error!("failed to start buffer service: {}", LogError(&err));
-                        // NOTE: The process will exit with error if the buffer file could not be
-                        // opened or the migrations could not be run.
-                        std::process::exit(1);
-                    }
-                };
+            let buffer = match BufferService::create(
+                buffer_guard,
+                outcome_aggregator,
+                project_cache,
+                test_store,
+                config.clone(),
+            )
+            .await
+            {
+                Ok(buffer) => buffer.start(),
+                Err(err) => {
+                    relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                    // NOTE: The process will exit with error if the buffer file could not be
+                    // opened or the migrations could not be run.
+                    std::process::exit(1);
+                }
+            };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.

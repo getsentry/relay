@@ -60,7 +60,6 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
@@ -481,12 +480,6 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
-}
-
-impl EnvelopeProcessor {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().processor.clone()
-    }
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -1891,6 +1884,7 @@ impl EnvelopeProcessorService {
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
             client_hints: envelope.meta().client_hints().to_owned(),
         };
 
@@ -2215,9 +2209,6 @@ impl EnvelopeProcessorService {
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    mark_scrubbed_as_sanitized: state
-                        .project_state
-                        .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
                     rules: &state.project_state.config.tx_name_rules,
                 },
                 device_class_synthesis_config: state
@@ -2583,6 +2574,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
@@ -2591,8 +2583,8 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
-    use crate::service::ServiceState;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -2737,21 +2729,22 @@ mod tests {
             .unwrap()
     }
 
-    #[test]
-    fn test_it_keeps_or_drops_transactions() {
+    fn services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+        (outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn test_it_keeps_or_drops_transactions() {
         relay_test::setup();
+
+        let (outcome_aggregator, test_store) = services();
 
         // an empty json still produces a valid config
         let json_config = serde_json::json!({});
 
-        let config = Config::from_json_value(json_config.clone()).unwrap();
-        let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
-
-        // it really shouldn't be necessary to start an entire service for a unit test
-        // it was ported from a python integration test. Instead, we should inject dependencies
-        let runtime = crate::service::create_runtime("test-rt", 1);
-        let _guard = runtime.enter();
-        ServiceState::start(arconfig).unwrap();
+        let config = Config::from_json_value(json_config).unwrap();
 
         let service = create_test_processor(config);
 
@@ -2786,6 +2779,8 @@ mod tests {
                 managed_envelope: ManagedEnvelope::new(
                     new_envelope(false, "foo"),
                     TestSemaphore::new(42).try_acquire().unwrap(),
+                    outcome_aggregator.clone(),
+                    test_store.clone(),
                 ),
             };
 
@@ -2938,6 +2933,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2960,7 +2956,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -2976,6 +2972,7 @@ mod tests {
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -3029,7 +3026,7 @@ mod tests {
         let mut project_state = ProjectState::allowed();
         project_state.config = config;
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
         };
@@ -3061,12 +3058,10 @@ mod tests {
         );
     }
 
-    #[test]
-    #[ignore = "The REGISTRY panics if the Addr of an service (that is not yet started) is queried,
-                hence this test fails. The old SystemRegistry returned dummy Addr's hence this did
-                not fail."]
-    fn test_client_report_removal() {
+    #[tokio::test]
+    async fn test_client_report_removal() {
         relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -3101,7 +3096,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3113,6 +3108,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_report_forwarding() {
         relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -3148,7 +3144,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3161,11 +3157,11 @@ mod tests {
         ctx.accept(); // do not try to capture or emit outcomes
     }
 
-    #[test]
+    #[tokio::test]
     #[cfg(feature = "processing")]
-    #[ignore = "requires registry for the TestStore"]
-    fn test_client_report_removal_in_processing() {
+    async fn test_client_report_removal_in_processing() {
         relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -3204,7 +3200,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3362,7 +3358,6 @@ mod tests {
             log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
-                        mark_scrubbed_as_sanitized: false,
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
@@ -3385,7 +3380,7 @@ mod tests {
         let captures = capture_test_event("/nothing", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized",
         ]
         "###);
     }
@@ -3405,7 +3400,7 @@ mod tests {
         let captures = capture_test_event("/something/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized",
         ]
         "###);
     }
