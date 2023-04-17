@@ -286,6 +286,11 @@ impl<D> RequestMeta<D> {
     pub fn start_time(&self) -> Instant {
         self.start_time
     }
+
+    /// Sets the start time for this [`RequestMeta`] on the current envelope.
+    pub fn set_start_time(&mut self, start_time: Instant) {
+        self.start_time = start_time
+    }
 }
 
 impl RequestMeta {

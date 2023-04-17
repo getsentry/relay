@@ -13,23 +13,18 @@ use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
     SqliteSynchronous,
 };
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
+use crate::extractors::StartTime;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
-/// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
-///
-/// To prevent excessive memory allocations, the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER,
-/// which defaults to 999 for SQLite versions prior to 3.32.0 (2020-05-22) or 32766 for SQLite versions after 3.32.0.
-///
-/// Keep it on the lower side for now.
-const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
+mod sql;
 
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
@@ -173,6 +168,10 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+/// Contains the spool related configuration.
+///
+/// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
+/// and on disk spool. All the sized are in bytes.
 #[derive(Debug)]
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
@@ -289,7 +288,7 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let mut rows = sqlx::query("pragma page_count; pragma page_size;").fetch(db);
+        let mut rows = sql::current_size().fetch(db);
         let page_count: i64 = match rows.next().await {
             Some(row) => row?.try_get(0)?,
             None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
@@ -314,41 +313,24 @@ impl BufferService {
     ) -> Result<(), BufferError> {
         let envelopes = buffer
             .into_iter()
-            .flat_map(|(key, values)| values.into_iter().map(move |value| (key, value)))
-            .filter_map(|(key, managed)| match managed.into_envelope().to_vec() {
-                Ok(vec) => Some((key, vec)),
-                Err(err) => {
-                    relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                    None
-                }
-            });
+            .flat_map(|(key, values)| {
+                values
+                    .into_iter()
+                    .map(move |value| (key, value.received_at().timestamp_millis(), value))
+            })
+            .filter_map(
+                |(key, received_at, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, received_at)),
+                    Err(err) => {
+                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                        None
+                    }
+                },
+            );
 
-        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-
-        // A builder type for constructing queries at runtime.
-        // This by default creates a prepared sql statement, which is cached and
-        // re-used for sequential queries.
-        let mut query_builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("INSERT INTO envelopes (own_key, sampling_key, envelope) ");
-
-        while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value)| {
-                b.push_bind(key.own_key.to_string())
-                    .push_bind(key.sampling_key.to_string())
-                    .push_bind(value);
-            });
-
-            query_builder.build().execute(db).await?;
-            relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
-
-            // Reset the builder to initial state set by `QueryBuilder::new` function,
-            // so it can be reused for another chunk.
-            query_builder.reset();
-        }
-
-        Ok(())
+        sql::do_insert(stream::iter(envelopes), db)
+            .await
+            .map_err(BufferError::from)
     }
 
     /// Tries to save in-memory buffer to disk.
@@ -395,7 +377,13 @@ impl BufferService {
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
         let envelope_row: Vec<u8> = row.try_get("envelope")?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let envelope = Envelope::parse_bytes(envelope_bytes)?;
+        let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
+
+        let received_at: i64 = row.try_get("received_at")?;
+        let start_time = StartTime::from_timestamp_millis(received_at as u64);
+
+        envelope.set_start_time(start_time.into_inner());
+
         #[cfg(test)]
         if self.untracked {
             return Ok(ManagedEnvelope::untracked(
@@ -404,6 +392,7 @@ impl BufferService {
                 self.test_store.clone(),
             ));
         }
+
         let managed_envelope = self.buffer_guard.enter(
             envelope,
             self.outcome_aggregator.clone(),
@@ -449,27 +438,21 @@ impl BufferService {
     /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
-    async fn fetch_and_delete(
+    async fn delete_and_fetch(
         &self,
         db: &Pool<Sqlite>,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
     ) -> Result<(), QueueKey> {
         loop {
-            // By default this creates a prepared statement which is cached and re-used.
-            //
             // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            let mut envelopes = sqlx::query(
-                "DELETE FROM envelopes WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100) RETURNING envelope",
-            )
-            .bind(key.own_key.to_string())
-            .bind(key.sampling_key.to_string())
-            .fetch(db).peekable();
-
+            //
+            // Right now we use 100 for batch size.
+            let mut envelopes = sql::delete_and_fetch(key, 100).fetch(db).peekable();
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
@@ -540,7 +523,7 @@ impl BufferService {
 
         while let Some(key) = keys.pop() {
             // If the error with a key is returned we must save it for the next iterration.
-            if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
+            if let Err(key) = self.delete_and_fetch(db, key, &sender).await {
                 unused_keys.insert(key);
             };
         }
@@ -576,16 +559,9 @@ impl BufferService {
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
-                let result =
-                    sqlx::query("DELETE FROM envelopes where own_key = ? AND sampling_key = ?")
-                        .bind(key.own_key.to_string())
-                        .bind(key.sampling_key.to_string())
-                        .execute(db)
-                        .await?;
-
+                let result = sql::delete(key).execute(db).await?;
                 count += result.rows_affected() as usize;
             }
-
             self.refresh_spool_state().await?;
         }
 
@@ -673,6 +649,8 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
     use relay_general::protocol::EventId;
@@ -698,6 +676,71 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
         let (_, outcome_aggregator, test_store) = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn ensure_start_time_restore() {
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        let (project_cache, outcome_aggregator, test_store) = services();
+        let mut service = BufferService::create(
+            buffer_guard,
+            outcome_aggregator,
+            project_cache,
+            test_store,
+            config,
+        )
+        .await
+        .unwrap();
+        service.untracked = true; // so we do not panic when dropping envelopes
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // Test cases:
+        let test_cases = [
+            // The difference between the `Instant::now` and start_time is 2 seconds,
+            // that the start time is restored to the correct point in time.
+            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
+            // There is no delay, and the `Instant::now` must be within the same second.
+            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+        ];
+        for (result, pub_key) in test_cases {
+            let project_key = ProjectKey::parse(pub_key).unwrap();
+            let key = QueueKey {
+                own_key: project_key,
+                sampling_key: project_key,
+            };
+
+            addr.send(Enqueue {
+                key,
+                value: empty_envelope(),
+            });
+
+            // How long to wait to dequeue the message from the spool.
+            // This will also ensure that the start time will have to be restored to the time
+            // when the request first came in.
+            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+
+            addr.send(DequeueMany {
+                project_key,
+                keys: [key].into(),
+                sender: tx.clone(),
+            });
+
+            let managed_envelope = rx.recv().await.unwrap();
+            let start_time = managed_envelope.envelope().meta().start_time();
+
+            assert_eq!((Instant::now() - start_time).as_secs(), result);
+        }
     }
 
     #[test]

@@ -447,6 +447,28 @@ pub struct SourceMapDebugImage {
     pub other: Object<Value>,
 }
 
+/// A debug image consisting of source files for a JVM based language.
+///
+/// Examples:
+///
+/// ```json
+/// {
+///   "type": "jvm",
+///   "debug_id": "395835f4-03e0-4436-80d3-136f0749a893"
+/// }
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct JvmDebugImage {
+    /// Unique debug identifier of the bundle.
+    #[metastructure(required = "true")]
+    pub debug_id: Annotated<DebugId>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
 /// Proguard mapping file.
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
@@ -486,6 +508,8 @@ pub enum DebugImage {
     Wasm(Box<NativeDebugImage>),
     /// Source map debug image.
     SourceMap(Box<SourceMapDebugImage>),
+    /// JVM based debug image.
+    Jvm(Box<JvmDebugImage>),
     /// A debug image that is unknown to this protocol specification.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
@@ -547,6 +571,29 @@ mod tests {
             uuid: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
             other: {
                 let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
+
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_debug_image_jvm_based_roundtrip() {
+        let json = r#"{
+  "debug_id": "395835f4-03e0-4436-80d3-136f0749a893",
+  "other": "value",
+  "type": "jvm"
+}"#;
+        let image = Annotated::new(DebugImage::Jvm(Box::new(JvmDebugImage {
+            debug_id: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
+            other: {
+                let mut map = Map::new();
                 map.insert(
                     "other".to_string(),
                     Annotated::new(Value::String("value".to_string())),
