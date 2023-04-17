@@ -3,6 +3,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use clap::{App, Arg};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::Hash;
@@ -14,14 +15,17 @@ use syn::{visit::Visit, ItemEnum};
 use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree, Variant};
 use walkdir::WalkDir;
 
-// global vars since i cant add extra arguments to trait methods
+// unfortunately many global vars, since i cant add extra arguments to trait methods
 lazy_static::lazy_static! {
     // When iterating recursively, this keeps track of the current path
     static ref CURRENT_PATH: Mutex<Vec<TypeAndField>> = Mutex::new(vec![]);
     // a set of CURRENT_PATH whenever it hits a pii=true field
     static ref PII_TYPES: Mutex<HashSet<Vec<TypeAndField>>> = Mutex::new(HashSet::new());
     // All the structs and enums, where the key is the full path
-    static ref ALL_TYPES: Mutex<HashMap<String, EnumOrStruct>> = Mutex::new(HashMap::new());
+    static ref ALL_TYPES: Mutex<HashMap<String, (EnumOrStruct, String)>> = Mutex::new(HashMap::new());
+
+    #[derive(Debug)]
+    static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
@@ -42,7 +46,6 @@ fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
             rs_files.push(entry.into_path());
         }
     }
-
     rs_files
 }
 
@@ -124,7 +127,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                 .unwrap_or_else(|| "{{Unnamed}}".to_string()),
         });
 
-        if has_pii_true(node) {
+        if has_pii_value(node) {
             PII_TYPES
                 .lock()
                 .unwrap()
@@ -162,14 +165,20 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
                     if let Some(enum_or_struct) = enum_or_struct {
                         match enum_or_struct {
-                            EnumOrStruct::ItemEnum(itemenum) => {
+                            (EnumOrStruct::ItemEnum(itemenum), mod_path) => {
                                 let current_type = self.current_type.clone();
+                                let module_path = self.module_path.clone();
+                                self.module_path = mod_path;
                                 self.visit_item_enum(&itemenum.clone());
+                                self.module_path = module_path;
                                 self.current_type = current_type;
                             }
-                            EnumOrStruct::ItemStruct(itemstruct) => {
+                            (EnumOrStruct::ItemStruct(itemstruct), mod_path) => {
                                 let current_type = self.current_type.clone();
+                                let module_path = self.module_path.clone();
+                                self.module_path = mod_path;
                                 self.visit_item_struct(&itemstruct.clone());
+                                self.module_path = module_path;
                                 self.current_type = current_type;
                             }
                         }
@@ -306,7 +315,67 @@ pub fn get_item_path_from_full(full: String) -> String {
 }
 
 fn main() {
-    let paths = find_rs_files("/Users/tor/prog/rust/relay/");
+    let current_dir = {
+        let current_dir = std::env::current_dir().unwrap();
+        current_dir.to_string_lossy().to_string()
+    };
+
+    let matches = App::new("PII attribute finder")
+        .about("Tests PII paths in Rust structs and enums")
+        .arg(
+            Arg::new("path")
+                .short('p')
+                .long("path")
+                .default_value(&current_dir)
+                .value_name("PATH")
+                .help("Path to your crate/workspace")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("item")
+                .short('i')
+                .long("item")
+                .value_name("ITEM")
+                .help("Path to the struct or enum to test (e.g., relay_protocol::common::event)")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("unnamed")
+                .long("unnamed")
+                .value_name("UNNAMED")
+                .default_value("")
+                .help("Placeholder for unnamed fields")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("pii")
+                .long("pii")
+                .value_name("PII")
+                .multiple_values(true)
+                .default_values(&["true"])
+                .help("Which pii values should it find? true/false/maybe")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let chosen_dir = matches.value_of("path").unwrap();
+
+    if let Some(values) = matches.values_of("pii") {
+        let values: Vec<String> = values.map(|s| s.to_string()).collect();
+        let mut guard = PII_VALUES.lock().unwrap();
+        guard.clear();
+        guard.extend(values);
+    }
+
+    if !Path::new(&format!("{}/Cargo.toml", &chosen_dir)).exists() {
+        panic!("Cargo.toml not found. Either run this script from a rust crate/workspace, or pass in a valid path with the -p flag");
+    }
+
+    let paths = find_rs_files(chosen_dir);
+
+    if paths.is_empty() {
+        panic!("No rust files found in {current_dir}");
+    }
 
     for path in &paths {
         // first iterate through all rust files to create the hashmap
@@ -318,19 +387,41 @@ fn main() {
         hashmap_filler.visit_file(&syntax_tree);
     }
 
-    for path in paths {
-        // Then start the processing, with the full hashmap we can recursively go into items
+    match matches.value_of("item") {
+        Some(path) => {
+            if let Some(structorenum) = {
+                let guard = ALL_TYPES.lock().unwrap();
+                guard.get(path).cloned()
+            } {
+                let (theitem, module_path) = structorenum;
+                let mut visitor = TypeVisitor {
+                    module_path,
+                    ..Default::default()
+                };
+                match theitem {
+                    EnumOrStruct::ItemStruct(itemstruct) => visitor.visit_item_struct(&itemstruct),
+                    EnumOrStruct::ItemEnum(itemenum) => visitor.visit_item_enum(&itemenum),
+                };
+            } else {
+                panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
+            }
+        }
+        None => {
+            for path in paths {
+                // Then start the processing, with the full hashmap we can recursively go into items
 
-        let file_content = fs::read_to_string(path.as_path()).unwrap();
-        let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
-        let module_path = rust_file_to_use_path(path.as_path());
+                let file_content = fs::read_to_string(path.as_path()).unwrap();
+                let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
+                let module_path = rust_file_to_use_path(path.as_path());
 
-        let mut visitor = TypeVisitor {
-            module_path,
-            ..Default::default()
-        };
+                let mut visitor = TypeVisitor {
+                    module_path,
+                    ..Default::default()
+                };
 
-        visitor.visit_file(&syntax_tree);
+                visitor.visit_file(&syntax_tree);
+            }
+        }
     }
 
     let mut output_vec = vec![];
@@ -341,10 +432,17 @@ fn main() {
         for path in pii {
             output.push_str(&format!(".{}", path.field_name));
         }
+
+        let unnamed_replace = match matches.value_of("unnamed").unwrap() {
+            "" => "".to_string(),
+            other => format!("{other}."),
+        };
+
+        output = output.replace("{{Unnamed}}.", &unnamed_replace);
         output_vec.push(output);
     }
     output_vec.sort();
-    for x in output_vec {
+    for x in &output_vec {
         println!("{x}");
     }
 }
@@ -408,7 +506,7 @@ fn is_file_module(file_path: &Path) -> bool {
     false
 }
 
-fn get_attr_value(attr: &Attribute, name: &str) -> Option<bool> {
+fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> Option<bool> {
     if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
         if meta_list.path.is_ident("metastructure") {
             for nested_meta in meta_list.nested {
@@ -417,7 +515,7 @@ fn get_attr_value(attr: &Attribute, name: &str) -> Option<bool> {
                 {
                     if path.is_ident(name) {
                         if let Lit::Str(lit_str) = lit {
-                            return Some(lit_str.value() == "true");
+                            return Some(lit_str.value() == value);
                         }
                     }
                 }
@@ -427,10 +525,14 @@ fn get_attr_value(attr: &Attribute, name: &str) -> Option<bool> {
     None
 }
 
-fn has_pii_true(field: &Field) -> bool {
+fn has_pii_value(field: &Field) -> bool {
     for attr in &field.attrs {
-        if let Some(value) = get_attr_value(attr, "pii") {
-            return value;
+        for pii_value in PII_VALUES.lock().unwrap().iter() {
+            if let Some(value) = get_attr_value(attr, "pii", pii_value) {
+                if value {
+                    return value;
+                }
+            }
         }
     }
     false
@@ -446,10 +548,13 @@ impl<'ast> Visit<'ast> for FillHashMap {
         let item_path = get_item_path_from_full(struct_name)
             .replace("src::", "")
             .replace('-', "_");
-        ALL_TYPES
-            .lock()
-            .unwrap()
-            .insert(item_path, EnumOrStruct::ItemStruct(node.clone()));
+        ALL_TYPES.lock().unwrap().insert(
+            item_path,
+            (
+                EnumOrStruct::ItemStruct(node.clone()),
+                self.module_path.clone(),
+            ),
+        );
     }
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
@@ -457,9 +562,12 @@ impl<'ast> Visit<'ast> for FillHashMap {
         let item_path = get_item_path_from_full(enum_name)
             .replace("src::", "")
             .replace('-', "_");
-        ALL_TYPES
-            .lock()
-            .unwrap()
-            .insert(item_path, EnumOrStruct::ItemEnum(node.clone()));
+        ALL_TYPES.lock().unwrap().insert(
+            item_path,
+            (
+                EnumOrStruct::ItemEnum(node.clone()),
+                self.module_path.clone(),
+            ),
+        );
     }
 }
