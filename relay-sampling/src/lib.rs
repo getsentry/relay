@@ -1509,6 +1509,7 @@ mod tests {
             sample_rate,
             user: Default::default(),
             other: Default::default(),
+            replay_id: None,
         }
     }
 
