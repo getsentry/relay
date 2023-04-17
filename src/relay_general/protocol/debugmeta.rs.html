@@ -977,6 +977,53 @@
 <a href="#976" id="976">976</a>
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
@@ -1426,6 +1473,28 @@
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
+<span class="doccomment">/// A debug image consisting of source files for a JVM based language.
+///
+/// Examples:
+///
+/// ```json
+/// {
+///   &quot;type&quot;: &quot;jvm&quot;,
+///   &quot;debug_id&quot;: &quot;395835f4-03e0-4436-80d3-136f0749a893&quot;
+/// }
+/// ```
+</span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>JvmDebugImage {
+    <span class="doccomment">/// Unique debug identifier of the bundle.
+    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>debug_id: Annotated&lt;DebugId&gt;,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attr">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
+}
+
 <span class="doccomment">/// Proguard mapping file.
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
@@ -1465,6 +1534,8 @@
     </span>Wasm(Box&lt;NativeDebugImage&gt;),
     <span class="doccomment">/// Source map debug image.
     </span>SourceMap(Box&lt;SourceMapDebugImage&gt;),
+    <span class="doccomment">/// JVM based debug image.
+    </span>Jvm(Box&lt;JvmDebugImage&gt;),
     <span class="doccomment">/// A debug image that is unknown to this protocol specification.
     </span><span class="attr">#[metastructure(fallback_variant)]
     </span>Other(Object&lt;Value&gt;),
@@ -1526,6 +1597,29 @@
             uuid: Annotated::new(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.parse().unwrap()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                );
+                map
+            },
+        })));
+
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_debug_image_jvm_based_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;debug_id&quot;: &quot;395835f4-03e0-4436-80d3-136f0749a893&quot;,
+  &quot;other&quot;: &quot;value&quot;,
+  &quot;type&quot;: &quot;jvm&quot;
+}&quot;#</span>;
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Jvm(Box::new(JvmDebugImage {
+            debug_id: Annotated::new(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.parse().unwrap()),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
                     <span class="string">&quot;other&quot;</span>.to_string(),
                     Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
