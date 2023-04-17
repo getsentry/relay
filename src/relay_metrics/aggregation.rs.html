@@ -3169,6 +3169,8 @@
 <a href="#3168" id="3168">3168</a>
 <a href="#3169" id="3169">3169</a>
 <a href="#3170" id="3170">3170</a>
+<a href="#3171" id="3171">3171</a>
+<a href="#3172" id="3172">3172</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::hash::Hasher;
@@ -3188,7 +3190,9 @@
 <span class="kw">use </span>thiserror::Error;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{
+    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
+};
 <span class="kw">use crate</span>::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
     MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
@@ -4862,7 +4866,7 @@
             Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(MetricCounters::MergeHit) += <span class="number">1</span>,
-                    metric_name = <span class="kw-2">&amp;</span>entry.key().metric_name
+                    metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
                 );
                 <span class="kw">let </span>bucket_value = <span class="kw-2">&amp;mut </span>entry.get_mut().value;
                 <span class="kw">let </span>cost_before = bucket_value.cost();
@@ -4873,11 +4877,11 @@
             Entry::Vacant(entry) =&gt; {
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
-                    metric_name = <span class="kw-2">&amp;</span>entry.key().metric_name
+                    metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
                 );
                 <span class="macro">relay_statsd::metric!</span>(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
-                    </span>metric_name = <span class="kw-2">&amp;</span>entry.key().metric_name
+                    </span>metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
                 );
 
                 <span class="kw">let </span>flush_at = <span class="self">self</span>.config.get_flush_time(timestamp, project_key);
