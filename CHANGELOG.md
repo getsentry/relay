@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Forward unknown project config feature flags to downstream relays. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
 
 ## 23.4.0
 
