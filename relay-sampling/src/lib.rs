@@ -1,8 +1,8 @@
 //! Sampling logic for performing sampling decisions of incoming events.
 //!
-//! In order to allow Sentry to offer performance at scale, Relay extracts key [`metrics`] from
+//! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
 //! all transactions, but only forwards a random sample of raw transaction payloads to the upstream.
-//! What exact percentage is sampled is determined by [`dynamic sampling rules`], and depends on
+//! What exact percentage is sampled is determined by `dynamic sampling rules`, and depends on
 //! the project, the environment, the transaction name, etc.
 //!
 //! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
