@@ -20,11 +20,8 @@ use std::rc::Rc;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use once_cell::sync::Lazy;
 use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{
-    FieldAttrs, Pii, ProcessingState, Processor, SelectorPathItem, SelectorSpec, ValueType,
-};
+use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
@@ -217,29 +214,6 @@ where
     D::custom(s.to_string())
 }
 
-/// Config that will be applied in addition to any dynamic config added via `new()`.
-static STATIC_PII_CONFIG: Lazy<PiiConfig> = Lazy::new(|| {
-    let filter_paths = [vec![
-        "data", "payload", "data", "request", "body", "api_key",
-    ]];
-    let mut config = PiiConfig::default();
-    config.applications.insert(
-        SelectorSpec::Or(
-            filter_paths
-                .map(|path| {
-                    SelectorSpec::Path(
-                        path.into_iter()
-                            .map(|key| SelectorPathItem::Key(key.to_owned()))
-                            .collect(),
-                    )
-                })
-                .to_vec(),
-        ),
-        vec!["@anything:filter".to_owned()],
-    );
-    config
-});
-
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
 /// ### Example
@@ -277,26 +251,27 @@ impl<'a> RecordingScrubber<'a> {
         config1: Option<&'a PiiConfig>,
         config2: Option<&'a PiiConfig>,
     ) -> Self {
-        Self::from_configs(
-            limit,
-            config1
-                .into_iter()
-                .chain(config2)
-                .chain(Some(&*STATIC_PII_CONFIG)),
-        )
-    }
-
-    /// Internal helper to create an instance from multiple configs.
-    ///
-    /// External users should use `new` instead.
-    fn from_configs(limit: usize, configs: impl IntoIterator<Item = &'a PiiConfig>) -> Self {
         Self {
             limit,
             transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: configs
-                    .into_iter()
+                processors: config1
+                    .iter()
+                    .chain(config2.iter())
                     .map(|c| PiiProcessor::new(c.compiled()))
                     .collect(),
+
+                state: ProcessingState::new_root(None, None),
+            })),
+        }
+    }
+
+    /// Create a scrubber with a custom config. Used in tests.
+    #[cfg(test)]
+    fn custom(limit: usize, config: &'a PiiConfig) -> Self {
+        Self {
+            limit,
+            transform: Rc::new(RefCell::new(ScrubberTransform {
+                processors: vec![PiiProcessor::new(config.compiled())],
                 state: ProcessingState::new_root(None, None),
             })),
         }
@@ -395,6 +370,7 @@ mod tests {
     // End to end test coverage.
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_general::processor::{SelectorPathItem, SelectorSpec};
 
     use super::RecordingScrubber;
 
@@ -607,37 +583,26 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_pii_key_based_default_config_without_static_rules() {
+    fn test_scrub_pii_key_based_custom_rules() {
         let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
 
         let mut transcoded = Vec::new();
-        let config = default_pii_config();
+        let mut config = PiiConfig::default();
 
-        RecordingScrubber::from_configs(usize::MAX, Some(&config))
-            .scrub_replay(payload.as_slice(), &mut transcoded)
-            .unwrap();
-
-        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
-        let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
-
-        // Normal fields are not scrubbed:
-        assert_eq!(scrubbed[0]["data"]["payload"]["data"]["method"], "POST");
-
-        // `api_key` is caught by default scrubbing rules:
-        assert_eq!(
-            scrubbed[0]["data"]["payload"]["data"]["request"]["body"]["api_key"],
-            "[Filtered]"
+        // Add some custom selectors to test advanced behavior:
+        config.applications.insert(
+            SelectorSpec::Path(vec![
+                SelectorPathItem::Key("data".to_owned()),
+                SelectorPathItem::Key("payload".to_owned()),
+                SelectorPathItem::Key("data".to_owned()),
+                SelectorPathItem::Key("request".to_owned()),
+                SelectorPathItem::Key("body".to_owned()),
+                SelectorPathItem::Key("api_key".to_owned()),
+            ]),
+            vec!["@anything:filter".to_owned()],
         );
-    }
 
-    #[test]
-    fn test_scrub_pii_key_based_static_rules() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
-
-        let mut transcoded = Vec::new();
-
-        // Apply only static rules:
-        RecordingScrubber::new(usize::MAX, None, None)
+        RecordingScrubber::custom(usize::MAX, &config)
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
