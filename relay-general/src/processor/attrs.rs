@@ -389,8 +389,8 @@ impl<T> Deref for BoxCow<'_, T> {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            BoxCow::Borrowed(slf) => slf,
-            BoxCow::Owned(slf) => slf.deref(),
+            BoxCow::Borrowed(inner) => inner,
+            BoxCow::Owned(inner) => inner.deref(),
         }
     }
 }
@@ -410,6 +410,9 @@ impl<T> Deref for BoxCow<'_, T> {
 /// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
+    // In event scrubbing, every state will only hold a reference to its parent.
+    // In Replay scrubbing, where we do not call process_* recursively,
+    // we will hold a single ProcessingState instance, which owns its parents, grandparents, etc.
     parent: Option<BoxCow<'a, ProcessingState<'a>>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
