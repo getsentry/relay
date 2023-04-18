@@ -266,6 +266,7 @@ fn type_to_string_helper(ty: &Type, segments: &mut Vec<String>) {
 }
 
 fn usetree_to_paths(use_tree: &UseTree, crate_root: String) -> Vec<String> {
+    // Split into two functions because use_tree_to_path uses recursion.
     let paths = use_tree_to_path(
         syn::Path {
             leading_colon: None,
@@ -453,7 +454,6 @@ fn rust_file_to_use_path(file_path: &Path) -> String {
     let parent_dir = file_path.parent().unwrap();
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
 
-    //let mod_rs_path = parent_dir.join("mod.rs");
     let is_module = is_file_module(file_path);
 
     let mut module_path = parent_dir
@@ -473,6 +473,7 @@ fn rust_file_to_use_path(file_path: &Path) -> String {
     use_path
 }
 
+/// Checks if a file is a module, which is needed to convert a file path to a module path
 fn is_file_module(file_path: &Path) -> bool {
     let parent_dir = file_path.parent().unwrap();
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
@@ -508,7 +509,7 @@ fn is_file_module(file_path: &Path) -> bool {
     false
 }
 
-fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> Option<bool> {
+fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
     if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
         if meta_list.path.is_ident("metastructure") {
             for nested_meta in meta_list.nested {
@@ -517,23 +518,21 @@ fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> Option<bool> {
                 {
                     if path.is_ident(name) {
                         if let Lit::Str(lit_str) = lit {
-                            return Some(lit_str.value() == value);
+                            return lit_str.value() == value;
                         }
                     }
                 }
             }
         }
     }
-    None
+    false
 }
 
 fn has_pii_value(field: &Field) -> bool {
     for attr in &field.attrs {
         for pii_value in PII_VALUES.lock().unwrap().iter() {
-            if let Some(value) = get_attr_value(attr, "pii", pii_value) {
-                if value {
-                    return value;
-                }
+            if get_attr_value(attr, "pii", pii_value) {
+                return true;
             }
         }
     }
