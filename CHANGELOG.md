@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.4.0
 
 **Breaking Changes**:
 
@@ -36,6 +36,7 @@ Replays:
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 - Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
 - Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add `jvm` debug file type. ([#2002](https://github.com/getsentry/relay/pull/2002))
 - Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
 - Change `lock_reason` attribute to a `held_locks` dictionary in the `thread` interface. ([#2018](https://github.com/getsentry/relay/pull/2018))
 
@@ -48,6 +49,11 @@ Replays:
 - Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
+- Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
+
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
 
 ## 23.3.1
 
