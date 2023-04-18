@@ -545,6 +545,7 @@ struct Limits {
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
+    #[serde(alias = "max_replay_size")]
     max_replay_uncompressed_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
@@ -1823,7 +1824,7 @@ impl Config {
         self.values.limits.max_profile_size.as_bytes()
     }
 
-    /// Returns the maximum payload size for an compressed replay.
+    /// Returns the maximum payload size for a compressed replay.
     pub fn max_replay_compressed_size(&self) -> usize {
         self.values.limits.max_replay_compressed_size.as_bytes()
     }
