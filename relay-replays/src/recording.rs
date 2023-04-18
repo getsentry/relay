@@ -83,7 +83,8 @@ fn scrub_at_path(path: &Vec<String>) -> bool {
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
 struct ScrubberTransform<'a> {
     /// PII processors that are applied one by one on each value.
-    processors: Vec<PiiProcessor<'a>>,
+    processor1: Option<PiiProcessor<'a>>,
+    processor2: Option<PiiProcessor<'a>>,
     /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
     state: ProcessingState<'a>,
     /// The current path. This is redundant with `state`, which also contains the full path,
@@ -119,7 +120,16 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        for processor in &mut self.processors {
+        if let Some(ref mut processor) = self.processor1 {
+            if processor
+                .process_string(&mut value, &mut Meta::default(), &self.state)
+                .is_err()
+            {
+                return Cow::Borrowed("");
+            }
+        }
+
+        if let Some(ref mut processor) = self.processor2 {
             if processor
                 .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
@@ -283,12 +293,8 @@ impl<'a> RecordingScrubber<'a> {
         Self {
             limit,
             transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: config1
-                    .iter()
-                    .chain(config2.iter())
-                    .map(|c| PiiProcessor::new(c.compiled()))
-                    .collect(),
-
+                processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
+                processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
                 state: ProcessingState::new_root(None, None),
                 path: vec![],
             })),
@@ -298,7 +304,7 @@ impl<'a> RecordingScrubber<'a> {
     /// Returns `true` if both configs are empty and no scrubbing would occur.
     pub fn is_empty(&self) -> bool {
         let tmp = self.transform.borrow();
-        tmp.processors.is_empty()
+        tmp.processor1.is_none() && tmp.processor2.is_none()
     }
 
     fn scrub_replay<W>(&mut self, json: &[u8], write: W) -> Result<(), ParseRecordingError>
