@@ -64,9 +64,10 @@ jobs:
 
       - name: Install Rust Toolchain
         run: |
-          rustup toolchain install stable-${{ matrix.target }} --profile minimal --no-self-update --force-non-host
-          rustup target add ${{ matrix.target }}
-          rustup default stable-${{ matrix.target }}
+          rustup set profile minimal
+          rustup toolchain install stable
+          rustup override set stable
+          rustup target add --toolchain stable ${{ matrix.target }}
 
       - uses: actions/setup-python@v4
         with:
