@@ -20,6 +20,7 @@ use std::rc::Rc;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
+use once_cell::sync::Lazy;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
@@ -68,7 +69,14 @@ impl From<serde_json::Error> for ParseRecordingError {
 }
 
 /// Static field attributes used for every field.
-const FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
+
+fn scrub_at_path(path: &Vec<String>) -> bool {
+    PII_FIELDS
+        .iter()
+        .any(|p| p.iter().zip(path).all(|(k1, k2)| k1 == k2))
+}
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
@@ -78,13 +86,23 @@ struct ScrubberTransform<'a> {
     processors: Vec<PiiProcessor<'a>>,
     /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
     state: ProcessingState<'a>,
+    /// The current path. This is redundant with `state`, which also contains the full path,
+    /// but easier to match on.
+    path: Vec<String>,
 }
 
 impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     fn push_path(&mut self, key: &'de str) {
+        self.path.push(key.to_owned());
+        let field_attrs = if scrub_at_path(&self.path) {
+            &FIELD_ATTRS_PII_TRUE
+        } else {
+            &FIELD_ATTRS_PII_FALSE
+        };
+
         self.state = std::mem::take(&mut self.state).enter_owned(
             key.to_owned(),
-            Some(Cow::Borrowed(&FIELD_ATTRS)),
+            Some(Cow::Borrowed(field_attrs)),
             Some(ValueType::String), // Pretend everything is a string.
         )
     }
@@ -93,6 +111,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
         if let Ok(Some(parent)) = std::mem::take(&mut self.state).try_into_parent() {
             self.state = parent;
         }
+        self.path.pop();
     }
 
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
@@ -214,6 +233,16 @@ where
     D::custom(s.to_string())
 }
 
+/// Paths to fields on which datascrubbing rules should be applied.
+///
+/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
+static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
+    [
+        vec!["data", "payload", "description"],
+        vec!["data", "payload", "data"],
+    ]
+});
+
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
 /// ### Example
@@ -261,18 +290,7 @@ impl<'a> RecordingScrubber<'a> {
                     .collect(),
 
                 state: ProcessingState::new_root(None, None),
-            })),
-        }
-    }
-
-    /// Create a scrubber with a custom config. Used in tests.
-    #[cfg(test)]
-    fn custom(limit: usize, config: &'a PiiConfig) -> Self {
-        Self {
-            limit,
-            transform: Rc::new(RefCell::new(ScrubberTransform {
-                processors: vec![PiiProcessor::new(config.compiled())],
-                state: ProcessingState::new_root(None, None),
+                path: vec![],
             })),
         }
     }
@@ -370,7 +388,6 @@ mod tests {
     // End to end test coverage.
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-    use relay_general::processor::{SelectorPathItem, SelectorSpec};
 
     use super::RecordingScrubber;
 
@@ -583,26 +600,13 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_pii_key_based_custom_rules() {
+    fn test_scrub_pii_key_based() {
         let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
 
         let mut transcoded = Vec::new();
-        let mut config = PiiConfig::default();
+        let config = default_pii_config();
 
-        // Add some custom selectors to test advanced behavior:
-        config.applications.insert(
-            SelectorSpec::Path(vec![
-                SelectorPathItem::Key("data".to_owned()),
-                SelectorPathItem::Key("payload".to_owned()),
-                SelectorPathItem::Key("data".to_owned()),
-                SelectorPathItem::Key("request".to_owned()),
-                SelectorPathItem::Key("body".to_owned()),
-                SelectorPathItem::Key("api_key".to_owned()),
-            ]),
-            vec!["@anything:filter".to_owned()],
-        );
-
-        RecordingScrubber::custom(usize::MAX, &config)
+        scrubber(&config)
             .scrub_replay(payload.as_slice(), &mut transcoded)
             .unwrap();
 
