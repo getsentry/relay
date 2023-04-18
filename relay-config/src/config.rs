@@ -1836,8 +1836,10 @@ impl Config {
     pub fn max_replay_uncompressed_size(&self) -> usize {
         self.values.limits.max_replay_uncompressed_size.as_bytes()
     }
+
     /// Returns the maximum message size for an uncompressed replay.
-    /// this is greater than max_replay_compressed_size because
+    ///
+    /// This is greater than max_replay_compressed_size because
     /// it can include additional metadata about the replay in
     /// addition to the recording.
     pub fn max_replay_message_size(&self) -> usize {
