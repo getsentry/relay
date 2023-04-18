@@ -339,6 +339,10 @@ impl ManagedEnvelope {
     ///
     /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
     /// list of additional attributes allocated on all of the inner types.
+    ///
+    /// NOTE: Current implementation counts in only the size of the items payload and stack
+    /// allocated parts of [`Envelope`] and [`ManagedEnvelope`]. All the heap allocated fields
+    /// within early mentioned types are skipped.
     pub fn estimated_size(&self) -> usize {
         // Always round it up to next 1KB.
         (f64::ceil(

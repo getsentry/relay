@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Change data category for profiles to match transactions. ([#2025](https://github.com/getsentry/relay/pull/2025))
+
+## 23.4.0
+
 **Breaking Changes**:
 
 This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
@@ -32,6 +39,7 @@ Metrics:
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
 - Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
 - Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add `jvm` debug file type. ([#2002](https://github.com/getsentry/relay/pull/2002))
 - Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
 - Change `lock_reason` attribute to a `held_locks` dictionary in the `thread` interface. ([#2018](https://github.com/getsentry/relay/pull/2018))
 
@@ -44,7 +52,7 @@ Metrics:
 - Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
-- Change data category for profiles to match transactions. ([#2025](https://github.com/getsentry/relay/pull/2025))
+- Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
 
 Monitors:
 
