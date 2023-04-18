@@ -153,9 +153,8 @@ impl GaugeMetric for MetricGauges {
 ///
 /// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
 /// names. The rest gets mapped to "other".
-pub fn metric_name_tag<S: AsRef<str>>(value: S) -> &'static str {
-    let metric_name = value.as_ref();
-    if let Some(known_name) = [
+pub fn metric_name_tag(value: &str) -> &str {
+    if [
         "c:sessions/session@none",
         "s:sessions/user@none",
         "s:sessions/error@none",
@@ -163,16 +162,15 @@ pub fn metric_name_tag<S: AsRef<str>>(value: S) -> &'static str {
         "s:transactions/user@none",
         "c:transactions/count_per_root_project@none",
     ]
-    .into_iter()
-    .find(|s| s == &metric_name)
+    .contains(&value)
     {
-        return known_name;
+        return value;
     }
 
-    if metric_name.starts_with("d:transactions/breakdowns.") {
+    if value.starts_with("d:transactions/breakdowns.") {
         return "d:transactions/breakdowns.*";
     }
-    if metric_name.starts_with("d:transactions/measurements.") {
+    if value.starts_with("d:transactions/measurements.") {
         return "d:transactions/measurements.*";
     }
 
