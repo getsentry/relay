@@ -551,9 +551,9 @@ impl Item {
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::Profile => Some(if indexed {
-                DataCategory::ProfileIndexed
-            } else {
                 DataCategory::Profile
+            } else {
+                DataCategory::ProfileProcessed
             }),
             ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
