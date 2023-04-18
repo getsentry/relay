@@ -5,6 +5,7 @@
 **Internal**:
 
 - Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
 
 ## 23.4.0
 
@@ -52,7 +53,6 @@ Metrics:
 - Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
 - Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
 - Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
-- Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
 
 Monitors:
 
