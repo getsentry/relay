@@ -559,7 +559,7 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
-    /// Return the contained parent state.
+    /// Returns the contained parent state.
     ///
     /// - Returns `Ok(None)` if the current state is the root.
     /// - Returns `Err(self)` if the current state does not own the parent state.
