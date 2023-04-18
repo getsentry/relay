@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.20
 
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
 - Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
