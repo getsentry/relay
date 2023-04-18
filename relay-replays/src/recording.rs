@@ -68,15 +68,26 @@ impl From<serde_json::Error> for ParseRecordingError {
     }
 }
 
-/// Static field attributes used for every field.
-const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
-const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
+/// Paths to fields on which datascrubbing rules should be applied.
+///
+/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
+static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
+    [
+        vec!["data", "payload", "description"],
+        vec!["data", "payload", "data"],
+    ]
+});
 
+/// Returns `True` if the given path should be treated as `pii = true`.
 fn scrub_at_path(path: &Vec<String>) -> bool {
     PII_FIELDS
         .iter()
         .any(|p| p.iter().zip(path).all(|(k1, k2)| k1 == k2))
 }
+
+/// Static field attributes used for every field.
+const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
@@ -242,16 +253,6 @@ where
 {
     D::custom(s.to_string())
 }
-
-/// Paths to fields on which datascrubbing rules should be applied.
-///
-/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
-static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
-    [
-        vec!["data", "payload", "description"],
-        vec!["data", "payload", "data"],
-    ]
-});
 
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
