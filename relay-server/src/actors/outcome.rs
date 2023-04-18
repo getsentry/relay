@@ -153,7 +153,7 @@ pub enum Outcome {
     // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
     // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
     // #[allow(dead_code)]
-    // Accepted,
+    Accepted,
     /// The event has been filtered due to a configured filter.
     Filtered(FilterStatKey),
 
@@ -183,6 +183,7 @@ impl Outcome {
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
+            Outcome::Accepted => OutcomeId::ACCEPTED,
         }
     }
 
@@ -198,6 +199,7 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+            Outcome::Accepted => None,
         }
     }
 
@@ -229,6 +231,7 @@ impl fmt::Display for Outcome {
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
+            Outcome::Accepted => write!(f, "accepted"),
         }
     }
 }

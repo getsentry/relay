@@ -1073,53 +1073,66 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let use_index_category = state.managed_envelope.use_index_category();
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
-                Ok((profile_id, payload)) => {
-                    if payload.len() <= self.config.max_profile_size() {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.add(SentryContext::Profile(Box::new(ProfileContext {
-                                    profile_id: Annotated::new(profile_id),
-                                })));
+            ItemType::Profile => {
+                // If the transaction is not indexed, we emit an accepted outcome with a
+                // ProfileProcessed category
+                if !use_index_category {
+                    ItemAction::Drop(Outcome::Accepted)
+                } else {
+                    match relay_profiling::expand_profile(&item.payload()) {
+                        Ok((profile_id, payload)) => {
+                            if payload.len() <= self.config.max_profile_size() {
+                                if let Some(event) = state.event.value_mut() {
+                                    if event.ty.value() == Some(&EventType::Transaction) {
+                                        let contexts =
+                                            event.contexts.get_or_insert_with(Contexts::new);
+                                        contexts.add(SentryContext::Profile(Box::new(
+                                            ProfileContext {
+                                                profile_id: Annotated::new(profile_id),
+                                            },
+                                        )));
+                                    }
+                                }
+                                item.set_payload(ContentType::Json, payload);
+                                ItemAction::Keep
+                            } else {
+                                if let Some(event) = state.event.value_mut() {
+                                    if event.ty.value() == Some(&EventType::Transaction) {
+                                        let contexts =
+                                            event.contexts.get_or_insert_with(Contexts::new);
+                                        contexts.remove(ProfileContext::default_key());
+                                    }
+                                }
+                                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                                    relay_profiling::discard_reason(
+                                        relay_profiling::ProfileError::ExceedSizeLimit,
+                                    ),
+                                )))
                             }
                         }
-                        item.set_payload(ContentType::Json, payload);
-                        ItemAction::Keep
-                    } else {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove(ProfileContext::default_key());
+                        Err(err) => {
+                            if let Some(event) = state.event.value_mut() {
+                                if event.ty.value() == Some(&EventType::Transaction) {
+                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                                    contexts.remove(ProfileContext::default_key());
+                                }
                             }
-                        }
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(
-                                relay_profiling::ProfileError::ExceedSizeLimit,
-                            ),
-                        )))
-                    }
-                }
-                Err(err) => {
-                    if let Some(event) = state.event.value_mut() {
-                        if event.ty.value() == Some(&EventType::Transaction) {
-                            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                            contexts.remove(ProfileContext::default_key());
-                        }
-                    }
 
-                    match err {
-                        relay_profiling::ProfileError::InvalidJson(_) => {
-                            relay_log::warn!("invalid profile: {}", LogError(&err));
+                            match err {
+                                relay_profiling::ProfileError::InvalidJson(_) => {
+                                    relay_log::warn!("invalid profile: {}", LogError(&err));
+                                }
+                                _ => relay_log::debug!("invalid profile: {}", err),
+                            };
+                            ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(err),
+                            )))
                         }
-                        _ => relay_log::debug!("invalid profile: {}", err),
-                    };
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(err),
-                    )))
+                    }
                 }
-            },
+            }
             _ => ItemAction::Keep,
         });
     }

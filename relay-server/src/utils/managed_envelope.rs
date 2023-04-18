@@ -260,7 +260,7 @@ impl ManagedEnvelope {
     /// rate limits and outcomes, because reporting of the main category
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
-    fn use_index_category(&self) -> bool {
+    pub fn use_index_category(&self) -> bool {
         self.context.summary.event_metrics_extracted
     }
 
