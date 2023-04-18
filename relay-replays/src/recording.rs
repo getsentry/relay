@@ -623,7 +623,6 @@ mod tests {
         // Normal fields are not scrubbed:
         assert_eq!(scrubbed[0]["data"]["payload"]["data"]["method"], "POST");
 
-        // `api_key` is caught by custom rule:
         assert_eq!(
             scrubbed[0]["data"]["payload"]["data"]["request"]["body"]["api_key"],
             "[Filtered]"
