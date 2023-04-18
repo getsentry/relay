@@ -312,9 +312,9 @@ impl ManagedEnvelope {
         if self.context.summary.profile_quantity > 0 {
             let use_indexed = self.use_index_category();
             let data_category = if use_indexed {
-                DataCategory::Profile
-            } else {
                 DataCategory::ProfileIndexed
+            } else {
+                DataCategory::Profile
             };
             self.track_outcome(
                 outcome,
