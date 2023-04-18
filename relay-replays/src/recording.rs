@@ -29,6 +29,29 @@ use serde_json::value::RawValue;
 
 use crate::transform::Transform;
 
+/// Paths to fields on which datascrubbing rules should be applied.
+///
+/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
+static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
+    [
+        vec!["data", "payload", "description"],
+        vec!["data", "payload", "data"],
+    ]
+});
+
+/// Returns `True` if the given path should be treated as `pii = true`.
+fn scrub_at_path(path: &Vec<String>) -> bool {
+    PII_FIELDS.iter().any(|pii_path| {
+        path.len() >= pii_path.len() && pii_path.iter().zip(path).all(|(k1, k2)| k1 == k2)
+    })
+}
+
+/// Static field attributes used for fields in [`PII_FIELDS`].
+const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+
+/// Static field attributes used for fields without PII scrubbing.
+const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
+
 /// Error returned from [`RecordingScrubber`].
 #[derive(Debug)]
 pub enum ParseRecordingError {
@@ -67,27 +90,6 @@ impl From<serde_json::Error> for ParseRecordingError {
         ParseRecordingError::Parse(err)
     }
 }
-
-/// Paths to fields on which datascrubbing rules should be applied.
-///
-/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
-static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
-    [
-        vec!["data", "payload", "description"],
-        vec!["data", "payload", "data"],
-    ]
-});
-
-/// Returns `True` if the given path should be treated as `pii = true`.
-fn scrub_at_path(path: &Vec<String>) -> bool {
-    PII_FIELDS
-        .iter()
-        .any(|p| p.iter().zip(path).all(|(k1, k2)| k1 == k2))
-}
-
-/// Static field attributes used for every field.
-const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
-const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
 
 /// The [`Transform`] implementation for data scrubbing.
 ///
@@ -396,6 +398,8 @@ mod tests {
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
+    use crate::recording::scrub_at_path;
+
     use super::RecordingScrubber;
 
     fn default_pii_config() -> PiiConfig {
@@ -644,5 +648,22 @@ mod tests {
         let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
 
         insta::assert_ron_snapshot!(scrubbed);
+    }
+
+    #[test]
+    fn test_scrub_at_path() {
+        for (should_scrub, path) in [
+            (false, vec![]),
+            (false, vec!["data"]),
+            (false, vec!["data", "payload"]),
+            (false, vec!["data", "payload", "foo"]),
+            (false, vec!["foo", "payload", "data"]),
+            (true, vec!["data", "payload", "data"]),
+            (true, vec!["data", "payload", "data", "request"]),
+            (true, vec!["data", "payload", "data", "request", "body"]),
+        ] {
+            let path = path.into_iter().map(|p| p.to_owned()).collect::<Vec<_>>();
+            assert_eq!(should_scrub, scrub_at_path(&path));
+        }
     }
 }
