@@ -628,4 +628,21 @@ mod tests {
             "[Filtered]"
         );
     }
+
+    #[test]
+    fn test_scrub_pii_key_based_edge_cases() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-request-edge-cases.json");
+
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
+
+        insta::assert_ron_snapshot!(scrubbed);
+    }
 }
