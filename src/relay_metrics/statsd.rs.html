@@ -177,8 +177,6 @@
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -334,9 +332,8 @@
 ///
 /// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
 /// names. The rest gets mapped to &quot;other&quot;.
-</span><span class="kw">pub fn </span>metric_name_tag&lt;S: AsRef&lt;str&gt;&gt;(value: S) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="kw">let </span>metric_name = value.as_ref();
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(known_name) = [
+</span><span class="kw">pub fn </span>metric_name_tag(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span>str {
+    <span class="kw">if </span>[
         <span class="string">&quot;c:sessions/session@none&quot;</span>,
         <span class="string">&quot;s:sessions/user@none&quot;</span>,
         <span class="string">&quot;s:sessions/error@none&quot;</span>,
@@ -344,16 +341,15 @@
         <span class="string">&quot;s:transactions/user@none&quot;</span>,
         <span class="string">&quot;c:transactions/count_per_root_project@none&quot;</span>,
     ]
-    .into_iter()
-    .find(|s| s == <span class="kw-2">&amp;</span>metric_name)
+    .contains(<span class="kw-2">&amp;</span>value)
     {
-        <span class="kw">return </span>known_name;
+        <span class="kw">return </span>value;
     }
 
-    <span class="kw">if </span>metric_name.starts_with(<span class="string">&quot;d:transactions/breakdowns.&quot;</span>) {
+    <span class="kw">if </span>value.starts_with(<span class="string">&quot;d:transactions/breakdowns.&quot;</span>) {
         <span class="kw">return </span><span class="string">&quot;d:transactions/breakdowns.*&quot;</span>;
     }
-    <span class="kw">if </span>metric_name.starts_with(<span class="string">&quot;d:transactions/measurements.&quot;</span>) {
+    <span class="kw">if </span>value.starts_with(<span class="string">&quot;d:transactions/measurements.&quot;</span>) {
         <span class="kw">return </span><span class="string">&quot;d:transactions/measurements.*&quot;</span>;
     }
 
