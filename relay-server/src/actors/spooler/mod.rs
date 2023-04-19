@@ -303,23 +303,15 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let mut rows = sql::current_size().fetch(db);
-        let page_count: i64 = match rows.next().await {
-            Some(row) => row
-                .and_then(|r| r.try_get(0))
-                .map_err(BufferError::FileSizeReadFailed)?,
-            None => return Err(BufferError::FileSizeReadFailed(sqlx::Error::RowNotFound)),
-        };
-        let page_size: i64 = match rows.next().await {
-            Some(row) => row
-                .and_then(|r| r.try_get(0))
-                .map_err(BufferError::FileSizeReadFailed)?,
-            None => return Err(BufferError::FileSizeReadFailed(sqlx::Error::RowNotFound)),
-        };
-        let size = page_count * page_size;
+        let size_row = sql::current_size()
+            .fetch_one(db)
+            .await
+            .map_err(BufferError::FileSizeReadFailed)?;
+        let size: i64 = size_row
+            .try_get(0)
+            .map_err(BufferError::FileSizeReadFailed)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
-
         Ok(size)
     }
 
@@ -375,7 +367,12 @@ impl BufferService {
             return Ok(());
         }
 
-        let estimated_db_size = Self::estimate_buffer_size(db).await?;
+        // Return 0 if we fail to read the database size.
+        let estimated_db_size = Self::estimate_buffer_size(db).await.unwrap_or_else(|err| {
+            relay_log::error!("Failed to get estimated db size: {}", LogError(&err));
+            Default::default()
+        });
+
         if estimated_db_size as usize >= *max_disk_size {
             *is_disk_full = true;
             return Err(BufferError::DatabaseFull(estimated_db_size));
