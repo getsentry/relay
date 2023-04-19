@@ -40,10 +40,11 @@ fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
     let mut rs_files = Vec::new();
 
     for entry in walker.filter_map(walkdir::Result::ok) {
-        if entry.clone().path().to_string_lossy().contains("target/") {
+        if !entry.clone().path().to_string_lossy().contains("/src/") {
             continue;
         }
-        if entry.file_type().is_file() && entry.path().extension().unwrap_or_default() == "rs" {
+        if entry.file_type().is_file() && entry.path().extension().map_or(false, |ext| ext == "rs")
+        {
             rs_files.push(entry.into_path());
         }
     }
@@ -52,8 +53,8 @@ fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
 
 #[derive(Debug, Clone)]
 enum EnumOrStruct {
-    ItemStruct(ItemStruct),
-    ItemEnum(ItemEnum),
+    Struct(ItemStruct),
+    Enum(ItemEnum),
 }
 
 // Need this to wrap lazy_statics in a mutex. everything is single-threaded so it shouldn't matter.
@@ -70,14 +71,10 @@ struct TypeVisitor {
 
 impl TypeVisitor {
     pub fn get_crate_root(&self) -> String {
-        self.module_path
-            .split("relay::")
-            .nth(1)
-            .expect("Expected 'relay::' substring not found in module_path")
-            .split_once("::")
-            .expect("Expected second '::' substring not found in module_path")
-            .0
-            .to_owned()
+        match self.module_path.find("::") {
+            Some(index) => self.module_path[0..index].to_string(),
+            None => self.module_path.clone(),
+        }
     }
 }
 
@@ -138,18 +135,16 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
         let mut local_paths = vec![];
         for use_statement in &self.use_statements {
-            local_paths.extend(usetree_to_paths(&use_statement.tree, self.get_crate_root()));
+            local_paths.extend(usetree_to_paths(
+                &use_statement.tree,
+                &self.module_path,
+                self.get_crate_root(),
+            ));
         }
 
         let field_types = type_to_string(&node.ty);
         for field_type in &field_types {
-            let current_module = self
-                .module_path
-                .clone()
-                .split_once("relay::")
-                .unwrap()
-                .1
-                .to_string();
+            let current_module = self.module_path.clone();
             // we don't actually know if these path exists or not, we just try to see if the field type
             // exist in the current module, since we can't deduce it from the use statements if it does
             let type_in_current_path =
@@ -167,7 +162,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
                     if let Some(enum_or_struct) = enum_or_struct {
                         match enum_or_struct {
-                            (EnumOrStruct::ItemEnum(itemenum), mod_path) => {
+                            (EnumOrStruct::Enum(itemenum), mod_path) => {
                                 let current_type = self.current_type.clone();
                                 let module_path = self.module_path.clone();
                                 self.module_path = mod_path;
@@ -175,7 +170,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                                 self.module_path = module_path;
                                 self.current_type = current_type;
                             }
-                            (EnumOrStruct::ItemStruct(itemstruct), mod_path) => {
+                            (EnumOrStruct::Struct(itemstruct), mod_path) => {
                                 let current_type = self.current_type.clone();
                                 let module_path = self.module_path.clone();
                                 self.module_path = mod_path;
@@ -265,7 +260,7 @@ fn type_to_string_helper(ty: &Type, segments: &mut Vec<String>) {
     }
 }
 
-fn usetree_to_paths(use_tree: &UseTree, crate_root: String) -> Vec<String> {
+fn usetree_to_paths(use_tree: &UseTree, module_path: &str, crate_root: String) -> Vec<String> {
     // Split into two functions because use_tree_to_path uses recursion.
     let paths = use_tree_to_path(
         syn::Path {
@@ -276,10 +271,20 @@ fn usetree_to_paths(use_tree: &UseTree, crate_root: String) -> Vec<String> {
     );
     let mut retvec = vec![];
     for path in paths.split(',') {
-        let path = path
+        let mut path = path
             .replace(' ', "")
             .replace('-', "_")
             .replace("crate::", &format!("{}::", crate_root));
+
+        if path.contains("super::") {
+            let parent_module = {
+                let mut parts = module_path.split("::").collect::<Vec<_>>();
+                parts.pop();
+                parts.join("::")
+            };
+            path = path.replace("super::", &parent_module);
+        }
+
         retvec.push(path);
     }
     retvec
@@ -311,10 +316,6 @@ fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
         }
         _ => quote::quote!(#leading_path).to_string(),
     }
-}
-
-pub fn get_item_path_from_full(full: String) -> String {
-    full.split_once("::relay::").unwrap().1.to_owned()
 }
 
 fn main() {
@@ -376,10 +377,6 @@ fn main() {
 
     let paths = find_rs_files(chosen_dir);
 
-    if paths.is_empty() {
-        panic!("No rust files found in {current_dir}");
-    }
-
     for path in &paths {
         // first iterate through all rust files to create the hashmap
         let mut hashmap_filler = FillHashMap {
@@ -402,8 +399,8 @@ fn main() {
                     ..Default::default()
                 };
                 match theitem {
-                    EnumOrStruct::ItemStruct(itemstruct) => visitor.visit_item_struct(&itemstruct),
-                    EnumOrStruct::ItemEnum(itemenum) => visitor.visit_item_enum(&itemenum),
+                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
+                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(&itemenum),
                 };
             } else {
                 panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
@@ -436,10 +433,10 @@ fn main() {
             output.push_str(&format!(".{}", path.field_name));
         }
 
-        let unnamed_replace = match matches.value_of("unnamed").unwrap() {
-            "" => "".to_string(),
-            other => format!("{other}."),
-        };
+        let mut unnamed_replace = matches.value_of("unnamed").unwrap().to_string();
+        if !unnamed_replace.is_empty() {
+            unnamed_replace.push('.');
+        }
 
         output = output.replace("{{Unnamed}}.", &unnamed_replace);
         output_vec.push(output);
@@ -451,6 +448,12 @@ fn main() {
 }
 
 fn rust_file_to_use_path(file_path: &Path) -> String {
+    let crate_name = {
+        let file_str = file_path.as_os_str().to_str().unwrap();
+        let src_index = file_str.find("/src/").unwrap();
+        let back_index = file_str[..src_index].rfind('/').unwrap() + 1;
+        file_str.split_at(src_index).0.split_at(back_index).1
+    };
     let parent_dir = file_path.parent().unwrap();
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
 
@@ -467,8 +470,10 @@ fn rust_file_to_use_path(file_path: &Path) -> String {
     }
 
     let mut use_path = module_path.join("::");
-    use_path = use_path.split_once("rust::").unwrap().1.into();
-    use_path = format!("rust::{}", use_path);
+    use_path = use_path
+        .split_at(use_path.find(crate_name).unwrap())
+        .1
+        .replace('-', "_");
 
     use_path
 }
@@ -509,7 +514,7 @@ fn is_file_module(file_path: &Path) -> bool {
     false
 }
 
-fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
+fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
     if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
         if meta_list.path.is_ident("metastructure") {
             for nested_meta in meta_list.nested {
@@ -531,7 +536,7 @@ fn get_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
 fn has_pii_value(field: &Field) -> bool {
     for attr in &field.attrs {
         for pii_value in PII_VALUES.lock().unwrap().iter() {
-            if get_attr_value(attr, "pii", pii_value) {
+            if has_attr_value(attr, "pii", pii_value) {
                 return true;
             }
         }
@@ -546,29 +551,17 @@ struct FillHashMap {
 impl<'ast> Visit<'ast> for FillHashMap {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         let struct_name = format!("{}::{}", self.module_path, node.ident);
-        let item_path = get_item_path_from_full(struct_name)
-            .replace("src::", "")
-            .replace('-', "_");
         ALL_TYPES.lock().unwrap().insert(
-            item_path,
-            (
-                EnumOrStruct::ItemStruct(node.clone()),
-                self.module_path.clone(),
-            ),
+            struct_name,
+            (EnumOrStruct::Struct(node.clone()), self.module_path.clone()),
         );
     }
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         let enum_name = format!("{}::{}", self.module_path, node.ident);
-        let item_path = get_item_path_from_full(enum_name)
-            .replace("src::", "")
-            .replace('-', "_");
         ALL_TYPES.lock().unwrap().insert(
-            item_path,
-            (
-                EnumOrStruct::ItemEnum(node.clone()),
-                self.module_path.clone(),
-            ),
+            enum_name,
+            (EnumOrStruct::Enum(node.clone()), self.module_path.clone()),
         );
     }
 }
