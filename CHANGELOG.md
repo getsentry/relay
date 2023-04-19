@@ -5,6 +5,7 @@
 **Internal**:
 
 - Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Add a data category for indexed profiles. ([#2025](https://github.com/getsentry/relay/pull/2025))
 
 ## 23.4.0
 
