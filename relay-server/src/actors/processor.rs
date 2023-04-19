@@ -1134,7 +1134,7 @@ impl EnvelopeProcessorService {
         let client_addr = meta.client_addr();
         let event_id = state.envelope().event_id();
 
-        let limit = self.config.max_replay_size();
+        let limit = self.config.max_replay_uncompressed_size();
         let config = project_state.config();
         let datascrubbing_config = config
             .datascrubbing_settings
