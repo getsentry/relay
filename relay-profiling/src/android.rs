@@ -75,7 +75,10 @@ struct AndroidProfile {
     measurements: Option<HashMap<String, Measurement>>,
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    tags: BTreeMap<String, String>,
+    transaction_metadata: BTreeMap<String, String>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    transaction_tags: BTreeMap<String, String>,
 }
 
 impl AndroidProfile {
@@ -198,7 +201,8 @@ pub fn parse_android_profile(
         profile.environment = environment.to_owned();
     }
 
-    profile.tags = transaction_tags;
+    profile.transaction_metadata = transaction_metadata;
+    profile.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }

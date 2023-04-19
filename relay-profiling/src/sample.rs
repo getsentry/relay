@@ -163,7 +163,10 @@ struct SampleProfile {
     measurements: Option<HashMap<String, Measurement>>,
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    tags: BTreeMap<String, String>,
+    transaction_metadata: BTreeMap<String, String>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    transaction_tags: BTreeMap<String, String>,
 }
 
 impl SampleProfile {
@@ -339,7 +342,8 @@ pub fn parse_sample_profile(
         profile.environment = environment.to_owned();
     }
 
-    profile.tags = transaction_tags;
+    profile.transaction_metadata = transaction_metadata;
+    profile.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -396,7 +400,8 @@ mod tests {
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
             measurements: None,
-            tags: BTreeMap::new(),
+            transaction_metadata: BTreeMap::new(),
+            transaction_tags: BTreeMap::new(),
         }
     }
 
