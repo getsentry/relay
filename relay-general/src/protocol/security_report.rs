@@ -183,7 +183,7 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
 #[serde(rename_all = "kebab-case")]
 struct CspRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
-    effective_directive: Option<CspDirective>,
+    effective_directive: Option<String>,
     #[serde(default = "CspRaw::default_blocked_uri")]
     blocked_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -222,8 +222,15 @@ impl CspRaw {
         //
         // refs: https://bugzil.la/1192684#c8
 
-        if let Some(directive) = self.effective_directive {
-            return Ok(directive);
+        if let Some(directive) = &self.effective_directive {
+            let parsed_directive = directive
+                .split_once(' ')
+                .map_or(directive.as_str(), |s| s.0)
+                .parse();
+
+            if parsed_directive.is_ok() {
+                return parsed_directive;
+            }
         }
 
         self.violated_directive
@@ -285,9 +292,10 @@ impl CspRaw {
         }
     }
 
-    fn into_protocol(self, effective_directive: CspDirective) -> Csp {
+    fn into_protocol(self, parsed_effective_directive: CspDirective) -> Csp {
         Csp {
-            effective_directive: Annotated::from(effective_directive.to_string()),
+            effective_directive: Annotated::from(parsed_effective_directive.to_string()),
+            effective_directive_full: Annotated::from(self.effective_directive),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -447,6 +455,9 @@ pub struct Csp {
     /// The directive whose enforcement caused the violation.
     #[metastructure(pii = "true")]
     pub effective_directive: Annotated<String>,
+    /// The original value of 'effective-directory'
+    #[metastructure(pii = "true")]
+    pub effective_directive_full: Annotated<String>,
     /// The URI of the resource that was blocked from loading by the Content Security Policy.
     #[metastructure(pii = "true")]
     pub blocked_uri: Annotated<String>,
