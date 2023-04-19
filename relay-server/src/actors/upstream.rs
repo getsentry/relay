@@ -20,7 +20,7 @@ use relay_quotas::{
     Scoping,
 };
 use relay_system::{
-    Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
+    AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
 use reqwest::header;
 pub use reqwest::Method;
@@ -30,7 +30,6 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::service::REGISTRY;
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
@@ -515,12 +514,6 @@ pub enum UpstreamRelay {
     IsNetworkOutage(IsNetworkOutage, Sender<bool>),
     /// Sends a [request](SendRequest) or [query](SendQuery) to the upstream.
     SendRequest(Box<dyn UpstreamRequest>),
-}
-
-impl UpstreamRelay {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().upstream_relay.clone()
-    }
 }
 
 impl Interface for UpstreamRelay {}

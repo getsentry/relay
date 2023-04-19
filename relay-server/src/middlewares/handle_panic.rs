@@ -16,6 +16,8 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
         "no error details"
     };
 
+    relay_log::error!("panic in web handler: {}", detail);
+
     let response = (
         StatusCode::INTERNAL_SERVER_ERROR,
         ApiErrorResponse::with_detail(detail),

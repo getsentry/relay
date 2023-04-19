@@ -4,7 +4,10 @@
 
 **Internal**:
 
-- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+- Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
+
+## 23.4.0
 
 **Breaking Changes**:
 
@@ -30,15 +33,30 @@ Metrics:
 **Features**:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Add replay_id onto event from dynamic sampling context. ([#1983](https://github.com/getsentry/relay/pull/1983))
+- Add product-name for devices, derived from the android model. ([#2004](https://github.com/getsentry/relay/pull/2004))
 - Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
+- Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
+- Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add `jvm` debug file type. ([#2002](https://github.com/getsentry/relay/pull/2002))
+- Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
+- Change `lock_reason` attribute to a `held_locks` dictionary in the `thread` interface. ([#2018](https://github.com/getsentry/relay/pull/2018))
 
 **Internal**:
 
+- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
 - Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
 - Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 - Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
-- Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
+- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
+- Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
+- Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
+- Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
+
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
 
 ## 23.3.1
 

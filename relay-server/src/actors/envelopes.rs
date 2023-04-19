@@ -59,6 +59,7 @@ impl From<relay_system::SendError> for SendEnvelopeError {
 pub struct SendEnvelope {
     pub envelope_body: Vec<u8>,
     pub envelope_meta: RequestMeta,
+    pub project_cache: Addr<ProjectCache>,
     pub scoping: Scoping,
     pub http_encoding: HttpEncoding,
     pub response_sender: oneshot::Sender<Result<(), SendEnvelopeError>>,
@@ -104,7 +105,7 @@ impl UpstreamRequest for SendEnvelope {
                 Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
                 Err(error) => {
                     if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        self.project_cache.send(UpdateRateLimits::new(
                             self.project_key,
                             upstream_limits.clone().scope(&self.scoping),
                         ));
@@ -197,6 +198,7 @@ pub struct EnvelopeManagerService {
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
     enveloper_processor: Addr<EnvelopeProcessor>,
+    project_cache: Addr<ProjectCache>,
     test_store: Addr<TestStore>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -209,6 +211,7 @@ impl EnvelopeManagerService {
         config: Arc<Config>,
         aggregator: Addr<Aggregator>,
         enveloper_processor: Addr<EnvelopeProcessor>,
+        project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
@@ -216,6 +219,7 @@ impl EnvelopeManagerService {
             config,
             aggregator,
             enveloper_processor,
+            project_cache,
             test_store,
             upstream_relay,
             #[cfg(feature = "processing")]
@@ -271,6 +275,7 @@ impl EnvelopeManagerService {
         let request = SendEnvelope {
             envelope_body,
             envelope_meta: envelope.meta().clone(),
+            project_cache: self.project_cache.clone(),
             scoping,
             http_encoding: self.config.http_encoding(),
             response_sender: tx,
@@ -343,7 +348,7 @@ impl EnvelopeManagerService {
         if let Err(err) = result {
             relay_log::trace!(
                 "failed to submit the envelope, merging buckets back: {}",
-                err
+                LogError(&err)
             );
             self.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));

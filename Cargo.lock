@@ -35,7 +35,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
 dependencies = [
  "cfg-if",
+ "getrandom",
  "once_cell",
+ "serde",
  "version_check",
 ]
 
@@ -136,13 +138,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.64"
+version = "0.1.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cd7fce9ba8c3c042128ce72d8b2ddbf3a05747efb67ea0313c635e10bda47a2"
+checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.11",
 ]
 
 [[package]]
@@ -173,9 +175,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "axum"
-version = "0.6.11"
+version = "0.6.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13d8068b6ccb8b34db9de397c7043f91db8b4c66414952c6db944f238c4d3db3"
+checksum = "3b32c5ea3aabaf4deb5f5ced2d688ec0844c881c9e6c696a8b769a05fc691e62"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -208,9 +210,9 @@ dependencies = [
 
 [[package]]
 name = "axum-core"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2f958c80c248b34b9a877a643811be8dbca03ca5ba827f2b63baf3a81e5fc4e"
+checksum = "759fa577a247914fd3f7f76d62972792636412fbfd634cd452f6a385a74d2d2c"
 dependencies = [
  "async-trait",
  "bytes",
@@ -225,14 +227,14 @@ dependencies = [
 
 [[package]]
 name = "axum-macros"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39bcef27b56d5cad8912d735d5ed1286f073f7bcb88cc31b38a15b514fcf8600"
+checksum = "2bb524613be645939e280b7279f7b017f98cf7f5ef084ec374df373530e73277"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.11",
 ]
 
 [[package]]
@@ -315,6 +317,21 @@ dependencies = [
  "syn 1.0.109",
  "which",
 ]
+
+[[package]]
+name = "bit-set"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
+dependencies = [
+ "bit-vec",
+]
+
+[[package]]
+name = "bit-vec"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bitflags"
@@ -1183,6 +1200,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
+name = "fancy-regex"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b95f7c0680e4142284cf8b22c14a476e87d61b004a3a0861872b32ef7ead40a2"
+dependencies = [
+ "bit-set",
+ "regex",
+]
+
+[[package]]
 name = "fastrand"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1265,6 +1292,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "fraction"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3027ae1df8d41b4bed2241c8fdad4acc1e7af60c8e17743534b545e77182d678"
+dependencies = [
+ "lazy_static",
+ "num",
 ]
 
 [[package]]
@@ -1394,8 +1431,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1425,9 +1464,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.15"
+version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9f29bc9dda355256b2916cf526ab02ce0aeaaaf2bad60d65ef3f12f11dd0f4"
+checksum = "66b91535aa35fea1523ad1b86cb6b53c28e0ae566ba4a460f4457e936cad7c6f"
 dependencies = [
  "bytes",
  "fnv",
@@ -1622,9 +1661,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.24"
+version = "0.14.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e011372fa0b68db8350aa7a248930ecc7839bf46d8485577d69f117a75f164c"
+checksum = "ab302d72a6f11a3b910431ff93aae7e773078c769f0a3ef15fb9ec692ed147d4"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1803,6 +1842,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iso8601"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "924e5d73ea28f59011fec52a0d12185d496a9b075d360657aed2a5707f701153"
+dependencies = [
+ "nom",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1840,6 +1888,36 @@ name = "json-forensics"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "674456280908e444408d2370a6706371f0fe2b4fc9999814ba35e71c6e99c5ce"
+
+[[package]]
+name = "jsonschema"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48354c4c4f088714424ddf090de1ff84acc82b2f08c192d46d226ae2529a465"
+dependencies = [
+ "ahash 0.8.3",
+ "anyhow",
+ "base64 0.21.0",
+ "bytecount",
+ "clap 4.1.4",
+ "fancy-regex",
+ "fraction",
+ "getrandom",
+ "iso8601",
+ "itoa",
+ "memchr",
+ "num-cmp",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "percent-encoding",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "time",
+ "url",
+ "uuid",
+]
 
 [[package]]
 name = "lazy_static"
@@ -2141,12 +2219,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "num"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
+dependencies = [
+ "num-bigint",
+ "num-complex",
+ "num-integer",
+ "num-iter",
+ "num-rational",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-cmp"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63335b2e2c34fae2fb0aa2cecfd9f0832a1e24b3b32ecec612c3426d46dc8aaa"
+
+[[package]]
+name = "num-complex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02e0d21255c828d6f128a1e41534206671e8c3ea0c62f32291e808dc82cff17d"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
 dependencies = [
  "autocfg",
+ "num-traits",
+]
+
+[[package]]
+name = "num-iter"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-rational"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
+dependencies = [
+ "autocfg",
+ "num-bigint",
+ "num-integer",
  "num-traits",
 ]
 
@@ -2743,7 +2884,7 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "relay"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "anyhow",
  "clap 4.1.4",
@@ -2760,7 +2901,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -2776,7 +2917,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -2788,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.19"
+version = "0.8.20"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2807,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "chrono",
  "globset",
@@ -2825,7 +2966,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -2845,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -2853,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -2871,7 +3012,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -2879,7 +3020,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2887,7 +3028,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "globset",
  "insta",
@@ -2903,7 +3044,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -2942,7 +3083,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2952,13 +3093,15 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
+ "jsonschema",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
  "relay-statsd",
  "rmp-serde",
+ "sentry-kafka-schemas",
  "serde",
  "serde_json",
  "serde_yaml 0.9.17",
@@ -2967,7 +3110,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "chrono",
  "console",
@@ -2982,7 +3125,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "criterion",
  "float-ord",
@@ -3002,7 +3145,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "once_cell",
  "regex",
@@ -3015,7 +3158,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3030,7 +3173,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "insta",
  "relay-common",
@@ -3044,7 +3187,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "r2d2",
  "redis",
@@ -3055,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "assert-json-diff",
  "criterion",
@@ -3072,7 +3215,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "chrono",
  "insta",
@@ -3090,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3153,7 +3296,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "cadence",
  "parking_lot 0.12.1",
@@ -3163,7 +3306,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "futures",
  "once_cell",
@@ -3174,7 +3317,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "23.3.1"
+version = "23.4.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3512,6 +3655,17 @@ dependencies = [
  "findshlibs",
  "once_cell",
  "sentry-core",
+]
+
+[[package]]
+name = "sentry-kafka-schemas"
+version = "0.0.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5de282337a0c5e35a16e75c7849528b4fbaa64ac5e782fcb3ee48dc3063478a3"
+dependencies = [
+ "serde",
+ "serde_json",
+ "serde_yaml 0.9.17",
 ]
 
 [[package]]

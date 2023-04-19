@@ -42,6 +42,16 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    BufferEnvelopesMemory,
+    /// The file size of the buffer db on disk, in bytes.
+    ///
+    /// This metric is computed by multiplying `page_count * page_size`.
+    BufferDiskSize,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -130,6 +140,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
+            RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -351,6 +363,11 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
+    /// Number times the envelope buffer spools to disk.
+    BufferWrites,
+    /// Number times the envelope buffer reads back from disk.
+    BufferReads,
+    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -511,6 +528,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::BufferWrites => "buffer.writes",
+            RelayCounters::BufferReads => "buffer.reads",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",

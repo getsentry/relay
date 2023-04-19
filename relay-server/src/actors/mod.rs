@@ -34,12 +34,12 @@ pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
 pub mod project;
-pub mod project_buffer;
 pub mod project_cache;
 pub mod project_local;
 pub mod project_upstream;
 pub mod relays;
 pub mod server;
+pub mod spooler;
 pub mod test_store;
 pub mod upstream;
 
