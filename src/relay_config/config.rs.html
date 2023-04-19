@@ -1996,6 +1996,15 @@
 <a href="#1995" id="1995">1995</a>
 <a href="#1996" id="1996">1996</a>
 <a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2540,8 +2549,11 @@
     </span>max_api_chunk_upload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a profile
     </span>max_profile_size: ByteSize,
-    <span class="doccomment">/// The maximum payload size for a replay.
-    </span>max_replay_size: ByteSize,
+    <span class="doccomment">/// The maximum payload size for a compressed replay.
+    </span>max_replay_compressed_size: ByteSize,
+    <span class="doccomment">/// The maximum payload size for an uncompressed replay.
+    </span><span class="attr">#[serde(alias = <span class="string">&quot;max_replay_size&quot;</span>)]
+    </span>max_replay_uncompressed_size: ByteSize,
     <span class="doccomment">/// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -2575,7 +2587,8 @@
             max_api_file_upload_size: ByteSize::mebibytes(<span class="number">40</span>),
             max_api_chunk_upload_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_profile_size: ByteSize::mebibytes(<span class="number">50</span>),
-            max_replay_size: ByteSize::mebibytes(<span class="number">100</span>),
+            max_replay_compressed_size: ByteSize::mebibytes(<span class="number">10</span>),
+            max_replay_uncompressed_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_thread_count: num_cpus::get(),
             query_timeout: <span class="number">30</span>,
             shutdown_timeout: <span class="number">10</span>,
@@ -3818,9 +3831,14 @@
         <span class="self">self</span>.values.limits.max_profile_size.as_bytes()
     }
 
-    <span class="doccomment">/// Returns the maximum payload size for a replay.
-    </span><span class="kw">pub fn </span>max_replay_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.limits.max_replay_size.as_bytes()
+    <span class="doccomment">/// Returns the maximum payload size for a compressed replay.
+    </span><span class="kw">pub fn </span>max_replay_compressed_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_replay_compressed_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Returns the maximum payload size for an uncompressed replay.
+    </span><span class="kw">pub fn </span>max_replay_uncompressed_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_replay_uncompressed_size.as_bytes()
     }
 
     <span class="doccomment">/// Returns the maximum number of active requests

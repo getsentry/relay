@@ -4595,7 +4595,7 @@
         <span class="kw">let </span>client_addr = meta.client_addr();
         <span class="kw">let </span>event_id = state.envelope().event_id();
 
-        <span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_size();
+        <span class="kw">let </span>limit = <span class="self">self</span>.config.max_replay_uncompressed_size();
         <span class="kw">let </span>config = project_state.config();
         <span class="kw">let </span>datascrubbing_config = config
             .datascrubbing_settings

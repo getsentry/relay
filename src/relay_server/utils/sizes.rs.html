@@ -90,6 +90,11 @@
 <a href="#89" id="89">89</a>
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -124,12 +129,17 @@
             | ItemType::FormData =&gt; {
                 event_size += item.len();
             }
-            ItemType::Attachment | ItemType::UnrealReport | ItemType::ReplayRecording =&gt; {
+            ItemType::Attachment | ItemType::UnrealReport =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_attachment_size() {
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
                 attachments_size += item.len()
+            }
+            ItemType::ReplayRecording =&gt; {
+                <span class="kw">if </span>item.len() &gt; config.max_replay_compressed_size() {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
+                }
             }
             ItemType::Session | ItemType::Sessions =&gt; {
                 session_count += <span class="number">1</span>;
