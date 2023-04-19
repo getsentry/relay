@@ -1075,12 +1075,7 @@ impl EnvelopeProcessorService {
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
-                let tags: BTreeMap<String, String> = match state.event.value() {
-                    Some(event) => relay_profiling::extract_tags(event),
-                    _ => BTreeMap::new(),
-                };
-
-                match relay_profiling::expand_profile(&item.payload(), tags) {
+                match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.config.max_profile_size() {
                             if let Some(event) = state.event.value_mut() {

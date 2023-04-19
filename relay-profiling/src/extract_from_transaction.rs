@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use chrono::SecondsFormat;
 
@@ -6,8 +6,9 @@ use relay_common::SpanStatus;
 use relay_general::protocol::{AsPair, Context, ContextInner, Event, TraceContext};
 use relay_general::types::Annotated;
 
-pub fn extract_tags(event: &Event) -> BTreeMap<String, String> {
+pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
+
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
@@ -53,16 +54,19 @@ pub fn extract_tags(event: &Event) -> BTreeMap<String, String> {
         );
     }
 
-    let custom_tags: BTreeSet<String> = BTreeSet::from(["device.class".to_owned()]);
+    tags
+}
+
+pub fn extract_transaction_tags(event: &Event) -> BTreeMap<String, String> {
+    let mut tags = BTreeMap::new();
+
     // XXX(slow): event tags are a flat array
     if let Some(event_tags) = event.tags.value() {
         for tag_entry in &**event_tags {
             if let Some(entry) = tag_entry.value() {
                 let (key, value) = entry.as_pair();
                 if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
-                    if custom_tags.contains(key) {
-                        tags.insert(key.to_owned(), value.to_owned());
-                    }
+                    tags.insert(key.to_owned(), value.to_owned());
                 }
             }
         }

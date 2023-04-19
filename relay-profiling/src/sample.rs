@@ -320,25 +320,26 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
 pub fn parse_sample_profile(
     payload: &[u8],
-    tags: BTreeMap<String, String>,
+    transaction_metadata: BTreeMap<String, String>,
+    transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
 
-    if let Some(transaction_name) = tags.get("transaction") {
+    if let Some(transaction_name) = transaction_metadata.get("transaction") {
         if let Some(ref mut transaction) = profile.transaction {
             transaction.name = transaction_name.to_owned();
         }
     }
 
-    if let Some(release) = tags.get("release") {
+    if let Some(release) = transaction_metadata.get("release") {
         profile.release = release.to_owned();
     }
 
-    if let Some(environment) = tags.get("environment") {
+    if let Some(environment) = transaction_metadata.get("environment") {
         profile.environment = environment.to_owned();
     }
 
-    profile.tags = tags;
+    profile.tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -359,7 +360,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let profile = parse_sample_profile(payload, BTreeMap::new());
+        let profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(profile.is_ok());
     }
 
@@ -583,7 +584,7 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = parse_sample_profile(&payload[..], BTreeMap::new());
+        let data = parse_sample_profile(&payload[..], BTreeMap::new(), BTreeMap::new());
 
         assert!(data.is_err());
     }
@@ -861,16 +862,17 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_tags() {
-        let mut tags: BTreeMap<String, String> = BTreeMap::new();
-        tags.insert("release".to_string(), "some-random-release".to_string());
-        tags.insert(
-            "transaction".to_string(),
-            "some-random-transaction".to_string(),
-        );
+    fn test_extract_transaction_tags() {
+        let transaction_metadata = BTreeMap::from([
+            ("release".to_string(), "some-random-release".to_string()),
+            (
+                "transaction".to_string(),
+                "some-random-transaction".to_string(),
+            ),
+        ]);
 
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let profile_json = parse_sample_profile(payload, tags);
+        let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
         let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])

@@ -177,11 +177,12 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
 
 pub fn parse_android_profile(
     payload: &[u8],
-    tags: BTreeMap<String, String>,
+    transaction_metadata: BTreeMap<String, String>,
+    transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
 
-    if let Some(transaction_name) = tags.get("transaction") {
+    if let Some(transaction_name) = transaction_metadata.get("transaction") {
         profile.transaction_name = transaction_name.to_owned();
 
         if let Some(ref mut transaction) = profile.transaction {
@@ -189,15 +190,15 @@ pub fn parse_android_profile(
         }
     }
 
-    if let Some(release) = tags.get("release") {
+    if let Some(release) = transaction_metadata.get("release") {
         profile.release = release.to_owned();
     }
 
-    if let Some(environment) = tags.get("environment") {
+    if let Some(environment) = transaction_metadata.get("environment") {
         profile.environment = environment.to_owned();
     }
 
-    profile.tags = tags;
+    profile.tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -248,13 +249,15 @@ mod tests {
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_android_profile(&(data.unwrap())[..], BTreeMap::new()).is_ok());
+        assert!(
+            parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
+        );
     }
 
     #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
-        let data = parse_android_profile(payload, BTreeMap::new());
+        let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
@@ -262,7 +265,7 @@ mod tests {
     fn test_remove_invalid_events() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
-        let data = parse_android_profile(payload, BTreeMap::new());
+        let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
@@ -289,14 +292,17 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_tags() {
-        let tags = BTreeMap::from([
+    fn test_extract_transaction_metadata() {
+        let transaction_metadata = BTreeMap::from([
             ("release".to_string(), "some-random-release".to_string()),
-            ("transaction".to_string(), "some-random-transaction".to_string()),
+            (
+                "transaction".to_string(),
+                "some-random-transaction".to_string(),
+            ),
         ]);
 
         let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
-        let profile_json = parse_android_profile(payload, tags);
+        let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
         let output: AndroidProfile = serde_json::from_slice(&profile_json.unwrap()[..])
