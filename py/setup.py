@@ -10,7 +10,7 @@ from setuptools import setup, find_packages
 from distutils.command.sdist import sdist
 
 
-_version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
+_version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 
 
 DEBUG_BUILD = os.environ.get("RELAY_DEBUG") == "1"
