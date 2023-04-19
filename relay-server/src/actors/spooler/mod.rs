@@ -303,12 +303,10 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let size_row = sql::current_size()
+        let size: i64 = sql::current_size()
             .fetch_one(db)
             .await
-            .map_err(BufferError::FileSizeReadFailed)?;
-        let size: i64 = size_row
-            .try_get(0)
+            .and_then(|r| r.try_get(0))
             .map_err(BufferError::FileSizeReadFailed)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
@@ -368,10 +366,7 @@ impl BufferService {
         }
 
         // Return 0 if we fail to read the database size.
-        let estimated_db_size = Self::estimate_buffer_size(db).await.unwrap_or_else(|err| {
-            relay_log::error!("Failed to get estimated db size: {}", LogError(&err));
-            Default::default()
-        });
+        let estimated_db_size = Self::estimate_buffer_size(db).await?;
 
         if estimated_db_size as usize >= *max_disk_size {
             *is_disk_full = true;
@@ -506,24 +501,22 @@ impl BufferService {
     }
 
     /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    async fn refresh_spool_state(&mut self) -> Result<(), BufferError> {
+    async fn refresh_spool_state(&mut self) {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
             ref mut is_disk_full, ..
-        }) = &mut self.spool_config else { return Ok(()); };
+        }) = &mut self.spool_config else { return; };
 
         // If disk is not full, we can ignore this check and exit earlier.
         if !*is_disk_full {
-            return Ok(());
+            return;
         }
 
-        let estimated_size = Self::estimate_buffer_size(db).await.unwrap_or_else(|err| {
-            relay_log::error!("Failed to get estimated db size: {}", LogError(&err));
-            Default::default()
-        });
-        *is_disk_full = (estimated_size as usize) >= *max_disk_size;
-        Ok(())
+        // Refresh DB state only if we get the proper reading on the file.
+        if let Ok(estimated_size) = Self::estimate_buffer_size(db).await {
+            *is_disk_full = (estimated_size as usize) >= *max_disk_size;
+        }
     }
 
     /// Handles the dequeueing messages from the internal buffer.
@@ -554,7 +547,7 @@ impl BufferService {
             };
         }
 
-        self.refresh_spool_state().await?;
+        self.refresh_spool_state().await;
 
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
@@ -591,7 +584,7 @@ impl BufferService {
                     .map_err(BufferError::DeleteFailed)?;
                 count += result.rows_affected() as usize;
             }
-            self.refresh_spool_state().await?;
+            self.refresh_spool_state().await;
         }
 
         if count > 0 {
