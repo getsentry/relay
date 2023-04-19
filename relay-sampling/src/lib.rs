@@ -2760,14 +2760,14 @@ mod tests {
 
     #[test]
     /// Tests that the multi-matching works for a mixture of trace and transaction
-    /// 1. Rule is healthcheck bias
-    /// 2. Rule is dev env bias
-    /// 3. Tx rebasing rule part a
-    /// 4. Tx rebasing rule part b
-    /// 5. Factor bias ( to fix rate )
+    ///
+    /// 1. Factor bias ( to fix rate )
+    /// 2. Rule is healthcheck bias
+    /// 3. Rule is dev env bias
+    /// 4. Tx rebasing rule part a
+    /// 5. Tx rebasing rule part b
     /// 6. Uniform sample rate
     fn test_match_against_rules_with_multiple_event_types_and_matches() {
-        let healthcheck_rule_id = 1002;
         let config = mocked_sampling_config(vec![
             SamplingRule {
                 condition: and(vec![]),
@@ -2781,7 +2781,7 @@ mod tests {
                 condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
                 sampling_value: SamplingValue::SampleRate { value: 0.1 },
                 ty: RuleType::Transaction,
-                id: RuleId(healthcheck_rule_id),
+                id: RuleId(1002),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             },
