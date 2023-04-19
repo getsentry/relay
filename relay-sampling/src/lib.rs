@@ -1935,11 +1935,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert_eq!(condition.matches(&dsc, None), *expected, "{}", failure_name);
         }
     }
 
@@ -1998,11 +1994,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert_eq!(condition.matches(&dsc, None), *expected, "{}", failure_name);
         }
     }
 
@@ -2038,11 +2030,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert_eq!(condition.matches(&dsc, None), *expected, "{}", failure_name);
         }
     }
 
@@ -2768,6 +2756,100 @@ mod tests {
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 0.03, dsc, 5, 6);
+    }
+
+    #[test]
+    /// Tests that the multi-matching works for a mixture of trace and transaction
+    /// 1. Rule is healthcheck bias
+    /// 2. Rule is dev env bias
+    /// 3. Tx rebasing rule part a
+    /// 4. Tx rebasing rule part b
+    /// 5. Factor bias ( to fix rate )
+    /// 6. Uniform sample rate
+    fn test_match_against_rules_with_multiple_event_types_and_matches() {
+        let healthcheck_rule_id = 1002;
+        let config = mocked_sampling_config(vec![
+            SamplingRule {
+                condition: and(vec![]),
+                sampling_value: SamplingValue::Factor { value: 0.05 },
+                ty: RuleType::Trace,
+                id: RuleId(1004),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![glob("event.transaction", &["*healthcheck*"])]),
+                sampling_value: SamplingValue::SampleRate { value: 0.1 },
+                ty: RuleType::Transaction,
+                id: RuleId(healthcheck_rule_id),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![glob("trace.environment", &["*dev*"])]),
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                ty: RuleType::Trace,
+                id: RuleId(2),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                sampling_value: SamplingValue::Factor { value: 0.05 },
+                ty: RuleType::Transaction,
+                id: RuleId(1401),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![]),
+                sampling_value: SamplingValue::Factor { value: 20.0 },
+                ty: RuleType::Transaction,
+                id: RuleId(1430),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![]),
+                sampling_value: SamplingValue::SampleRate { value: 0.02 },
+                ty: RuleType::Trace,
+                id: RuleId(1000),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        ]);
+
+        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
+        let dsc =
+            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "debug", "vip", "user-id");
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+
+        assert!(matches!(result, Some(SamplingMatch { .. })));
+        if let Some(spec) = result {
+            assert_eq!(
+                spec.matched_rule_ids,
+                MatchedRuleIds(vec![RuleId(1004), RuleId(1002)])
+            );
+            assert!((spec.sample_rate - 0.005).abs() < f64::EPSILON,)
+        }
+
+        let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "non-vip",
+            "user-id",
+        );
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        assert!(matches!(result, Some(SamplingMatch { .. })));
+        if let Some(spec) = result {
+            assert_eq!(
+                spec.matched_rule_ids,
+                MatchedRuleIds(vec![RuleId(1004), RuleId(1401), RuleId(1430), RuleId(1000)])
+            );
+            assert!((spec.sample_rate - 0.001).abs() < f64::EPSILON,)
+        }
     }
 
     #[test]
