@@ -32,12 +32,17 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             | ItemType::FormData => {
                 event_size += item.len();
             }
-            ItemType::Attachment | ItemType::UnrealReport | ItemType::ReplayRecording => {
+            ItemType::Attachment | ItemType::UnrealReport => {
                 if item.len() > config.max_attachment_size() {
                     return false;
                 }
 
                 attachments_size += item.len()
+            }
+            ItemType::ReplayRecording => {
+                if item.len() > config.max_replay_compressed_size() {
+                    return false;
+                }
             }
             ItemType::Session | ItemType::Sessions => {
                 session_count += 1;
