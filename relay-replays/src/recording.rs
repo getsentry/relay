@@ -105,6 +105,13 @@ struct ScrubberTransform<'a> {
     path: Vec<String>,
 }
 
+impl ScrubberTransform<'_> {
+    fn reset(&mut self) {
+        self.state = ProcessingState::new_root(None, None);
+        self.path.clear();
+    }
+}
+
 impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     fn push_path(&mut self, key: &'de str) {
         self.path.push(key.to_owned());
@@ -238,6 +245,9 @@ where
             if helper.ty == Self::SENTRY_EVENT_TYPE {
                 seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
                     .map_err(s2d)?;
+                // `pop_path` calls should have reset the scrubber's state, but force a
+                // reset here just to be sure:
+                self.scrubber.borrow_mut().reset();
             } else {
                 seq.serialize_element(raw).map_err(s2d)?;
             }
