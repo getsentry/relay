@@ -513,7 +513,15 @@ impl BufferService {
             ref mut is_disk_full, ..
         }) = &mut self.spool_config else { return Ok(()); };
 
-        let estimated_size = Self::estimate_buffer_size(db).await?;
+        // If disk is not full, we can ignore this check and exit earlier.
+        if !*is_disk_full {
+            return Ok(());
+        }
+
+        let estimated_size = Self::estimate_buffer_size(db).await.unwrap_or_else(|err| {
+            relay_log::error!("Failed to get estimated db size: {}", LogError(&err));
+            Default::default()
+        });
         *is_disk_full = (estimated_size as usize) >= *max_disk_size;
         Ok(())
     }
