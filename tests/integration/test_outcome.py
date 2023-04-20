@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from queue import Empty
 import signal
+from pathlib import Path
 
 import requests
 import pytest
@@ -11,6 +12,10 @@ import time
 
 from sentry_relay import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+
+RELAY_ROOT = Path(__file__).parent.parent.parent
+print(RELAY_ROOT)
 
 
 HOUR_MILLISEC = 1000 * 3600
@@ -991,11 +996,13 @@ def test_profile_outcomes(
     outcomes_consumer = outcomes_consumer(timeout=2)
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
         "version": 1,
     }
-    project_config["config"]["dynamicSampling"] = {
+    project_config["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
             {
@@ -1018,7 +1025,7 @@ def test_profile_outcomes(
             "batch_interval": 1,
             "aggregator": {
                 "bucket_interval": 1,
-                "flush_interval": 0,
+                "flush_interval": 1,
             },
             "source": "processing-relay",
         },
@@ -1040,6 +1047,12 @@ def test_profile_outcomes(
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
         upstream = relay(upstream, config)
 
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
     def make_envelope(transaction_name, num_profiles):
         payload = _get_event_payload("transaction")
         payload["transaction"] = transaction_name
@@ -1051,18 +1064,19 @@ def test_profile_outcomes(
             )
         )
         for _ in range(num_profiles):
-            envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+
+            envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
         return envelope
 
     upstream.send_envelope(
         project_id, make_envelope("hi", 2)
     )  # should get dropped by dynamic sampling
-    # upstream.send_envelope(
-    #     project_id, make_envelope("ho", 3)
-    # )  # should be kept by dynamic sampling
+    upstream.send_envelope(
+        project_id, make_envelope("ho", 3)
+    )  # should be kept by dynamic sampling
 
     outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: (o["category"], o["outcome"]))
+    outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_source = {
         0: "processing-relay",
@@ -1076,7 +1090,16 @@ def test_profile_outcomes(
             "org_id": 1,
             "outcome": 0,  # Accepted
             "project_id": 42,
-            "quantity": 5,
+            "quantity": 2,
+            "source": expected_source,
+        },
+        {
+            "category": 6,  # Profile
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,  # Accepted
+            "project_id": 42,
+            "quantity": 3,
             "source": expected_source,
         },
         {
