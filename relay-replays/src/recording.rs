@@ -106,7 +106,11 @@ struct ScrubberTransform<'a> {
 }
 
 impl ScrubberTransform<'_> {
-    fn reset(&mut self) {
+    fn ensure_empty(&mut self) {
+        if !self.path.is_empty() || self.state.depth() > 0 {
+            debug_assert!(false, "ScrubberTransform not empty");
+            relay_log::error!("ScrubberTransform not empty");
+        }
         self.state = ProcessingState::new_root(None, None);
         self.path.clear();
     }
@@ -132,7 +136,8 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
         if let Ok(Some(parent)) = std::mem::take(&mut self.state).try_into_parent() {
             self.state = parent;
         }
-        self.path.pop();
+        let popped = self.path.pop();
+        debug_assert!(popped.is_some()); // pop_path should never be called on an empty state.
     }
 
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
@@ -247,7 +252,7 @@ where
                     .map_err(s2d)?;
                 // `pop_path` calls should have reset the scrubber's state, but force a
                 // reset here just to be sure:
-                self.scrubber.borrow_mut().reset();
+                self.scrubber.borrow_mut().ensure_empty();
             } else {
                 seq.serialize_element(raw).map_err(s2d)?;
             }
