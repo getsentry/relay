@@ -547,6 +547,8 @@ struct Limits {
     /// The maximum payload size for an uncompressed replay.
     #[serde(alias = "max_replay_size")]
     max_replay_uncompressed_size: ByteSize,
+    /// The maximum size for a replay recording Kafka message.
+    max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -582,6 +584,7 @@ impl Default for Limits {
             max_profile_size: ByteSize::mebibytes(50),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
+            max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             shutdown_timeout: 10,
@@ -1832,6 +1835,15 @@ impl Config {
     /// Returns the maximum payload size for an uncompressed replay.
     pub fn max_replay_uncompressed_size(&self) -> usize {
         self.values.limits.max_replay_uncompressed_size.as_bytes()
+    }
+
+    /// Returns the maximum message size for an uncompressed replay.
+    ///
+    /// This is greater than max_replay_compressed_size because
+    /// it can include additional metadata about the replay in
+    /// addition to the recording.
+    pub fn max_replay_message_size(&self) -> usize {
+        self.values.limits.max_replay_message_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
