@@ -13,7 +13,7 @@ use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
     SqliteSynchronous,
 };
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
@@ -24,13 +24,7 @@ use crate::extractors::StartTime;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
-/// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
-///
-/// To prevent excessive memory allocations, the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER,
-/// which defaults to 999 for SQLite versions prior to 3.32.0 (2020-05-22) or 32766 for SQLite versions after 3.32.0.
-///
-/// Keep it on the lower side for now.
-const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
+mod sql;
 
 /// The set of errors which can happend while working the the buffer.
 #[derive(Debug, thiserror::Error)]
@@ -44,9 +38,20 @@ pub enum BufferError {
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseFileError(#[from] std::io::Error),
 
-    /// Describes the errors linked with the `Sqlite` backed buffer.
-    #[error("failed to fetch data from the database")]
-    DatabaseError(#[from] sqlx::Error),
+    #[error("failed to insert data into database: {0}")]
+    InsertFailed(sqlx::Error),
+
+    #[error("failed to delete data from the database: {0}")]
+    DeleteFailed(sqlx::Error),
+
+    #[error("failed to fetch data from the database: {0}")]
+    FetchFailed(sqlx::Error),
+
+    #[error("failed to get database file size: {0}")]
+    FileSizeReadFailed(sqlx::Error),
+
+    #[error("failed to setup the database: {0}")]
+    SetupFailed(sqlx::Error),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -174,6 +179,10 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+/// Contains the spool related configuration.
+///
+/// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
+/// and on disk spool. All the sized are in bytes.
 #[derive(Debug)]
 struct BufferSpoolConfig {
     db: Pool<Sqlite>,
@@ -206,9 +215,12 @@ impl BufferService {
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
-        let db = SqlitePoolOptions::new().connect_with(options).await?;
-        sqlx::migrate!("../migrations").run(&db).await?;
+        let db = SqlitePoolOptions::new()
+            .connect_with(options)
+            .await
+            .map_err(BufferError::SetupFailed)?;
 
+        sqlx::migrate!("../migrations").run(&db).await?;
         Ok(())
     }
 
@@ -273,7 +285,8 @@ impl BufferService {
                 .max_connections(config.spool_envelopes_max_connections())
                 .min_connections(config.spool_envelopes_min_connections())
                 .connect_with(options)
-                .await?;
+                .await
+                .map_err(BufferError::SetupFailed)?;
 
             let spool_config = BufferSpoolConfig {
                 db,
@@ -290,19 +303,13 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let mut rows = sqlx::query("pragma page_count; pragma page_size;").fetch(db);
-        let page_count: i64 = match rows.next().await {
-            Some(row) => row?.try_get(0)?,
-            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        let page_size: i64 = match rows.next().await {
-            Some(row) => row?.try_get(0)?,
-            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        let size = page_count * page_size;
+        let size: i64 = sql::current_size()
+            .fetch_one(db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(BufferError::FileSizeReadFailed)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
-
         Ok(size)
     }
 
@@ -330,34 +337,9 @@ impl BufferService {
                 },
             );
 
-        // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
-        // here to prepare the chunks which will be preparing the batch inserts.
-        let mut envelopes = stream::iter(envelopes).chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
-
-        // A builder type for constructing queries at runtime.
-        // This by default creates a prepared sql statement, which is cached and
-        // re-used for sequential queries.
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ",
-        );
-
-        while let Some(chunk) = envelopes.next().await {
-            query_builder.push_values(chunk, |mut b, (key, value, received_at)| {
-                b.push_bind(received_at)
-                    .push_bind(key.own_key.to_string())
-                    .push_bind(key.sampling_key.to_string())
-                    .push_bind(value);
-            });
-
-            query_builder.build().execute(db).await?;
-            relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
-
-            // Reset the builder to initial state set by `QueryBuilder::new` function,
-            // so it can be reused for another chunk.
-            query_builder.reset();
-        }
-
-        Ok(())
+        sql::do_insert(stream::iter(envelopes), db)
+            .await
+            .map_err(BufferError::InsertFailed)
     }
 
     /// Tries to save in-memory buffer to disk.
@@ -383,7 +365,9 @@ impl BufferService {
             return Ok(());
         }
 
+        // Return 0 if we fail to read the database size.
         let estimated_db_size = Self::estimate_buffer_size(db).await?;
+
         if estimated_db_size as usize >= *max_disk_size {
             *is_disk_full = true;
             return Err(BufferError::DatabaseFull(estimated_db_size));
@@ -402,11 +386,13 @@ impl BufferService {
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
-        let envelope_row: Vec<u8> = row.try_get("envelope")?;
+        let envelope_row: Vec<u8> = row.try_get("envelope").map_err(BufferError::FetchFailed)?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
-        let received_at: i64 = row.try_get("received_at")?;
+        let received_at: i64 = row
+            .try_get("received_at")
+            .map_err(BufferError::FetchFailed)?;
         let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
         envelope.set_start_time(start_time.into_inner());
@@ -465,31 +451,21 @@ impl BufferService {
     /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
-    async fn fetch_and_delete(
+    async fn delete_and_fetch(
         &self,
         db: &Pool<Sqlite>,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
     ) -> Result<(), QueueKey> {
         loop {
-            // By default this creates a prepared statement which is cached and re-used.
-            //
             // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            let mut envelopes = sqlx::query(
-                "DELETE FROM
-                    envelopes
-                 WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT 100)
-                 RETURNING
-                    envelope, received_at",
-            )
-            .bind(key.own_key.to_string())
-            .bind(key.sampling_key.to_string())
-            .fetch(db).peekable();
-
+            //
+            // Right now we use 100 for batch size.
+            let mut envelopes = sql::delete_and_fetch(key, 100).fetch(db).peekable();
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
@@ -525,16 +501,17 @@ impl BufferService {
     }
 
     /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    async fn refresh_spool_state(&mut self) -> Result<(), BufferError> {
+    async fn refresh_spool_state(&mut self) {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
             ref mut is_disk_full, ..
-        }) = &mut self.spool_config else { return Ok(()); };
+        }) = &mut self.spool_config else { return; };
 
-        let estimated_size = Self::estimate_buffer_size(db).await?;
-        *is_disk_full = (estimated_size as usize) >= *max_disk_size;
-        Ok(())
+        // Refresh DB state only if we get the proper reading on the file.
+        if let Ok(estimated_size) = Self::estimate_buffer_size(db).await {
+            *is_disk_full = (estimated_size as usize) >= *max_disk_size;
+        }
     }
 
     /// Handles the dequeueing messages from the internal buffer.
@@ -560,12 +537,12 @@ impl BufferService {
 
         while let Some(key) = keys.pop() {
             // If the error with a key is returned we must save it for the next iterration.
-            if let Err(key) = self.fetch_and_delete(db, key, &sender).await {
+            if let Err(key) = self.delete_and_fetch(db, key, &sender).await {
                 unused_keys.insert(key);
             };
         }
 
-        self.refresh_spool_state().await?;
+        self.refresh_spool_state().await;
 
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
@@ -596,17 +573,13 @@ impl BufferService {
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
-                let result =
-                    sqlx::query("DELETE FROM envelopes where own_key = ? AND sampling_key = ?")
-                        .bind(key.own_key.to_string())
-                        .bind(key.sampling_key.to_string())
-                        .execute(db)
-                        .await?;
-
+                let result = sql::delete(key)
+                    .execute(db)
+                    .await
+                    .map_err(BufferError::DeleteFailed)?;
                 count += result.rows_affected() as usize;
             }
-
-            self.refresh_spool_state().await?;
+            self.refresh_spool_state().await;
         }
 
         if count > 0 {

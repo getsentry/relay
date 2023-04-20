@@ -1134,7 +1134,7 @@ impl EnvelopeProcessorService {
         let client_addr = meta.client_addr();
         let event_id = state.envelope().event_id();
 
-        let limit = self.config.max_replay_size();
+        let limit = self.config.max_replay_uncompressed_size();
         let config = project_state.config();
         let datascrubbing_config = config
             .datascrubbing_settings
@@ -2209,9 +2209,6 @@ impl EnvelopeProcessorService {
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    mark_scrubbed_as_sanitized: state
-                        .project_state
-                        .has_feature(Feature::TransactionNameMarkScrubbedAsSanitized),
                     rules: &state.project_state.config.tx_name_rules,
                 },
                 device_class_synthesis_config: state
@@ -3361,7 +3358,6 @@ mod tests {
             log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
-                        mark_scrubbed_as_sanitized: false,
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
@@ -3384,7 +3380,7 @@ mod tests {
         let captures = capture_test_event("/nothing", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:url",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized",
         ]
         "###);
     }
@@ -3404,7 +3400,7 @@ mod tests {
         let captures = capture_test_event("/something/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:url",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized",
         ]
         "###);
     }

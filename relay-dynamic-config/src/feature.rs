@@ -1,35 +1,55 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 
 /// Features exposed by project config.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum Feature {
     /// Enables ingestion and normalization of profiles.
-    #[serde(rename = "organizations:profiling")]
     Profiling,
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
-    #[serde(rename = "organizations:session-replay")]
     SessionReplay,
     /// Enables data scrubbing of replay recording payloads.
-    #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// True if transaction names scrubbed by regex patterns should be marked as "sanitized".
-    ///
-    /// Transaction names modified by clusterer rules are always marked as such.
-    #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
-    TransactionNameMarkScrubbedAsSanitized,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
-    #[serde(rename = "organizations:device-class-synthesis")]
     DeviceClassSynthesis,
-    /// Unused.
-    ///
-    /// This used to control the initial experimental metrics extraction for sessions and has been
-    /// discontinued.
-    #[serde(rename = "organizations:metrics-extraction")]
-    Deprecated1,
-
     /// Forward compatibility.
-    #[serde(other)]
-    Unknown,
+    Unknown(String),
+}
+
+impl<'de> Deserialize<'de> for Feature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let feature_name = Cow::<str>::deserialize(deserializer)?;
+        Ok(match feature_name.as_ref() {
+            "organizations:profiling" => Feature::Profiling,
+            "organizations:session-replay" => Feature::SessionReplay,
+            "organizations:session-replay-recording-scrubbing" => {
+                Feature::SessionReplayRecordingScrubbing
+            }
+            "organizations:device-class-synthesis" => Feature::DeviceClassSynthesis,
+            _ => Feature::Unknown(feature_name.to_string()),
+        })
+    }
+}
+
+impl Serialize for Feature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            Feature::Profiling => "organizations:profiling",
+            Feature::SessionReplay => "organizations:session-replay",
+            Feature::SessionReplayRecordingScrubbing => {
+                "organizations:session-replay-recording-scrubbing"
+            }
+            Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
+            Feature::Unknown(s) => s,
+        })
+    }
 }

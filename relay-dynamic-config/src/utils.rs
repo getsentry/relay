@@ -30,7 +30,13 @@ mod tests {
         a: i32,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         b: Option<Box<TestMe>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        features: Option<BTreeSet<Feature>>,
     }
+
+    use std::collections::BTreeSet;
+
+    use crate::Feature;
 
     use super::*;
 
@@ -54,6 +60,13 @@ mod tests {
                 r#"{"a": 1, "b": {"a": 2, "other": 666}}"#,
                 true,
                 "json atom at path \".b.other\" is missing from rhs",
+            ),
+            (
+                // An unknown feature flag for this relay is still serialized
+                // for the following relays in chain.
+                r#"{"a": 1, "features": ["organizations:is-cool"]}"#,
+                true,
+                "",
             ),
         ] {
             let res = validate_json::<TestMe>(input, strict);

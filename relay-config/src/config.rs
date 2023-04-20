@@ -542,8 +542,11 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
-    /// The maximum payload size for a replay.
-    max_replay_size: ByteSize,
+    /// The maximum payload size for a compressed replay.
+    max_replay_compressed_size: ByteSize,
+    /// The maximum payload size for an uncompressed replay.
+    #[serde(alias = "max_replay_size")]
+    max_replay_uncompressed_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -577,7 +580,8 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
-            max_replay_size: ByteSize::mebibytes(100),
+            max_replay_compressed_size: ByteSize::mebibytes(10),
+            max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             shutdown_timeout: 10,
@@ -727,13 +731,13 @@ impl Default for Http {
 }
 
 /// Default for max memory size, 500 MB.
-fn spool_envelopes_max_memory_size() -> usize {
-    524288000
+fn spool_envelopes_max_memory_size() -> ByteSize {
+    ByteSize::mebibytes(500)
 }
 
 /// Default for max disk size, 500 MB.
-fn spool_envelopes_max_disk_size() -> usize {
-    524288000
+fn spool_envelopes_max_disk_size() -> ByteSize {
+    ByteSize::mebibytes(500)
 }
 
 /// Default for min connections to keep open in the pool.
@@ -747,7 +751,7 @@ fn spool_envelopes_max_connections() -> u32 {
 }
 
 /// Persistent buffering configuration for incoming envelopes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
     /// The path to the persistent spool file.
     ///
@@ -763,14 +767,12 @@ pub struct EnvelopeSpool {
     ///
     /// If not set the befault is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
-    max_disk_size: usize,
+    max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
-    /// This is a hard upper bound. Internally, this is converted to an envelope count by dividing
-    /// this number by the maximum envelope size, so in practice, because the avg. envelope
-    /// size is well below the maximum, we start spooling to disk long before this hard limit is reached.
+    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
-    max_memory_size: usize,
+    max_memory_size: ByteSize,
 }
 
 impl Default for EnvelopeSpool {
@@ -786,7 +788,7 @@ impl Default for EnvelopeSpool {
 }
 
 /// Persistent buffering configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Spool {
     #[serde(default)]
     envelopes: EnvelopeSpool,
@@ -1756,12 +1758,12 @@ impl Config {
 
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
-        self.values.spool.envelopes.max_disk_size
+        self.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
-        self.values.spool.envelopes.max_memory_size
+        self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -1822,9 +1824,14 @@ impl Config {
         self.values.limits.max_profile_size.as_bytes()
     }
 
-    /// Returns the maximum payload size for a replay.
-    pub fn max_replay_size(&self) -> usize {
-        self.values.limits.max_replay_size.as_bytes()
+    /// Returns the maximum payload size for a compressed replay.
+    pub fn max_replay_compressed_size(&self) -> usize {
+        self.values.limits.max_replay_compressed_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size for an uncompressed replay.
+    pub fn max_replay_uncompressed_size(&self) -> usize {
+        self.values.limits.max_replay_uncompressed_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
