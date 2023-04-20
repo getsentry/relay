@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
+
 **Internal**:
 
 - Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
