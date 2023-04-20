@@ -856,11 +856,6 @@
 <a href="#855" id="855">855</a>
 <a href="#856" id="856">856</a>
 <a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -1042,6 +1037,13 @@
     }
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Services {
+    <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
+}
+
 <span class="doccomment">/// Contains the spool related configuration.
 ///
 /// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
@@ -1057,11 +1059,9 @@
 <span class="doccomment">/// [`Buffer`] interface implementation backed by SQLite.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>BufferService {
+    services: Services,
     buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
-    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    project_cache: Addr&lt;ProjectCache&gt;,
-    test_store: Addr&lt;TestStore&gt;,
     spool_config: <span class="prelude-ty">Option</span>&lt;BufferSpoolConfig&gt;,
     used_memory: usize,
 
@@ -1090,17 +1090,13 @@
     <span class="doccomment">/// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     </span><span class="kw">pub async fn </span>create(
         buffer_guard: Arc&lt;BufferGuard&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        project_cache: Addr&lt;ProjectCache&gt;,
-        test_store: Addr&lt;TestStore&gt;,
+        services: Services,
         config: Arc&lt;Config&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, BufferError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>service = <span class="self">Self </span>{
+            services,
             buffer: BTreeMap::new(),
             buffer_guard,
-            outcome_aggregator,
-            project_cache,
-            test_store,
             used_memory: <span class="number">0</span>,
             spool_config: <span class="prelude-val">None</span>,
             <span class="attr">#[cfg(test)]
@@ -1264,15 +1260,15 @@
         </span><span class="kw">if </span><span class="self">self</span>.untracked {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(ManagedEnvelope::untracked(
                 envelope,
-                <span class="self">self</span>.outcome_aggregator.clone(),
-                <span class="self">self</span>.test_store.clone(),
+                <span class="self">self</span>.services.outcome_aggregator.clone(),
+                <span class="self">self</span>.services.test_store.clone(),
             ));
         }
 
         <span class="kw">let </span>managed_envelope = <span class="self">self</span>.buffer_guard.enter(
             envelope,
-            <span class="self">self</span>.outcome_aggregator.clone(),
-            <span class="self">self</span>.test_store.clone(),
+            <span class="self">self</span>.services.outcome_aggregator.clone(),
+            <span class="self">self</span>.services.test_store.clone(),
         )<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(managed_envelope)
     }
@@ -1411,7 +1407,8 @@
             histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
         );
         <span class="kw">if </span>!unused_keys.is_empty() {
-            <span class="self">self</span>.project_cache
+            <span class="self">self</span>.services
+                .project_cache
                 .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
 
@@ -1540,12 +1537,16 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>services() -&gt; (Addr&lt;ProjectCache&gt;, Addr&lt;TrackOutcome&gt;, Addr&lt;TestStore&gt;) {
+    <span class="kw">fn </span>services() -&gt; Services {
         <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">&quot;test_store&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
 
-        (project_cache, outcome_aggregator, test_store)
+        Services {
+            project_cache,
+            outcome_aggregator,
+            test_store,
+        }
     }
 
     <span class="kw">fn </span>empty_envelope() -&gt; ManagedEnvelope {
@@ -1554,7 +1555,11 @@
             .unwrap();
 
         <span class="kw">let </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), RequestMeta::new(dsn));
-        <span class="kw">let </span>(<span class="kw">_</span>, outcome_aggregator, test_store) = services();
+        <span class="kw">let </span>Services {
+            outcome_aggregator,
+            test_store,
+            ..
+        } = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
     }
 
@@ -1571,16 +1576,9 @@
         }))
         .unwrap()
         .into();
-        <span class="kw">let </span>(project_cache, outcome_aggregator, test_store) = services();
-        <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(
-            buffer_guard,
-            outcome_aggregator,
-            project_cache,
-            test_store,
-            config,
-        )
-        .<span class="kw">await
-        </span>.unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(buffer_guard, services(), config)
+            .<span class="kw">await
+            </span>.unwrap();
         service.untracked = <span class="bool-val">true</span>; <span class="comment">// so we do not panic when dropping envelopes
         </span><span class="kw">let </span>addr = service.start();
         <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx) = mpsc::unbounded_channel();
@@ -1648,19 +1646,11 @@
             .unwrap();
         <span class="kw">let </span>_guard = rt.enter();
 
-        <span class="kw">let </span>(project_cache, outcome_aggregator, test_store) = services();
-
         <span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(<span class="kw">async </span>{
-                <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(
-                    buffer_guard,
-                    outcome_aggregator,
-                    project_cache,
-                    test_store,
-                    config,
-                )
-                .<span class="kw">await
-                </span>.unwrap();
+                <span class="kw">let </span><span class="kw-2">mut </span>service = BufferService::create(buffer_guard, services(), config)
+                    .<span class="kw">await
+                    </span>.unwrap();
 
                 service.untracked = <span class="bool-val">true</span>; <span class="comment">// so we do not panic when dropping envelopes
 

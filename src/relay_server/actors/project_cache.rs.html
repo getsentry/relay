@@ -927,7 +927,9 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::spooler::{Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany};
+<span class="kw">use </span><span class="kw">crate</span>::actors::spooler::{
+    <span class="self">self</span>, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
 
@@ -1743,23 +1745,21 @@
 
             <span class="comment">// Channel for envelope buffering.
             </span><span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
-            <span class="kw">let </span>buffer = <span class="kw">match </span>BufferService::create(
-                buffer_guard,
+            <span class="kw">let </span>buffer_services = spooler::Services {
                 outcome_aggregator,
                 project_cache,
                 test_store,
-                config.clone(),
-            )
-            .<span class="kw">await
-            </span>{
-                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
-                <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to start buffer service: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
-                    <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
-                    // opened or the migrations could not be run.
-                    </span>std::process::exit(<span class="number">1</span>);
-                }
             };
+            <span class="kw">let </span>buffer =
+                <span class="kw">match </span>BufferService::create(buffer_guard, buffer_services, config.clone()).<span class="kw">await </span>{
+                    <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
+                    <span class="prelude-val">Err</span>(err) =&gt; {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to start buffer service: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                        <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        </span>std::process::exit(<span class="number">1</span>);
+                    }
+                };
 
             <span class="comment">// Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
