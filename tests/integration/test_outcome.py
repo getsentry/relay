@@ -9,6 +9,10 @@ import requests
 import pytest
 import time
 
+from sentry_relay import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+
 HOUR_MILLISEC = 1000 * 3600
 
 
@@ -1032,25 +1036,66 @@ def test_profile_outcomes(
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
         upstream = relay(upstream, config)
 
-    # mark the downstream relay so we can identify outcomes originating from it
-    event_id = upstream.send_event(42, _get_event_payload("transaction"))
+    def make_envelope(transaction_name):
+        payload = _get_event_payload("transaction")
+        payload["transaction"] = transaction_name
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        return envelope
 
-    outcome = outcomes_consumer.get_outcome()
+    upstream.send_envelope(
+        project_id, make_envelope("hi")
+    )  # should get dropped by dynamic sampling
+    upstream.send_envelope(
+        project_id, make_envelope("ho")
+    )  # should be kept by dynamic sampling
 
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "outcome": 1,  # Filtered
-        "category": 2,  # Transaction
-        "reason": "Sampled:1",
-        "quantity": 1,
-        "source": {
-            0: "processing-relay",
-            1: "pop-relay",
-            2: "pop-relay",  # outcomes from client reports do not have a correct source (known issue)
-        }[num_intermediate_relays],
-    }
-    outcome.pop("timestamp")
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: (o["category"], o["outcome"]))
 
-    assert outcome == expected_outcome, outcome
+    expected_source = {
+        0: "processing-relay",
+        1: "pop-relay",
+        2: "pop-relay",  # outcomes from client reports do not have a correct source (known issue)
+    }[num_intermediate_relays]
+    expected_outcomes = [
+        {
+            "category": 2,  # Transaction
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # FILTERED
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
+        {
+            "category": 6,  # Profile
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,  # ACCEPTED
+            "project_id": 42,
+            "quantity": 1,
+            "source": expected_source,
+        },
+        {
+            "category": 11,  # ProfileIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # FILTERED
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+
+    assert outcomes == expected_outcomes, outcomes
