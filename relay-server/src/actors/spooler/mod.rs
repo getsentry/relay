@@ -854,6 +854,7 @@ mod tests {
             "buffer.envelopes_mem:2000|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
         ]
         "###);
