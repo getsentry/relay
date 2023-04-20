@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.21
+
+- Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
+
 ## 0.8.20
 
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
