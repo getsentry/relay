@@ -38,9 +38,20 @@ pub enum BufferError {
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseFileError(#[from] std::io::Error),
 
-    /// Describes the errors linked with the `Sqlite` backed buffer.
-    #[error("failed to fetch data from the database")]
-    DatabaseError(#[from] sqlx::Error),
+    #[error("failed to insert data into database: {0}")]
+    InsertFailed(sqlx::Error),
+
+    #[error("failed to delete data from the database: {0}")]
+    DeleteFailed(sqlx::Error),
+
+    #[error("failed to fetch data from the database: {0}")]
+    FetchFailed(sqlx::Error),
+
+    #[error("failed to get database file size: {0}")]
+    FileSizeReadFailed(sqlx::Error),
+
+    #[error("failed to setup the database: {0}")]
+    SetupFailed(sqlx::Error),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -204,9 +215,12 @@ impl BufferService {
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
-        let db = SqlitePoolOptions::new().connect_with(options).await?;
-        sqlx::migrate!("../migrations").run(&db).await?;
+        let db = SqlitePoolOptions::new()
+            .connect_with(options)
+            .await
+            .map_err(BufferError::SetupFailed)?;
 
+        sqlx::migrate!("../migrations").run(&db).await?;
         Ok(())
     }
 
@@ -271,7 +285,8 @@ impl BufferService {
                 .max_connections(config.spool_envelopes_max_connections())
                 .min_connections(config.spool_envelopes_min_connections())
                 .connect_with(options)
-                .await?;
+                .await
+                .map_err(BufferError::SetupFailed)?;
 
             let spool_config = BufferSpoolConfig {
                 db,
@@ -288,19 +303,13 @@ impl BufferService {
 
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let mut rows = sql::current_size().fetch(db);
-        let page_count: i64 = match rows.next().await {
-            Some(row) => row?.try_get(0)?,
-            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        let page_size: i64 = match rows.next().await {
-            Some(row) => row?.try_get(0)?,
-            None => return Err(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        let size = page_count * page_size;
+        let size: i64 = sql::current_size()
+            .fetch_one(db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(BufferError::FileSizeReadFailed)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
-
         Ok(size)
     }
 
@@ -330,7 +339,7 @@ impl BufferService {
 
         sql::do_insert(stream::iter(envelopes), db)
             .await
-            .map_err(BufferError::from)
+            .map_err(BufferError::InsertFailed)
     }
 
     /// Tries to save in-memory buffer to disk.
@@ -356,7 +365,9 @@ impl BufferService {
             return Ok(());
         }
 
+        // Return 0 if we fail to read the database size.
         let estimated_db_size = Self::estimate_buffer_size(db).await?;
+
         if estimated_db_size as usize >= *max_disk_size {
             *is_disk_full = true;
             return Err(BufferError::DatabaseFull(estimated_db_size));
@@ -375,11 +386,13 @@ impl BufferService {
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
-        let envelope_row: Vec<u8> = row.try_get("envelope")?;
+        let envelope_row: Vec<u8> = row.try_get("envelope").map_err(BufferError::FetchFailed)?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
 
-        let received_at: i64 = row.try_get("received_at")?;
+        let received_at: i64 = row
+            .try_get("received_at")
+            .map_err(BufferError::FetchFailed)?;
         let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
         envelope.set_start_time(start_time.into_inner());
@@ -488,16 +501,17 @@ impl BufferService {
     }
 
     /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    async fn refresh_spool_state(&mut self) -> Result<(), BufferError> {
+    async fn refresh_spool_state(&mut self) {
         let Some(BufferSpoolConfig {
             db,
             max_disk_size,
             ref mut is_disk_full, ..
-        }) = &mut self.spool_config else { return Ok(()); };
+        }) = &mut self.spool_config else { return; };
 
-        let estimated_size = Self::estimate_buffer_size(db).await?;
-        *is_disk_full = (estimated_size as usize) >= *max_disk_size;
-        Ok(())
+        // Refresh DB state only if we get the proper reading on the file.
+        if let Ok(estimated_size) = Self::estimate_buffer_size(db).await {
+            *is_disk_full = (estimated_size as usize) >= *max_disk_size;
+        }
     }
 
     /// Handles the dequeueing messages from the internal buffer.
@@ -528,7 +542,7 @@ impl BufferService {
             };
         }
 
-        self.refresh_spool_state().await?;
+        self.refresh_spool_state().await;
 
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
@@ -559,10 +573,13 @@ impl BufferService {
 
         if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
             for key in keys {
-                let result = sql::delete(key).execute(db).await?;
+                let result = sql::delete(key)
+                    .execute(db)
+                    .await
+                    .map_err(BufferError::DeleteFailed)?;
                 count += result.rows_affected() as usize;
             }
-            self.refresh_spool_state().await?;
+            self.refresh_spool_state().await;
         }
 
         if count > 0 {

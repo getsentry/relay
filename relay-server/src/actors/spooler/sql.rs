@@ -46,7 +46,9 @@ pub fn delete<'a>(key: QueueKey) -> Query<'a, Sqlite, SqliteArguments<'a>> {
 ///
 /// This info used to calculate the current allocated database size.
 pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query("pragma page_count; pragma page_size;")
+    sqlx::query(
+        "SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size();",
+    )
 }
 
 /// Descibes the chunk item which is handled by insert statement.
