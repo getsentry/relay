@@ -27,7 +27,7 @@ lazy_static::lazy_static! {
     /// The values that we wanna match on, (true, false, maybe)
     static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
     /// All the use statements in a given module.
-    static ref USE_STATEMENTS: Mutex<HashMap<String, Vec<String>>> = Mutex::new(HashMap::new());
+    static ref USE_STATEMENTS: Mutex<HashMap<String, HashSet<String>>> = Mutex::new(HashMap::new());
 }
 
 /// It's only purpose is to populate ALL_TYPES and USE_STATEMENTS
@@ -607,7 +607,7 @@ mod tests {
     fn test_pii_false() {
         run(RUST_CRATE, vec!["false".into()], None);
         let output = get_pretty_pii_field_format("".into());
-
+        dbg!(&output);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -619,6 +619,7 @@ mod tests {
             None,
         );
         let output = get_pretty_pii_field_format("".into());
+        dbg!(&output);
 
         insta::assert_debug_snapshot!(output);
     }

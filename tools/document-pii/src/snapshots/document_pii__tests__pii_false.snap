@@ -3,5 +3,5 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "SubStruct.field2",
+    "FooBar.not_sensitive",
 ]

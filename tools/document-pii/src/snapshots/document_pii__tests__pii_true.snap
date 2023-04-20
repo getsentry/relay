@@ -3,5 +3,10 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
+    "InnerGeneric.bitcoin_wallet_key",
+    "MyStruct.foo",
+    "MyStruct.sub_struct.field2",
+    "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
     "SubStruct.field2",
+    "SubStruct.mystery_field.bitcoin_wallet_key",
 ]
