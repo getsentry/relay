@@ -51,6 +51,26 @@ pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     )
 }
 
+/// Creates the query to select only 1 record from the database.
+pub fn select_one<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("SELECT received_at FROM envelopes LIMIT 1;")
+}
+
+/// Creates the INSERT query.
+pub fn insert<'a>(
+    key: QueueKey,
+    managed_envelope: Vec<u8>,
+    received_at: i64,
+) -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query(
+        "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES (?, ?, ?, ?);",
+    )
+    .bind(received_at)
+    .bind(key.own_key.to_string())
+    .bind(key.sampling_key.to_string())
+    .bind(managed_envelope)
+}
+
 /// Descibes the chunk item which is handled by insert statement.
 type ChunkItem = (QueueKey, Vec<u8>, i64);
 
