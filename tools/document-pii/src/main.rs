@@ -3,12 +3,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::Hash;
 use std::io::BufRead;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use syn::punctuated::Punctuated;
 use syn::{visit::Visit, ItemEnum};
@@ -24,11 +24,8 @@ lazy_static::lazy_static! {
     // All the structs and enums, where the key is the full path. The string in the tuple represents
     // the module path to the item. Now that I think of it, should be able to just get it from the key.
     static ref ALL_TYPES: Mutex<HashMap<String, EnumOrStruct>> = Mutex::new(HashMap::new());
-
-    #[derive(Debug)]
     /// The values that we wanna match on, (true, false, maybe)
     static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
-
     /// All the use statements in a given module.
     static ref USE_STATEMENTS: Mutex<HashMap<String, Vec<String>>> = Mutex::new(HashMap::new());
 }
@@ -46,6 +43,19 @@ impl FileSyntaxVisitor {
             .entry(self.module_path.clone())
             .or_default()
             .extend(use_statements);
+    }
+
+    fn fill_pii_hashmaps(paths: &Vec<PathBuf>) {
+        for path in paths {
+            // first iterate through all rust files to create the hashmap
+            let mut hashmap_filler = FileSyntaxVisitor {
+                module_path: rust_file_to_use_path(path.as_path()),
+            };
+            let file_content = fs::read_to_string(path.as_path()).unwrap();
+            dbg!(&file_content);
+            let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
+            hashmap_filler.visit_file(&syntax_tree);
+        }
     }
 }
 
@@ -329,13 +339,13 @@ fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
     }
 }
 
-fn main() {
+fn get_argmatches() -> ArgMatches {
     let current_dir = {
         let current_dir = std::env::current_dir().unwrap();
         current_dir.to_string_lossy().to_string()
     };
 
-    let matches = App::new("PII attribute finder")
+    App::new("PII attribute finder")
         .about("Tests PII paths in Rust structs and enums")
         .arg(
             Arg::new("path")
@@ -371,97 +381,51 @@ fn main() {
                 .help("Which pii values should it find? true/false/maybe")
                 .takes_value(true),
         )
-        .get_matches();
+        .get_matches()
+}
 
+fn main() {
+    let matches = get_argmatches();
     let chosen_dir = matches.value_of("path").unwrap();
-
-    if let Some(values) = matches.values_of("pii") {
-        let values: Vec<String> = values.map(|s| s.to_string()).collect();
-        let mut guard = PII_VALUES.lock().unwrap();
-        guard.clear();
-        guard.extend(values);
-    }
 
     if !Path::new(&format!("{}/Cargo.toml", &chosen_dir)).exists() {
         panic!("Cargo.toml not found. Either run this script from a rust crate/workspace, or pass in a valid path with the -p flag");
     }
+    let pii_values = matches
+        .values_of("pii")
+        .unwrap()
+        .map(|s| s.to_string())
+        .collect();
 
-    let paths = find_rs_files(chosen_dir);
+    let item: Option<&str> = matches.value_of("item");
 
-    for path in &paths {
-        // first iterate through all rust files to create the hashmap
-        let mut hashmap_filler = FileSyntaxVisitor {
-            module_path: rust_file_to_use_path(path.as_path()),
-        };
-        let file_content = fs::read_to_string(path.as_path()).unwrap();
-        let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
-        hashmap_filler.visit_file(&syntax_tree);
-    }
-
-    let mut count = 0;
-    match matches.value_of("item") {
-        Some(path) => {
-            if let Some(structorenum) = {
-                let guard = ALL_TYPES.lock().unwrap();
-                guard.get(path).cloned()
-            } {
-                let module_path = path.rsplit_once("::").unwrap().0.to_owned();
-                let theitem = structorenum;
-                let mut visitor = TypeVisitor {
-                    module_path,
-                    ..Default::default()
-                };
-                match theitem {
-                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
-                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(&itemenum),
-                };
-            } else {
-                panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
-            }
-        }
-        None => {
-            let all_types = ALL_TYPES.lock().unwrap().clone();
-            for (key, value) in all_types.iter() {
-                count += 1;
-                println!("{}/{}", count, all_types.len());
-                let module_path = key.rsplit_once("::").unwrap().0.to_owned();
-                let mut visitor = TypeVisitor {
-                    module_path,
-                    ..Default::default()
-                };
-                match value {
-                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
-                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(&itemenum),
-                };
-            }
-        }
-    }
-
-    let mut output_vec = vec![];
-    for pii in PII_TYPES.lock().unwrap().iter() {
-        //dbg!(&pii);
-        //panic!();
-        let mut output = String::new();
-        output.push_str(&pii[0].type_name);
-
-        for path in pii {
-            output.push_str(&format!(".{}", path.field_name));
-        }
-
+    run(chosen_dir, pii_values, item);
+    let unnamed_replace = {
         let mut unnamed_replace = matches.value_of("unnamed").unwrap().to_string();
         if !unnamed_replace.is_empty() {
             unnamed_replace.push('.');
-        }
+        };
+        unnamed_replace
+    };
+    let output_vec = get_pretty_pii_field_format(unnamed_replace);
 
-        output = output.replace("{{Unnamed}}.", &unnamed_replace);
-        output_vec.push(output);
-    }
-    output_vec.sort();
     for x in &output_vec {
         println!("{x}");
     }
 
     dbg!(output_vec.len());
+}
+
+fn run(rust_crate: &str, pii_values: Vec<String>, item: Option<&str>) {
+    let paths = find_rs_files(rust_crate);
+    dbg!(&paths);
+    FileSyntaxVisitor::fill_pii_hashmaps(&paths);
+    {
+        let mut guard = PII_VALUES.lock().unwrap();
+        guard.clear();
+        guard.extend(pii_values);
+    }
+    find_pii_fields(item);
 }
 
 fn rust_file_to_use_path(file_path: &Path) -> String {
@@ -559,4 +523,103 @@ fn has_pii_value(field: &Field) -> bool {
         }
     }
     false
+}
+
+fn find_pii_fields(item: Option<&str>) {
+    let mut count = 0;
+    match item {
+        Some(path) => {
+            if let Some(structorenum) = {
+                let guard = ALL_TYPES.lock().unwrap();
+                guard.get(path).cloned()
+            } {
+                let module_path = path.rsplit_once("::").unwrap().0.to_owned();
+                let theitem = structorenum;
+                let mut visitor = TypeVisitor {
+                    module_path,
+                    ..Default::default()
+                };
+                match theitem {
+                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
+                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(&itemenum),
+                };
+            } else {
+                panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
+            }
+        }
+        None => {
+            let all_types = ALL_TYPES.lock().unwrap().clone();
+            for (key, value) in all_types.iter() {
+                count += 1;
+                println!("{}/{}", count, all_types.len());
+                let module_path = key.rsplit_once("::").unwrap().0.to_owned();
+                let mut visitor = TypeVisitor {
+                    module_path,
+                    ..Default::default()
+                };
+                match value {
+                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
+                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
+                };
+            }
+        }
+    }
+}
+
+fn get_pretty_pii_field_format(unnamed_replace: String) -> Vec<String> {
+    let mut output_vec = vec![];
+    for pii in PII_TYPES.lock().unwrap().iter() {
+        let mut output = String::new();
+        output.push_str(&pii[0].type_name);
+
+        for path in pii {
+            output.push_str(&format!(".{}", path.field_name));
+        }
+
+        output = output.replace("{{Unnamed}}.", &unnamed_replace);
+        output_vec.push(output);
+    }
+    output_vec.sort();
+    output_vec
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const RUST_CRATE: &str = "/Users/tor/prog/rust/relay/tests/test_pii_docs";
+
+    #[test]
+    fn test_use_statements() {
+        run(RUST_CRATE, vec![], None);
+        let use_statements = USE_STATEMENTS.lock().unwrap().clone();
+        insta::assert_debug_snapshot!(use_statements);
+    }
+
+    #[test]
+    fn test_pii_true() {
+        run(RUST_CRATE, vec!["true".into()], None);
+        let output = get_pretty_pii_field_format("".into());
+
+        insta::assert_debug_snapshot!(output);
+    }
+
+    #[test]
+    fn test_pii_false() {
+        run(RUST_CRATE, vec!["false".into()], None);
+        let output = get_pretty_pii_field_format("".into());
+
+        insta::assert_debug_snapshot!(output);
+    }
+
+    #[test]
+    fn test_pii_all() {
+        run(
+            RUST_CRATE,
+            vec!["true".into(), "maybe".into(), "false".into()],
+            None,
+        );
+        let output = get_pretty_pii_field_format("".into());
+
+        insta::assert_debug_snapshot!(output);
+    }
 }

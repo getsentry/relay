@@ -1,0 +1,7 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    "SubStruct.field2",
+]

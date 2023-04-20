@@ -1,0 +1,9 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    "MyStruct.foo",
+    "MyStruct.sub_struct.field2",
+    "SubStruct.field2",
+]
