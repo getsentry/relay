@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["ParseRecordingError","Error returned from [`RecordingScrubber`]."]],"struct":[["RecordingScrubber","A utility that performs data scrubbing on compressed Replay recording payloads."]]};
+window.SIDEBAR_ITEMS = {"enum":["ParseRecordingError"],"struct":["RecordingScrubber"]};

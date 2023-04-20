@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["run","Runs a relay web server and spawns all internal worker threads."]]};
+window.SIDEBAR_ITEMS = {"fn":["run"]};

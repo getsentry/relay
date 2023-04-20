@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":[["recording","Replay recordings payload and processor."]]};
+window.SIDEBAR_ITEMS = {"mod":["recording"]};
