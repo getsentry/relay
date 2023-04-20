@@ -97,6 +97,8 @@
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
 </pre><pre class="rust"><code><span class="kw">use </span>futures::stream::{Stream, StreamExt};
 <span class="kw">use </span>sqlx::query::Query;
 <span class="kw">use </span>sqlx::sqlite::SqliteArguments;
@@ -145,7 +147,9 @@
 ///
 /// This info used to calculate the current allocated database size.
 </span><span class="kw">pub fn </span>current_size&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
-    sqlx::query(<span class="string">&quot;pragma page_count; pragma page_size;&quot;</span>)
+    sqlx::query(
+        <span class="string">&quot;SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size();&quot;</span>,
+    )
 }
 
 <span class="doccomment">/// Descibes the chunk item which is handled by insert statement.

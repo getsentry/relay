@@ -844,6 +844,23 @@
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
 <a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -884,9 +901,20 @@
     <span class="attr">#[error(<span class="string">&quot;failed to get the size of the buffer on the filesystem&quot;</span>)]
     </span>DatabaseFileError(<span class="attr">#[from] </span>std::io::Error),
 
-    <span class="doccomment">/// Describes the errors linked with the `Sqlite` backed buffer.
-    </span><span class="attr">#[error(<span class="string">&quot;failed to fetch data from the database&quot;</span>)]
-    </span>DatabaseError(<span class="attr">#[from] </span>sqlx::Error),
+    <span class="attr">#[error(<span class="string">&quot;failed to insert data into database: {0}&quot;</span>)]
+    </span>InsertFailed(sqlx::Error),
+
+    <span class="attr">#[error(<span class="string">&quot;failed to delete data from the database: {0}&quot;</span>)]
+    </span>DeleteFailed(sqlx::Error),
+
+    <span class="attr">#[error(<span class="string">&quot;failed to fetch data from the database: {0}&quot;</span>)]
+    </span>FetchFailed(sqlx::Error),
+
+    <span class="attr">#[error(<span class="string">&quot;failed to get database file size: {0}&quot;</span>)]
+    </span>FileSizeReadFailed(sqlx::Error),
+
+    <span class="attr">#[error(<span class="string">&quot;failed to setup the database: {0}&quot;</span>)]
+    </span>SetupFailed(sqlx::Error),
 
     <span class="attr">#[error(transparent)]
     </span>EnvelopeError(<span class="attr">#[from] </span>EnvelopeError),
@@ -1050,9 +1078,12 @@
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(<span class="bool-val">true</span>);
 
-        <span class="kw">let </span>db = SqlitePoolOptions::new().connect_with(options).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="macro">sqlx::migrate!</span>(<span class="string">&quot;../migrations&quot;</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>db = SqlitePoolOptions::new()
+            .connect_with(options)
+            .<span class="kw">await
+            </span>.map_err(BufferError::SetupFailed)<span class="question-mark">?</span>;
 
+        <span class="macro">sqlx::migrate!</span>(<span class="string">&quot;../migrations&quot;</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1117,7 +1148,8 @@
                 .max_connections(config.spool_envelopes_max_connections())
                 .min_connections(config.spool_envelopes_min_connections())
                 .connect_with(options)
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+                .<span class="kw">await
+                </span>.map_err(BufferError::SetupFailed)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>spool_config = BufferSpoolConfig {
                 db,
@@ -1134,19 +1166,13 @@
 
     <span class="doccomment">/// Estimates the db size by multiplying `page_count * page_size`.
     </span><span class="kw">async fn </span>estimate_buffer_size(db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;i64, BufferError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>rows = sql::current_size().fetch(db);
-        <span class="kw">let </span>page_count: i64 = <span class="kw">match </span>rows.next().<span class="kw">await </span>{
-            <span class="prelude-val">Some</span>(row) =&gt; row<span class="question-mark">?</span>.try_get(<span class="number">0</span>)<span class="question-mark">?</span>,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        <span class="kw">let </span>page_size: i64 = <span class="kw">match </span>rows.next().<span class="kw">await </span>{
-            <span class="prelude-val">Some</span>(row) =&gt; row<span class="question-mark">?</span>.try_get(<span class="number">0</span>)<span class="question-mark">?</span>,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::DatabaseError(sqlx::Error::RowNotFound)),
-        };
-        <span class="kw">let </span>size = page_count * page_size;
+        <span class="kw">let </span>size: i64 = sql::current_size()
+            .fetch_one(db)
+            .<span class="kw">await
+            </span>.and_then(|r| r.try_get(<span class="number">0</span>))
+            .map_err(BufferError::FileSizeReadFailed)<span class="question-mark">?</span>;
 
         <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BufferDiskSize) = size <span class="kw">as </span>u64);
-
         <span class="prelude-val">Ok</span>(size)
     }
 
@@ -1176,7 +1202,7 @@
 
         sql::do_insert(stream::iter(envelopes), db)
             .<span class="kw">await
-            </span>.map_err(BufferError::from)
+            </span>.map_err(BufferError::InsertFailed)
     }
 
     <span class="doccomment">/// Tries to save in-memory buffer to disk.
@@ -1202,7 +1228,9 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let </span>estimated_db_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="comment">// Return 0 if we fail to read the database size.
+        </span><span class="kw">let </span>estimated_db_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
+
         <span class="kw">if </span>estimated_db_size <span class="kw">as </span>usize &gt;= <span class="kw-2">*</span>max_disk_size {
             <span class="kw-2">*</span>is_disk_full = <span class="bool-val">true</span>;
             <span class="kw">return </span><span class="prelude-val">Err</span>(BufferError::DatabaseFull(estimated_db_size));
@@ -1221,11 +1249,13 @@
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
     </span><span class="kw">fn </span>extract_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, row: SqliteRow) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
-        <span class="kw">let </span>envelope_row: Vec&lt;u8&gt; = row.try_get(<span class="string">&quot;envelope&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>envelope_row: Vec&lt;u8&gt; = row.try_get(<span class="string">&quot;envelope&quot;</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>envelope_bytes = bytes::Bytes::from(envelope_row);
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(envelope_bytes)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>received_at: i64 = row.try_get(<span class="string">&quot;received_at&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>received_at: i64 = row
+            .try_get(<span class="string">&quot;received_at&quot;</span>)
+            .map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
 
         envelope.set_start_time(start_time.into_inner());
@@ -1334,16 +1364,17 @@
     }
 
     <span class="doccomment">/// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    </span><span class="kw">async fn </span>refresh_spool_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
+    </span><span class="kw">async fn </span>refresh_spool_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span><span class="prelude-val">Some</span>(BufferSpoolConfig {
             db,
             max_disk_size,
             <span class="kw-2">ref mut </span>is_disk_full, ..
-        }) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.spool_config <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()); };
+        }) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.spool_config <span class="kw">else </span>{ <span class="kw">return</span>; };
 
-        <span class="kw">let </span>estimated_size = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="kw-2">*</span>is_disk_full = (estimated_size <span class="kw">as </span>usize) &gt;= <span class="kw-2">*</span>max_disk_size;
-        <span class="prelude-val">Ok</span>(())
+        <span class="comment">// Refresh DB state only if we get the proper reading on the file.
+        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(estimated_size) = <span class="self">Self</span>::estimate_buffer_size(db).<span class="kw">await </span>{
+            <span class="kw-2">*</span>is_disk_full = (estimated_size <span class="kw">as </span>usize) &gt;= <span class="kw-2">*</span>max_disk_size;
+        }
     }
 
     <span class="doccomment">/// Handles the dequeueing messages from the internal buffer.
@@ -1374,7 +1405,7 @@
             };
         }
 
-        <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span>;
 
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
@@ -1405,10 +1436,13 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(BufferSpoolConfig { db, .. }) = <span class="kw-2">&amp;</span><span class="self">self</span>.spool_config {
             <span class="kw">for </span>key <span class="kw">in </span>keys {
-                <span class="kw">let </span>result = sql::delete(key).execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="kw">let </span>result = sql::delete(key)
+                    .execute(db)
+                    .<span class="kw">await
+                    </span>.map_err(BufferError::DeleteFailed)<span class="question-mark">?</span>;
                 count += result.rows_affected() <span class="kw">as </span>usize;
             }
-            <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="self">self</span>.refresh_spool_state().<span class="kw">await</span>;
         }
 
         <span class="kw">if </span>count &gt; <span class="number">0 </span>{
