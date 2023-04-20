@@ -410,9 +410,11 @@ impl<T> Deref for BoxCow<'_, T> {
 /// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
-    // In event scrubbing, every state will only hold a reference to its parent.
-    // In Replay scrubbing, where we do not call process_* recursively,
-    // we will hold a single ProcessingState instance, which owns its parents, grandparents, etc.
+    // In event scrubbing, every state holds a reference to its parent.
+    // In Replay scrubbing, we do not call `process_*` recursively,
+    // but instead hold a single `ProcessingState` that represents the current item.
+    // This item owns its parent (plus ancestors) exclusively, which is why we use `BoxCow` here
+    // rather than `Rc` / `Arc`.
     parent: Option<BoxCow<'a, ProcessingState<'a>>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
