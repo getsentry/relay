@@ -508,11 +508,6 @@ impl BufferService {
             ref mut is_disk_full, ..
         }) = &mut self.spool_config else { return; };
 
-        // If disk is not full, we can ignore this check and exit earlier.
-        if !*is_disk_full {
-            return;
-        }
-
         // Refresh DB state only if we get the proper reading on the file.
         if let Ok(estimated_size) = Self::estimate_buffer_size(db).await {
             *is_disk_full = (estimated_size as usize) >= *max_disk_size;
