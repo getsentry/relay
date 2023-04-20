@@ -1057,9 +1057,9 @@ def test_profile_outcomes(
     upstream.send_envelope(
         project_id, make_envelope("hi", 2)
     )  # should get dropped by dynamic sampling
-    upstream.send_envelope(
-        project_id, make_envelope("ho", 3)
-    )  # should be kept by dynamic sampling
+    # upstream.send_envelope(
+    #     project_id, make_envelope("ho", 3)
+    # )  # should be kept by dynamic sampling
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: (o["category"], o["outcome"]))

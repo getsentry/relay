@@ -1041,7 +1041,7 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if the feature flag is not enabled.
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let profiling_enabled = dbg!(state.project_state.has_feature(Feature::Profiling));
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile if !profiling_enabled => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -1100,7 +1100,7 @@ impl EnvelopeProcessorService {
             .map(|item| item.quantity())
             .sum();
 
-        if profile_count == 0 {
+        if dbg!(profile_count) == 0 {
             return;
         }
 
@@ -2289,6 +2289,9 @@ impl EnvelopeProcessorService {
         self.process_user_reports(state);
         self.process_replays(state)?;
         self.filter_profiles(state);
+
+        // After filtering, we need to update the envelope summary:
+        state.managed_envelope.update();
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
