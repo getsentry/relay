@@ -148,12 +148,15 @@ impl FromMessage<Self> for TrackOutcome {
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    // /// The event has been accepted and handled completely.
-    // ///
-    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    // #[allow(dead_code)]
-    // Accepted,
+    /// The event has been accepted and handled completely.
+    ///
+    /// For events and most other types, this is never emitted by Relay as the event
+    /// may be discarded by the processing pipeline after Relay.
+    /// Only the `save_event` task in Sentry finally accepts an event.
+    ///
+    /// The only data type for which this outcome is emitted by Relay is [`DataCategory::Profile`].
+    /// (See [`crate::actors::processor::EnvelopeProcessor`])
+    Accepted,
     /// The event has been filtered due to a configured filter.
     Filtered(FilterStatKey),
 
@@ -178,6 +181,7 @@ impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     fn to_outcome_id(&self) -> OutcomeId {
         match self {
+            Outcome::Accepted => OutcomeId::ACCEPTED,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
@@ -189,6 +193,7 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
+            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
@@ -221,6 +226,7 @@ impl Outcome {
 impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Outcome::Accepted => write!(f, "accepted"),
             Outcome::Filtered(key) => write!(f, "filtered by {key}"),
             Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
             Outcome::RateLimited(None) => write!(f, "rate limited"),
@@ -889,8 +895,7 @@ fn is_sampled_profile(outcome: &TrackRawOutcome) -> bool {
         && outcome
             .reason
             .as_deref()
-            .unwrap_or("")
-            .starts_with("Sampled:")
+            .map_or(false, |reason| reason.starts_with("Sampled:"))
 }
 
 /// Transform outcome into one or more derived outcome messages before sending it to kafka.
@@ -907,7 +912,8 @@ fn transform_outcome(mut outcome: TrackRawOutcome) -> impl Iterator<Item = Track
         //
         //     processed_profiles = indexed_profiles + sampled_profiles
         //
-        // The "processed" outcome for indexed_profiles is generated in processing (see XXX),
+        // The "processed" outcome for indexed_profiles is generated in processing
+        // (see `EnvelopeProcessor::count_processing_profiles()`),
         // but for profiles dropped by dynamic sampling, all we have is the FILTERED outcome,
         // which we transform into an ACCEPTED outcome here.
         //
