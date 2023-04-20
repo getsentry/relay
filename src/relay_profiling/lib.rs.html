@@ -174,6 +174,21 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -270,10 +285,12 @@
 //! ```
 
 </span><span class="kw">use </span>serde::Deserialize;
+<span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">mod </span>android;
 <span class="kw">mod </span>cocoa;
 <span class="kw">mod </span>error;
+<span class="kw">mod </span>extract_from_transaction;
 <span class="kw">mod </span>measurements;
 <span class="kw">mod </span>native_debug_image;
 <span class="kw">mod </span>outcomes;
@@ -281,13 +298,15 @@
 <span class="kw">mod </span>transaction_metadata;
 <span class="kw">mod </span>utils;
 
-<span class="kw">use </span>relay_general::protocol::EventId;
+<span class="kw">use </span>relay_general::protocol::{Event, EventId};
 
 <span class="kw">use </span><span class="kw">crate</span>::android::parse_android_profile;
 <span class="kw">use </span><span class="kw">crate</span>::cocoa::parse_cocoa_profile;
+<span class="kw">use </span><span class="kw">crate</span>::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
+<span class="kw">use </span><span class="kw">crate</span>::sample::{parse_sample_profile, Version};
+
 <span class="kw">pub use </span><span class="kw">crate</span>::error::ProfileError;
 <span class="kw">pub use </span><span class="kw">crate</span>::outcomes::discard_reason;
-<span class="kw">use </span><span class="kw">crate</span>::sample::{parse_sample_profile, Version};
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>MinimalProfile {
@@ -302,15 +321,26 @@
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-<span class="kw">pub fn </span>expand_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(EventId, Vec&lt;u8&gt;), ProfileError&gt; {
+<span class="kw">pub fn </span>expand_profile(
+    payload: <span class="kw-2">&amp;</span>[u8],
+    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(EventId, Vec&lt;u8&gt;), ProfileError&gt; {
     <span class="kw">let </span>profile = <span class="kw">match </span>minimal_profile_from_json(payload) {
         <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
     };
+    <span class="kw">let </span>(transaction_metadata, transaction_tags) = <span class="kw">match </span>event {
+        <span class="prelude-val">Some</span>(event) =&gt; (
+            extract_transaction_metadata(event),
+            extract_transaction_tags(event),
+        ),
+        <span class="kw">_ </span>=&gt; (BTreeMap::new(), BTreeMap::new()),
+    };
+
     <span class="kw">let </span>processed_payload = <span class="kw">match </span>profile.version {
-        Version::V1 =&gt; parse_sample_profile(payload),
+        Version::V1 =&gt; parse_sample_profile(payload, transaction_metadata, transaction_tags),
         Version::Unknown =&gt; <span class="kw">match </span>profile.platform.as_str() {
-            <span class="string">&quot;android&quot; </span>=&gt; parse_android_profile(payload),
+            <span class="string">&quot;android&quot; </span>=&gt; parse_android_profile(payload, transaction_metadata, transaction_tags),
             <span class="string">&quot;cocoa&quot; </span>=&gt; parse_cocoa_profile(payload),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
         },
@@ -341,13 +371,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
-        <span class="macro">assert!</span>(expand_profile(payload).is_ok());
+        <span class="macro">assert!</span>(expand_profile(payload, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Event::default())).is_ok());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/roundtrip.json&quot;</span>);
-        <span class="macro">assert!</span>(expand_profile(payload).is_ok());
+        <span class="macro">assert!</span>(expand_profile(payload, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Event::default())).is_ok());
     }
 }
 </code></pre></div>

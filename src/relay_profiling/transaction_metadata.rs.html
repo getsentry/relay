@@ -104,7 +104,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
 
-<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+<span class="attr">#[derive(Default, Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>TransactionMetadata {
     <span class="kw">pub </span>id: EventId,
     <span class="kw">pub </span>name: String,
