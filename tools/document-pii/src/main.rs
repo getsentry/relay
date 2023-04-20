@@ -4,7 +4,7 @@
 )]
 
 use clap::{App, Arg, ArgMatches};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::hash::Hash;
 use std::io::BufRead;
@@ -20,14 +20,14 @@ lazy_static::lazy_static! {
     // When iterating recursively, this keeps track of the current path
     static ref CURRENT_PATH: Mutex<Vec<TypeAndField>> = Mutex::new(vec![]);
     // a set of CURRENT_PATH whenever it hits a pii=true field
-    static ref PII_TYPES: Mutex<HashSet<Vec<TypeAndField>>> = Mutex::new(HashSet::new());
+    static ref PII_TYPES: Mutex<BTreeSet<Vec<TypeAndField>>> = Mutex::new(BTreeSet::new());
     // All the structs and enums, where the key is the full path. The string in the tuple represents
     // the module path to the item. Now that I think of it, should be able to just get it from the key.
     static ref ALL_TYPES: Mutex<HashMap<String, EnumOrStruct>> = Mutex::new(HashMap::new());
     /// The values that we wanna match on, (true, false, maybe)
     static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
     /// All the use statements in a given module.
-    static ref USE_STATEMENTS: Mutex<HashMap<String, HashSet<String>>> = Mutex::new(HashMap::new());
+    static ref USE_STATEMENTS: Mutex<BTreeMap<String, BTreeSet<String>>> = Mutex::new(BTreeMap::new());
 }
 
 /// It's only purpose is to populate ALL_TYPES and USE_STATEMENTS
@@ -52,7 +52,6 @@ impl FileSyntaxVisitor {
                 module_path: rust_file_to_use_path(path.as_path()),
             };
             let file_content = fs::read_to_string(path.as_path()).unwrap();
-            dbg!(&file_content);
             let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
             hashmap_filler.visit_file(&syntax_tree);
         }
@@ -97,9 +96,10 @@ impl<'ast> Visit<'ast> for FileSyntaxVisitor {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
+#[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
 struct TypeAndField {
-    type_name: String, //shoud be full path
+    // Full path of a type. E.g. relay_common::protocol::Event, rather than just 'Event'.
+    qualified_type_name: String,
     field_name: String,
 }
 
@@ -144,7 +144,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
             .lock()
             .unwrap()
             .iter()
-            .any(|x| x.type_name == self.current_type)
+            .any(|x| x.qualified_type_name == self.current_type)
         {
             for field in node.fields.iter() {
                 self.visit_field(field);
@@ -158,7 +158,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
             .lock()
             .unwrap()
             .iter()
-            .any(|x| x.type_name == self.current_type)
+            .any(|x| x.qualified_type_name == self.current_type)
         {
             for variant in node.variants.iter() {
                 for field in variant.fields.iter() {
@@ -176,7 +176,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
     fn visit_field(&mut self, node: &'ast Field) {
         CURRENT_PATH.lock().unwrap().push(TypeAndField {
-            type_name: self.current_type.clone(),
+            qualified_type_name: self.current_type.clone(),
             field_name: node
                 .clone()
                 .ident
@@ -418,7 +418,6 @@ fn main() {
 
 fn run(rust_crate: &str, pii_values: Vec<String>, item: Option<&str>) {
     let paths = find_rs_files(rust_crate);
-    dbg!(&paths);
     FileSyntaxVisitor::fill_pii_hashmaps(&paths);
     {
         let mut guard = PII_VALUES.lock().unwrap();
@@ -526,7 +525,6 @@ fn has_pii_value(field: &Field) -> bool {
 }
 
 fn find_pii_fields(item: Option<&str>) {
-    let mut count = 0;
     match item {
         Some(path) => {
             if let Some(structorenum) = {
@@ -550,8 +548,6 @@ fn find_pii_fields(item: Option<&str>) {
         None => {
             let all_types = ALL_TYPES.lock().unwrap().clone();
             for (key, value) in all_types.iter() {
-                count += 1;
-                println!("{}/{}", count, all_types.len());
                 let module_path = key.rsplit_once("::").unwrap().0.to_owned();
                 let mut visitor = TypeVisitor {
                     module_path,
@@ -570,7 +566,7 @@ fn get_pretty_pii_field_format(unnamed_replace: String) -> Vec<String> {
     let mut output_vec = vec![];
     for pii in PII_TYPES.lock().unwrap().iter() {
         let mut output = String::new();
-        output.push_str(&pii[0].type_name);
+        output.push_str(&pii[0].qualified_type_name);
 
         for path in pii {
             output.push_str(&format!(".{}", path.field_name));
@@ -583,44 +579,58 @@ fn get_pretty_pii_field_format(unnamed_replace: String) -> Vec<String> {
     output_vec
 }
 
+// Due to global variables, have to both run the tests sequentially as well as clearing the globals
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    const RUST_CRATE: &str = "/Users/tor/prog/rust/relay/tests/test_pii_docs";
+    const RUST_CRATE: &str = "../../tests/test_pii_docs";
+
+    fn clear_globals() {
+        ALL_TYPES.lock().unwrap().clear();
+        USE_STATEMENTS.lock().unwrap().clear();
+        PII_TYPES.lock().unwrap().clear();
+        CURRENT_PATH.lock().unwrap().clear();
+    }
 
     #[test]
+    #[serial]
     fn test_use_statements() {
+        clear_globals();
         run(RUST_CRATE, vec![], None);
         let use_statements = USE_STATEMENTS.lock().unwrap().clone();
         insta::assert_debug_snapshot!(use_statements);
     }
 
     #[test]
+    #[serial]
     fn test_pii_true() {
+        clear_globals();
         run(RUST_CRATE, vec!["true".into()], None);
         let output = get_pretty_pii_field_format("".into());
-
         insta::assert_debug_snapshot!(output);
     }
 
     #[test]
+    #[serial]
     fn test_pii_false() {
+        clear_globals();
         run(RUST_CRATE, vec!["false".into()], None);
         let output = get_pretty_pii_field_format("".into());
-        dbg!(&output);
         insta::assert_debug_snapshot!(output);
     }
 
     #[test]
+    #[serial]
     fn test_pii_all() {
+        clear_globals();
         run(
             RUST_CRATE,
             vec!["true".into(), "maybe".into(), "false".into()],
             None,
         );
         let output = get_pretty_pii_field_format("".into());
-        dbg!(&output);
-
         insta::assert_debug_snapshot!(output);
     }
 }

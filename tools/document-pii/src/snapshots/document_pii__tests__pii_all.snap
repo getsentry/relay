@@ -10,6 +10,7 @@ expression: output
     "MyStruct.sub_struct.field2",
     "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
     "MyStruct.sub_struct.mystery_field.maybe_sensitive_stuff",
+    "SelfReferential.pretty_sensitive",
     "SubStruct.field2",
     "SubStruct.mystery_field.bitcoin_wallet_key",
     "SubStruct.mystery_field.maybe_sensitive_stuff",

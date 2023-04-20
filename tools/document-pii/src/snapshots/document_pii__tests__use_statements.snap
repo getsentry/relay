@@ -3,14 +3,15 @@ source: tools/document-pii/src/main.rs
 expression: use_statements
 ---
 {
-    "test_pii_docs::anotherfile": {
-        "test_pii_docs::anotherfile::FooBar",
-        "test_pii_docs::anotherfile::BarFoo",
-    },
     "test_pii_docs": {
         "test_pii_docs::HasGeneric",
-        "test_pii_docs::MyStruct",
         "test_pii_docs::InnerGeneric",
+        "test_pii_docs::MyStruct",
+        "test_pii_docs::SelfReferential",
         "test_pii_docs::SubStruct",
+    },
+    "test_pii_docs::anotherfile": {
+        "test_pii_docs::anotherfile::BarFoo",
+        "test_pii_docs::anotherfile::FooBar",
     },
 }
