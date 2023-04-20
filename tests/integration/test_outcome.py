@@ -985,13 +985,16 @@ def test_profile_outcomes(
     Tests that Relay reports correct outcomes for profiles.
 
     Have a chain of many relays that eventually connect to Sentry
-    and verify that the outcomes sent by  the first (downstream relay)
+    and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
@@ -1018,7 +1021,8 @@ def test_profile_outcomes(
                 "flush_interval": 0,
             },
             "source": "processing-relay",
-        }
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
 
     # The innermost Relay needs to be in processing mode
@@ -1036,7 +1040,7 @@ def test_profile_outcomes(
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
         upstream = relay(upstream, config)
 
-    def make_envelope(transaction_name):
+    def make_envelope(transaction_name, num_profiles):
         payload = _get_event_payload("transaction")
         payload["transaction"] = transaction_name
         envelope = Envelope()
@@ -1046,14 +1050,15 @@ def test_profile_outcomes(
                 type="transaction",
             )
         )
-        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        for _ in range(num_profiles):
+            envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
         return envelope
 
     upstream.send_envelope(
-        project_id, make_envelope("hi")
+        project_id, make_envelope("hi", 2)
     )  # should get dropped by dynamic sampling
     upstream.send_envelope(
-        project_id, make_envelope("ho")
+        project_id, make_envelope("ho", 3)
     )  # should be kept by dynamic sampling
 
     outcomes = outcomes_consumer.get_outcomes()
@@ -1066,31 +1071,31 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": 2,  # Transaction
+            "category": 6,  # Profile
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # FILTERED
+            "outcome": 0,  # Accepted
+            "project_id": 42,
+            "quantity": 5,
+            "source": expected_source,
+        },
+        {
+            "category": 9,  # TransactionIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:1",
             "source": expected_source,
         },
         {
-            "category": 6,  # Profile
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # ACCEPTED
-            "project_id": 42,
-            "quantity": 1,
-            "source": expected_source,
-        },
-        {
             "category": 11,  # ProfileIndexed
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # FILTERED
+            "outcome": 1,  # Filtered
             "project_id": 42,
-            "quantity": 1,
+            "quantity": 2,
             "reason": "Sampled:1",
             "source": expected_source,
         },
