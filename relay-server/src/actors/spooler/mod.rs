@@ -179,6 +179,13 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+#[derive(Debug)]
+pub struct Services {
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    pub project_cache: Addr<ProjectCache>,
+    pub test_store: Addr<TestStore>,
+}
+
 /// Contains the spool related configuration.
 ///
 /// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
@@ -194,11 +201,9 @@ struct BufferSpoolConfig {
 /// [`Buffer`] interface implementation backed by SQLite.
 #[derive(Debug)]
 pub struct BufferService {
+    services: Services,
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     buffer_guard: Arc<BufferGuard>,
-    outcome_aggregator: Addr<TrackOutcome>,
-    project_cache: Addr<ProjectCache>,
-    test_store: Addr<TestStore>,
     spool_config: Option<BufferSpoolConfig>,
     used_memory: usize,
 
@@ -227,17 +232,13 @@ impl BufferService {
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
         buffer_guard: Arc<BufferGuard>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        project_cache: Addr<ProjectCache>,
-        test_store: Addr<TestStore>,
+        services: Services,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let mut service = Self {
+            services,
             buffer: BTreeMap::new(),
             buffer_guard,
-            outcome_aggregator,
-            project_cache,
-            test_store,
             used_memory: 0,
             spool_config: None,
             #[cfg(test)]
@@ -401,15 +402,15 @@ impl BufferService {
         if self.untracked {
             return Ok(ManagedEnvelope::untracked(
                 envelope,
-                self.outcome_aggregator.clone(),
-                self.test_store.clone(),
+                self.services.outcome_aggregator.clone(),
+                self.services.test_store.clone(),
             ));
         }
 
         let managed_envelope = self.buffer_guard.enter(
             envelope,
-            self.outcome_aggregator.clone(),
-            self.test_store.clone(),
+            self.services.outcome_aggregator.clone(),
+            self.services.test_store.clone(),
         )?;
         Ok(managed_envelope)
     }
@@ -548,7 +549,8 @@ impl BufferService {
             histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
         );
         if !unused_keys.is_empty() {
-            self.project_cache
+            self.services
+                .project_cache
                 .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
 
@@ -677,12 +679,16 @@ mod tests {
 
     use super::*;
 
-    fn services() -> (Addr<ProjectCache>, Addr<TrackOutcome>, Addr<TestStore>) {
+    fn services() -> Services {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
-        (project_cache, outcome_aggregator, test_store)
+        Services {
+            project_cache,
+            outcome_aggregator,
+            test_store,
+        }
     }
 
     fn empty_envelope() -> ManagedEnvelope {
@@ -691,7 +697,11 @@ mod tests {
             .unwrap();
 
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
-        let (_, outcome_aggregator, test_store) = services();
+        let Services {
+            outcome_aggregator,
+            test_store,
+            ..
+        } = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
     }
 
@@ -708,16 +718,9 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let (project_cache, outcome_aggregator, test_store) = services();
-        let mut service = BufferService::create(
-            buffer_guard,
-            outcome_aggregator,
-            project_cache,
-            test_store,
-            config,
-        )
-        .await
-        .unwrap();
+        let mut service = BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
         service.untracked = true; // so we do not panic when dropping envelopes
         let addr = service.start();
         let (tx, mut rx) = mpsc::unbounded_channel();
@@ -785,19 +788,11 @@ mod tests {
             .unwrap();
         let _guard = rt.enter();
 
-        let (project_cache, outcome_aggregator, test_store) = services();
-
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let mut service = BufferService::create(
-                    buffer_guard,
-                    outcome_aggregator,
-                    project_cache,
-                    test_store,
-                    config,
-                )
-                .await
-                .unwrap();
+                let mut service = BufferService::create(buffer_guard, services(), config)
+                    .await
+                    .unwrap();
 
                 service.untracked = true; // so we do not panic when dropping envelopes
 
