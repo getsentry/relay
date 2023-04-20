@@ -1,0 +1,38 @@
+[
+    {
+        "type": 5,
+        "timestamp": 1680009712.507,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.fetch",
+                "description": "https://domain.com/api",
+                "startTimestamp": 1680009712.507,
+                "endTimestamp": 1680009712.671,
+                "data": {
+                    "method": "POST",
+                    "statusCode": 200,
+                    "request": {
+                        "size": 2949,
+                        "body": {
+                            "api_key": "foobar",
+                            "events": [],
+                            "options": {
+                                "min_id_length": 1
+                            }
+                        }
+                    },
+                    "response": {
+                        "size": 94,
+                        "body": {
+                            "code": 200,
+                            "server_upload_time": 1680009712652,
+                            "payload_size_bytes": 2949,
+                            "events_ingested": 5
+                        }
+                    }
+                }
+            }
+        }
+    }
+]

@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.20"
+version = "0.8.21"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3163,6 +3163,7 @@ dependencies = [
  "android_trace_log",
  "chrono",
  "data-encoding",
+ "relay-common",
  "relay-general",
  "serde",
  "serde_json",

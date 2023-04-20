@@ -20,7 +20,9 @@ use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService
 #[cfg(feature = "processing")]
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-use crate::actors::spooler::{Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany};
+use crate::actors::spooler::{
+    self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+};
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::UpstreamRelay;
 
@@ -836,23 +838,21 @@ impl Service for ProjectCacheService {
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer = match BufferService::create(
-                buffer_guard,
+            let buffer_services = spooler::Services {
                 outcome_aggregator,
                 project_cache,
                 test_store,
-                config.clone(),
-            )
-            .await
-            {
-                Ok(buffer) => buffer.start(),
-                Err(err) => {
-                    relay_log::error!("failed to start buffer service: {}", LogError(&err));
-                    // NOTE: The process will exit with error if the buffer file could not be
-                    // opened or the migrations could not be run.
-                    std::process::exit(1);
-                }
             };
+            let buffer =
+                match BufferService::create(buffer_guard, buffer_services, config.clone()).await {
+                    Ok(buffer) => buffer.start(),
+                    Err(err) => {
+                        relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                        // NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        std::process::exit(1);
+                    }
+                };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
