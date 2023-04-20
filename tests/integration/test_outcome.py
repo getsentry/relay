@@ -967,3 +967,66 @@ def test_graceful_shutdown(relay, mini_sentry):
         "quantity": 1,
     }
     assert outcome == expected_outcome
+
+
+@pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
+def test_profile_outcomes(
+    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays
+):
+    """
+    Tests that Relay reports correct outcomes for profiles.
+
+    Have a chain of many relays that eventually connect to Sentry
+    and verify that the outcomes sent by  the first (downstream relay)
+    are properly forwarded up to sentry.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=5)
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 0,
+            },
+            "source": "processing-relay",
+        }
+    }
+
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(config)
+
+    # build a chain of identical relays
+    for i in range(num_intermediate_relays):
+        config = deepcopy(config)
+        if i == 0:
+            # Emulate a PoP Relay
+            config["outcomes"]["source"] = "pop-relay"
+        if i == 1:
+            # Emulate a customer Relay
+            config["outcomes"]["source"] = "external-relay"
+            config["outcomes"]["emit_outcomes"] = "as_client_reports"
+        upstream = relay(upstream, config)
+
+    # mark the downstream relay so we can identify outcomes originating from it
+    event_id = _send_event(upstream, event_type="transaction")
+
+    outcome = outcomes_consumer.get_outcome()
+
+    expected_outcome = {
+        "project_id": 42,
+        "outcome": 3,
+        "source": {
+            0: "processing-relay",
+            1: "pop-relay",
+            2: "external-relay",
+        }[num_intermediate_relays],
+        "reason": "project_id",
+        "category": 2,
+        "quantity": 1,
+    }
+    outcome.pop("timestamp")
+
+    assert outcome == expected_outcome
