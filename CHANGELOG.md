@@ -9,6 +9,7 @@
 **Internal**:
 
 - Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 - Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
 - Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
 

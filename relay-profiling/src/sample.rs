@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use relay_general::protocol::{Addr, EventId};
@@ -161,6 +161,12 @@ struct SampleProfile {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    transaction_metadata: BTreeMap<String, String>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    transaction_tags: BTreeMap<String, String>,
 }
 
 impl SampleProfile {
@@ -315,8 +321,30 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     Ok(profile)
 }
 
-pub fn parse_sample_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile = parse_profile(payload)?;
+pub fn parse_sample_profile(
+    payload: &[u8],
+    transaction_metadata: BTreeMap<String, String>,
+    transaction_tags: BTreeMap<String, String>,
+) -> Result<Vec<u8>, ProfileError> {
+    let mut profile = parse_profile(payload)?;
+
+    if let Some(transaction_name) = transaction_metadata.get("transaction") {
+        if let Some(ref mut transaction) = profile.transaction {
+            transaction.name = transaction_name.to_owned();
+        }
+    }
+
+    if let Some(release) = transaction_metadata.get("release") {
+        profile.release = release.to_owned();
+    }
+
+    if let Some(environment) = transaction_metadata.get("environment") {
+        profile.environment = environment.to_owned();
+    }
+
+    profile.transaction_metadata = transaction_metadata;
+    profile.transaction_tags = transaction_tags;
+
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
@@ -336,7 +364,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let profile = parse_sample_profile(payload);
+        let profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(profile.is_ok());
     }
 
@@ -372,6 +400,8 @@ mod tests {
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
             measurements: None,
+            transaction_metadata: BTreeMap::new(),
+            transaction_tags: BTreeMap::new(),
         }
     }
 
@@ -559,7 +589,7 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = parse_sample_profile(&payload[..]);
+        let data = parse_sample_profile(&payload[..], BTreeMap::new(), BTreeMap::new());
 
         assert!(data.is_err());
     }
@@ -834,5 +864,29 @@ mod tests {
 
         assert_eq!(profile.profile.thread_metadata.unwrap().len(), 2);
         assert_eq!(profile.profile.queue_metadata.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_extract_transaction_tags() {
+        let transaction_metadata = BTreeMap::from([
+            ("release".to_string(), "some-random-release".to_string()),
+            (
+                "transaction".to_string(),
+                "some-random-transaction".to_string(),
+            ),
+        ]);
+
+        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
+        assert!(profile_json.is_ok());
+
+        let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+            .map_err(ProfileError::InvalidJson)
+            .unwrap();
+        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(
+            output.transaction.unwrap().name,
+            "some-random-transaction".to_string()
+        );
     }
 }
