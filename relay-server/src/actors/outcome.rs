@@ -913,7 +913,7 @@ fn transform_outcome(mut outcome: TrackRawOutcome) -> impl Iterator<Item = Track
         //     processed_profiles = indexed_profiles + sampled_profiles
         //
         // The "processed" outcome for indexed_profiles is generated in processing
-        // (see `EnvelopeProcessor::count_processing_profiles()`),
+        // (see `EnvelopeProcessor::count_processed_profiles()`),
         // but for profiles dropped by dynamic sampling, all we have is the FILTERED outcome,
         // which we transform into an ACCEPTED outcome here.
         //

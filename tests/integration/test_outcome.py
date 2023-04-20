@@ -971,7 +971,11 @@ def test_graceful_shutdown(relay, mini_sentry):
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
 def test_profile_outcomes(
-    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    num_intermediate_relays,
 ):
     """
     Tests that Relay reports correct outcomes for profiles.
@@ -980,7 +984,25 @@ def test_profile_outcomes(
     and verify that the outcomes sent by  the first (downstream relay)
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=5)
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.transaction",
+                    "value": "hi",
+                },
+            }
+        ],
+    }
 
     config = {
         "outcomes": {
@@ -1011,22 +1033,24 @@ def test_profile_outcomes(
         upstream = relay(upstream, config)
 
     # mark the downstream relay so we can identify outcomes originating from it
-    event_id = _send_event(upstream, event_type="transaction")
+    event_id = upstream.send_event(42, _get_event_payload("transaction"))
 
     outcome = outcomes_consumer.get_outcome()
 
     expected_outcome = {
+        "org_id": 1,
         "project_id": 42,
-        "outcome": 3,
+        "key_id": 123,
+        "outcome": 1,  # Filtered
+        "category": 2,  # Transaction
+        "reason": "Sampled:1",
+        "quantity": 1,
         "source": {
             0: "processing-relay",
             1: "pop-relay",
-            2: "external-relay",
+            2: "pop-relay",  # outcomes from client reports do not have a correct source (known issue)
         }[num_intermediate_relays],
-        "reason": "project_id",
-        "category": 2,
-        "quantity": 1,
     }
     outcome.pop("timestamp")
 
-    assert outcome == expected_outcome
+    assert outcome == expected_outcome, outcome

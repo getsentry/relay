@@ -1099,12 +1099,17 @@ impl EnvelopeProcessorService {
             .filter(|item| item.ty() == &ItemType::Profile)
             .map(|item| item.quantity())
             .sum();
+
+        if profile_count == 0 {
+            return;
+        }
+
         self.outcome_aggregator.send(TrackOutcome {
-            timestamp: state.managed_envelope.received_at(), // TODO: is this correct?
+            timestamp: state.managed_envelope.received_at(),
             scoping: state.managed_envelope.scoping(),
             outcome: Outcome::Accepted,
-            event_id: None,    // TODO
-            remote_addr: None, // TODO
+            event_id: None,
+            remote_addr: None,
             category: DataCategory::Profile,
             quantity: profile_count as u32, // truncates to `u32::MAX`
         })
