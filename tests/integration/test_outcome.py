@@ -1100,7 +1100,9 @@ def test_profile_outcomes(
             "outcome": 0,  # Accepted
             "project_id": 42,
             "quantity": 3,
-            "source": expected_source,
+            # The accepted outcome for profiles that survived dynamic sampling is always emitted
+            # by the processing relay:
+            "source": "processing-relay",
         },
         {
             "category": 9,  # TransactionIndexed
