@@ -1041,7 +1041,7 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if the feature flag is not enabled.
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let profiling_enabled = dbg!(state.project_state.has_feature(Feature::Profiling));
+        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile if !profiling_enabled => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -1100,7 +1100,7 @@ impl EnvelopeProcessorService {
             .map(|item| item.quantity())
             .sum();
 
-        if dbg!(profile_count) == 0 {
+        if profile_count == 0 {
             return;
         }
 

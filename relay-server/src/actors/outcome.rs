@@ -156,6 +156,7 @@ pub enum Outcome {
     ///
     /// The only data type for which this outcome is emitted by Relay is [`DataCategory::Profile`].
     /// (See [`crate::actors::processor::EnvelopeProcessor`])
+    #[cfg(feature = "processing")]
     Accepted,
     /// The event has been filtered due to a configured filter.
     Filtered(FilterStatKey),
@@ -181,6 +182,7 @@ impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     fn to_outcome_id(&self) -> OutcomeId {
         match self {
+            #[cfg(feature = "processing")]
             Outcome::Accepted => OutcomeId::ACCEPTED,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
@@ -193,6 +195,7 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
+            #[cfg(feature = "processing")]
             Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
@@ -226,6 +229,7 @@ impl Outcome {
 impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "processing")]
             Outcome::Accepted => write!(f, "accepted"),
             Outcome::Filtered(key) => write!(f, "filtered by {key}"),
             Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
@@ -889,6 +893,7 @@ impl OutcomeBroker {
 }
 
 /// Returns true if the outcome represents profiles dropped by dynamic sampling.
+#[cfg(feature = "processing")]
 fn is_sampled_profile(outcome: &TrackRawOutcome) -> bool {
     outcome.category == Some(DataCategory::Profile as u8)
         && outcome.outcome == OutcomeId::FILTERED

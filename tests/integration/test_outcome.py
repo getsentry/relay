@@ -15,7 +15,6 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
-print(RELAY_ROOT)
 
 
 HOUR_MILLISEC = 1000 * 3600
@@ -1035,7 +1034,7 @@ def test_profile_outcomes(
     # The innermost Relay needs to be in processing mode
     upstream = relay_with_processing(config)
 
-    # build a chain of identical relays
+    # build a chain of relays
     for i in range(num_intermediate_relays):
         config = deepcopy(config)
         if i == 0:
