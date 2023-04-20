@@ -16,7 +16,7 @@ struct SubStruct {
     field1: String,
     #[metastructure(pii = "true")]
     field2: FooBar,
-    // Checks that it goes spearately into both HasGeneric and InnerGeneric to check for pii fields.
+    //  Checks that it goes spearately into both HasGeneric and InnerGeneric to check for pii fields.
     mystery_field: HasGeneric<InnerGeneric>,
 }
 
@@ -29,4 +29,11 @@ struct HasGeneric<T> {
 struct InnerGeneric {
     #[metastructure(pii = "true")]
     bitcoin_wallet_key: String,
+}
+
+struct SelfReferential {
+    #[metastructure(pii = "true")]
+    pretty_sensitive: String,
+    // Tests that it doesn't get stuck in an infinite loop.
+    oh_no_its_self_referential: Box<SelfReferential>,
 }
