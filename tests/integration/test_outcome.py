@@ -1128,3 +1128,66 @@ def test_profile_outcomes(
         outcome.pop("timestamp")
 
     assert outcomes == expected_outcomes, outcomes
+
+
+def test_profile_outcomes_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    """
+    Tests that Relay reports correct outcomes for profiles.
+
+    Have a chain of many relays that eventually connect to Sentry
+    and verify that the outcomes sent by the first relay
+    are properly forwarded up to sentry.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "processing-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(config)
+
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        return envelope
+
+    upstream.send_envelope(project_id, make_envelope())
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = []
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+
+    assert outcomes == expected_outcomes, outcomes
