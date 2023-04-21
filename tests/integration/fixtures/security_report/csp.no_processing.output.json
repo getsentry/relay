@@ -16,7 +16,6 @@
     "blocked_uri": "http://evilhackerscripts.com",
     "document_uri": "https://example.com/foo/bar",
     "effective_directive": "default-src",
-    "effective_directive_full": "default-src",
     "original_policy": "default-src self; report-uri /csp-hotline.php",
     "referrer": "https://www.google.com/",
     "violated_directive": "default-src self"

@@ -4,7 +4,6 @@
     "referrer": "",
     "violated-directive": "style-src cdn.example.com",
     "effective-directive": "style-src",
-    "effective-directive_full": "style-src",
     "original-policy": "default-src 'none'; style-src cdn.example.com; report-uri http://requestb.in/1im8m061",
     "blocked-uri": "http://notlocalhost:8000/lol.css",
     "status-code": 200
