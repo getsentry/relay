@@ -94,10 +94,12 @@
 //! ```
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 mod android;
 mod cocoa;
 mod error;
+mod extract_from_transaction;
 mod measurements;
 mod native_debug_image;
 mod outcomes;
@@ -105,13 +107,15 @@ mod sample;
 mod transaction_metadata;
 mod utils;
 
-use relay_general::protocol::EventId;
+use relay_general::protocol::{Event, EventId};
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
+use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
+use crate::sample::{parse_sample_profile, Version};
+
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
-use crate::sample::{parse_sample_profile, Version};
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
@@ -126,15 +130,26 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-pub fn expand_profile(payload: &[u8]) -> Result<(EventId, Vec<u8>), ProfileError> {
+pub fn expand_profile(
+    payload: &[u8],
+    event: Option<&Event>,
+) -> Result<(EventId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => return Err(err),
     };
+    let (transaction_metadata, transaction_tags) = match event {
+        Some(event) => (
+            extract_transaction_metadata(event),
+            extract_transaction_tags(event),
+        ),
+        _ => (BTreeMap::new(), BTreeMap::new()),
+    };
+
     let processed_payload = match profile.version {
-        Version::V1 => parse_sample_profile(payload),
+        Version::V1 => parse_sample_profile(payload, transaction_metadata, transaction_tags),
         Version::Unknown => match profile.platform.as_str() {
-            "android" => parse_android_profile(payload),
+            "android" => parse_android_profile(payload, transaction_metadata, transaction_tags),
             "cocoa" => parse_cocoa_profile(payload),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
@@ -165,12 +180,12 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        assert!(expand_profile(payload).is_ok());
+        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
-        assert!(expand_profile(payload).is_ok());
+        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
     }
 }
