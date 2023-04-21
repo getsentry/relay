@@ -692,7 +692,7 @@ impl BufferService {
             }
             BufferState::MemoryFileStandby {
                 ref mut ram,
-                ref mut disk,
+                ref disk,
             } => {
                 ram.enqueue(key, managed_envelope);
 
@@ -731,14 +731,11 @@ impl BufferService {
         } = message;
 
         match self.state {
-            BufferState::Memory { ref mut ram } => {
+            BufferState::Memory { ref mut ram }
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 ram.dequeue(&keys, sender);
             }
-            BufferState::MemoryFileStandby {
-                ref mut ram,
-                ref disk,
-            }
-            | BufferState::MemoryFileRead {
+            BufferState::MemoryFileRead {
                 ref mut ram,
                 ref disk,
             } => {
@@ -777,12 +774,11 @@ impl BufferService {
         let mut count: usize = 0;
 
         match self.state {
-            BufferState::Memory { ref mut ram } => count += ram.remove(&keys),
-            BufferState::MemoryFileRead {
-                ref mut ram,
-                ref disk,
+            BufferState::Memory { ref mut ram }
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
+                count += ram.remove(&keys);
             }
-            | BufferState::MemoryFileStandby {
+            BufferState::MemoryFileRead {
                 ref mut ram,
                 ref disk,
             } => {
