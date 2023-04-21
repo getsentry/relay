@@ -54,11 +54,16 @@ impl GeoIpLookup {
                     .as_ref()
                     .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_string())),
             ),
-            subdivisions: Annotated::from(
-                city.subdivisions
-                    .as_ref()
-                    .and_then(|subdivisions| Some(subdivisions.names.as_ref()?.get("en")?.to_string())),
-            ),
+            subdivisions: Annotated::from(city.subdivisions.as_ref().and_then(|subdivisions| {
+                subdivisions.get(0).and_then(|subdivision| {
+                    subdivision.names.as_ref().and_then(|subdivision_names| {
+                        subdivision_names
+                            .get("en")
+                            .cloned()
+                            .map(|subdivision_name| subdivision_name.to_string())
+                    })
+                })
+            })),
             region: Annotated::from(
                 city.country
                     .as_ref()
