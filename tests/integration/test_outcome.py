@@ -1166,9 +1166,9 @@ def test_profile_outcomes_invalid(
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
 
-    # The innermost Relay needs to be in processing mode
     upstream = relay_with_processing(config)
 
+    # Create an envelope with an invalid profile:
     def make_envelope():
         payload = _get_event_payload("transaction")
         envelope = Envelope()
@@ -1181,13 +1181,36 @@ def test_profile_outcomes_invalid(
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
         return envelope
 
-    upstream.send_envelope(project_id, make_envelope())
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = []
+    expected_outcomes = [
+        {
+            "category": 6,  # Profile
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,  # Accepted
+            "project_id": 42,
+            "quantity": 1,
+            "source": "processing-relay",
+        },
+        {
+            "category": 11,  # ProfileIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "processing-relay",
+        },
+    ]
     for outcome in outcomes:
         outcome.pop("timestamp")
+        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
