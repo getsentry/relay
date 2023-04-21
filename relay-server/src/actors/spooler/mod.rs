@@ -640,9 +640,20 @@ impl BufferService {
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let on_disk_state = Self::prepare_disk_state(config.clone(), buffer_guard).await?;
+        let mut state = BufferState::init(config.spool_envelopes_max_memory_size(), on_disk_state);
+
+        // When the old db file is picked up and it is not empty, we can also try to read from it
+        // on dequeue requests.
+        if let BufferState::MemoryFileStandby { disk, .. } = &state {
+            if !disk.is_empty().await.unwrap_or_default() {
+                state =
+                    BufferState::to_memory_file_ro(config.spool_envelopes_max_memory_size(), disk)
+            }
+        }
+
         Ok(Self {
             services,
-            state: BufferState::init(config.spool_envelopes_max_memory_size(), on_disk_state),
+            state,
             config,
         })
     }
