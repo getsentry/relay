@@ -94,6 +94,7 @@ mod tests {
         let json = r#"{
   "country_code": "US",
   "city": "San Francisco",
+  "subdivision": "California",
   "region": "CA",
   "other": "value"
 }"#;
