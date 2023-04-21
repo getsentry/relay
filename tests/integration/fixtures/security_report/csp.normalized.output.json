@@ -56,7 +56,6 @@
   },
   "csp": {
     "effective_directive": "default-src",
-    "effective_directive_full": "default-src",
     "blocked_uri": "http://evilhackerscripts.com",
     "document_uri": "https://example.com/foo/bar",
     "original_policy": "default-src self; report-uri /csp-hotline.php",

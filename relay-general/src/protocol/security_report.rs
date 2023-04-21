@@ -1942,4 +1942,27 @@ mod tests {
             Ok(CspDirective::DefaultSrc)
         ));
     }
+
+    #[test]
+    fn test_effective_directive_full() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
+            }
+        }"#;
+
+        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
+        let raw_csp = raw_report.csp_report;
+
+        let effective_directive = raw_csp.effective_directive().unwrap();
+        let csp = raw_csp.into_protocol(effective_directive);
+
+        assert_eq!(effective_directive, CspDirective::ScriptSrc);
+        assert_eq!(
+            csp.effective_directive_full.value().unwrap(),
+            "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random"
+        );
+    }
 }
