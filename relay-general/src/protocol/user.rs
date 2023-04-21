@@ -14,6 +14,10 @@ pub struct Geo {
     #[metastructure(pii = "true", max_chars = "summary")]
     pub city: Annotated<String>,
 
+    /// Human readable subdivision name.
+    #[metastructure(pii = "true", max_chars = "summary")]
+    pub subdivisions: Annotated<String>,
+
     /// Human readable region name or code.
     #[metastructure(pii = "true", max_chars = "summary")]
     pub region: Annotated<String>,
@@ -96,6 +100,7 @@ mod tests {
         let geo = Annotated::new(Geo {
             country_code: Annotated::new("US".to_string()),
             city: Annotated::new("San Francisco".to_string()),
+            subdivisions: Annotated::new("California".to_string()),
             region: Annotated::new("CA".to_string()),
             other: {
                 let mut map = Map::new();
@@ -117,6 +122,7 @@ mod tests {
         let geo = Annotated::new(Geo {
             country_code: Annotated::empty(),
             city: Annotated::empty(),
+            subdivisions: Annotated::empty(),
             region: Annotated::empty(),
             other: Object::default(),
         });
