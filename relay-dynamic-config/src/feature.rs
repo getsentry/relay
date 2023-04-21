@@ -15,11 +15,6 @@ pub enum Feature {
     ///
     /// Enables device.class tag synthesis on mobile events.
     DeviceClassSynthesis,
-    /// Unused.
-    ///
-    /// This used to control the initial experimental metrics extraction for sessions and has been
-    /// discontinued.
-    Deprecated1,
     /// Forward compatibility.
     Unknown(String),
 }
@@ -37,7 +32,6 @@ impl<'de> Deserialize<'de> for Feature {
                 Feature::SessionReplayRecordingScrubbing
             }
             "organizations:device-class-synthesis" => Feature::DeviceClassSynthesis,
-            "organizations:metrics-extraction" => Feature::Deprecated1,
             _ => Feature::Unknown(feature_name.to_string()),
         })
     }
@@ -55,7 +49,6 @@ impl Serialize for Feature {
                 "organizations:session-replay-recording-scrubbing"
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
-            Feature::Deprecated1 => "organizations:metrics-extraction",
             Feature::Unknown(s) => s,
         })
     }

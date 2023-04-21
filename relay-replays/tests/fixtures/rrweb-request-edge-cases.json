@@ -1,0 +1,41 @@
+[
+    {
+        "type": 5,
+        "timestamp": 1680009712.507,
+        "data": {
+            "tag": "performanceSpan 127.0.0.1",
+            "payload": {
+                "op": "resource.fetch 4111-1111-1111-1111",
+                "description": "https://domain.com/api 4111-1111-1111-1111 127.0.0.1",
+                "startTimestamp": 1680009712.507,
+                "endTimestamp": 1680009712.671,
+                "data": {
+                    "method": "POST 127.0.0.1",
+                    "statusCode": 200,
+                    "request": {
+                        "size": 2949,
+                        "body": {
+                            "api_key": "foobar",
+                            "events": [],
+                            "options": {
+                                "min_id_length": 1
+                            }
+                        },
+                        "passwd": "scrub this password",
+                        "whatever": "scrub this IP: 127.0.0.1"
+                    },
+                    "response": {
+                        "size": 94,
+                        "body": {
+                            "code": 200,
+                            "server_upload_time": 1680009712652,
+                            "payload_size_bytes": 2949,
+                            "events_ingested": 5
+                        }
+                    },
+                    "token": "scrub this token"
+                }
+            }
+        }
+    }
+]
