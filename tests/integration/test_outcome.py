@@ -1136,11 +1136,7 @@ def test_profile_outcomes_invalid(
     outcomes_consumer,
 ):
     """
-    Tests that Relay reports correct outcomes for profiles.
-
-    Have a chain of many relays that eventually connect to Sentry
-    and verify that the outcomes sent by the first relay
-    are properly forwarded up to sentry.
+    Tests that Relay reports correct outcomes for invalid profiles as `ProfileIndexed`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
 
