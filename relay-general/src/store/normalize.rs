@@ -1244,7 +1244,7 @@ mod tests {
         let expected = Annotated::new(Geo {
             country_code: Annotated::new("GB".to_string()),
             city: Annotated::new("Boxford".to_string()),
-            subdivision: Annotated::new("Sudbury".to_string()),
+            subdivision: Annotated::new("England".to_string()),
             region: Annotated::new("United Kingdom".to_string()),
             ..Geo::default()
         });
