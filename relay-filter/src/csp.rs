@@ -29,6 +29,9 @@ where
         if matches_any_origin(csp.source_file.as_str(), &disallowed_sources) {
             return true;
         }
+        if matches_any_origin(csp.document_uri.as_str(), &disallowed_sources) {
+            return true;
+        }
     }
     false
 }
