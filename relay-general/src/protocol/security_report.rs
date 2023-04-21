@@ -233,12 +233,13 @@ impl CspRaw {
             }
         }
 
-        self.violated_directive
+        let parsed_directive = self
+            .violated_directive
             .split_once(' ')
-            .map_or(&*self.violated_directive, |x| x.0)
-            .parse()
-            .ok()
-            .ok_or(InvalidSecurityError)
+            .map_or(self.violated_directive.as_str(), |s| s.0)
+            .parse();
+
+        parsed_directive.ok().ok_or(InvalidSecurityError)
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
