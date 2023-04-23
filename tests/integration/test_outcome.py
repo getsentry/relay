@@ -1128,3 +1128,88 @@ def test_profile_outcomes(
         outcome.pop("timestamp")
 
     assert outcomes == expected_outcomes, outcomes
+
+
+@pytest.mark.parametrize("extract_metrics", [False, True])
+def test_profile_outcomes_rate_limited(
+    mini_sentry, relay_with_processing, outcomes_consumer, extract_metrics
+):
+    """
+    Profiles that are rate limited before metrics extraction should count towards `Profile`.
+    Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": ["profile"],
+            "limit": 0,
+            "reasonCode": "profiles_exceeded",
+        }
+    ]
+    if extract_metrics:
+        project_config["transactionMetrics"] = {
+            "version": 1,
+        }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 0,
+            },
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 11 if extract_metrics else 6,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,  # RateLimited
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiles_exceeded",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes

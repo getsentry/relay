@@ -446,14 +446,15 @@ where
     /// Returns a dedicated data category for indexing if metrics are to be extracted.
     ///
     /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
-    /// extraction is enabled for this category. At this point, this is only true for transactions:
+    /// extraction is enabled for this category. At this point, this is only true for transactions
+    /// and profiles:
     ///
     ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
     ///    are exhausted, both the event and metrics are dropped.
     ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
     ///    category are exhausted, just the event payload is dropped, but metrics are kept.
     fn index_category(&self, category: DataCategory) -> Option<DataCategory> {
-        if category != DataCategory::Transaction {
+        if !(category == DataCategory::Transaction || category == DataCategory::Profile) {
             return None;
         }
 
@@ -548,7 +549,8 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                DataCategory::Profile,
+                self.index_category(DataCategory::Profile)
+                    .unwrap_or(DataCategory::Profile),
                 summary.profile_quantity,
                 profile_limits.longest(),
             );

@@ -197,6 +197,7 @@ impl DataCategory {
     pub fn index_category(self) -> Option<Self> {
         match self {
             Self::Transaction => Some(Self::TransactionIndexed),
+            Self::Profile => Some(Self::ProfileIndexed),
             _ => None,
         }
     }
