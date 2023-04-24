@@ -12,6 +12,7 @@
 - Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 - Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
 - Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
+- Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
 
 ## 23.4.0
 
