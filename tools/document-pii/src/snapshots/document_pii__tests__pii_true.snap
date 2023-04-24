@@ -3,11 +3,25 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "InnerGeneric.bitcoin_wallet_key",
-    "MyStruct.foo",
-    "MyStruct.sub_struct.field2",
-    "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
-    "SelfReferential.pretty_sensitive",
-    "SubStruct.field2",
-    "SubStruct.mystery_field.bitcoin_wallet_key",
+    Pii {
+        path: "InnerGeneric.bitcoin_wallet_key",
+    },
+    Pii {
+        path: "MyStruct.foo",
+    },
+    Pii {
+        path: "MyStruct.sub_struct.field2",
+    },
+    Pii {
+        path: "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
+    },
+    Pii {
+        path: "SelfReferential.pretty_sensitive",
+    },
+    Pii {
+        path: "SubStruct.field2",
+    },
+    Pii {
+        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+    },
 ]

@@ -3,5 +3,7 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "FooBar.not_sensitive",
+    Pii {
+        path: "FooBar.not_sensitive",
+    },
 ]

@@ -3,11 +3,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use clap::{App, Arg, ArgMatches};
+use clap::{command, Arg, ArgMatches, Parser, ValueEnum};
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fs;
+use std::fs::{self, File};
 use std::hash::Hash;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use syn::punctuated::Punctuated;
@@ -103,7 +104,7 @@ struct TypeAndField {
     field_name: String,
 }
 
-fn find_rs_files(dir: &str) -> Vec<std::path::PathBuf> {
+fn find_rs_files(dir: &PathBuf) -> Vec<std::path::PathBuf> {
     let walker = WalkDir::new(dir).into_iter();
     let mut rs_files = Vec::new();
 
@@ -339,90 +340,91 @@ fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
     }
 }
 
-fn get_argmatches() -> ArgMatches {
-    let current_dir = {
-        let current_dir = std::env::current_dir().unwrap();
-        current_dir.to_string_lossy().to_string()
-    };
+fn print_error(error: &anyhow::Error) {
+    eprintln!("Error: {error}");
 
-    App::new("PII attribute finder")
-        .about("Tests PII paths in Rust structs and enums")
-        .arg(
-            Arg::new("path")
-                .short('p')
-                .long("path")
-                .default_value(&current_dir)
-                .value_name("PATH")
-                .help("Path to your crate/workspace")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("item")
-                .short('i')
-                .long("item")
-                .value_name("ITEM")
-                .help("Path to the struct or enum to test (e.g., relay_protocol::common::event)")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("unnamed")
-                .long("unnamed")
-                .value_name("UNNAMED")
-                .default_value("")
-                .help("Placeholder for unnamed fields")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("pii")
-                .long("pii")
-                .value_name("PII")
-                .multiple_values(true)
-                .default_values(&["true"])
-                .help("Which pii values should it find? true/false/maybe")
-                .takes_value(true),
-        )
-        .get_matches()
+    let mut cause = error.source();
+    while let Some(ref e) = cause {
+        eprintln!("  caused by: {e}");
+        cause = e.source();
+    }
 }
 
 fn main() {
-    let matches = get_argmatches();
-    let chosen_dir = matches.value_of("path").unwrap();
+    let cli = Cli::parse();
 
-    if !Path::new(&format!("{}/Cargo.toml", &chosen_dir)).exists() {
-        panic!("Cargo.toml not found. Either run this script from a rust crate/workspace, or pass in a valid path with the -p flag");
+    match cli.run() {
+        Ok(()) => (),
+        Err(error) => {
+            print_error(&error);
+            std::process::exit(1);
+        }
     }
-    let pii_values = matches
-        .values_of("pii")
-        .unwrap()
-        .map(|s| s.to_string())
-        .collect();
-
-    let item: Option<&str> = matches.value_of("item");
-
-    run(chosen_dir, pii_values, item);
-    let unnamed_replace = {
-        let mut unnamed_replace = matches.value_of("unnamed").unwrap().to_string();
-        if !unnamed_replace.is_empty() {
-            unnamed_replace.push('.');
-        };
-        unnamed_replace
-    };
-    let output_vec = get_pretty_pii_field_format(unnamed_replace);
-
-    for x in &output_vec {
-        println!("{x}");
-    }
-
-    dbg!(output_vec.len());
 }
 
-fn run(rust_crate: &str, pii_values: Vec<String>, item: Option<&str>) {
+/// Prints documentation for metrics.
+#[derive(Debug, Parser)]
+#[command(verbatim_doc_comment)]
+struct Cli {
+    /// The format to output the documentation in.
+    #[arg(value_enum, short, long, default_value = "json")]
+    format: SchemaFormat,
+
+    /// Optional output path. By default, documentation is printed on stdout.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Path to the rust crate/workspace
+    path: Option<PathBuf>,
+
+    #[arg(short, long)]
+    item: Option<String>,
+
+    #[arg(long, default_value = "true")]
+    pii_values: Vec<String>,
+}
+
+impl Cli {
+    fn write_pii<W: Write>(&self, writer: W, metrics: &[Pii]) -> anyhow::Result<()> {
+        match self.format {
+            SchemaFormat::Json => serde_json::to_writer_pretty(writer, metrics)?,
+            SchemaFormat::Yaml => serde_yaml::to_writer(writer, metrics)?,
+        };
+
+        Ok(())
+    }
+
+    pub fn run(self) -> anyhow::Result<()> {
+        let path = self
+            .path
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap());
+
+        run(&path, &self.pii_values, self.item.as_deref());
+        let output_vec = get_pretty_pii_field_format("".to_string());
+
+        match self.output {
+            Some(ref path) => self.write_pii(File::create(path)?, &output_vec)?,
+            None => self.write_pii(std::io::stdout(), &output_vec)?,
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SchemaFormat {
+    Json,
+    Yaml,
+}
+
+fn run(rust_crate: &PathBuf, pii_values: &Vec<String>, item: Option<&str>) {
     let paths = find_rs_files(rust_crate);
     FileSyntaxVisitor::fill_pii_hashmaps(&paths);
     {
         let mut guard = PII_VALUES.lock().unwrap();
         guard.clear();
-        guard.extend(pii_values);
+        guard.extend(pii_values.clone());
     }
     find_pii_fields(item);
 }
@@ -562,26 +564,34 @@ fn find_pii_fields(item: Option<&str>) {
     }
 }
 
-fn get_pretty_pii_field_format(unnamed_replace: String) -> Vec<String> {
+fn get_pretty_pii_field_format(unnamed_replace: String) -> Vec<Pii> {
     let mut output_vec = vec![];
     for pii in PII_TYPES.lock().unwrap().iter() {
-        let mut output = String::new();
-        output.push_str(&pii[0].qualified_type_name);
+        let mut output = Pii::default();
+        output.path.push_str(&pii[0].qualified_type_name);
 
         for path in pii {
-            output.push_str(&format!(".{}", path.field_name));
+            output.path.push_str(&format!(".{}", path.field_name));
         }
 
-        output = output.replace("{{Unnamed}}.", &unnamed_replace);
+        output.path = output.path.replace("{{Unnamed}}.", &unnamed_replace);
         output_vec.push(output);
     }
-    output_vec.sort();
+    output_vec.sort_by_key(|pii| pii.path.clone());
     output_vec
+}
+
+#[derive(Debug, Serialize, Default)]
+struct Pii {
+    path: String,
+    //description: String,
 }
 
 // Due to global variables, have to both run the tests sequentially as well as clearing the globals
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use serial_test::serial;
 
     use super::*;
@@ -598,7 +608,8 @@ mod tests {
     #[serial]
     fn test_use_statements() {
         clear_globals();
-        run(RUST_CRATE, vec![], None);
+        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        run(&rust_crate, &vec![], None);
         let use_statements = USE_STATEMENTS.lock().unwrap().clone();
         insta::assert_debug_snapshot!(use_statements);
     }
@@ -607,7 +618,8 @@ mod tests {
     #[serial]
     fn test_pii_true() {
         clear_globals();
-        run(RUST_CRATE, vec!["true".into()], None);
+        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        run(&rust_crate, &vec!["true".into()], None);
         let output = get_pretty_pii_field_format("".into());
         insta::assert_debug_snapshot!(output);
     }
@@ -616,7 +628,8 @@ mod tests {
     #[serial]
     fn test_pii_false() {
         clear_globals();
-        run(RUST_CRATE, vec!["false".into()], None);
+        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        run(&rust_crate, &vec!["false".into()], None);
         let output = get_pretty_pii_field_format("".into());
         insta::assert_debug_snapshot!(output);
     }
@@ -625,9 +638,10 @@ mod tests {
     #[serial]
     fn test_pii_all() {
         clear_globals();
+        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
         run(
-            RUST_CRATE,
-            vec!["true".into(), "maybe".into(), "false".into()],
+            &rust_crate,
+            &vec!["true".into(), "maybe".into(), "false".into()],
             None,
         );
         let output = get_pretty_pii_field_format("".into());
