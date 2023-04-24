@@ -376,6 +376,10 @@
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
 <a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -690,7 +694,11 @@
         <span class="kw">if </span><span class="self">self</span>.context.summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome,
-                DataCategory::Profile,
+                <span class="kw">if </span><span class="self">self</span>.context.summary.event_metrics_extracted {
+                    DataCategory::ProfileIndexed
+                } <span class="kw">else </span>{
+                    DataCategory::Profile
+                },
                 <span class="self">self</span>.context.summary.profile_quantity,
             );
         }

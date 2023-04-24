@@ -953,6 +953,79 @@
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1103,13 +1176,17 @@
 <span class="doccomment">/// Defines the possible outcomes from processing an event.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>Outcome {
-    <span class="comment">// /// The event has been accepted and handled completely.
-    // ///
-    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    // #[allow(dead_code)]
-    // Accepted,
-    </span><span class="doccomment">/// The event has been filtered due to a configured filter.
+    <span class="doccomment">/// The event has been accepted and handled completely.
+    ///
+    /// For events and most other types, this is never emitted by Relay as the event
+    /// may be discarded by the processing pipeline after Relay.
+    /// Only the `save_event` task in Sentry finally accepts an event.
+    ///
+    /// The only data type for which this outcome is emitted by Relay is [`DataCategory::Profile`].
+    /// (See [`crate::actors::processor::EnvelopeProcessor`])
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>Accepted,
+    <span class="doccomment">/// The event has been filtered due to a configured filter.
     </span>Filtered(FilterStatKey),
 
     <span class="doccomment">/// The event has been filtered by a Sampling Rule
@@ -1133,6 +1210,8 @@
     <span class="doccomment">/// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     </span><span class="kw">fn </span>to_outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
         <span class="kw">match </span><span class="self">self </span>{
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>Outcome::Accepted =&gt; OutcomeId::ACCEPTED,
             Outcome::Filtered(<span class="kw">_</span>) | Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; OutcomeId::FILTERED,
             Outcome::RateLimited(<span class="kw">_</span>) =&gt; OutcomeId::RATE_LIMITED,
             Outcome::Invalid(<span class="kw">_</span>) =&gt; OutcomeId::INVALID,
@@ -1144,6 +1223,8 @@
     <span class="doccomment">/// Returns the `reason` code field of this outcome.
     </span><span class="kw">fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>Outcome::Accepted =&gt; <span class="prelude-val">None</span>,
             Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_ids) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{rule_ids}&quot;</span>))),
@@ -1176,6 +1257,8 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Outcome {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>Outcome::Accepted =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;accepted&quot;</span>),
             Outcome::Filtered(key) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;filtered by {key}&quot;</span>),
             Outcome::FilteredSampling(rule_ids) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sampling rule {rule_ids}&quot;</span>),
             Outcome::RateLimited(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited&quot;</span>),
@@ -1742,13 +1825,15 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>send_kafka_message(
+    </span><span class="kw">fn </span>send_kafka_message_inner(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         producer: <span class="kw-2">&amp;</span>KafkaOutcomesProducer,
         organization_id: u64,
         message: TrackRawOutcome,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), OutcomeError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, message);
+
+        send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
 
         <span class="kw">let </span>payload = serde_json::to_string(<span class="kw-2">&amp;</span>message).map_err(OutcomeError::SerializationError)<span class="question-mark">?</span>;
 
@@ -1779,11 +1864,23 @@
         }
     }
 
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>send_kafka_message(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        producer: <span class="kw-2">&amp;</span>KafkaOutcomesProducer,
+        organization_id: u64,
+        message: TrackRawOutcome,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), OutcomeError&gt; {
+        <span class="kw">for </span>message <span class="kw">in </span>transform_outcome(message) {
+            <span class="self">self</span>.send_kafka_message_inner(producer, organization_id, message)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, message: TrackOutcome, config: <span class="kw-2">&amp;</span>Config) {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
-                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
                 <span class="kw">let </span>organization_id = message.scoping.organization_id;
                 <span class="kw">let </span>raw_message = TrackRawOutcome::from_outcome(message, config);
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) =
@@ -1808,7 +1905,6 @@
         <span class="kw">match </span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
-                send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
                 <span class="kw">let </span>sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, sharding_id, message) {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
@@ -1822,6 +1918,56 @@
             <span class="self">Self</span>::Disabled =&gt; (),
         }
     }
+}
+
+<span class="doccomment">/// Returns true if the outcome represents profiles dropped by dynamic sampling.
+</span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">fn </span>is_sampled_profile(outcome: <span class="kw-2">&amp;</span>TrackRawOutcome) -&gt; bool {
+    <span class="comment">// Older external Relays will still emit a `Profile` outcome.
+    // Newer Relays will emit a `ProfileIndexed` outcome.
+    </span>(outcome.category == <span class="prelude-val">Some</span>(DataCategory::Profile <span class="kw">as </span>u8)
+        || outcome.category == <span class="prelude-val">Some</span>(DataCategory::ProfileIndexed <span class="kw">as </span>u8))
+        &amp;&amp; outcome.outcome == OutcomeId::FILTERED
+        &amp;&amp; outcome
+            .reason
+            .as_deref()
+            .map_or(<span class="bool-val">false</span>, |reason| reason.starts_with(<span class="string">&quot;Sampled:&quot;</span>))
+}
+
+<span class="doccomment">/// Transform outcome into one or more derived outcome messages before sending it to kafka.
+</span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">fn </span>transform_outcome(<span class="kw-2">mut </span>outcome: TrackRawOutcome) -&gt; <span class="kw">impl </span>Iterator&lt;Item = TrackRawOutcome&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>extra = <span class="prelude-val">None</span>;
+    <span class="kw">if </span>is_sampled_profile(<span class="kw-2">&amp;</span>outcome) {
+        <span class="comment">// Profiles that were dropped by dynamic sampling still count as &quot;processed&quot;,
+        // so we emit the FILTERED outcome only for the &quot;indexed&quot; category instead.
+        </span>outcome.category = <span class="prelude-val">Some</span>(DataCategory::ProfileIndexed <span class="kw">as </span>u8);
+
+        <span class="comment">// &quot;processed&quot; profiles are an abstract data category that does not represent actual data
+        // going through our pipeline. Instead, the number of accepted &quot;processed&quot; profiles is counted as
+        //
+        //     processed_profiles = indexed_profiles + sampled_profiles
+        //
+        // The &quot;processed&quot; outcome for indexed_profiles is generated in processing
+        // (see `EnvelopeProcessor::count_processed_profiles()`),
+        // but for profiles dropped by dynamic sampling, all we have is the FILTERED outcome,
+        // which we transform into an ACCEPTED outcome here.
+        //
+        // The reason for doing this transformation in the kafka producer is that it should apply
+        // to both `TrackOutcome` and `TrackRawOutcome`, and it should only happen _once_.
+        //
+        // In the future, we might actually extract metrics from profiles before dynamic sampling,
+        // like we do for transactions. At that point, this code should be removed, and we should
+        // enforce rate limits and emit outcomes based on the collect profile metric, as we do for
+        // transactions.
+        </span>extra = <span class="prelude-val">Some</span>(TrackRawOutcome {
+            outcome: OutcomeId::ACCEPTED,
+            reason: <span class="prelude-val">None</span>,
+            category: <span class="prelude-val">Some</span>(DataCategory::Profile <span class="kw">as </span>u8),
+            ..outcome.clone()
+        });
+    }
+    <span class="prelude-val">Some</span>(outcome).into_iter().chain(extra)
 }
 
 <span class="attr">#[derive(Debug)]
