@@ -59,7 +59,6 @@ impl GeoIpLookup {
                     subdivision.names.as_ref().and_then(|subdivision_names| {
                         subdivision_names
                             .get("en")
-                            .cloned()
                             .map(|subdivision_name| subdivision_name.to_string())
                     })
                 })
