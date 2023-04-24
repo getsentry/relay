@@ -3008,6 +3008,7 @@
 <a href="#3007" id="3007">3007</a>
 <a href="#3008" id="3008">3008</a>
 <a href="#3009" id="3009">3009</a>
+<a href="#3010" id="3010">3010</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -4254,6 +4255,7 @@
         <span class="kw">let </span>expected = Annotated::new(Geo {
             country_code: Annotated::new(<span class="string">&quot;GB&quot;</span>.to_string()),
             city: Annotated::new(<span class="string">&quot;Boxford&quot;</span>.to_string()),
+            subdivision: Annotated::new(<span class="string">&quot;England&quot;</span>.to_string()),
             region: Annotated::new(<span class="string">&quot;United Kingdom&quot;</span>.to_string()),
             ..Geo::default()
         });
