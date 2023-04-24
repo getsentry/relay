@@ -1131,8 +1131,13 @@ def test_profile_outcomes(
 
 
 @pytest.mark.parametrize("metrics_already_extracted", [False, True])
+@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
 def test_profile_outcomes_rate_limited(
-    mini_sentry, relay_with_processing, outcomes_consumer, metrics_already_extracted
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_already_extracted,
+    quota_category,
 ):
     """
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
@@ -1147,7 +1152,7 @@ def test_profile_outcomes_rate_limited(
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "categories": ["profile"],
+            "categories": [quota_category],
             "limit": 0,
             "reasonCode": "profiles_exceeded",
         }
@@ -1190,7 +1195,22 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    expected_outcomes = []
+    if quota_category == "transaction":
+        # Transaction got rate limited as well:
+        expected_outcomes += [
+            {
+                "category": 2,  # Transaction
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,  # RateLimited
+                "project_id": 42,
+                "quantity": 1,
+                "reason": "profiles_exceeded",
+            },
+        ]
+
+    expected_outcomes += [
         {
             "category": 11 if metrics_already_extracted else 6,
             "key_id": 123,
