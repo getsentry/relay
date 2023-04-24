@@ -183,7 +183,7 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
 #[serde(rename_all = "kebab-case")]
 struct CspRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
-    effective_directive: Option<String>,
+    effective_directive: Option<CspDirective>,
     #[serde(default = "CspRaw::default_blocked_uri")]
     blocked_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -222,24 +222,16 @@ impl CspRaw {
         //
         // refs: https://bugzil.la/1192684#c8
 
-        if let Some(directive) = &self.effective_directive {
-            let parsed_directive = directive
-                .split_once(' ')
-                .map_or(directive.as_str(), |s| s.0)
-                .parse();
-
-            if parsed_directive.is_ok() {
-                return parsed_directive;
-            }
+        if let Some(directive) = self.effective_directive {
+            return Ok(directive);
         }
 
-        let parsed_directive = self
-            .violated_directive
+        self.violated_directive
             .split_once(' ')
-            .map_or(self.violated_directive.as_str(), |s| s.0)
-            .parse();
-
-        parsed_directive.ok().ok_or(InvalidSecurityError)
+            .map_or(&*self.violated_directive, |x| x.0)
+            .parse()
+            .ok()
+            .ok_or(InvalidSecurityError)
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
@@ -293,10 +285,9 @@ impl CspRaw {
         }
     }
 
-    fn into_protocol(self, parsed_effective_directive: CspDirective) -> Csp {
+    fn into_protocol(self, effective_directive: CspDirective) -> Csp {
         Csp {
-            effective_directive: Annotated::from(parsed_effective_directive.to_string()),
-            effective_directive_full: Annotated::from(self.effective_directive),
+            effective_directive: Annotated::from(effective_directive.to_string()),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -456,9 +447,6 @@ pub struct Csp {
     /// The directive whose enforcement caused the violation.
     #[metastructure(pii = "true")]
     pub effective_directive: Annotated<String>,
-    /// The original value of 'effective-directory'
-    #[metastructure(pii = "true")]
-    pub effective_directive_full: Annotated<String>,
     /// The URI of the resource that was blocked from loading by the Content Security Policy.
     #[metastructure(pii = "true")]
     pub blocked_uri: Annotated<String>,
@@ -1172,7 +1160,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "style-src",
-            "effective_directive_full": "style-src",
             "blocked_uri": "http://example.com/lol.css",
             "document_uri": "http://example.com",
             "violated_directive": "style-src cdn.example.com"
@@ -1214,7 +1201,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "script-src",
-            "effective_directive_full": "script-src",
             "blocked_uri": "self",
             "document_uri": "http://example.com",
             "violated_directive": ""
@@ -1324,7 +1310,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "script-src",
-            "effective_directive_full": "script-src",
             "blocked_uri": "http://baddomain.com/test.js?_=1515535030116",
             "document_uri": "https://sentry.io/sentry/csp/issues/88513416/",
             "original_policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
@@ -1942,28 +1927,5 @@ mod tests {
             csp_raw.effective_directive(),
             Ok(CspDirective::DefaultSrc)
         ));
-    }
-
-    #[test]
-    fn test_effective_directive_full() {
-        let json = r#"{
-            "csp-report": {
-                "document-uri": "http://example.com/foo",
-                "effective-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
-                "blocked-uri": "data"
-            }
-        }"#;
-
-        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
-        let raw_csp = raw_report.csp_report;
-
-        let effective_directive = raw_csp.effective_directive().unwrap();
-        let csp = raw_csp.into_protocol(effective_directive);
-
-        assert_eq!(effective_directive, CspDirective::ScriptSrc);
-        assert_eq!(
-            csp.effective_directive_full.value().unwrap(),
-            "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random"
-        );
     }
 }
