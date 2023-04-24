@@ -446,15 +446,14 @@ where
     /// Returns a dedicated data category for indexing if metrics are to be extracted.
     ///
     /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
-    /// extraction is enabled for this category. At this point, this is only true for transactions
-    /// and profiles:
+    /// extraction is enabled for this category. At this point, this is only true for transactions:
     ///
     ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
     ///    are exhausted, both the event and metrics are dropped.
     ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
     ///    category are exhausted, just the event payload is dropped, but metrics are kept.
     fn index_category(&self, category: DataCategory) -> Option<DataCategory> {
-        if !(category == DataCategory::Transaction || category == DataCategory::Profile) {
+        if category != DataCategory::Transaction {
             return None;
         }
 
