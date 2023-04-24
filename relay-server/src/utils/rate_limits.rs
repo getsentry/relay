@@ -511,8 +511,13 @@ where
 
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
+            let profile_category = if summary.event_metrics_extracted {
+                DataCategory::ProfileIndexed
+            } else {
+                DataCategory::Profile
+            };
             enforcement.profiles =
-                CategoryLimit::new(DataCategory::Profile, summary.profile_quantity, longest);
+                CategoryLimit::new(profile_category, summary.profile_quantity, longest);
 
             rate_limits.merge(event_limits);
         }
@@ -549,8 +554,11 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                self.index_category(DataCategory::Profile)
-                    .unwrap_or(DataCategory::Profile),
+                if summary.event_metrics_extracted {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
                 summary.profile_quantity,
                 profile_limits.longest(),
             );

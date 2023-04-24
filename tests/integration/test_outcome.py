@@ -1130,9 +1130,9 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
-@pytest.mark.parametrize("extract_metrics", [False, True])
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 def test_profile_outcomes_rate_limited(
-    mini_sentry, relay_with_processing, outcomes_consumer, extract_metrics
+    mini_sentry, relay_with_processing, outcomes_consumer, metrics_already_extracted
 ):
     """
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
@@ -1152,10 +1152,6 @@ def test_profile_outcomes_rate_limited(
             "reasonCode": "profiles_exceeded",
         }
     ]
-    if extract_metrics:
-        project_config["transactionMetrics"] = {
-            "version": 1,
-        }
 
     config = {
         "outcomes": {
@@ -1179,19 +1175,16 @@ def test_profile_outcomes_rate_limited(
         profile = f.read()
 
     # Create an envelope with an invalid profile:
-    def make_envelope():
-        payload = _get_event_payload("transaction")
-        envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=json.dumps(payload).encode()),
-                type="transaction",
-            )
+    payload = _get_event_payload("transaction")
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=json.dumps(payload).encode()),
+            type="transaction",
+            headers={"metrics_extracted": metrics_already_extracted},
         )
-        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
-        return envelope
-
-    envelope = make_envelope()
+    )
+    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
     upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
@@ -1199,7 +1192,7 @@ def test_profile_outcomes_rate_limited(
 
     expected_outcomes = [
         {
-            "category": 11 if extract_metrics else 6,
+            "category": 11 if metrics_already_extracted else 6,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,  # RateLimited
