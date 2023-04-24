@@ -1090,6 +1090,7 @@ impl EnvelopeProcessorService {
     /// In the future, we might actually extract metrics from profiles before dynamic sampling,
     /// like we do for transactions. At that point, this code should be removed, and we should
     /// enforce rate limits and emit outcomes based on the collect profile metric, as we do for
+    /// transactions.
     #[cfg(feature = "processing")]
     fn count_processed_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profile_count: usize = state
