@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+
 ## 0.8.21
 
 - Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
