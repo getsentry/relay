@@ -50,21 +50,15 @@ fn check_unsupported_rules(
 
 /// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
-fn get_sampling_match_result(
+fn merge_configs_and_match(
     processing_enabled: bool,
-    project_state: &ProjectState,
-    root_project_state: Option<&ProjectState>,
+    sampling_config: &SamplingConfig,
+    root_sampling_config: Option<&SamplingConfig>,
     dsc: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
+    event: &Event,
     ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
-    // We get all the required data for transaction-based dynamic sampling.
-    let event = event?;
-    let sampling_config = project_state.config.dynamic_sampling.as_ref()?;
-    let root_sampling_config =
-        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-
     // We check if there are unsupported rules in any of the two configurations.
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
 
@@ -98,6 +92,33 @@ fn get_sampling_match_result(
     Some(match_result)
 }
 
+/// Matches the incoming event with the SamplingConfig(s) of the project and root project.
+fn get_sampling_match(
+    processing_enabled: bool,
+    project_state: &ProjectState,
+    root_project_state: Option<&ProjectState>,
+    dsc: Option<&DynamicSamplingContext>,
+    event: Option<&Event>,
+    ip_addr: Option<IpAddr>,
+    now: DateTime<Utc>,
+) -> Option<SamplingMatch> {
+    let event = event?;
+    // We want to extract the SamplingConfig from each project state.
+    let sampling_config = project_state.config.dynamic_sampling.as_ref()?;
+    let root_sampling_config =
+        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
+
+    merge_configs_and_match(
+        processing_enabled,
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+        ip_addr,
+        now,
+    )
+}
+
 /// Checks whether an incoming event should be kept or dropped based on the result of the sampling
 /// configuration match.
 pub fn should_keep_event(
@@ -108,7 +129,7 @@ pub fn should_keep_event(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
-    match get_sampling_match_result(
+    match get_sampling_match(
         processing_enabled,
         project_state,
         root_project_state,
@@ -360,11 +381,11 @@ mod tests {
 
     #[test]
     /// Tests that no match is done when there are no matching rules.
-    fn test_get_sampling_match_result_with_no_match() {
+    fn test_get_sampling_match_with_no_match() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -378,13 +399,13 @@ mod tests {
 
     #[test]
     /// Tests that matching is still done on the transaction rules in case trace params are invalid.
-    fn test_get_sampling_match_result_with_invalid_trace_params() {
+    fn test_get_sampling_match_with_invalid_trace_params() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
 
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -396,7 +417,7 @@ mod tests {
         assert_transaction_match!(result, 0.5, event, 3);
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -410,13 +431,13 @@ mod tests {
 
     #[test]
     /// Tests that a match with early return is done in the project sampling config.
-    fn test_get_sampling_match_result_with_project_config_match() {
+    fn test_get_sampling_match_with_project_config_match() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -430,13 +451,13 @@ mod tests {
 
     #[test]
     /// Tests that a match with early return is done in the root project sampling config.
-    fn test_get_sampling_match_result_with_root_project_config_match() {
+    fn test_get_sampling_match_with_root_project_config_match() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
         let event = mocked_event(EventType::Transaction, "my_transaction", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -450,13 +471,13 @@ mod tests {
 
     #[test]
     /// Tests that the multiple matches are done across root and non-root project sampling configs.
-    fn test_get_sampling_match_result_with_both_project_configs_match() {
+    fn test_get_sampling_match_with_both_project_configs_match() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -471,11 +492,11 @@ mod tests {
     #[test]
     /// Tests that a match is done when no dynamic sampling context and root project state are
     /// available.
-    fn test_get_sampling_match_result_with_no_dynamic_sampling_context_and_no_root_project_state() {
+    fn test_get_sampling_match_with_no_dynamic_sampling_context_and_no_root_project_state() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -489,13 +510,13 @@ mod tests {
 
     #[test]
     /// Tests that a match is done and the sample rate is adjusted when sampling mode is total.
-    fn test_get_sampling_match_result_with_total_sampling_mode_in_project_state() {
+    fn test_get_sampling_match_with_total_sampling_mode_in_project_state() {
         let project_state = mocked_project_state(SamplingMode::Total);
         let root_project_state = mocked_root_project_state(SamplingMode::Total);
         let dsc = mocked_dynamic_sampling_context(Some(0.8), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -510,7 +531,7 @@ mod tests {
     #[test]
     /// Tests that the correct match is raised in case we have unsupported rules with processing both
     /// enabled and disabled.
-    fn test_get_sampling_match_result_with_unsupported_rules() {
+    fn test_get_sampling_match_with_unsupported_rules() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             &mut project_state,
@@ -528,7 +549,7 @@ mod tests {
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             false,
             &project_state,
             Some(&root_project_state),
@@ -539,7 +560,7 @@ mod tests {
         );
         assert_no_match!(result);
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -553,13 +574,13 @@ mod tests {
 
     #[test]
     /// Tests that a no match is raised in case we have an unsupported sampling mode and a match.
-    fn test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
+    fn test_get_sampling_match_with_unsupported_sampling_mode_and_match() {
         let project_state = mocked_project_state(SamplingMode::Unsupported);
         let root_project_state = mocked_root_project_state(SamplingMode::Unsupported);
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -573,12 +594,12 @@ mod tests {
 
     #[test]
     /// Tests that only transaction rules are matched in case no root project or dsc are supplied.
-    fn test_get_sampling_match_result_with_invalid_root_project_and_dsc_combination() {
+    fn test_get_sampling_match_with_invalid_root_project_and_dsc_combination() {
         let project_state = mocked_project_state(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0");
 
         let dsc = mocked_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -590,7 +611,7 @@ mod tests {
         assert_transaction_match!(result, 0.1, event, 1);
 
         let root_project_state = mocked_root_project_state(SamplingMode::Received);
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             Some(&root_project_state),
@@ -604,7 +625,7 @@ mod tests {
 
     #[test]
     /// Tests that a match of a rule of type error with a transaction event results in no match.
-    fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
+    fn test_get_sampling_match_with_transaction_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             &mut project_state,
@@ -619,7 +640,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -633,7 +654,7 @@ mod tests {
 
     #[test]
     /// Tests that a match of a rule of type error with an error event results in a match.
-    fn test_get_sampling_match_result_with_error_event_and_error_rule() {
+    fn test_get_sampling_match_with_error_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             &mut project_state,
@@ -648,7 +669,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Error, "transaction", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -662,7 +683,7 @@ mod tests {
 
     #[test]
     /// Tests that a match of a rule of type default with an error event results in a match.
-    fn test_get_sampling_match_result_with_default_event_and_error_rule() {
+    fn test_get_sampling_match_with_default_event_and_error_rule() {
         let mut project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             &mut project_state,
@@ -677,7 +698,7 @@ mod tests {
         );
         let event = mocked_event(EventType::Default, "transaction", "2.0");
 
-        let result = get_sampling_match_result(
+        let result = get_sampling_match(
             true,
             &project_state,
             None,
@@ -691,7 +712,7 @@ mod tests {
 
     #[test]
     /// Tests that match is returned with sample rate value interpolated with linear decaying function.
-    fn test_get_sampling_match_result_with_linear_decaying_function() {
+    fn test_get_sampling_match_with_linear_decaying_function() {
         let now = Utc::now();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
@@ -706,8 +727,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_transaction_match!(result, 0.75, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
@@ -721,8 +741,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_transaction_match!(result, 1.0, event, 1);
 
         let project_state = project_state_with_config(SamplingConfig {
@@ -736,14 +755,13 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_no_match!(result);
     }
 
     #[test]
     /// Tests that no match is returned when the linear decaying function has invalid time range.
-    fn test_get_sampling_match_result_with_linear_decaying_function_and_invalid_time_range() {
+    fn test_get_sampling_match_with_linear_decaying_function_and_invalid_time_range() {
         let now = Utc::now();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
@@ -758,8 +776,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
@@ -773,8 +790,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_no_match!(result);
 
         let project_state = project_state_with_config(SamplingConfig {
@@ -788,15 +804,13 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         });
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert_no_match!(result);
     }
 
     #[test]
     /// Tests that match is returned when there are multiple decaying rules with factor and sample rate.
-    fn test_get_sampling_match_result_with_multiple_decaying_functions_with_factor_and_sample_rate()
-    {
+    fn test_get_sampling_match_with_multiple_decaying_functions_with_factor_and_sample_rate() {
         let now = Utc::now();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
@@ -821,8 +835,7 @@ mod tests {
             mode: SamplingMode::Received,
         });
 
-        let result =
-            get_sampling_match_result(true, &project_state, None, None, Some(&event), None, now);
+        let result = get_sampling_match(true, &project_state, None, None, Some(&event), None, now);
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
