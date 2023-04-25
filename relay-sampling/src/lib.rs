@@ -884,19 +884,19 @@ fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: &SamplingConfig,
     root_sampling_config: Option<&SamplingConfig>,
-) -> Option<()> {
+) -> Result<(), ()> {
     // When we have unsupported rules disable sampling for non processing relays.
     if sampling_config.has_unsupported_rules()
         || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
     {
         if !processing_enabled {
-            return None;
+            return Err(());
         } else {
             relay_log::error!("found unsupported rules even as processing relay");
         }
     }
 
-    Some(())
+    Ok(())
 }
 
 /// Returns an iterator of references that chains together and merges rules.
@@ -932,7 +932,7 @@ pub fn merge_configs_and_match(
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
-    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
+    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
