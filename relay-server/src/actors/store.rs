@@ -531,6 +531,7 @@ impl StoreService {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
             Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
+            Ok(MetricNamespace::Spans) => KafkaTopic::MetricsTransactions,
             Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
