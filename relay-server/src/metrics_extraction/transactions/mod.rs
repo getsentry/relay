@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, JsonLenientString, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
@@ -212,7 +212,7 @@ pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
-    event: &Event,
+    event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
     project_metrics: &mut Vec<Metric>,  // output parameter
@@ -379,7 +379,7 @@ fn extract_transaction_metrics_inner(
 
 fn extract_span_metrics(
     aggregator_config: &AggregatorConfig,
-    event: &Event,
+    event: &mut Event,
     metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
@@ -387,9 +387,7 @@ fn extract_span_metrics(
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
-    let transaction = event;
-
-    let (Some(_), Some(&end)) = (transaction.start_timestamp.value(), transaction.timestamp.value()) else {
+    let (Some(_), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
         relay_log::debug!("failed to extract the start and the end timestamps from the event");
         return Err(ExtractMetricsError::MissingTimestamp);
     };
@@ -407,38 +405,47 @@ fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    if let Some(spans) = transaction.spans.value() {
+    if let Some(spans) = event.spans.value_mut() {
+        // Collect the shared tags for all the metrics and spans on this transaction
+        let mut shared_tags = BTreeMap::new();
+
+        if let Some(transaction_name) = event.transaction.value() {
+            shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+        }
+
         for span in spans {
-            extract_span_metrics_inner(transaction, span, &timestamp, metrics)?;
+            // TODO(iker): extract the rest of tags for the current span here
+
+            if let Some(user) = event.user.value() {
+                if let Some(value) = get_eventuser_tag(user) {
+                    metrics.push(Metric::new_mri(
+                        MetricNamespace::Spans,
+                        "user",
+                        MetricUnit::None,
+                        MetricValue::set_from_str(&value),
+                        timestamp.clone(),
+                        shared_tags.clone(),
+                    ));
+                }
+            }
+
+            // Add to the span all the tags that exist in the metrics
+            if let Some(span) = span.value_mut() {
+                let span_tags = span.tags.get_or_insert_with(|| BTreeMap::new());
+                for (key, value) in &shared_tags {
+                    // NOTE(iker): if the tag already existed before, we are overwriting it
+                    span_tags.insert(
+                        key.to_owned(),
+                        Annotated::new(JsonLenientString::from(value.to_owned())),
+                    );
+                }
+            }
         }
     }
 
     Ok(())
 }
 
-fn extract_span_metrics_inner(
-    transaction: &Event,
-    _span: &Annotated<Span>,
-    timestamp: &UnixTimestamp,
-    metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
-    if let Some(user) = transaction.user.value() {
-        if let Some(value) = get_eventuser_tag(user) {
-            let user_metric = Metric::new_mri(
-                MetricNamespace::Spans,
-                "user",
-                relay_common::MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp.clone(),
-                BTreeMap::new(),
-            );
-
-            metrics.push(user_metric);
-        }
-    }
-
-    Ok(())
-}
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:

@@ -179,7 +179,7 @@ pub enum MetricNamespace {
     Sessions,
     /// Metrics extracted from transaction events.
     Transactions,
-    // TODO(iker): docs
+    /// TODO(iker): docs
     Spans,
     /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace

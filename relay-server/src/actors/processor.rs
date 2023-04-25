@@ -2084,7 +2084,7 @@ impl EnvelopeProcessorService {
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
-        if let Some(event) = state.event.value() {
+        if let Some(event) = state.event.value_mut() {
             let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
