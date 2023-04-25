@@ -219,9 +219,9 @@ impl InMemory {
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
     fn dequeue(&mut self, keys: &Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
         for key in keys {
-            for value in self.buffer.remove(key).unwrap_or_default() {
-                self.used_memory -= value.estimated_size();
-                sender.send(value).ok();
+            for envelope in self.buffer.remove(key).unwrap_or_default() {
+                self.used_memory -= envelope.estimated_size();
+                sender.send(envelope).ok();
             }
         }
         relay_statsd::metric!(
@@ -229,7 +229,7 @@ impl InMemory {
         );
     }
 
-    /// Enqueues the envelope into in-memory buffer.
+    /// Enqueues the envelope into the in-memory buffer.
     fn enqueue(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
         self.used_memory += managed_envelope.estimated_size();
         self.buffer.entry(key).or_default().push(managed_envelope);
@@ -417,6 +417,15 @@ impl OnDisk {
             .send(UpdateBufferIndex::new(project_key, unused_keys))
     }
 
+    /// Returns `true` if the provided used memory can fit on the disk.
+    async fn can_fit(&self, used_memory: usize) -> bool {
+        self.estimate_spool_size()
+            .await
+            .ok()
+            .and_then(|spool_size| self.max_disk_size.checked_sub(spool_size as usize))
+            .map_or(false, |s| s > used_memory)
+    }
+
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
         let size: i64 = sql::current_size()
@@ -491,7 +500,7 @@ impl BufferState {
     ///
     /// If the on-disk spool is configured, the `BufferState::MemoryDiskStandby` will be returned or
     /// `BufferState::Memory` otherwise.
-    fn init(max_memory_size: usize, on_disk: Option<OnDisk>) -> Self {
+    fn new(max_memory_size: usize, on_disk: Option<OnDisk>) -> Self {
         let in_memory = InMemory {
             buffer: BTreeMap::new(),
             max_memory_size,
@@ -506,9 +515,52 @@ impl BufferState {
         }
     }
 
+    /// Becomes a different state, depdending on the current state and the current conditions of
+    /// underlying spool.
+    async fn update(&mut self, config: &Arc<Config>) -> Result<(), BufferError> {
+        match self {
+            BufferState::Memory { .. } => (),
+            BufferState::MemoryFileStandby { ram, disk } => {
+                if ram.is_full() {
+                    disk.spool(&mut ram.buffer, &mut ram.used_memory).await?;
+                    *self = BufferState::to_file(disk);
+                }
+            }
+            BufferState::File { disk } => {
+                if disk.is_empty().await.unwrap_or_default() {
+                    *self = BufferState::to_memory_file_standby(
+                        config.spool_envelopes_max_memory_size(),
+                        disk,
+                    );
+                    return Ok(());
+                }
+                if disk.is_full().await.unwrap_or_default() {
+                    *self = BufferState::to_memory_file_ro(
+                        config.spool_envelopes_max_memory_size(),
+                        disk,
+                    );
+                }
+            }
+            BufferState::MemoryFileRead { ram, disk } => {
+                if disk.is_empty().await.unwrap_or_default() {
+                    *self = BufferState::to_memory_file_standby(
+                        config.spool_envelopes_max_memory_size(),
+                        disk,
+                    );
+                    return Ok(());
+                }
+                if disk.can_fit(ram.used_memory).await {
+                    disk.spool(&mut ram.buffer, &mut ram.used_memory).await?;
+                    *self = BufferState::to_file(disk);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Creates `BufferState::MemoryDiskStandby` from provided disk reference and maximum in-memory
     /// buffer size.
-    fn to_memory(max_memory_size: usize, disk: &OnDisk) -> Self {
+    fn to_memory_file_standby(max_memory_size: usize, disk: &OnDisk) -> Self {
         let ram = InMemory::new(max_memory_size);
         let disk = OnDisk::new(
             disk.db.clone(),
@@ -640,7 +692,7 @@ impl BufferService {
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
         let on_disk_state = Self::prepare_disk_state(config.clone(), buffer_guard).await?;
-        let mut state = BufferState::init(config.spool_envelopes_max_memory_size(), on_disk_state);
+        let mut state = BufferState::new(config.spool_envelopes_max_memory_size(), on_disk_state);
 
         // When the old db file is picked up and it is not empty, we can also try to read from it
         // on dequeue requests.
@@ -667,53 +719,21 @@ impl BufferService {
 
         match self.state {
             BufferState::Memory { ref mut ram } => ram.enqueue(key, managed_envelope),
+            BufferState::MemoryFileStandby { ref mut ram, .. } => {
+                ram.enqueue(key, managed_envelope);
+                self.state.update(&self.config).await?;
+            }
+            BufferState::File { ref disk } => {
+                disk.enqueue(key, managed_envelope).await?;
+                self.state.update(&self.config).await?;
+            }
             // Will buffer till either there free space on disk, and the in-memory buffer can be
             // spooled, or there is OOM.
             // NOTE: Right now the number of envelopes is still restricted by
             // `cache.envelope_buffer_size` and they will be dropped once the limit is reached.
-            BufferState::MemoryFileRead {
-                ref mut ram,
-                ref disk,
-            } => {
+            BufferState::MemoryFileRead { ref mut ram, .. } => {
                 ram.enqueue(key, managed_envelope);
-
-                // If there is enough space on the disk for the in-memory buffer, spool
-                // everyhting to disk and switch state to `BufferState::File`.
-                if let Ok(spool_size) = disk.estimate_spool_size().await {
-                    if disk
-                        .max_disk_size
-                        .checked_sub(spool_size as usize)
-                        .map_or(false, |s| s > ram.used_memory)
-                    {
-                        disk.spool(&mut ram.buffer, &mut ram.used_memory).await?;
-                        self.state = BufferState::to_file(disk);
-                    }
-                }
-            }
-            BufferState::MemoryFileStandby {
-                ref mut ram,
-                ref disk,
-            } => {
-                ram.enqueue(key, managed_envelope);
-
-                // If memory buffer is full, spool to disk and switch state to
-                // `BufferState::File`.
-                if ram.is_full() {
-                    disk.spool(&mut ram.buffer, &mut ram.used_memory).await?;
-                    self.state = BufferState::to_file(disk);
-                }
-            }
-            BufferState::File { ref disk } => {
-                disk.enqueue(key, managed_envelope).await?;
-
-                // The disk is full, switch state to `BufferState::Memory` and try to buffer as
-                // much as we can before hitting OOM.
-                if disk.is_full().await.unwrap_or_default() {
-                    self.state = BufferState::to_memory_file_ro(
-                        self.config.spool_envelopes_max_memory_size(),
-                        disk,
-                    );
-                }
+                self.state.update(&self.config).await?;
             }
         }
 
@@ -735,6 +755,11 @@ impl BufferService {
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 ram.dequeue(&keys, sender);
             }
+            BufferState::File { ref disk } => {
+                disk.dequeue(project_key, &mut keys, sender, &self.services)
+                    .await;
+                self.state.update(&self.config).await?;
+            }
             BufferState::MemoryFileRead {
                 ref mut ram,
                 ref disk,
@@ -742,22 +767,7 @@ impl BufferService {
                 ram.dequeue(&keys, sender.clone());
                 disk.dequeue(project_key, &mut keys, sender, &self.services)
                     .await;
-
-                // If there is nothing left on the disk, just swithc to in-memory buffer.
-                if disk.is_empty().await.unwrap_or_default() {
-                    self.state =
-                        BufferState::to_memory(self.config.spool_envelopes_max_memory_size(), disk);
-                }
-            }
-            BufferState::File { ref disk } => {
-                disk.dequeue(project_key, &mut keys, sender, &self.services)
-                    .await;
-
-                // If there is nothing left on the disk, just swithc to in-memory buffer.
-                if disk.is_empty().await.unwrap_or_default() {
-                    self.state =
-                        BufferState::to_memory(self.config.spool_envelopes_max_memory_size(), disk);
-                }
+                self.state.update(&self.config).await?;
             }
         }
 
@@ -778,27 +788,17 @@ impl BufferService {
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 count += ram.remove(&keys);
             }
+            BufferState::File { ref disk } => {
+                count += disk.remove(&keys).await?;
+                self.state.update(&self.config).await?;
+            }
             BufferState::MemoryFileRead {
                 ref mut ram,
                 ref disk,
             } => {
                 count += ram.remove(&keys);
                 count += disk.remove(&keys).await?;
-
-                // If there is nothing left on the disk, just swithc to in-memory buffer.
-                if disk.is_empty().await.unwrap_or_default() {
-                    self.state =
-                        BufferState::to_memory(self.config.spool_envelopes_max_memory_size(), disk);
-                }
-            }
-            BufferState::File { ref disk } => {
-                count += disk.remove(&keys).await?;
-
-                // If there is nothing left on the disk, just swithc to in-memory buffer.
-                if disk.is_empty().await.unwrap_or_default() {
-                    self.state =
-                        BufferState::to_memory(self.config.spool_envelopes_max_memory_size(), disk);
-                }
+                self.state.update(&self.config).await?;
             }
         }
 

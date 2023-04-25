@@ -51,7 +51,9 @@ pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     )
 }
 
-/// Creates the query to select only 1 record from the database.
+/// Creates the query to select only 1 record's `received_at` from the database.
+///
+/// It is usefull and very fast for checking if the table is empty.
 pub fn select_one<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query("SELECT received_at FROM envelopes LIMIT 1;")
 }
