@@ -732,6 +732,16 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
+            Metric {
+                name: "s:spans/user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "transaction": "mytransaction",
+                },
+            },
         ]
         "###);
     }
