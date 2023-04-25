@@ -578,7 +578,7 @@ where
         if summary.checkin_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
             let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
-            enforcement.replays = CategoryLimit::new(
+            enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
                 summary.checkin_quantity,
                 checkin_limits.longest(),
@@ -958,6 +958,31 @@ mod tests {
             .map(|outcome| (outcome.category, outcome.quantity))
             .collect::<Vec<_>>();
         assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
+    }
+
+    /// Limit monitor checkins.
+    #[test]
+    fn test_enforce_limit_monitor_checkins() {
+        let mut envelope = envelope![CheckIn];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Monitor, 1)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.outcome, outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Monitor, 1)]
+        )
     }
 
     #[test]
