@@ -50,7 +50,7 @@ fn check_unsupported_rules(
 
 /// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
-pub fn merge_configs_and_match(
+fn merge_configs_and_match(
     processing_enabled: bool,
     sampling_config: &SamplingConfig,
     root_sampling_config: Option<&SamplingConfig>,
