@@ -20,6 +20,7 @@
 - Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
 - Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
 - Split dynamic sampling implementation before refactoring. ([#2047](https://github.com/getsentry/relay/pull/2047))
+- Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
 
 ## 23.4.0
 
