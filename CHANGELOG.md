@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
+
 **Features**:
 
 - Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
