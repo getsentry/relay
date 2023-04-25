@@ -6,8 +6,7 @@ use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
 use relay_sampling::{
-    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingConfig, SamplingMatch,
-    SamplingMode,
+    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
 };
 
 use crate::actors::project::ProjectState;
