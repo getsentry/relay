@@ -3362,15 +3362,8 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            Utc::now(),
-        );
+        let result =
+            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
         assert_no_match!(result);
     }
 
@@ -3477,15 +3470,8 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            Utc::now(),
-        );
+        let result =
+            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
         assert_transaction_match!(result, 0.5, event, 3);
     }
 
@@ -3624,15 +3610,8 @@ mod tests {
         );
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            Utc::now(),
-        );
+        let result =
+            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
         assert_no_match!(result);
     }
 
@@ -3653,15 +3632,8 @@ mod tests {
         );
         let event = mocked_event(EventType::Error, "transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            Utc::now(),
-        );
+        let result =
+            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
         assert_transaction_match!(result, 0.5, event, 10);
     }
 
@@ -3682,15 +3654,8 @@ mod tests {
         );
         let event = mocked_event(EventType::Default, "transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            Utc::now(),
-        );
+        let result =
+            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
         assert_transaction_match!(result, 0.5, event, 10);
     }
 
@@ -3711,15 +3676,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_transaction_match!(result, 0.75, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3733,15 +3690,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_transaction_match!(result, 1.0, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3755,15 +3704,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
     }
 
@@ -3784,15 +3725,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3806,15 +3739,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3828,15 +3753,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
     }
 
@@ -3868,15 +3785,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result = merge_configs_and_match(
-            true,
-            &sampling_config,
-            None,
-            None,
-            &event,
-            None,
-            now,
-        );
+        let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
