@@ -630,7 +630,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -771,7 +771,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -863,7 +863,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -931,7 +931,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -942,7 +942,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1017,7 +1017,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1090,7 +1090,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1127,7 +1127,7 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1177,7 +1177,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1214,7 +1214,7 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1255,7 +1255,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1263,7 +1263,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1294,7 +1294,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1302,7 +1302,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1332,7 +1332,7 @@ mod tests {
 
         let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
 
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(timestamp),
             start_timestamp: Annotated::new(timestamp),
@@ -1350,7 +1350,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1366,7 +1366,7 @@ mod tests {
         let mut config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
@@ -1375,7 +1375,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1403,7 +1403,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1414,7 +1414,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1787,7 +1787,7 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
