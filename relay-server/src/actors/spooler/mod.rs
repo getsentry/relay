@@ -718,8 +718,12 @@ impl BufferService {
         } = message;
 
         match self.state {
-            BufferState::Memory { ref mut ram } => ram.enqueue(key, managed_envelope),
-            BufferState::MemoryFileStandby { ref mut ram, .. } => {
+            BufferState::Memory { ref mut ram }
+            | BufferState::MemoryFileStandby { ref mut ram, .. }
+            // In this state we had full disk, and if we continue spooling without removing
+            // anything from the on-disk spool, we will eventually hit the
+            // `cache.envelope_buffer_size` limit or OOM, whatever comes first.
+            | BufferState::MemoryFileRead { ref mut ram, .. } => {
                 ram.enqueue(key, managed_envelope);
                 self.state.update(&self.config).await?;
             }
@@ -727,16 +731,7 @@ impl BufferService {
                 disk.enqueue(key, managed_envelope).await?;
                 self.state.update(&self.config).await?;
             }
-            // Will buffer till either there free space on disk, and the in-memory buffer can be
-            // spooled, or there is OOM.
-            // NOTE: Right now the number of envelopes is still restricted by
-            // `cache.envelope_buffer_size` and they will be dropped once the limit is reached.
-            BufferState::MemoryFileRead { ref mut ram, .. } => {
-                ram.enqueue(key, managed_envelope);
-                self.state.update(&self.config).await?;
-            }
         }
-
         Ok(())
     }
 
