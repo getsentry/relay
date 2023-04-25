@@ -15,6 +15,7 @@
 - Increase chunking limit to 15MB for replay recordings. ([#2032](https://github.com/getsentry/relay/pull/2032))
 - Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
 - Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
+- Split dynamic sampling implementation before refactoring. ([#2047](https://github.com/getsentry/relay/pull/2047))
 
 ## 23.4.0
 
