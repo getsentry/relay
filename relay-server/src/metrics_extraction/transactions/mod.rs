@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
-use relay_metrics::{AggregatorConfig, Metric};
+use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
@@ -230,6 +230,8 @@ pub fn extract_transaction_metrics(
         sampling_metrics,
     )?;
 
+    extract_span_metrics(aggregator_config, event, project_metrics)?;
+
     let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
     Ok(!added_slice.is_empty())
@@ -375,6 +377,68 @@ fn extract_transaction_metrics_inner(
     Ok(())
 }
 
+fn extract_span_metrics(
+    aggregator_config: &AggregatorConfig,
+    event: &Event,
+    metrics: &mut Vec<Metric>, // output parameter
+) -> Result<(), ExtractMetricsError> {
+    // TODO(iker): measure the performance of this whole method
+
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return Ok(());
+    }
+    let transaction = event;
+
+    let (Some(_), Some(&end)) = (transaction.start_timestamp.value(), transaction.timestamp.value()) else {
+        relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        return Err(ExtractMetricsError::MissingTimestamp);
+    };
+
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        relay_log::debug!("event timestamp is not a valid unix timestamp");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    };
+
+    // Validate the transaction event against the metrics timestamp limits. If the metric is too
+    // old or too new, we cannot extract the metric and also need to drop the transaction event
+    // for consistency between metrics and events.
+    if !aggregator_config.timestamp_range().contains(&timestamp) {
+        relay_log::debug!("event timestamp is out of the valid range for metrics");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    if let Some(spans) = transaction.spans.value() {
+        for span in spans {
+            extract_span_metrics_inner(transaction, span, &timestamp, metrics)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn extract_span_metrics_inner(
+    transaction: &Event,
+    _span: &Annotated<Span>,
+    timestamp: &UnixTimestamp,
+    metrics: &mut Vec<Metric>, // output parameter
+) -> Result<(), ExtractMetricsError> {
+    if let Some(user) = transaction.user.value() {
+        if let Some(value) = get_eventuser_tag(user) {
+            let user_metric = Metric::new_mri(
+                MetricNamespace::Spans,
+                "user",
+                relay_common::MetricUnit::None,
+                MetricValue::set_from_str(&value),
+                timestamp.clone(),
+                BTreeMap::new(),
+            );
+
+            metrics.push(user_metric);
+        }
+    }
+
+    Ok(())
+}
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:

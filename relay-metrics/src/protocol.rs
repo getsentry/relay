@@ -179,6 +179,8 @@ pub enum MetricNamespace {
     Sessions,
     /// Metrics extracted from transaction events.
     Transactions,
+    // TODO(iker): docs
+    Spans,
     /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
@@ -196,6 +198,7 @@ impl std::str::FromStr for MetricNamespace {
         match ns {
             "sessions" => Ok(MetricNamespace::Sessions),
             "transactions" => Ok(MetricNamespace::Transactions),
+            "spans" => Ok(MetricNamespace::Spans),
             _ => Ok(MetricNamespace::Unsupported),
         }
     }
@@ -208,6 +211,7 @@ impl fmt::Display for MetricNamespace {
         match self {
             MetricNamespace::Sessions => write!(f, "sessions"),
             MetricNamespace::Transactions => write!(f, "transactions"),
+            MetricNamespace::Spans => write!(f, "spans"),
             MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
     }
