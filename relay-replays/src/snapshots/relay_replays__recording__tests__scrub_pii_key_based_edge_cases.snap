@@ -1,0 +1,45 @@
+---
+source: relay-replays/src/recording.rs
+expression: scrubbed
+---
+[
+  {
+    "data": {
+      "payload": {
+        "data": {
+          "method": "POST [ip]",
+          "request": {
+            "body": {
+              "api_key": "[Filtered]",
+              "events": [],
+              "options": {
+                "min_id_length": 1,
+              },
+            },
+            "passwd": "[Filtered]",
+            "size": 2949,
+            "whatever": "scrub this IP: [ip]",
+          },
+          "response": {
+            "body": {
+              "code": 200,
+              "events_ingested": 5,
+              "payload_size_bytes": 2949,
+              "server_upload_time": 1680009712652,
+            },
+            "size": 94,
+          },
+          "statusCode": 200,
+          "token": "[Filtered]",
+        },
+        "description": "https://domain.com/api [Filtered] [ip]",
+        "endTimestamp": 1680009712.671,
+        "op": "resource.fetch 4111-1111-1111-1111",
+        "startTimestamp": 1680009712.507,
+      },
+      "tag": "performanceSpan 127.0.0.1",
+    },
+    "timestamp": 1680009712.507,
+    "type": 5,
+  },
+]
