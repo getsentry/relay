@@ -960,6 +960,28 @@ mod tests {
         assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
     }
 
+    /// Limit monitor checkins.
+    #[test]
+    fn test_enforce_limit_monitor_checkins() {
+        let mut envelope = envelope![CheckIn];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Monitor, 1)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        insta::assert_debug_snapshot!(outcomes, @"");
+    }
+
     #[test]
     fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
