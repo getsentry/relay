@@ -20,6 +20,7 @@ use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Context, Event, TraceContext};
 use relay_general::store;
+use relay_log::protocol::Sample;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
@@ -899,6 +900,47 @@ pub fn merge_rules_from_configs<'a>(
     event_rules.chain(parent_rules)
 }
 
+trait SamplingMatchOverride {
+    fn can_override(&self) -> bool;
+
+    fn get_overridden_sampling_match(&self) -> SamplingMatch;
+}
+
+/// Override that sets the sample rate at 100% in case a trace contains a Replay.
+struct HasReplayOverride<'a> {
+    dsc: &'a DynamicSamplingContext,
+}
+
+impl SamplingMatchOverride for HasReplayOverride {
+    fn can_override(&self) -> bool {
+        self.dsc.replay_id.is_some()
+    }
+
+    fn get_overridden_sampling_match(&self) -> SamplingMatch {
+        SamplingMatch {
+            sample_rate: 1.0,
+            seed: self.dsc.trace_id,
+            matched_rule_ids: MatchedRuleIds(vec![]),
+        }
+    }
+}
+
+/// Gets the list of active overrides that are implemented for dynamic sampling.
+fn get_active_overrides(
+    _: &Event,
+    dsc: Option<&DynamicSamplingContext>,
+    _: Option<IpAddr>,
+    _: DateTime<Utc>,
+) -> Vec<Box<dyn SamplingMatchOverride>> {
+    let mut active_overrides = vec![];
+
+    if let Some(dsc) = dsc {
+        active_overrides.push(Box::new(HasReplayOverride { dsc }))
+    }
+
+    active_overrides
+}
+
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SamplingMatch {
@@ -959,6 +1001,13 @@ impl SamplingMatch {
         // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
         let mut seed = event.id.value().map(|id| id.0);
         let mut accumulated_factors = 1.0;
+
+        // We run the overrides in order to check if some apply.
+        for active_override in get_active_overrides(event, dsc, ip_addr, now).iter() {
+            if active_override.can_override() {
+                return Some(active_override.get_overridden_sampling_match());
+            }
+        }
 
         for rule in rules {
             let matches = match rule.ty {
