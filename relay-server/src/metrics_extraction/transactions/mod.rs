@@ -423,7 +423,7 @@ fn extract_span_metrics(
                         "user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
-                        timestamp.clone(),
+                        timestamp,
                         shared_tags.clone(),
                     ));
                 }
