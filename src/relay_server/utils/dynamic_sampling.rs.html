@@ -912,6 +912,19 @@
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>std::net::IpAddr;
@@ -964,21 +977,15 @@
 
 <span class="doccomment">/// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
-</span><span class="kw">fn </span>get_sampling_match_result(
+</span><span class="kw">fn </span>merge_configs_and_match(
     processing_enabled: bool,
-    project_state: <span class="kw-2">&amp;</span>ProjectState,
-    root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
+    sampling_config: <span class="kw-2">&amp;</span>SamplingConfig,
+    root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
     dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
+    event: <span class="kw-2">&amp;</span>Event,
     ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     now: DateTime&lt;Utc&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt; {
-    <span class="comment">// We get all the required data for transaction-based dynamic sampling.
-    </span><span class="kw">let </span>event = event<span class="question-mark">?</span>;
-    <span class="kw">let </span>sampling_config = project_state.config.dynamic_sampling.as_ref()<span class="question-mark">?</span>;
-    <span class="kw">let </span>root_sampling_config =
-        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-
     <span class="comment">// We check if there are unsupported rules in any of the two configurations.
     </span>check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)<span class="question-mark">?</span>;
 
@@ -1012,6 +1019,33 @@
     </span><span class="prelude-val">Some</span>(match_result)
 }
 
+<span class="doccomment">/// Matches the incoming event with the SamplingConfig(s) of the project and root project.
+</span><span class="kw">fn </span>get_sampling_match(
+    processing_enabled: bool,
+    project_state: <span class="kw-2">&amp;</span>ProjectState,
+    root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
+    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
+    ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    now: DateTime&lt;Utc&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt; {
+    <span class="kw">let </span>event = event<span class="question-mark">?</span>;
+    <span class="comment">// We want to extract the SamplingConfig from each project state.
+    </span><span class="kw">let </span>sampling_config = project_state.config.dynamic_sampling.as_ref()<span class="question-mark">?</span>;
+    <span class="kw">let </span>root_sampling_config =
+        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
+
+    merge_configs_and_match(
+        processing_enabled,
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+        ip_addr,
+        now,
+    )
+}
+
 <span class="doccomment">/// Checks whether an incoming event should be kept or dropped based on the result of the sampling
 /// configuration match.
 </span><span class="kw">pub fn </span>should_keep_event(
@@ -1022,7 +1056,7 @@
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
     ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
 ) -&gt; SamplingResult {
-    <span class="kw">match </span>get_sampling_match_result(
+    <span class="kw">match </span>get_sampling_match(
         processing_enabled,
         project_state,
         root_project_state,
@@ -1274,11 +1308,11 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that no match is done when there are no matching rules.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_no_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_no_match() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1292,13 +1326,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that matching is still done on the transaction rules in case trace params are invalid.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_invalid_trace_params() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_invalid_trace_params() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Received);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1310,7 +1344,7 @@
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.5</span>, event, <span class="number">3</span>);
 
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;healthcheck&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1324,13 +1358,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match with early return is done in the project sampling config.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_project_config_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_project_config_match() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Received);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;healthcheck&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1344,13 +1378,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match with early return is done in the root project sampling config.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_root_project_config_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_root_project_config_match() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Received);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;dev&quot;</span>));
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;my_transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1364,13 +1398,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that the multiple matches are done across root and non-root project sampling configs.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_both_project_configs_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_both_project_configs_match() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Received);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1385,11 +1419,11 @@
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match is done when no dynamic sampling context and root project state are
     /// available.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_no_dynamic_sampling_context_and_no_root_project_state() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_no_dynamic_sampling_context_and_no_root_project_state() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;1.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1403,13 +1437,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match is done and the sample rate is adjusted when sampling mode is total.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_total_sampling_mode_in_project_state() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_total_sampling_mode_in_project_state() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Total);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Total);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">0.8</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1424,7 +1458,7 @@
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that the correct match is raised in case we have unsupported rules with processing both
     /// enabled and disabled.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_unsupported_rules() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_unsupported_rules() {
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             <span class="kw-2">&amp;mut </span>project_state,
@@ -1442,7 +1476,7 @@
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1453,7 +1487,7 @@
         );
         <span class="macro">assert_no_match!</span>(result);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1467,13 +1501,13 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a no match is raised in case we have an unsupported sampling mode and a match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_unsupported_sampling_mode_and_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_unsupported_sampling_mode_and_match() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Unsupported);
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Unsupported);
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1487,12 +1521,12 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that only transaction rules are matched in case no root project or dsc are supplied.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_invalid_root_project_and_dsc_combination() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_invalid_root_project_and_dsc_combination() {
         <span class="kw">let </span>project_state = mocked_project_state(SamplingMode::Received);
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;healthcheck&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
         <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1504,7 +1538,7 @@
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.1</span>, event, <span class="number">1</span>);
 
         <span class="kw">let </span>root_project_state = mocked_root_project_state(SamplingMode::Received);
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
@@ -1518,7 +1552,7 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match of a rule of type error with a transaction event results in no match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_transaction_event_and_error_rule() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_transaction_event_and_error_rule() {
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             <span class="kw-2">&amp;mut </span>project_state,
@@ -1533,7 +1567,7 @@
         );
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1547,7 +1581,7 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match of a rule of type error with an error event results in a match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_error_event_and_error_rule() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_error_event_and_error_rule() {
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             <span class="kw-2">&amp;mut </span>project_state,
@@ -1562,7 +1596,7 @@
         );
         <span class="kw">let </span>event = mocked_event(EventType::Error, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1576,7 +1610,7 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a match of a rule of type default with an error event results in a match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_default_event_and_error_rule() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_default_event_and_error_rule() {
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = mocked_project_state(SamplingMode::Received);
         add_sampling_rule_to_project_state(
             <span class="kw-2">&amp;mut </span>project_state,
@@ -1591,7 +1625,7 @@
         );
         <span class="kw">let </span>event = mocked_event(EventType::Default, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result = get_sampling_match_result(
+        <span class="kw">let </span>result = get_sampling_match(
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>project_state,
             <span class="prelude-val">None</span>,
@@ -1605,7 +1639,7 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that match is returned with sample rate value interpolated with linear decaying function.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_linear_decaying_function() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_linear_decaying_function() {
         <span class="kw">let </span>now = Utc::now();
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
@@ -1620,8 +1654,7 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.75</span>, event, <span class="number">1</span>);
 
         <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
@@ -1635,8 +1668,7 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">1.0</span>, event, <span class="number">1</span>);
 
         <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
@@ -1650,14 +1682,13 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_no_match!</span>(result);
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that no match is returned when the linear decaying function has invalid time range.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_linear_decaying_function_and_invalid_time_range() {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_linear_decaying_function_and_invalid_time_range() {
         <span class="kw">let </span>now = Utc::now();
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
@@ -1672,8 +1703,7 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_no_match!</span>(result);
 
         <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
@@ -1687,8 +1717,7 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_no_match!</span>(result);
 
         <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
@@ -1702,15 +1731,13 @@
             )],
             mode: SamplingMode::Received,
         });
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert_no_match!</span>(result);
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that match is returned when there are multiple decaying rules with factor and sample rate.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_multiple_decaying_functions_with_factor_and_sample_rate()
-    {
+    </span><span class="kw">fn </span>test_get_sampling_match_with_multiple_decaying_functions_with_factor_and_sample_rate() {
         <span class="kw">let </span>now = Utc::now();
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
@@ -1735,8 +1762,7 @@
             mode: SamplingMode::Received,
         });
 
-        <span class="kw">let </span>result =
-            get_sampling_match_result(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
+        <span class="kw">let </span>result = get_sampling_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>project_state, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, now);
         <span class="macro">assert!</span>(result.is_some());
         <span class="kw">if let </span><span class="prelude-val">Some</span>(SamplingMatch {
             sample_rate,
