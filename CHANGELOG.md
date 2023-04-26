@@ -21,7 +21,7 @@
 - Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
 - Split dynamic sampling implementation before refactoring. ([#2047](https://github.com/getsentry/relay/pull/2047))
 - Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
-- Adds sample rate overriding for traces with a `replay_id`. ([#2070](https://github.com/getsentry/relay/pull/2070))
+- Adds support for `replay_id` field for the `DynamicSamplingContext` `FieldValueProvider`. ([#2070](https://github.com/getsentry/relay/pull/2070))
 
 ## 23.4.0
 

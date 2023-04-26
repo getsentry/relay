@@ -3184,8 +3184,8 @@ mod tests {
     }
 
     #[test]
-    /// test that the override of the sample rate occurs when a dsc with replay id is present.
-    fn test_sampling_match_override_for_dsc_with_replay_id() {
+    /// test that the correct match is performed when replay id is present in the dsc.
+    fn test_sampling_match_with_trace_replay_id() {
         let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
         let dsc = mocked_dynamic_sampling_context(
             "root_transaction",
