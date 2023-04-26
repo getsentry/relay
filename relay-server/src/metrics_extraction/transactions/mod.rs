@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, MetricUnit, ProjectId, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, JsonLenientString, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
@@ -411,7 +411,7 @@ fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    if let Some(spans) = event.spans.value_mut() {
+    if let Some(_spans) = event.spans.value_mut() {
         // Collect the shared tags for all the metrics and spans on this transaction
         let mut shared_tags = BTreeMap::new();
 
