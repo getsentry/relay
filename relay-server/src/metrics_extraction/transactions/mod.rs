@@ -418,36 +418,22 @@ fn extract_span_metrics(
         if let Some(transaction_name) = event.transaction.value() {
             shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
         }
-        // TODO(iker): must add shared tags: environment, op, release
+        // TODO(iker): must add shared tags: environment, op, release, etc
 
-        for annotated_span in spans {
-            if let Some(span) = annotated_span.value_mut() {
-                // TODO(iker): add span-specific tags here
-
-                if let Some(user) = event.user.value() {
-                    if let Some(value) = get_eventuser_tag(user) {
-                        metrics.push(Metric::new_mri(
-                            MetricNamespace::Spans,
-                            "user",
-                            MetricUnit::None,
-                            MetricValue::set_from_str(&value),
-                            timestamp,
-                            shared_tags.clone(),
-                        ));
-                    }
-                }
-
-                // Add to the span all the tags that exist in the metrics
-                let span_tags = span.tags.get_or_insert_with(BTreeMap::new);
-                // NOTE(iker): if the tag already existed before, we are overwriting it
-                span_tags.extend(
-                    shared_tags
-                        .clone()
-                        .into_iter()
-                        .map(|(k, v)| (k, Annotated::new(JsonLenientString::from(v)))),
-                );
+        if let Some(user) = event.user.value() {
+            if let Some(value) = get_eventuser_tag(user) {
+                metrics.push(Metric::new_mri(
+                    MetricNamespace::Spans,
+                    "user",
+                    MetricUnit::None,
+                    MetricValue::set_from_str(&value),
+                    timestamp,
+                    shared_tags.clone(),
+                ));
             }
         }
+
+        // TODO(iker): extract span-specific metrics
     }
 
     Ok(())
