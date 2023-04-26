@@ -2081,7 +2081,7 @@ impl EnvelopeProcessorService {
 
         let extract_spans_metrics = project_config
             .features
-            .contains(&Feature::SpanMetricExtraction);
+            .contains(&Feature::SpanMetricsExtraction);
 
         let transaction_from_dsc = state
             .managed_envelope
