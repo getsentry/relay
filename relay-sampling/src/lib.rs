@@ -1,4 +1,67 @@
-//! Functionality for calculating if a trace should be processed or dropped.
+//! Sampling logic for performing sampling decisions of incoming events.
+//!
+//! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
+//! all transactions, but only forwards a random sample of raw transaction payloads to the upstream.
+//! What exact percentage is sampled is determined by `dynamic sampling rules`, and depends on
+//! the project, the environment, the transaction name, etc.
+//!
+//! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
+//! [`SamplingRule`]s that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
+//!
+//! # Trace and Transaction Sampling
+//!
+//! Relay samples both transactions looking at [`Event`] and traces looking at [`DynamicSamplingContext`]:
+//! - **Trace sampling**: ensures that either all transactions of a trace are sampled or none.
+//! - **Transaction sampling**: does not guarantee complete traces and instead applies to individual transactions.
+//!
+//! # Components
+//!
+//! The sampling system implemented in Relay is composed of the following components:
+//! - [`DynamicSamplingContext`]: a struct that contains the trace information.
+//! - [`FieldValueProvider`]: an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
+//! expose fields that are read during matching.
+//! - [`SamplingRule`]: a rule that is matched against [`Event`] or [`DynamicSamplingContext`] that
+//! can contain a [`RuleCondition`] for expressing predicates on the incoming payload.
+//! - [`SamplingMatch`]: the result of the matching of one or more [`SamplingRule`].
+//!
+//! # How It Works
+//! - The incoming [`Event`] and optionally [`DynamicSamplingContext`] are received by Relay.
+//! - Relay fetches the [`SamplingConfig`] of the project to which the [`Event`] belongs and (if exists) the
+//! [`SamplingConfig`] of the root project of the trace.
+//! - The [`SamplingConfig`]s are merged together and the matching algorithm in
+//! [`SamplingMatch::match_against_rules`] is executed.
+//! - The sampling algorithm will go over each [`SamplingRule`] and compute either a factor or
+//! sample rate based on the [`SamplingValue`] of the rule.
+//! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
+//! data that will be used in `relay_server` to perform the sampling decision.
+//!
+//! # Sampling Determinism
+//! The concept of determinism is extremely important for sampling. We want to be able to make the
+//! a deterministic sampling decision for a wide variety of reasons, including:
+//! - Across a **chain of Relays** (e.g., we don't want to drop an event that was retained by a previous
+//! Relay and vice-versa).
+//! - Across **transactions of the same trace** (e.g., we want to be able to sample all the transactions
+//! of the same trace, even though some exceptions apply).
+//!
+//! In order to perform deterministic sampling, we use the id of the event or trace as the seed
+//! for the random number generator (e.g., all transactions with the same trace id will have the same
+//! random number being generated). _Since we allow the matching of both transaction and trace rules, we might
+//! end up in cases in which we perform inconsistent trace sampling but this is something we decided
+//! to live with as long as there are no big implications on the product._
+//!
+//! # Examples
+//!
+//! ## [`SamplingConfig`]
+//!
+//! ```json
+#![doc = include_str!("../tests/fixtures/sampling_config.json")]
+//! ```
+//!
+//! ## [`DynamicSamplingContext`]
+//!
+//! ```json
+#![doc = include_str!("../tests/fixtures/dynamic_sampling_context.json")]
+//! ```
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -317,7 +380,7 @@ impl RuleCondition {
     }
 }
 
-/// Sampling rule Id
+/// The id of the [`SamplingRule`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RuleId(pub u32);
 
@@ -330,7 +393,7 @@ impl Display for RuleId {
 /// A range of time.
 ///
 /// The time range should be applicable between the start time, inclusive, and
-/// end time, exclusive.  There aren't any explicit checks to ensure the end
+/// end time, exclusive. There aren't any explicit checks to ensure the end
 /// time is equal to or greater than the start time; the time range isn't valid
 /// in such cases.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
@@ -2294,6 +2357,18 @@ mod tests {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
+    }
+
+    #[test]
+    fn test_sampling_config_deserialization() {
+        let json = include_str!("../tests/fixtures/sampling_config.json");
+        serde_json::from_str::<SamplingConfig>(json).unwrap();
+    }
+
+    #[test]
+    fn test_dynamic_sampling_context_deserialization() {
+        let json = include_str!("../tests/fixtures/dynamic_sampling_context.json");
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
     }
 
     #[test]
