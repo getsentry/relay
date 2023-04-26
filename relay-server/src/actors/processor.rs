@@ -1121,8 +1121,8 @@ impl EnvelopeProcessorService {
         });
 
         // TODO: At this point, we should also ensure that the envelope summary gets recomputed.
-        // But recomputing the summary after extracting the event is currently problematic. This needs
-        // to be solved in a follow-up.
+        // But recomputing the summary after extracting the event is currently problematic, because it
+        // sets the envelope type to `None`. This needs to be solved in a follow-up.
     }
 
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
