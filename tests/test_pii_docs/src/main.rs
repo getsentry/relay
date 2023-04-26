@@ -2,9 +2,9 @@ fn main() {
     println!("Hello, world!");
 }
 
-pub mod anotherfile;
+pub mod anothermod;
 
-use crate::anotherfile::{BarFoo, FooBar};
+use crate::anothermod::{BarFoo, FooBar};
 
 struct MyStruct {
     #[metastructure(pii = "true")]

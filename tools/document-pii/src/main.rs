@@ -3,7 +3,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use clap::{command, Arg, ArgMatches, Parser, ValueEnum};
+use clap::{command, Parser, ValueEnum};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, File};
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use syn::punctuated::Punctuated;
 use syn::{visit::Visit, ItemEnum};
-use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree, Variant};
+use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree};
 use walkdir::WalkDir;
 
 // unfortunately many global vars, since i cant add extra arguments to trait methods
@@ -27,7 +27,8 @@ lazy_static::lazy_static! {
     static ref ALL_TYPES: Mutex<HashMap<String, EnumOrStruct>> = Mutex::new(HashMap::new());
     /// The values that we wanna match on, (true, false, maybe)
     static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
-    /// All the use statements in a given module.
+    /// Maps the name of the module to all of the use statements therein, plus the path of the
+    /// types that are defined there.
     static ref USE_STATEMENTS: Mutex<BTreeMap<String, BTreeSet<String>>> = Mutex::new(BTreeMap::new());
 }
 
@@ -137,6 +138,52 @@ struct TypeVisitor {
     current_type: String,
 }
 
+impl TypeVisitor {
+    /// Takes a Field (could be struct or enum) and visit the types that it consist of if we have
+    /// the full path to it in USE_STATEMENTS.
+    fn recursion(&mut self, node: &Field) {
+        let local_paths = USE_STATEMENTS
+            .lock()
+            .unwrap()
+            .get(&self.module_path)
+            .unwrap()
+            .clone();
+
+        let field_types = type_to_string(&node.ty);
+        for field_type in &field_types {
+            for use_path in &local_paths {
+                if use_path.split("::").last().unwrap() == field_type.trim() {
+                    let enum_or_struct = {
+                        let guard = ALL_TYPES.lock().unwrap();
+                        guard.get(use_path).cloned()
+                    };
+
+                    if let Some(enum_or_struct) = enum_or_struct {
+                        match enum_or_struct {
+                            EnumOrStruct::Enum(itemenum) => {
+                                let current_type = self.current_type.clone();
+                                let module_path = self.module_path.clone();
+                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
+                                self.visit_item_enum(&itemenum.clone());
+                                self.module_path = module_path;
+                                self.current_type = current_type;
+                            }
+                            EnumOrStruct::Struct(itemstruct) => {
+                                let current_type = self.current_type.clone();
+                                let module_path = self.module_path.clone();
+                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
+                                self.visit_item_struct(&itemstruct.clone());
+                                self.module_path = module_path;
+                                self.current_type = current_type;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl<'ast> Visit<'ast> for TypeVisitor {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         self.current_type = node.ident.to_string();
@@ -169,13 +216,10 @@ impl<'ast> Visit<'ast> for TypeVisitor {
         }
     }
 
-    fn visit_variant(&mut self, node: &'ast Variant) {
-        for field in node.fields.iter() {
-            self.visit_field(field);
-        }
-    }
-
     fn visit_field(&mut self, node: &'ast Field) {
+        // Every time we visit a field, we have to append the field to the current_path, it gets
+        // popped in the end of this function. This is done so that we can store the full path
+        // whenever the field matches a correct PII value.
         CURRENT_PATH.lock().unwrap().push(TypeAndField {
             qualified_type_name: self.current_type.clone(),
             field_name: node
@@ -192,93 +236,57 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                 .insert(CURRENT_PATH.lock().unwrap().clone());
         }
 
-        let field_types = type_to_string(&node.ty);
+        self.recursion(node);
 
-        let local_paths = USE_STATEMENTS
-            .lock()
-            .unwrap()
-            .get(&self.module_path)
-            .unwrap()
-            .clone();
-
-        for field_type in &field_types {
-            for use_path in &local_paths {
-                if use_path.split("::").last().unwrap() == field_type.trim() {
-                    let enum_or_struct = {
-                        let guard = ALL_TYPES.lock().unwrap();
-                        guard.get(use_path).cloned()
-                    };
-
-                    if let Some(enum_or_struct) = enum_or_struct {
-                        match enum_or_struct {
-                            EnumOrStruct::Enum(itemenum) => {
-                                let current_type = self.current_type.clone();
-                                let module_path = self.module_path.clone();
-                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
-                                self.visit_item_enum(&itemenum.clone());
-                                self.module_path = module_path;
-                                self.current_type = current_type;
-                            }
-                            EnumOrStruct::Struct(itemstruct) => {
-                                let current_type = self.current_type.clone();
-                                let module_path = self.module_path.clone();
-                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
-                                self.visit_item_struct(&itemstruct.clone());
-                                self.module_path = module_path;
-                                self.current_type = current_type;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (CURRENT_PATH.lock().unwrap().pop());
+        CURRENT_PATH.lock().unwrap().pop();
     }
 }
 
+/// if you have a field such as "foo: Foo<Bar<Baz>>" this function can take the type of the field
+/// and return a vector of the types like: ["Foo", "Bar", "Baz"].
 fn type_to_string(ty: &Type) -> Vec<String> {
-    let mut segments: Vec<String> = Vec::new();
-    type_to_string_helper(ty, &mut segments);
-    segments
-}
+    fn recursion(ty: &Type, segments: &mut Vec<String>) {
+        match ty {
+            Type::Path(type_path) => {
+                let mut path_iter = type_path.path.segments.iter();
+                let first_segment = path_iter.next();
 
-fn type_to_string_helper(ty: &Type, segments: &mut Vec<String>) {
-    match ty {
-        Type::Path(type_path) => {
-            let mut path_iter = type_path.path.segments.iter();
-            let first_segment = path_iter.next();
+                if let Some(first_segment) = first_segment {
+                    let mut ident = first_segment.ident.to_string();
 
-            if let Some(first_segment) = first_segment {
-                let mut ident = first_segment.ident.to_string();
-
-                let args = &first_segment.arguments;
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
-                    for generic_arg in angle_bracketed.args.iter() {
-                        match generic_arg {
-                            syn::GenericArgument::Type(ty) => {
-                                type_to_string_helper(ty, segments);
+                    let args = &first_segment.arguments;
+                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
+                        for generic_arg in angle_bracketed.args.iter() {
+                            match generic_arg {
+                                syn::GenericArgument::Type(ty) => {
+                                    recursion(ty, segments);
+                                }
+                                _ => continue,
                             }
-                            _ => continue,
                         }
                     }
-                }
 
-                if let Some(second_segment) = path_iter.next() {
-                    ident.push_str("::");
-                    ident.push_str(&second_segment.ident.to_string());
-                    segments.push(ident);
-                } else {
-                    segments.push(ident);
+                    if let Some(second_segment) = path_iter.next() {
+                        ident.push_str("::");
+                        ident.push_str(&second_segment.ident.to_string());
+                        segments.push(ident);
+                    } else {
+                        segments.push(ident);
+                    }
                 }
             }
-        }
-        _ => {
-            use quote::ToTokens;
-            let mut tokens = proc_macro2::TokenStream::new();
-            ty.to_tokens(&mut tokens);
-            segments.push(tokens.to_string());
+            _ => {
+                use quote::ToTokens;
+                let mut tokens = proc_macro2::TokenStream::new();
+                ty.to_tokens(&mut tokens);
+                segments.push(tokens.to_string());
+            }
         }
     }
+
+    let mut segments: Vec<String> = Vec::new();
+    recursion(ty, &mut segments);
+    segments
 }
 
 fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
@@ -608,7 +616,7 @@ mod tests {
     #[serial]
     fn test_use_statements() {
         clear_globals();
-        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
         run(&rust_crate, &vec![], None);
         let use_statements = USE_STATEMENTS.lock().unwrap().clone();
         insta::assert_debug_snapshot!(use_statements);
@@ -618,7 +626,7 @@ mod tests {
     #[serial]
     fn test_pii_true() {
         clear_globals();
-        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
         run(&rust_crate, &vec!["true".into()], None);
         let output = get_pretty_pii_field_format("".into());
         insta::assert_debug_snapshot!(output);
@@ -628,7 +636,7 @@ mod tests {
     #[serial]
     fn test_pii_false() {
         clear_globals();
-        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
         run(&rust_crate, &vec!["false".into()], None);
         let output = get_pretty_pii_field_format("".into());
         insta::assert_debug_snapshot!(output);
@@ -638,7 +646,7 @@ mod tests {
     #[serial]
     fn test_pii_all() {
         clear_globals();
-        let rust_crate = PathBuf::from_str(&RUST_CRATE).unwrap();
+        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
         run(
             &rust_crate,
             &vec!["true".into(), "maybe".into(), "false".into()],

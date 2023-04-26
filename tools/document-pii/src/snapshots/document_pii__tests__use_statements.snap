@@ -10,8 +10,8 @@ expression: use_statements
         "test_pii_docs::SelfReferential",
         "test_pii_docs::SubStruct",
     },
-    "test_pii_docs::anotherfile": {
-        "test_pii_docs::anotherfile::BarFoo",
-        "test_pii_docs::anotherfile::FooBar",
+    "test_pii_docs::anothermod": {
+        "test_pii_docs::anothermod::BarFoo",
+        "test_pii_docs::anothermod::FooBar",
     },
 }
