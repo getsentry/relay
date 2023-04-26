@@ -2078,6 +2078,11 @@ impl EnvelopeProcessorService {
         if !extraction_config.is_enabled() {
             return Ok(());
         }
+
+        let extract_spans_metrics = project_config
+            .features
+            .contains(&Feature::SpanMetricExtraction);
+
         let transaction_from_dsc = state
             .managed_envelope
             .envelope()
@@ -2095,7 +2100,7 @@ impl EnvelopeProcessorService {
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
-                        state.project_id,
+                        extract_spans_metrics,
                         event,
                         transaction_from_dsc,
                         &state.sampling_result,

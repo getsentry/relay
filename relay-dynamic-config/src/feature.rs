@@ -15,6 +15,8 @@ pub enum Feature {
     ///
     /// Enables device.class tag synthesis on mobile events.
     DeviceClassSynthesis,
+    /// Enables metric extraction from spans.
+    SpanMetricExtraction,
     /// Forward compatibility.
     Unknown(String),
 }
@@ -32,6 +34,7 @@ impl<'de> Deserialize<'de> for Feature {
                 Feature::SessionReplayRecordingScrubbing
             }
             "organizations:device-class-synthesis" => Feature::DeviceClassSynthesis,
+            "organizations:span-metrics-extraction" => Feature::SpanMetricExtraction,
             _ => Feature::Unknown(feature_name.to_string()),
         })
     }
@@ -49,6 +52,7 @@ impl Serialize for Feature {
                 "organizations:session-replay-recording-scrubbing"
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
+            Feature::SpanMetricExtraction => "organizations:span-metrics-extraction",
             Feature::Unknown(s) => s,
         })
     }
