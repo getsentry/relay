@@ -2,9 +2,76 @@
 
 ## Unreleased
 
-**Features**
+**Bug Fixes**:
+
+- Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
+
+**Features**:
+
+- Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
+- Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+
+**Internal**:
+
+- Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
+- Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
+- Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
+- Increase chunking limit to 15MB for replay recordings. ([#2032](https://github.com/getsentry/relay/pull/2032))
+- Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051), [#2071](https://github.com/getsentry/relay/pull/2071))
+- Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
+- Split dynamic sampling implementation before refactoring. ([#2047](https://github.com/getsentry/relay/pull/2047))
+- Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
+
+## 23.4.0
+
+**Breaking Changes**:
+
+This release contains major changes to the web layer, including TCP and HTTP handling as well as all web endpoint handlers. Due to these changes, some functionality was retired and Relay responds differently in specific cases.
+
+Configuration:
+
+- SSL support has been dropped. As per [official guidelines](https://docs.sentry.io/product/relay/operating-guidelines/), Relay should be operated behind a reverse proxy, which can perform SSL termination.
+- Connection config options `max_connections`, `max_pending_connections`, and `max_connection_rate` no longer have an effect. Instead, configure the reverse proxy to handle connection concurrency as needed.
+
+Endpoints:
+
+- The security endpoint no longer forwards to upstream if the mime type doesn't match supported mime types. Instead, the request is rejected with a corresponding error.
+- Passing store payloads as `?sentry_data=<base64>` query parameter is restricted to `GET` requests on the store endpoint. Other endpoints require the payload to be passed in the request body.
+- Requests with an invalid `content-encoding` header will now be rejected. Exceptions to this are an empty string and `UTF-8`, which have been sent historically by some SDKs and are now treated as identity (no encoding). Previously, all unknown encodings were treated as identity.
+- Temporarily, response bodies for some errors are rendered as plain text instead of JSON. This will be addressed in an upcoming release.
+
+Metrics:
+
+- The `route` tag of request metrics uses the route pattern instead of schematic names. There is an exact replacement for every previous route. For example, `"store-default"` is now tagged as `"/api/:project_id/store/"`.
+- Statsd metrics `event.size_bytes.raw` and `event.size_bytes.uncompressed` have been removed.
+
+**Features**:
 
 - Allow monitor checkins to paass `monitor_config` for monitor upserts. ([#1962](https://github.com/getsentry/relay/pull/1962))
+- Add replay_id onto event from dynamic sampling context. ([#1983](https://github.com/getsentry/relay/pull/1983))
+- Add product-name for devices, derived from the android model. ([#2004](https://github.com/getsentry/relay/pull/2004))
+- Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
+- Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
+- Add `thread.lock_mechanism` field to protocol. ([#1979](https://github.com/getsentry/relay/pull/1979))
+- Add `origin` to trace context and span. ([#1984](https://github.com/getsentry/relay/pull/1984))
+- Add `jvm` debug file type. ([#2002](https://github.com/getsentry/relay/pull/2002))
+- Add new `mechanism` fields to protocol to support exception groups. ([#2020](https://github.com/getsentry/relay/pull/2020))
+- Change `lock_reason` attribute to a `held_locks` dictionary in the `thread` interface. ([#2018](https://github.com/getsentry/relay/pull/2018))
+
+**Internal**:
+
+- Add BufferService with SQLite backend. ([#1920](https://github.com/getsentry/relay/pull/1920))
+- Upgrade the web framework and related dependencies. ([#1938](https://github.com/getsentry/relay/pull/1938))
+- Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
+- Use exposed device-class-synthesis feature flag to gate device.class synthesis in light normalization. ([#1974](https://github.com/getsentry/relay/pull/1974))
+- Adds iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
+- Pin schemars dependency to un-break schema docs generation. ([#2014](https://github.com/getsentry/relay/pull/2014))
+- Remove global service registry. ([#2022](https://github.com/getsentry/relay/pull/2022))
+- Apply schema validation to all topics in local development. ([#2013](https://github.com/getsentry/relay/pull/2013))
+
+Monitors:
+
+- Monitor check-ins may now specify an environment ([#2027](https://github.com/getsentry/relay/pull/2027))
 
 ## 23.3.1
 
@@ -13,6 +80,9 @@
 - Indicate if OS-version may be frozen with '>=' prefix. ([#1945](https://github.com/getsentry/relay/pull/1945))
 - Normalize monitor slug parameters into slugs. ([#1913](https://github.com/getsentry/relay/pull/1913))
 - Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
+
+**Internal**:
+
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951)))
 

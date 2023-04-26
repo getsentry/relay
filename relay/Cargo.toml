@@ -4,14 +4,13 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.3.1"
+version = "23.4.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [features]
-default = ["ssl"]
-ssl = ["relay-server/ssl"]
+default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
 

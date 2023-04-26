@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::{deserialize_number_from_string, is_zero};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TransactionMetadata {
     pub id: EventId,
     pub name: String,

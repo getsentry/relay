@@ -326,7 +326,7 @@ impl StoreService {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
             let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                payload: payload.slice(offset, offset + chunk_size),
+                payload: payload.slice(offset..offset + chunk_size),
                 event_id,
                 project_id,
                 id: id.clone(),
@@ -531,6 +531,7 @@ impl StoreService {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
             Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
+            Ok(MetricNamespace::Spans) => KafkaTopic::MetricsTransactions,
             Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
@@ -664,14 +665,11 @@ impl StoreService {
         // message because we can achieve better parallelism when dealing with a single
         // message.
 
-        // Max message size is 1MB.
-        let max_message_size = 1000 * 1000;
-
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
 
         // Remaining bytes can be filled by the payload.
-        let max_payload_size = max_message_size - max_message_metadata_size;
+        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
 
         if item.payload().len() < max_payload_size {
             let message =
@@ -753,7 +751,7 @@ impl StoreService {
 
             let replay_recording_chunk_message =
                 KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
-                    payload: payload.slice(offset, offset + chunk_size),
+                    payload: payload.slice(offset..offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),

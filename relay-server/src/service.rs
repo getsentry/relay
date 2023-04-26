@@ -1,8 +1,10 @@
+use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use once_cell::race::OnceBox;
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
@@ -22,8 +24,6 @@ use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::BufferGuard;
-
-pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -79,16 +79,22 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         .unwrap()
 }
 
-/// Server state.
-#[derive(Clone)]
-pub struct ServiceState {
+#[derive(Debug)]
+struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    registry: Registry,
     _aggregator_runtime: Arc<Runtime>,
     _outcome_runtime: Arc<Runtime>,
     _project_runtime: Arc<Runtime>,
     _upstream_runtime: Arc<Runtime>,
     _store_runtime: Option<Arc<Runtime>>,
+}
+
+/// Server state.
+#[derive(Clone, Debug)]
+pub struct ServiceState {
+    inner: Arc<StateInner>,
 }
 
 impl ServiceState {
@@ -146,6 +152,7 @@ impl ServiceState {
             config.clone(),
             aggregator.clone(),
             processor.clone(),
+            project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
         );
@@ -167,11 +174,17 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
+            test_store.clone(),
             upstream_relay.clone(),
         );
         let guard = project_runtime.enter();
-        ProjectCacheService::new(config.clone(), project_cache_services, redis_pool)
-            .spawn_handler(project_cache_rx);
+        ProjectCacheService::new(
+            config.clone(),
+            buffer.clone(),
+            project_cache_services,
+            redis_pool,
+        )
+        .spawn_handler(project_cache_rx);
         drop(guard);
 
         let health_check =
@@ -185,35 +198,38 @@ impl ServiceState {
             }
         }
 
-        REGISTRY
-            .set(Box::new(Registry {
-                aggregator,
-                processor,
-                health_check,
-                outcome_producer,
-                outcome_aggregator,
-                envelope_manager,
-                test_store,
-                relay_cache,
-                project_cache,
-                upstream_relay,
-            }))
-            .unwrap();
+        let registry = Registry {
+            aggregator,
+            processor,
+            health_check,
+            outcome_producer,
+            outcome_aggregator,
+            envelope_manager,
+            test_store,
+            relay_cache,
+            project_cache,
+            upstream_relay,
+        };
 
-        Ok(ServiceState {
+        let state = StateInner {
             buffer_guard: buffer,
             config,
+            registry,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _project_runtime: Arc::new(project_runtime),
             _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
+        };
+
+        Ok(ServiceState {
+            inner: Arc::new(state),
         })
     }
 
     /// Returns a reference to the Relay configuration.
     pub fn config(&self) -> &Config {
-        &self.config
+        &self.inner.config
     }
 
     /// Returns a reference to the guard of the envelope buffer.
@@ -221,6 +237,55 @@ impl ServiceState {
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.buffer_guard
+        &self.inner.buffer_guard
+    }
+
+    /// Returns the address of the [`ProjectCache`] service.
+    pub fn project_cache(&self) -> &Addr<ProjectCache> {
+        &self.inner.registry.project_cache
+    }
+
+    /// Returns the address of the [`RelayCache`] service.
+    pub fn relay_cache(&self) -> &Addr<RelayCache> {
+        &self.inner.registry.relay_cache
+    }
+
+    /// Returns the address of the [`HealthCheck`] service.
+    pub fn health_check(&self) -> &Addr<HealthCheck> {
+        &self.inner.registry.health_check
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
+        &self.inner.registry.outcome_producer
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn test_store(&self) -> &Addr<TestStore> {
+        &self.inner.registry.test_store
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn upstream_relay(&self) -> &Addr<UpstreamRelay> {
+        &self.inner.registry.upstream_relay
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
+        &self.inner.registry.processor
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.inner.registry.outcome_aggregator
+    }
+}
+
+#[axum::async_trait]
+impl FromRequestParts<Self> for ServiceState {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(_: &mut Parts, state: &Self) -> Result<Self, Self::Rejection> {
+        Ok(state.clone())
     }
 }

@@ -1,24 +1,25 @@
+use std::convert::Infallible;
 use std::fmt;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::time::Instant;
 
-use actix_web::dev::AsyncResult;
-use actix_web::http::header;
-use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-use futures::TryFutureExt;
+use axum::extract::rejection::PathRejection;
+use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::http::header::{self, AsHeaderName};
+use axum::http::request::Parts;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::RequestPartsExt;
 use relay_common::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
-    ProjectKey, Scheme,
+    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
 };
 use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::body;
-use crate::extractors::ForwardedFor;
-use crate::middlewares::StartTime;
+use crate::extractors::{ForwardedFor, StartTime};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
@@ -38,7 +39,7 @@ pub enum BadEventMeta {
     BadEnvelopeAuth(#[source] serde_json::Error),
 
     #[error("bad project path parameter")]
-    BadProject(#[from] ParseProjectIdError),
+    BadProject(#[from] PathRejection),
 
     #[error("bad x-sentry-auth header")]
     BadAuth(#[from] ParseAuthError),
@@ -47,19 +48,25 @@ pub enum BadEventMeta {
     BadPublicKey(#[from] ParseProjectKeyError),
 }
 
-impl ResponseError for BadEventMeta {
-    fn error_response(&self) -> HttpResponse {
-        let mut builder = match *self {
+impl From<Infallible> for BadEventMeta {
+    fn from(infallible: Infallible) -> Self {
+        match infallible {}
+    }
+}
+
+impl IntoResponse for BadEventMeta {
+    fn into_response(self) -> Response {
+        let code = match self {
             Self::MissingAuth
             | Self::MultipleAuth
             | Self::BadAuth(_)
-            | Self::BadEnvelopeAuth(_) => HttpResponse::Unauthorized(),
+            | Self::BadEnvelopeAuth(_) => StatusCode::UNAUTHORIZED,
             Self::UnsupportedProtocolVersion(_) | Self::BadProject(_) | Self::BadPublicKey(_) => {
-                HttpResponse::BadRequest()
+                StatusCode::BAD_REQUEST
             }
         };
 
-        builder.json(&ApiErrorResponse::from_error(self))
+        (code, ApiErrorResponse::from_error(&self)).into_response()
     }
 }
 
@@ -279,6 +286,11 @@ impl<D> RequestMeta<D> {
     pub fn start_time(&self) -> Instant {
         self.start_time
     }
+
+    /// Sets the start time for this [`RequestMeta`] on the current envelope.
+    pub fn set_start_time(&mut self, start_time: Instant) {
+        self.start_time = start_time
+    }
 }
 
 impl RequestMeta {
@@ -357,32 +369,13 @@ impl RequestMeta {
     }
 }
 
+/// Request information without required authentication parts.
+///
+/// This is identical to [`RequestMeta`] with the exception that the DSN, used to authenticate, is
+/// optional.
 pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 
 impl PartialMeta {
-    /// Extracts header information except for auth info.
-    fn from_headers<S>(request: &HttpRequest<S>) -> Self {
-        let mut ua = RawUserAgentInfo::default();
-
-        for (key, value) in request.headers() {
-            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
-        }
-
-        RequestMeta {
-            dsn: None,
-            version: default_version(),
-            client: None,
-            origin: parse_header_url(request, header::ORIGIN)
-                .or_else(|| parse_header_url(request, header::REFERER)),
-            remote_addr: request.peer_addr().map(|peer| peer.ip()),
-            forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: ua.user_agent,
-            no_cache: false,
-            start_time: StartTime::extract(request).into_inner(),
-            client_hints: ua.client_hints,
-        }
-    }
-
     /// Returns a reference to the DSN.
     ///
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
@@ -426,14 +419,50 @@ impl PartialMeta {
     }
 }
 
-fn get_auth_header<'a, S>(req: &'a HttpRequest<S>, header_name: &str) -> Option<&'a str> {
-    req.headers()
+#[axum::async_trait]
+impl<S> FromRequestParts<S> for PartialMeta
+where
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let mut ua = RawUserAgentInfo::default();
+        for (key, value) in &parts.headers {
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
+        Ok(RequestMeta {
+            dsn: None,
+            version: default_version(),
+            client: None,
+            origin: parse_header_url(parts, header::ORIGIN)
+                .or_else(|| parse_header_url(parts, header::REFERER)),
+            remote_addr: ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
+                .await
+                .map(|ConnectInfo(peer)| peer.ip())
+                .ok(),
+            forwarded_for: ForwardedFor::from_request_parts(parts, state)
+                .await?
+                .into_inner(),
+            user_agent: ua.user_agent,
+            no_cache: false,
+            start_time: StartTime::from_request_parts(parts, state)
+                .await?
+                .into_inner(),
+            client_hints: ua.client_hints,
+        })
+    }
+}
+
+fn get_auth_header(req: &Parts, header_name: impl AsHeaderName) -> Option<&str> {
+    req.headers
         .get(header_name)
         .and_then(|x| x.to_str().ok())
         .filter(|h| h.len() >= 7 && h[..7].eq_ignore_ascii_case("sentry "))
 }
 
-fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
+fn auth_from_parts(req: &Parts, path_key: Option<String>) -> Result<Auth, BadEventMeta> {
     let mut auth = None;
 
     // try to extract authentication info from http header "x-sentry-auth"
@@ -442,7 +471,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
     }
 
     // try to extract authentication info from http header "authorization"
-    if let Some(header) = get_auth_header(req, "authorization") {
+    if let Some(header) = get_auth_header(req, header::AUTHORIZATION) {
         if auth.is_some() {
             return Err(BadEventMeta::MultipleAuth);
         }
@@ -451,7 +480,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
-    let query = req.query_string();
+    let query = req.uri.query().unwrap_or_default();
     if query.contains("sentry_") {
         if auth.is_some() {
             return Err(BadEventMeta::MultipleAuth);
@@ -461,7 +490,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
     }
 
     // try to extract authentication info from URL path segment .../{sentry_key}/...
-    if let Some(sentry_key) = req.match_info().get("sentry_key") {
+    if let Some(sentry_key) = path_key {
         if auth.is_some() {
             return Err(BadEventMeta::MultipleAuth);
         }
@@ -475,8 +504,8 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
     auth.ok_or(BadEventMeta::MissingAuth)
 }
 
-fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
-    req.headers()
+fn parse_header_url(req: &Parts, header: impl AsHeaderName) -> Option<Url> {
+    req.headers
         .get(header)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.parse::<Url>().ok())
@@ -486,28 +515,48 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-impl FromRequest<ServiceState> for RequestMeta {
-    type Config = ();
-    type Result = Result<Self, BadEventMeta>;
+/// Path parameters containing authentication information for store endpoints.
+///
+/// These parameters implement part of the authentication mechanism. For more information, see
+/// [`RequestMeta`].
+#[derive(Debug, serde::Deserialize)]
+struct StorePath {
+    /// The numeric identifier of the Sentry project.
+    ///
+    /// This parameter is part of the store endpoint paths, which are generally located under
+    /// `/api/:project_id/*`. By default, all store endpoints have the project ID in the path. To
+    /// resolve the project and associated information, Relay actually uses the DSN's
+    /// [`ProjectKey`]. During ingestion, the stated project ID from the URI path is validated
+    /// against information resolved from the upstream.
+    ///
+    /// The legacy endpoint (`/api/store/`) does not have the project ID. In this case, Relay skips
+    /// ID validation during ingestion.
+    project_id: Option<ProjectId>,
 
-    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        let auth = auth_from_request(request)?;
-        let partial_meta = PartialMeta::from_headers(request);
+    /// The DSN's public key, also referred to as project key.
+    ///
+    /// Some endpoints require this key in the path. On all other endpoints, the key is either sent
+    /// as header or query parameter.
+    sentry_key: Option<String>,
+}
 
-        let project_id = match request.match_info().get("project") {
-            // The project_id was declared in the URL. Use it directly.
-            Some(s) => Some(s.parse()?),
+#[axum::async_trait]
+impl FromRequestParts<ServiceState> for RequestMeta {
+    type Rejection = BadEventMeta;
 
-            // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
-            // id from the key lookup. Since this is the uncommon case, block the request until the
-            // project id is here.
-            None => None,
-        };
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        let Path(store_path): Path<StorePath> =
+            parts.extract().await.map_err(BadEventMeta::BadProject)?;
 
-        let config = request.state().config();
-        let upstream = config.upstream_descriptor();
-
+        let auth = auth_from_parts(parts, store_path.sentry_key)?;
+        let partial_meta = parts.extract::<PartialMeta>().await?;
         let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
+
+        let config = state.config();
+        let upstream = config.upstream_descriptor();
 
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
@@ -515,7 +564,7 @@ impl FromRequest<ServiceState> for RequestMeta {
             host: upstream.host().to_owned(),
             port: upstream.port(),
             path: String::new(),
-            project_id,
+            project_id: store_path.project_id,
         };
 
         // For now, we only handle <= v8 and drop everything else
@@ -541,53 +590,6 @@ impl FromRequest<ServiceState> for RequestMeta {
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
         })
-    }
-}
-
-/// A wrapper type for [`RequestMeta`] that considers envelope headers in the first line of the
-/// request body.
-#[derive(Debug)]
-pub struct EnvelopeMeta {
-    request_meta: RequestMeta,
-}
-
-impl EnvelopeMeta {
-    const MAX_HEADER_SIZE: usize = 2048;
-
-    fn new(request_meta: RequestMeta) -> Self {
-        Self { request_meta }
-    }
-
-    /// Returns the request meta data.
-    pub fn into_inner(self) -> RequestMeta {
-        self.request_meta
-    }
-}
-
-async fn extract_envelope_meta(
-    request: HttpRequest<ServiceState>,
-) -> Result<EnvelopeMeta, actix_web::Error> {
-    let result = RequestMeta::extract(&request).map(EnvelopeMeta::new);
-    if !matches!(result, Err(BadEventMeta::MissingAuth)) {
-        return result.map_err(|e| e.into());
-    }
-
-    let Ok(Some(json)) = body::peek_line(&request, EnvelopeMeta::MAX_HEADER_SIZE).await else {
-        return Err(actix_web::Error::from(BadEventMeta::MissingAuth));
-    };
-
-    let request_meta = serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?;
-    let partial_meta = PartialMeta::from_headers(&request);
-    Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-}
-
-impl FromRequest<ServiceState> for EnvelopeMeta {
-    type Config = ();
-    type Result = AsyncResult<Self, actix_web::Error>;
-
-    fn from_request(request: &HttpRequest<ServiceState>, _config: &Self::Config) -> Self::Result {
-        let future = extract_envelope_meta(request.clone());
-        AsyncResult::future(Box::new(Box::pin(future).compat()))
     }
 }
 

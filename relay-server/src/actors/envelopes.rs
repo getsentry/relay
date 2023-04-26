@@ -59,6 +59,7 @@ impl From<relay_system::SendError> for SendEnvelopeError {
 pub struct SendEnvelope {
     pub envelope_body: Vec<u8>,
     pub envelope_meta: RequestMeta,
+    pub project_cache: Addr<ProjectCache>,
     pub scoping: Scoping,
     pub http_encoding: HttpEncoding,
     pub response_sender: oneshot::Sender<Result<(), SendEnvelopeError>>,
@@ -79,7 +80,10 @@ impl UpstreamRequest for SendEnvelope {
         "envelope"
     }
 
-    fn build(&mut self, _: &Config, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
+        let envelope_body = &self.envelope_body;
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -87,15 +91,9 @@ impl UpstreamRequest for SendEnvelope {
             .header_opt("User-Agent", meta.user_agent())
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
-            .header("Content-Type", envelope::CONTENT_TYPE);
-
-        if let Some(partition_key) = &self.partition_key {
-            builder.header("X-Sentry-Relay-Shard", partition_key);
-        }
-
-        let envelope_body = self.envelope_body.clone();
-        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
-        builder.body(envelope_body)
+            .header("Content-Type", envelope::CONTENT_TYPE)
+            .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .body(envelope_body)
     }
 
     fn respond(
@@ -107,7 +105,7 @@ impl UpstreamRequest for SendEnvelope {
                 Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
                 Err(error) => {
                     if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        self.project_cache.send(UpdateRateLimits::new(
                             self.project_key,
                             upstream_limits.clone().scope(&self.scoping),
                         ));
@@ -200,6 +198,7 @@ pub struct EnvelopeManagerService {
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
     enveloper_processor: Addr<EnvelopeProcessor>,
+    project_cache: Addr<ProjectCache>,
     test_store: Addr<TestStore>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -212,6 +211,7 @@ impl EnvelopeManagerService {
         config: Arc<Config>,
         aggregator: Addr<Aggregator>,
         enveloper_processor: Addr<EnvelopeProcessor>,
+        project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
@@ -219,6 +219,7 @@ impl EnvelopeManagerService {
             config,
             aggregator,
             enveloper_processor,
+            project_cache,
             test_store,
             upstream_relay,
             #[cfg(feature = "processing")]
@@ -274,6 +275,7 @@ impl EnvelopeManagerService {
         let request = SendEnvelope {
             envelope_body,
             envelope_meta: envelope.meta().clone(),
+            project_cache: self.project_cache.clone(),
             scoping,
             http_encoding: self.config.http_encoding(),
             response_sender: tx,
@@ -346,7 +348,7 @@ impl EnvelopeManagerService {
         if let Err(err) = result {
             relay_log::trace!(
                 "failed to submit the envelope, merging buckets back: {}",
-                err
+                LogError(&err)
             );
             self.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));

@@ -162,7 +162,6 @@ pub fn set_client(client: MetricsClient) {
 }
 
 /// Set a test client for the period of the called function (only affects the current thread).
-#[cfg(feature = "test")]
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {

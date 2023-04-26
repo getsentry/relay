@@ -34,6 +34,7 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -480,6 +481,13 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// Internal flag to signal that the profile has been counted toward `DataCategory::Profile`.
+    ///
+    /// If `true`, outcomes for this item should be reported as `DataCategory::ProfileIndexed`
+    /// instead.
+    #[serde(skip)]
+    profile_counted_as_processed: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -506,6 +514,7 @@ impl Item {
                 timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                profile_counted_as_processed: false,
             },
             payload: Bytes::new(),
         }
@@ -549,7 +558,13 @@ impl Item {
             ItemType::Metrics | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            ItemType::Profile => Some(DataCategory::Profile),
+            // For profiles, do not used the `indexed` flag, because it depends
+            // on whether metrics were extracted from the _event_.
+            ItemType::Profile => Some(if self.headers.profile_counted_as_processed {
+                DataCategory::ProfileIndexed
+            } else {
+                DataCategory::Profile
+            }),
             ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
@@ -646,6 +661,21 @@ impl Item {
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers.metrics_extracted
+    }
+
+    /// Returns `true` if the profiles in the envelope have been counted towards `DataCategory::Profile`.
+    ///
+    /// If so, count them towards `DataCategory::ProfileIndexed` instead.
+    pub fn profile_counted_as_processed(&self) -> bool {
+        self.headers.profile_counted_as_processed
+    }
+
+    /// Mark the item as "counted towards `DataCategory::Profile`".
+    #[cfg(feature = "processing")]
+    pub fn set_profile_counted_as_processed(&mut self) {
+        if self.ty() == &ItemType::Profile {
+            self.headers.profile_counted_as_processed = true;
+        }
     }
 
     /// Sets the metrics extracted flag.
@@ -956,6 +986,11 @@ impl Envelope {
         self.headers.sent_at = Some(sent_at);
     }
 
+    /// Sets the start time to the provided `Instant`.
+    pub fn set_start_time(&mut self, start_time: Instant) {
+        self.headers.meta.set_start_time(start_time)
+    }
+
     /// Sets the data retention in days for items in this envelope.
     pub fn set_retention(&mut self, retention: u16) {
         self.headers.retention = Some(retention);
@@ -1129,7 +1164,7 @@ impl Envelope {
         let mut items = Items::new();
 
         while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            let (item, item_size) = Self::parse_item(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
         }
@@ -1172,7 +1207,7 @@ impl Envelope {
             },
         };
 
-        let payload = bytes.slice(payload_start, payload_end);
+        let payload = bytes.slice(payload_start..payload_end);
         let item = Item { headers, payload };
 
         Ok((item, payload_end + 1))

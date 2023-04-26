@@ -1,6 +1,6 @@
 [package]
 name = "relay-general"
-version = "23.3.1"
+version = "23.4.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 bytecount = "0.6.0"
-chrono = { version = "0.4.11", features = ["serde"] }
+chrono = { version = "0.4.24", default-features = false, features = ["clock", "std", "serde"] }
 cookie = { version = "0.17.0", features = ["percent-encode"] }
 debugid = { version = "0.8.0", features = ["serde"] }
 dynfmt = { version = "0.1.4", features = ["python", "curly"] }
@@ -27,7 +27,11 @@ regex = "1.5.5"
 relay-common = { path = "../relay-common" }
 relay-general-derive = { path = "derive" }
 relay-log = { path = "../relay-log" }
-schemars = { version = "0.8.1", features = ["uuid1", "chrono"], optional = true }
+# schemars has made some changes to its generated schemas that break the docs
+# generator. For now, pin since we only have a singular use for it, otherwise I
+# think we could also just live with the bad docs.
+# https://github.com/getsentry/develop/issues/892
+schemars = { version = "=0.8.10", features = ["uuid1", "chrono"], optional = true }
 sentry-release-parser = { version = "1.3.1" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"

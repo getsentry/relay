@@ -1,5 +1,9 @@
 use std::fmt;
 
+use relay_system::Addr;
+
+use crate::actors::outcome::TrackOutcome;
+use crate::actors::test_store::TestStore;
 use crate::envelope::Envelope;
 use crate::statsd::RelayHistograms;
 use crate::utils::{ManagedEnvelope, Semaphore};
@@ -47,12 +51,17 @@ impl BufferGuard {
 
     /// Reserves resources for processing an envelope in Relay.
     ///
-    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
+    /// Returns `Ok(ManagedEnvelope)` on success, which internally holds a handle to the reserved
     /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
     /// be reused by a subsequent call to `enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
-    pub fn enter(&self, envelope: Box<Envelope>) -> Result<ManagedEnvelope, BufferError> {
+    pub fn enter(
+        &self,
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Result<ManagedEnvelope, BufferError> {
         let permit = self.inner.try_acquire().ok_or(BufferError)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
@@ -64,6 +73,11 @@ impl BufferGuard {
             }
         );
 
-        Ok(ManagedEnvelope::new(envelope, permit))
+        Ok(ManagedEnvelope::new(
+            envelope,
+            permit,
+            outcome_aggregator,
+            test_store,
+        ))
     }
 }

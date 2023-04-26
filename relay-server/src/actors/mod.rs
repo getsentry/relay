@@ -3,9 +3,9 @@
 //! Services require a tokio to run, see [`relay_system`] and particularly
 //! [`Controller`](relay_system::Controller) for more information.
 //!
-//! The web server is wrapped by [`HttpServer`](server::HttpServer). It starts the actix HTTP
-//! web server and dispatches the graceful shutdown signal. Internally, it creates several other
-//! services comprising the service state:
+//! The web server is wrapped by [`HttpServer`](server::HttpServer). It starts the actual web server
+//! and dispatches the graceful shutdown signal. Internally, it creates several other services
+//! comprising the service state:
 //!
 //!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project
 //!    configurations. Its requests are debounced and batched based on a configured interval (100ms
@@ -34,12 +34,12 @@ pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
 pub mod project;
-pub mod project_buffer;
 pub mod project_cache;
 pub mod project_local;
 pub mod project_upstream;
 pub mod relays;
 pub mod server;
+pub mod spooler;
 pub mod test_store;
 pub mod upstream;
 

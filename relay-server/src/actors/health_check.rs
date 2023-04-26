@@ -7,35 +7,22 @@ use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
+    #[serde(rename = "live")]
     Liveness,
     /// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
     /// it's both live/alive and not too busy).
+    #[serde(rename = "ready")]
     Readiness,
 }
 
 /// Service interface for the [`IsHealthy`] message.
 pub struct HealthCheck(IsHealthy, Sender<bool>);
-
-impl HealthCheck {
-    /// Returns the [`Addr`] of the [`HealthCheck`] service.
-    ///
-    /// Prior to using this, the service must be started using [`HealthCheckService::start`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the service was not started using [`HealthCheckService::start`] prior to this
-    /// being used.
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().health_check.clone()
-    }
-}
 
 impl Interface for HealthCheck {}
 
