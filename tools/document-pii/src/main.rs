@@ -628,6 +628,16 @@ mod tests {
     const RUST_CRATE: &str = "../../tests/test_pii_docs";
 
     #[test]
+    fn test_use_statements() {
+        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
+
+        let rust_file_paths = find_rs_files(&rust_crate);
+        let (_, use_statements) =
+            FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
+        insta::assert_debug_snapshot!(use_statements);
+    }
+
+    #[test]
     fn test_pii_true() {
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
 
