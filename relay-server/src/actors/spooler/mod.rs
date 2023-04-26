@@ -258,9 +258,8 @@ impl OnDisk {
     /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
     async fn spool(
         &self,
-        buffer: &mut BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
+        buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
-        let buffer = std::mem::take(buffer);
         relay_statsd::metric!(histogram(RelayHistograms::BufferEnvelopesMemory) = 0);
         let envelopes = buffer
             .into_iter()
@@ -512,8 +511,8 @@ impl BufferState {
     /// underlying spool.
     async fn transition(self, config: &Arc<Config>) -> Self {
         match self {
-            Self::MemoryFileStandby { mut ram, disk } if ram.is_full() => {
-                if let Err(err) = disk.spool(&mut ram.buffer).await {
+            Self::MemoryFileStandby { ram, disk } if ram.is_full() => {
+                if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",
                         LogError(&err)
@@ -534,8 +533,8 @@ impl BufferState {
             Self::MemoryFileRead { ram, disk } if disk.is_empty().await.unwrap_or_default() => {
                 Self::MemoryFileStandby { ram, disk }
             }
-            Self::MemoryFileRead { mut ram, disk } if disk.can_fit(ram.used_memory).await => {
-                if let Err(err) = disk.spool(&mut ram.buffer).await {
+            Self::MemoryFileRead { ram, disk } if disk.can_fit(ram.used_memory).await => {
+                if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",
                         LogError(&err)
@@ -790,7 +789,8 @@ impl BufferService {
             count
         );
 
-        disk.spool(&mut ram.buffer).await?;
+        let buffer = std::mem::take(&mut ram.buffer);
+        disk.spool(buffer).await?;
         Ok(())
     }
 }
