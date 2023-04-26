@@ -415,10 +415,32 @@ fn extract_span_metrics(
         // Collect the shared tags for all the metrics and spans on this transaction
         let mut shared_tags = BTreeMap::new();
 
+        if let Some(environment) = event.environment.as_str() {
+            shared_tags.insert("environment".to_owned(), environment.to_owned());
+        }
         if let Some(transaction_name) = event.transaction.value() {
             shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
         }
-        // TODO(iker): must add shared tags: environment, op, release, etc
+        if let Some(trace_context) = get_trace_context(event) {
+            if let Some(op) = extract_transaction_op(trace_context) {
+                shared_tags.insert("transaction.op".to_owned(), op);
+            }
+
+            shared_tags.insert(
+                "transaction.status".to_owned(),
+                extract_transaction_status(trace_context).to_string(),
+            );
+        }
+        // server_name is extracted into an event tag during light_normalization
+        if let Some(event_tags) = event.tags.value() {
+            if let Some(server_name) = event_tags.get("server_name") {
+                shared_tags.insert("domain".to_owned(), server_name.to_owned());
+            }
+        }
+        // Some more tags are required, but need SDK work first:
+        // - span_status
+        // - action
+        // - event platform (e.g. MySQL, Redis).
 
         if let Some(user) = event.user.value() {
             if let Some(value) = get_eventuser_tag(user) {
@@ -434,6 +456,7 @@ fn extract_span_metrics(
         }
 
         // TODO(iker): extract span-specific metrics
+        // still missing: span.operation, description, span.group, module
     }
 
     Ok(())
@@ -541,6 +564,7 @@ mod tests {
             "platform": "javascript",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
+            "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",
             "environment": "fake_environment",
@@ -733,7 +757,11 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "environment": "fake_environment",
+                    "server_name": "myhost",
                     "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
                 },
             },
         ]
