@@ -439,13 +439,13 @@ fn extract_span_metrics(
 
                 // Add to the span all the tags that exist in the metrics
                 let span_tags = span.tags.get_or_insert_with(BTreeMap::new);
-                for (key, value) in &shared_tags {
-                    // NOTE(iker): if the tag already existed before, we are overwriting it
-                    span_tags.insert(
-                        key.to_owned(),
-                        Annotated::new(JsonLenientString::from(value.to_owned())),
-                    );
-                }
+                // NOTE(iker): if the tag already existed before, we are overwriting it
+                span_tags.extend(
+                    shared_tags
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k, Annotated::new(JsonLenientString::from(v)))),
+                );
             }
         }
     }
