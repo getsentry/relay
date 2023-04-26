@@ -3526,6 +3526,12 @@
 <a href="#3525" id="3525">3525</a>
 <a href="#3526" id="3526">3526</a>
 <a href="#3527" id="3527">3527</a>
+<a href="#3528" id="3528">3528</a>
+<a href="#3529" id="3529">3529</a>
+<a href="#3530" id="3530">3530</a>
+<a href="#3531" id="3531">3531</a>
+<a href="#3532" id="3532">3532</a>
+<a href="#3533" id="3533">3533</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5613,13 +5619,18 @@
         <span class="kw">if </span>!extraction_config.is_enabled() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
+
+        <span class="kw">let </span>extract_spans_metrics = project_config
+            .features
+            .contains(<span class="kw-2">&amp;</span>Feature::SpanMetricsExtraction);
+
         <span class="kw">let </span>transaction_from_dsc = state
             .managed_envelope
             .envelope()
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
             <span class="kw">let </span>result;
             <span class="macro">metric!</span>(
                 timer(RelayTimers::TransactionMetricsExtraction),
@@ -5630,6 +5641,7 @@
                         <span class="self">self</span>.config.aggregator_config(),
                         extraction_config,
                         <span class="kw-2">&amp;</span>project_config.metric_conditional_tagging,
+                        extract_spans_metrics,
                         event,
                         transaction_from_dsc,
                         <span class="kw-2">&amp;</span>state.sampling_result,

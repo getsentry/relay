@@ -901,6 +901,10 @@
 <a href="#900" id="900">900</a>
 <a href="#901" id="901">901</a>
 <a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1082,6 +1086,8 @@
     </span>Sessions,
     <span class="doccomment">/// Metrics extracted from transaction events.
     </span>Transactions,
+    <span class="doccomment">/// Metrics extracted from spans.
+    </span>Spans,
     <span class="doccomment">/// Metrics that relay either doesn&#39;t know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into
@@ -1099,6 +1105,7 @@
         <span class="kw">match </span>ns {
             <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Sessions),
             <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Transactions),
+            <span class="string">&quot;spans&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Spans),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported),
         }
     }
@@ -1111,6 +1118,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             MetricNamespace::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
             MetricNamespace::Transactions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transactions&quot;</span>),
+            MetricNamespace::Spans =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;spans&quot;</span>),
             MetricNamespace::Unsupported =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unsupported&quot;</span>),
         }
     }
