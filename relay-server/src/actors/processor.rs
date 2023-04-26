@@ -2085,13 +2085,18 @@ impl EnvelopeProcessorService {
         if !extraction_config.is_enabled() {
             return Ok(());
         }
+
+        let extract_spans_metrics = project_config
+            .features
+            .contains(&Feature::SpanMetricsExtraction);
+
         let transaction_from_dsc = state
             .managed_envelope
             .envelope()
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
-        if let Some(event) = state.event.value() {
+        if let Some(event) = state.event.value_mut() {
             let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
@@ -2102,6 +2107,7 @@ impl EnvelopeProcessorService {
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
+                        extract_spans_metrics,
                         event,
                         transaction_from_dsc,
                         &state.sampling_result,
