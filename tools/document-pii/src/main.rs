@@ -13,7 +13,7 @@ use clap::{command, Parser, ValueEnum};
 use serde::Serialize;
 use syn::punctuated::Punctuated;
 use syn::{visit::Visit, ItemEnum};
-use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree};
+use syn::{Attribute, Field, ItemStruct, Meta, Type, UseTree};
 use walkdir::WalkDir;
 
 /// Iterates over the rust files to collect all the types and use_statements, which is later
@@ -37,6 +37,7 @@ impl FileSyntaxVisitor {
     /// Gets both a mapping of the full type to a type and its actual AST node, and also the
     /// use_statements in its module, which is needed to fetch the types that it referes to in its
     /// fields.
+    #[allow(clippy::type_complexity)]
     fn get_types_and_use_statements(
         paths: &Vec<PathBuf>,
     ) -> anyhow::Result<(
@@ -227,7 +228,7 @@ impl<'ast> Visit<'ast> for TypeVisitor<'_> {
     }
 }
 
-/// if you have a field such as "foo: Foo<Bar<Baz>>" this function can take the type of the field
+/// if you have a field such as `foo: Foo<Bar<Baz>>` this function can take the type of the field
 /// and return a vector of the types like: ["Foo", "Bar", "Baz"].
 fn get_field_types(ty: &Type, segments: &mut Vec<String>) {
     match ty {
@@ -590,7 +591,7 @@ fn find_pii_fields(
     pii_types
 }
 
-/// Converts the content of `PII_TYPES` into a Vec<Pii> which is the format that is pushed to
+/// Converts the content of `PII_TYPES` into a `Vec<Pii>` which is the format that is pushed to
 /// the sentry-docs.
 fn get_pii_fields_output(
     pii_types: BTreeSet<Vec<TypeAndField>>,
