@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, MetricUnit, ProjectId, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, JsonLenientString, TraceContext, TransactionSource, User,
@@ -212,6 +212,7 @@ pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
+    project_id: ProjectId,
     event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
@@ -230,7 +231,9 @@ pub fn extract_transaction_metrics(
         sampling_metrics,
     )?;
 
-    extract_span_metrics(aggregator_config, event, project_metrics)?;
+    if project_id.value() == 1 {
+        extract_span_metrics(aggregator_config, event, project_metrics)?;
+    }
 
     let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);

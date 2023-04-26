@@ -2095,6 +2095,7 @@ impl EnvelopeProcessorService {
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
+                        state.project_id,
                         event,
                         transaction_from_dsc,
                         &state.sampling_result,
