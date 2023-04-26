@@ -16,10 +16,13 @@ use syn::{visit::Visit, ItemEnum};
 use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree};
 use walkdir::WalkDir;
 
-/// It's only purpose is to populate ALL_TYPES and USE_STATEMENTS
+/// Iterates over the rust files to collect all the types and use_statements, which is later
+/// used for recursively looking for pii_fields afterwards.
 struct FileSyntaxVisitor {
     module_path: String,
-    node_map: HashMap<String, EnumOrStruct>,
+    /// Maps from the full path of a type to its AST node.
+    all_types: HashMap<String, EnumOrStruct>,
+    /// Maps from a module_path to all the use_statements and path of local items.
     use_statements: HashMap<String, BTreeSet<String>>,
 }
 
@@ -43,42 +46,35 @@ impl FileSyntaxVisitor {
         let mut node_map = HashMap::new();
         let mut use_statements = HashMap::new();
         for path in paths {
-            // first iterate through all rust files to create the hashmap
-            let mut hashmap_filler = FileSyntaxVisitor {
+            let mut visitor = Self {
                 module_path: rust_file_to_use_path(path.as_path()),
                 use_statements: HashMap::new(),
-                node_map: HashMap::new(),
+                all_types: HashMap::new(),
             };
             let file_content = fs::read_to_string(path.as_path())?;
             let syntax_tree: syn::File = syn::parse_file(&file_content)?;
-            hashmap_filler.visit_file(&syntax_tree);
-            node_map.extend(hashmap_filler.node_map);
-            use_statements.extend(hashmap_filler.use_statements);
+            visitor.visit_file(&syntax_tree);
+            node_map.extend(visitor.all_types);
+            use_statements.extend(visitor.use_statements);
         }
         Ok((node_map, use_statements))
     }
 }
 
+/// Iterates through all the rust files in order to make the `full-type-path -> AST node' map
+/// and the 'module-path -> use-statements' map. These are needed for the 'find_pii_fields' function.
 impl<'ast> Visit<'ast> for FileSyntaxVisitor {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
-        // These are pretty common and we know they dont contain PII so might as well not include
-        // them to save time.
-        for common_value in ["Annotated", "Value"] {
-            if node.ident == common_value {
-                return;
-            }
-        }
-
         let struct_name = format!("{}::{}", self.module_path, node.ident);
         self.insert_use_statements(vec![struct_name.clone()]);
-        self.node_map
+        self.all_types
             .insert(struct_name, EnumOrStruct::Struct(node.clone()));
     }
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         let enum_name = format!("{}::{}", self.module_path, node.ident);
         self.insert_use_statements(vec![enum_name.clone()]);
-        self.node_map
+        self.all_types
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
 
@@ -93,19 +89,21 @@ impl<'ast> Visit<'ast> for FileSyntaxVisitor {
     }
 }
 
+/// The name of a field along with its type. Used for the path to a pii-field.
 #[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
 struct TypeAndField {
     // Full path of a type. E.g. relay_common::protocol::Event, rather than just 'Event'.
     qualified_type_name: String,
-    field_name: String,
+    field_ident: String,
 }
 
+/// Gets all the .rs files in a given rust crate/workspace.
 fn find_rs_files(dir: &PathBuf) -> Vec<std::path::PathBuf> {
     let walker = WalkDir::new(dir).into_iter();
     let mut rs_files = Vec::new();
 
     for entry in walker.filter_map(walkdir::Result::ok) {
-        if !entry.clone().path().to_string_lossy().contains("/src/") {
+        if !entry.path().to_string_lossy().contains("/src/") {
             continue;
         }
         if entry.file_type().is_file() && entry.path().extension().map_or(false, |ext| ext == "rs")
@@ -116,34 +114,35 @@ fn find_rs_files(dir: &PathBuf) -> Vec<std::path::PathBuf> {
     rs_files
 }
 
+/// Structs and Enums are the only items we iterate over here.
 #[derive(Debug, Clone)]
 enum EnumOrStruct {
     Struct(ItemStruct),
     Enum(ItemEnum),
 }
 
-// Need this to wrap lazy_statics in a mutex. everything is single-threaded so it shouldn't matter.
-unsafe impl Send for EnumOrStruct {}
-
-// In practice this is used as a way to keep state between the different methods on the visitor
-// trait, as the predefined trait stops me from adding the parameters I need.
+/// This is the visitor that actually generates the pii_types, it has a lot of associated data
+/// because it using the Visit trait from syn-crate means I cannot add data as arguments.
+/// The 'pii_types' field can be regarded as the output.
 struct TypeVisitor<'a> {
     module_path: String,
     current_type: String,
     node_map: &'a HashMap<String, EnumOrStruct>,
     use_statements: &'a HashMap<String, BTreeSet<String>>,
     pii_values: &'a Vec<String>,
-    pii_types: &'a mut BTreeSet<Vec<TypeAndField>>,
     current_path: &'a mut Vec<TypeAndField>,
+    pii_types: &'a mut BTreeSet<Vec<TypeAndField>>,
 }
 
 impl<'a> TypeVisitor<'a> {
-    /// Takes a Field (could be struct or enum) and visit the types that it consist of if we have
-    /// the full path to it in USE_STATEMENTS.
-    fn recursion(&mut self, node: &Field) {
+    /// Takes a Field and visit the types that it consist of if we have
+    /// the full path to it in self.use_statements.
+    fn visit_field_types(&mut self, node: &Field) {
         let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
 
-        let field_types = type_to_string(&node.ty);
+        let mut field_types = vec![];
+        get_field_types(&node.ty, &mut field_types);
+
         for field_type in &field_types {
             for use_path in &local_paths {
                 if use_path.split("::").last().unwrap() == field_type.trim() {
@@ -178,8 +177,8 @@ impl<'a> TypeVisitor<'a> {
 impl<'ast> Visit<'ast> for TypeVisitor<'_> {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         self.current_type = node.ident.to_string();
-        // This should stop any infinite recursion
-        if !self
+
+        if !self // This should stop any infinite recursion
             .current_path
             .iter()
             .any(|x| x.qualified_type_name == self.current_type)
@@ -211,7 +210,7 @@ impl<'ast> Visit<'ast> for TypeVisitor<'_> {
         // whenever the field matches a correct PII value.
         self.current_path.push(TypeAndField {
             qualified_type_name: self.current_type.clone(),
-            field_name: node
+            field_ident: node
                 .clone()
                 .ident
                 .map(|x| x.to_string())
@@ -222,7 +221,7 @@ impl<'ast> Visit<'ast> for TypeVisitor<'_> {
             self.pii_types.insert(self.current_path.clone());
         }
 
-        self.recursion(node);
+        self.visit_field_types(node);
 
         self.current_path.pop();
     }
@@ -230,63 +229,58 @@ impl<'ast> Visit<'ast> for TypeVisitor<'_> {
 
 /// if you have a field such as "foo: Foo<Bar<Baz>>" this function can take the type of the field
 /// and return a vector of the types like: ["Foo", "Bar", "Baz"].
-fn type_to_string(ty: &Type) -> Vec<String> {
-    fn recursion(ty: &Type, segments: &mut Vec<String>) {
-        match ty {
-            Type::Path(type_path) => {
-                let mut path_iter = type_path.path.segments.iter();
-                let first_segment = path_iter.next();
+fn get_field_types(ty: &Type, segments: &mut Vec<String>) {
+    match ty {
+        Type::Path(type_path) => {
+            let mut path_iter = type_path.path.segments.iter();
+            let first_segment = path_iter.next();
 
-                if let Some(first_segment) = first_segment {
-                    let mut ident = first_segment.ident.to_string();
+            if let Some(first_segment) = first_segment {
+                let mut ident = first_segment.ident.to_string();
 
-                    let args = &first_segment.arguments;
-                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
-                        for generic_arg in angle_bracketed.args.iter() {
-                            match generic_arg {
-                                syn::GenericArgument::Type(ty) => {
-                                    recursion(ty, segments);
-                                }
-                                _ => continue,
+                let args = &first_segment.arguments;
+                if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
+                    for generic_arg in angle_bracketed.args.iter() {
+                        match generic_arg {
+                            syn::GenericArgument::Type(ty) => {
+                                get_field_types(ty, segments);
                             }
+                            _ => continue,
                         }
                     }
+                }
 
-                    if let Some(second_segment) = path_iter.next() {
-                        ident.push_str("::");
-                        ident.push_str(&second_segment.ident.to_string());
-                        segments.push(ident);
-                    } else {
-                        segments.push(ident);
-                    }
+                if let Some(second_segment) = path_iter.next() {
+                    ident.push_str("::");
+                    ident.push_str(&second_segment.ident.to_string());
+                    segments.push(ident);
+                } else {
+                    segments.push(ident);
                 }
             }
-            _ => {
-                use quote::ToTokens;
-                let mut tokens = proc_macro2::TokenStream::new();
-                ty.to_tokens(&mut tokens);
-                segments.push(tokens.to_string());
-            }
+        }
+        _ => {
+            use quote::ToTokens;
+            let mut tokens = proc_macro2::TokenStream::new();
+            ty.to_tokens(&mut tokens);
+            segments.push(tokens.to_string());
         }
     }
-
-    let mut segments: Vec<String> = Vec::new();
-    recursion(ty, &mut segments);
-    segments
 }
 
+/// First flattens the UseTree and then normalizing the paths.
 fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
     let crate_root = module_path.split_once("::").map_or(module_path, |s| s.0);
-    // Split into two functions because use_tree_to_path uses recursion.
-    let paths = use_tree_to_path(
+    let paths = flatten_use_tree(
         syn::Path {
             leading_colon: None,
             segments: Punctuated::new(),
         },
         use_tree,
     );
+
     let mut retvec = vec![];
-    for path in paths.split(',') {
+    for path in paths {
         let mut path = path
             .replace(' ', "")
             .replace('-', "_")
@@ -306,31 +300,31 @@ fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
     retvec
 }
 
-/// Converts a use tree to individual paths, for example: use relay_general::protocol::{Foo, Bar,
+/// Flattens a usetree. For example: use relay_general::protocol::{Foo, Bar,
 /// Baz} into [relay_general::protocol::Foo, relay_general::protocol::Bar, relay_general::protocol::Baz]
-fn use_tree_to_path(mut leading_path: syn::Path, use_tree: &UseTree) -> String {
+fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<String> {
     match use_tree {
         UseTree::Path(use_path) => {
             leading_path.segments.push(use_path.ident.clone().into());
-            use_tree_to_path(leading_path, &use_path.tree)
+            flatten_use_tree(leading_path, &use_path.tree)
         }
         UseTree::Name(use_name) => {
             leading_path.segments.push(use_name.ident.clone().into());
-            quote::quote!(#leading_path).to_string()
+            vec![quote::quote!(#leading_path).to_string()]
         }
         UseTree::Group(use_group) => {
             let mut paths = Vec::new();
             for item in &use_group.items {
-                paths.push(use_tree_to_path(leading_path.clone(), item));
+                paths.extend(flatten_use_tree(leading_path.clone(), item));
             }
-            paths.join(", ")
+            paths
         }
 
         UseTree::Rename(use_rename) => {
             leading_path.segments.push(use_rename.rename.clone().into());
-            quote::quote!(#leading_path).to_string()
+            vec![quote::quote!(#leading_path).to_string()]
         }
-        _ => quote::quote!(#leading_path).to_string(),
+        _ => vec![quote::quote!(#leading_path).to_string()],
     }
 }
 
@@ -403,12 +397,12 @@ impl Cli {
 
         // Before we can iterate over the pii fields properly, we make a mapping between all
         // paths to types and their AST node.
-        let (all_nodes, use_statements) =
+        let (all_types, use_statements) =
             FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths)?;
 
         let pii_types = find_pii_fields(
             self.item.as_deref(),
-            &all_nodes,
+            &all_types,
             &use_statements,
             &self.pii_values,
         );
@@ -500,6 +494,7 @@ fn is_file_module(file_path: &Path) -> bool {
     false
 }
 
+/// Checks if an attribute is equal to a specified name and value.
 fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
     if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
         if meta_list.path.is_ident("metastructure") {
@@ -519,6 +514,8 @@ fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
     false
 }
 
+/// Checks if a field has the metastructure "pii" and if it does, if it is equal to any
+/// of the values that the user defines.
 fn has_pii_value(pii_values: &Vec<String>, field: &Field) -> bool {
     for attr in &field.attrs {
         for pii_value in pii_values {
@@ -596,7 +593,7 @@ fn get_pii_fields_output(
         output.path.push_str(&pii[0].qualified_type_name);
 
         for path in pii {
-            output.path.push_str(&format!(".{}", path.field_name));
+            output.path.push_str(&format!(".{}", path.field_ident));
         }
 
         output.path = output.path.replace("{{Unnamed}}.", &unnamed_replace);
@@ -606,6 +603,7 @@ fn get_pii_fields_output(
     output_vec
 }
 
+/// Represents the output of a field which has the correct Pii value.
 #[derive(Debug, Serialize, Default)]
 struct Pii {
     path: String,
@@ -624,11 +622,11 @@ mod tests {
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
 
         let rust_file_paths = find_rs_files(&rust_crate);
-        let (all_nodes, use_statements) =
+        let (all_types, use_statements) =
             FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types =
-            find_pii_fields(None, &all_nodes, &use_statements, &vec!["true".to_string()]);
+            find_pii_fields(None, &all_types, &use_statements, &vec!["true".to_string()]);
 
         let output = get_pii_fields_output(pii_types, "".into());
         insta::assert_debug_snapshot!(output);
@@ -639,12 +637,12 @@ mod tests {
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
 
         let rust_file_paths = find_rs_files(&rust_crate);
-        let (all_nodes, use_statements) =
+        let (all_types, use_statements) =
             FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields(
             None,
-            &all_nodes,
+            &all_types,
             &use_statements,
             &vec!["false".to_string()],
         );
@@ -658,12 +656,12 @@ mod tests {
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
 
         let rust_file_paths = find_rs_files(&rust_crate);
-        let (all_nodes, use_statements) =
+        let (all_types, use_statements) =
             FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields(
             None,
-            &all_nodes,
+            &all_types,
             &use_statements,
             &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
         );
