@@ -1167,50 +1167,6 @@ impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules_v2.iter().all(SamplingRule::supported)
     }
-
-    /// Gets the sampling match result by creating the merged configuration and matching it against
-    /// the sampling configuration.
-    pub fn merge_configs_and_match(
-        processing_enabled: bool,
-        sampling_config: &SamplingConfig,
-        root_sampling_config: Option<&SamplingConfig>,
-        dsc: Option<&DynamicSamplingContext>,
-        event: &Event,
-        ip_addr: Option<IpAddr>,
-        now: DateTime<Utc>,
-    ) -> Option<SamplingMatch> {
-        // We check if there are unsupported rules in any of the two configurations.
-        check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
-
-        // We perform the rule matching with the multi-matching logic on the merged rules.
-        let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-        let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
-
-        // If we have a match, we will try to derive the sample rate based on the sampling mode.
-        //
-        // Keep in mind that the sample rate received here has already been derived by the matching
-        // logic, based on multiple matches and decaying functions.
-        //
-        // We also decide to use the sampling mode of the project to which the event belongs.
-        match_result.set_sample_rate(match sampling_config.mode {
-            SamplingMode::Received => match_result.sample_rate,
-            SamplingMode::Total => match dsc {
-                Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
-                None => match_result.sample_rate,
-            },
-            SamplingMode::Unsupported => {
-                if processing_enabled {
-                    relay_log::error!("found unsupported sampling mode even as processing Relay");
-                }
-
-                return None;
-            }
-        });
-
-        // Only if we arrive at this stage, it means that we have found a match and we want to prepare
-        // the data for making the sampling decision.
-        Some(match_result)
-    }
 }
 
 /// The User related information in the trace context
