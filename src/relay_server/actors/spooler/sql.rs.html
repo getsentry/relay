@@ -99,6 +99,28 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
 </pre><pre class="rust"><code><span class="kw">use </span>futures::stream::{Stream, StreamExt};
 <span class="kw">use </span>sqlx::query::Query;
 <span class="kw">use </span>sqlx::sqlite::SqliteArguments;
@@ -150,6 +172,28 @@
     sqlx::query(
         <span class="string">&quot;SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size();&quot;</span>,
     )
+}
+
+<span class="doccomment">/// Creates the query to select only 1 record&#39;s `received_at` from the database.
+///
+/// It is usefull and very fast for checking if the table is empty.
+</span><span class="kw">pub fn </span>select_one&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    sqlx::query(<span class="string">&quot;SELECT received_at FROM envelopes LIMIT 1;&quot;</span>)
+}
+
+<span class="doccomment">/// Creates the INSERT query.
+</span><span class="kw">pub fn </span>insert&lt;<span class="lifetime">&#39;a</span>&gt;(
+    key: QueueKey,
+    managed_envelope: Vec&lt;u8&gt;,
+    received_at: i64,
+) -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    sqlx::query(
+        <span class="string">&quot;INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES (?, ?, ?, ?);&quot;</span>,
+    )
+    .bind(received_at)
+    .bind(key.own_key.to_string())
+    .bind(key.sampling_key.to_string())
+    .bind(managed_envelope)
 }
 
 <span class="doccomment">/// Descibes the chunk item which is handled by insert statement.
