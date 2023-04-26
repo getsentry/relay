@@ -3,60 +3,59 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use clap::{command, Parser, ValueEnum};
-use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+
+use clap::{command, Parser, ValueEnum};
+use serde::Serialize;
 use syn::punctuated::Punctuated;
 use syn::{visit::Visit, ItemEnum};
 use syn::{Attribute, Field, ItemStruct, Lit, Meta, MetaNameValue, Type, UseTree};
 use walkdir::WalkDir;
 
-// unfortunately many global vars, since i cant add extra arguments to trait methods
-lazy_static::lazy_static! {
-    // When iterating recursively, this keeps track of the current path
-    static ref CURRENT_PATH: Mutex<Vec<TypeAndField>> = Mutex::new(vec![]);
-    // a set of CURRENT_PATH whenever it hits a pii=true field
-    static ref PII_TYPES: Mutex<BTreeSet<Vec<TypeAndField>>> = Mutex::new(BTreeSet::new());
-    // All the structs and enums, where the key is the full path. The string in the tuple represents
-    // the module path to the item. Now that I think of it, should be able to just get it from the key.
-    static ref ALL_TYPES: Mutex<HashMap<String, EnumOrStruct>> = Mutex::new(HashMap::new());
-    /// The values that we wanna match on, (true, false, maybe)
-    static ref PII_VALUES: Mutex<Vec<String>> = Mutex::new(vec![]);
-    /// Maps the name of the module to all of the use statements therein, plus the path of the
-    /// types that are defined there.
-    static ref USE_STATEMENTS: Mutex<BTreeMap<String, BTreeSet<String>>> = Mutex::new(BTreeMap::new());
-}
-
 /// It's only purpose is to populate ALL_TYPES and USE_STATEMENTS
 struct FileSyntaxVisitor {
     module_path: String,
+    node_map: HashMap<String, EnumOrStruct>,
+    use_statements: HashMap<String, BTreeSet<String>>,
 }
 
 impl FileSyntaxVisitor {
-    fn insert_use_statements(&self, use_statements: Vec<String>) {
-        USE_STATEMENTS
-            .lock()
-            .unwrap()
+    fn insert_use_statements(&mut self, use_statements: Vec<String>) {
+        self.use_statements
             .entry(self.module_path.clone())
             .or_default()
             .extend(use_statements);
     }
 
-    fn fill_pii_hashmaps(paths: &Vec<PathBuf>) {
+    /// Gets both a mapping of the full type to a type and its actual AST node, and also the
+    /// use_statements in its module, which is needed to fetch the types that it referes to in its
+    /// fields.
+    fn get_types_and_use_statements(
+        paths: &Vec<PathBuf>,
+    ) -> anyhow::Result<(
+        HashMap<String, EnumOrStruct>,
+        HashMap<String, BTreeSet<String>>,
+    )> {
+        let mut node_map = HashMap::new();
+        let mut use_statements = HashMap::new();
         for path in paths {
             // first iterate through all rust files to create the hashmap
             let mut hashmap_filler = FileSyntaxVisitor {
                 module_path: rust_file_to_use_path(path.as_path()),
+                use_statements: HashMap::new(),
+                node_map: HashMap::new(),
             };
-            let file_content = fs::read_to_string(path.as_path()).unwrap();
-            let syntax_tree: syn::File = syn::parse_file(&file_content).unwrap();
+            let file_content = fs::read_to_string(path.as_path())?;
+            let syntax_tree: syn::File = syn::parse_file(&file_content)?;
             hashmap_filler.visit_file(&syntax_tree);
+            node_map.extend(hashmap_filler.node_map);
+            use_statements.extend(hashmap_filler.use_statements);
         }
+        Ok((node_map, use_statements))
     }
 }
 
@@ -72,18 +71,14 @@ impl<'ast> Visit<'ast> for FileSyntaxVisitor {
 
         let struct_name = format!("{}::{}", self.module_path, node.ident);
         self.insert_use_statements(vec![struct_name.clone()]);
-        ALL_TYPES
-            .lock()
-            .unwrap()
+        self.node_map
             .insert(struct_name, EnumOrStruct::Struct(node.clone()));
     }
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         let enum_name = format!("{}::{}", self.module_path, node.ident);
         self.insert_use_statements(vec![enum_name.clone()]);
-        ALL_TYPES
-            .lock()
-            .unwrap()
+        self.node_map
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
 
@@ -132,31 +127,27 @@ unsafe impl Send for EnumOrStruct {}
 
 // In practice this is used as a way to keep state between the different methods on the visitor
 // trait, as the predefined trait stops me from adding the parameters I need.
-#[derive(Default)]
-struct TypeVisitor {
+struct TypeVisitor<'a> {
     module_path: String,
     current_type: String,
+    node_map: &'a HashMap<String, EnumOrStruct>,
+    use_statements: &'a HashMap<String, BTreeSet<String>>,
+    pii_values: &'a Vec<String>,
+    pii_types: &'a mut BTreeSet<Vec<TypeAndField>>,
+    current_path: &'a mut Vec<TypeAndField>,
 }
 
-impl TypeVisitor {
+impl<'a> TypeVisitor<'a> {
     /// Takes a Field (could be struct or enum) and visit the types that it consist of if we have
     /// the full path to it in USE_STATEMENTS.
     fn recursion(&mut self, node: &Field) {
-        let local_paths = USE_STATEMENTS
-            .lock()
-            .unwrap()
-            .get(&self.module_path)
-            .unwrap()
-            .clone();
+        let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
 
         let field_types = type_to_string(&node.ty);
         for field_type in &field_types {
             for use_path in &local_paths {
                 if use_path.split("::").last().unwrap() == field_type.trim() {
-                    let enum_or_struct = {
-                        let guard = ALL_TYPES.lock().unwrap();
-                        guard.get(use_path).cloned()
-                    };
+                    let enum_or_struct = { self.node_map.get(use_path).cloned() };
 
                     if let Some(enum_or_struct) = enum_or_struct {
                         match enum_or_struct {
@@ -184,13 +175,12 @@ impl TypeVisitor {
     }
 }
 
-impl<'ast> Visit<'ast> for TypeVisitor {
+impl<'ast> Visit<'ast> for TypeVisitor<'_> {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         self.current_type = node.ident.to_string();
         // This should stop any infinite recursion
-        if !CURRENT_PATH
-            .lock()
-            .unwrap()
+        if !self
+            .current_path
             .iter()
             .any(|x| x.qualified_type_name == self.current_type)
         {
@@ -202,9 +192,8 @@ impl<'ast> Visit<'ast> for TypeVisitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         self.current_type = node.ident.to_string();
-        if !CURRENT_PATH
-            .lock()
-            .unwrap()
+        if !self
+            .current_path
             .iter()
             .any(|x| x.qualified_type_name == self.current_type)
         {
@@ -220,7 +209,7 @@ impl<'ast> Visit<'ast> for TypeVisitor {
         // Every time we visit a field, we have to append the field to the current_path, it gets
         // popped in the end of this function. This is done so that we can store the full path
         // whenever the field matches a correct PII value.
-        CURRENT_PATH.lock().unwrap().push(TypeAndField {
+        self.current_path.push(TypeAndField {
             qualified_type_name: self.current_type.clone(),
             field_name: node
                 .clone()
@@ -229,16 +218,13 @@ impl<'ast> Visit<'ast> for TypeVisitor {
                 .unwrap_or_else(|| "{{Unnamed}}".to_string()),
         });
 
-        if has_pii_value(node) {
-            PII_TYPES
-                .lock()
-                .unwrap()
-                .insert(CURRENT_PATH.lock().unwrap().clone());
+        if has_pii_value(self.pii_values, node) {
+            self.pii_types.insert(self.current_path.clone());
         }
 
         self.recursion(node);
 
-        CURRENT_PATH.lock().unwrap().pop();
+        self.current_path.pop();
     }
 }
 
@@ -417,19 +403,17 @@ impl Cli {
 
         // Before we can iterate over the pii fields properly, we make a mapping between all
         // paths to types and their AST node.
-        FileSyntaxVisitor::fill_pii_hashmaps(&rust_file_paths);
+        let (all_nodes, use_statements) =
+            FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths)?;
 
-        {
-            // Sets the pii_values from Cli to a global variable so it can be accessed in the
-            // 'Visit' trait.
-            let mut guard = PII_VALUES.lock().unwrap();
-            guard.clear();
-            guard.extend(self.pii_values.clone());
-        }
+        let pii_types = find_pii_fields(
+            self.item.as_deref(),
+            &all_nodes,
+            &use_statements,
+            &self.pii_values,
+        );
 
-        find_pii_fields(self.item.as_deref());
-
-        let output_vec = get_pii_fields_output("".to_string());
+        let output_vec = get_pii_fields_output(pii_types, "".to_string());
 
         match self.output {
             Some(ref path) => self.write_pii(File::create(path)?, &output_vec)?,
@@ -535,9 +519,9 @@ fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
     false
 }
 
-fn has_pii_value(field: &Field) -> bool {
+fn has_pii_value(pii_values: &Vec<String>, field: &Field) -> bool {
     for attr in &field.attrs {
-        for pii_value in PII_VALUES.lock().unwrap().iter() {
+        for pii_value in pii_values {
             if has_attr_value(attr, "pii", pii_value) {
                 return true;
             }
@@ -548,18 +532,27 @@ fn has_pii_value(field: &Field) -> bool {
 
 /// Finds all pii-fields of either a single type if provided, or of all the defined types in the
 /// rust project.
-fn find_pii_fields(item: Option<&str>) {
+fn find_pii_fields(
+    item: Option<&str>,
+    all_types: &HashMap<String, EnumOrStruct>,
+    use_statements: &HashMap<String, BTreeSet<String>>,
+    pii_values: &Vec<String>,
+) -> BTreeSet<Vec<TypeAndField>> {
+    let mut pii_types = BTreeSet::new();
+    let mut current_path = vec![];
     match item {
         Some(path) => {
-            if let Some(structorenum) = {
-                let guard = ALL_TYPES.lock().unwrap();
-                guard.get(path).cloned()
-            } {
+            if let Some(structorenum) = { all_types.get(path).cloned() } {
                 let module_path = path.rsplit_once("::").unwrap().0.to_owned();
                 let theitem = structorenum;
                 let mut visitor = TypeVisitor {
                     module_path,
-                    ..Default::default()
+                    current_type: String::new(),
+                    node_map: all_types,
+                    use_statements,
+                    pii_values,
+                    pii_types: &mut pii_types,
+                    current_path: &mut current_path,
                 };
                 match theitem {
                     EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
@@ -570,12 +563,16 @@ fn find_pii_fields(item: Option<&str>) {
             }
         }
         None => {
-            let all_types = ALL_TYPES.lock().unwrap().clone();
             for (key, value) in all_types.iter() {
                 let module_path = key.rsplit_once("::").unwrap().0.to_owned();
                 let mut visitor = TypeVisitor {
                     module_path,
-                    ..Default::default()
+                    current_type: String::new(),
+                    node_map: all_types,
+                    use_statements,
+                    pii_values,
+                    pii_types: &mut pii_types,
+                    current_path: &mut current_path,
                 };
                 match value {
                     EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
@@ -584,13 +581,17 @@ fn find_pii_fields(item: Option<&str>) {
             }
         }
     }
+    pii_types
 }
 
 /// Converts the content of `PII_TYPES` into a Vec<Pii> which is the format that is pushed to
 /// the sentry-docs.
-fn get_pii_fields_output(unnamed_replace: String) -> Vec<Pii> {
+fn get_pii_fields_output(
+    pii_types: BTreeSet<Vec<TypeAndField>>,
+    unnamed_replace: String,
+) -> Vec<Pii> {
     let mut output_vec = vec![];
-    for pii in PII_TYPES.lock().unwrap().iter() {
+    for pii in pii_types {
         let mut output = Pii::default();
         output.path.push_str(&pii[0].qualified_type_name);
 
@@ -613,84 +614,61 @@ struct Pii {
 // Due to global variables, have to both run the tests sequentially as well as clearing the globals
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::str::FromStr;
 
-    use serial_test::serial;
-
-    use super::*;
     const RUST_CRATE: &str = "../../tests/test_pii_docs";
 
-    fn clear_globals() {
-        ALL_TYPES.lock().unwrap().clear();
-        USE_STATEMENTS.lock().unwrap().clear();
-        PII_TYPES.lock().unwrap().clear();
-        CURRENT_PATH.lock().unwrap().clear();
-    }
-
     #[test]
-    #[serial]
-    fn test_use_statements() {
-        clear_globals();
-        let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
-        Cli {
-            path: Some(rust_crate),
-            ..Default::default()
-        }
-        .run()
-        .unwrap();
-
-        let use_statements = USE_STATEMENTS.lock().unwrap().clone();
-        insta::assert_debug_snapshot!(use_statements);
-    }
-
-    #[test]
-    #[serial]
     fn test_pii_true() {
-        clear_globals();
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
-        Cli {
-            path: Some(rust_crate),
-            pii_values: vec!["true".to_string()],
-            ..Default::default()
-        }
-        .run()
-        .unwrap();
 
-        let output = get_pii_fields_output("".into());
+        let rust_file_paths = find_rs_files(&rust_crate);
+        let (all_nodes, use_statements) =
+            FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
+
+        let pii_types =
+            find_pii_fields(None, &all_nodes, &use_statements, &vec!["true".to_string()]);
+
+        let output = get_pii_fields_output(pii_types, "".into());
         insta::assert_debug_snapshot!(output);
     }
 
     #[test]
-    #[serial]
     fn test_pii_false() {
-        clear_globals();
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
-        Cli {
-            path: Some(rust_crate),
-            pii_values: vec!["false".to_string()],
-            ..Default::default()
-        }
-        .run()
-        .unwrap();
 
-        let output = get_pii_fields_output("".into());
+        let rust_file_paths = find_rs_files(&rust_crate);
+        let (all_nodes, use_statements) =
+            FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
+
+        let pii_types = find_pii_fields(
+            None,
+            &all_nodes,
+            &use_statements,
+            &vec!["false".to_string()],
+        );
+
+        let output = get_pii_fields_output(pii_types, "".into());
         insta::assert_debug_snapshot!(output);
     }
 
     #[test]
-    #[serial]
     fn test_pii_all() {
-        clear_globals();
         let rust_crate = PathBuf::from_str(RUST_CRATE).unwrap();
-        Cli {
-            path: Some(rust_crate),
-            pii_values: vec!["true".to_string(), "maybe".to_string(), "false".to_string()],
-            ..Default::default()
-        }
-        .run()
-        .unwrap();
 
-        let output = get_pii_fields_output("".into());
+        let rust_file_paths = find_rs_files(&rust_crate);
+        let (all_nodes, use_statements) =
+            FileSyntaxVisitor::get_types_and_use_statements(&rust_file_paths).unwrap();
+
+        let pii_types = find_pii_fields(
+            None,
+            &all_nodes,
+            &use_statements,
+            &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
+        );
+
+        let output = get_pii_fields_output(pii_types, "".into());
         insta::assert_debug_snapshot!(output);
     }
 }
