@@ -1704,6 +1704,31 @@
 <a href="#1703" id="1703">1703</a>
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2187,6 +2212,13 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span>metrics_extracted: bool,
 
+    <span class="doccomment">/// Internal flag to signal that the profile has been counted toward `DataCategory::Profile`.
+    ///
+    /// If `true`, outcomes for this item should be reported as `DataCategory::ProfileIndexed`
+    /// instead.
+    </span><span class="attr">#[serde(skip)]
+    </span>profile_counted_as_processed: bool,
+
     <span class="doccomment">/// Other attributes for forward compatibility.
     </span><span class="attr">#[serde(flatten)]
     </span>other: BTreeMap&lt;String, Value&gt;,
@@ -2213,6 +2245,7 @@
                 timestamp: <span class="prelude-val">None</span>,
                 other: BTreeMap::new(),
                 metrics_extracted: <span class="bool-val">false</span>,
+                profile_counted_as_processed: <span class="bool-val">false</span>,
             },
             payload: Bytes::new(),
         }
@@ -2256,7 +2289,9 @@
             ItemType::Metrics | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
-            ItemType::Profile =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span>indexed {
+            <span class="comment">// For profiles, do not used the `indexed` flag, because it depends
+            // on whether metrics were extracted from the _event_.
+            </span>ItemType::Profile =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span><span class="self">self</span>.headers.profile_counted_as_processed {
                 DataCategory::ProfileIndexed
             } <span class="kw">else </span>{
                 DataCategory::Profile
@@ -2357,6 +2392,21 @@
     <span class="doccomment">/// Returns the metrics extracted flag.
     </span><span class="kw">pub fn </span>metrics_extracted(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.headers.metrics_extracted
+    }
+
+    <span class="doccomment">/// Returns `true` if the profiles in the envelope have been counted towards `DataCategory::Profile`.
+    ///
+    /// If so, count them towards `DataCategory::ProfileIndexed` instead.
+    </span><span class="kw">pub fn </span>profile_counted_as_processed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.headers.profile_counted_as_processed
+    }
+
+    <span class="doccomment">/// Mark the item as &quot;counted towards `DataCategory::Profile`&quot;.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">pub fn </span>set_profile_counted_as_processed(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
+            <span class="self">self</span>.headers.profile_counted_as_processed = <span class="bool-val">true</span>;
+        }
     }
 
     <span class="doccomment">/// Sets the metrics extracted flag.

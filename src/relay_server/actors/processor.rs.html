@@ -3519,6 +3519,13 @@
 <a href="#3518" id="3518">3518</a>
 <a href="#3519" id="3519">3519</a>
 <a href="#3520" id="3520">3520</a>
+<a href="#3521" id="3521">3521</a>
+<a href="#3522" id="3522">3522</a>
+<a href="#3523" id="3523">3523</a>
+<a href="#3524" id="3524">3524</a>
+<a href="#3525" id="3525">3525</a>
+<a href="#3526" id="3526">3526</a>
+<a href="#3527" id="3527">3527</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -4618,10 +4625,13 @@
     </span><span class="kw">fn </span>count_processed_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="kw">let </span>profile_count: usize = state
             .managed_envelope
-            .envelope()
-            .items()
+            .envelope_mut()
+            .items_mut()
             .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile)
-            .map(|item| item.quantity())
+            .map(|item| {
+                item.set_profile_counted_as_processed();
+                item.quantity()
+            })
             .sum();
 
         <span class="kw">if </span>profile_count == <span class="number">0 </span>{
@@ -4636,8 +4646,12 @@
             remote_addr: <span class="prelude-val">None</span>,
             category: DataCategory::Profile,
             quantity: profile_count <span class="kw">as </span>u32, <span class="comment">// truncates to `u32::MAX`
-        </span>})
-    }
+        </span>});
+
+        <span class="comment">// TODO: At this point, we should also ensure that the envelope summary gets recomputed.
+        // But recomputing the summary after extracting the event is currently problematic, because it
+        // sets the envelope type to `None`. This needs to be solved in a follow-up.
+    </span>}
 
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
