@@ -5,7 +5,9 @@ use std::net::IpAddr;
 use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
-use relay_sampling::{DynamicSamplingContext, MatchedRuleIds, SamplingConfig, SamplingMatch};
+use relay_sampling::{
+    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
+};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -40,7 +42,7 @@ fn get_sampling_match(
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    SamplingConfig::merge_configs_and_match(
+    merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,

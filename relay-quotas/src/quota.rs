@@ -105,6 +105,7 @@ impl CategoryUnit {
             | DataCategory::Replay
             | DataCategory::Security
             | DataCategory::Profile
+            | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
             | DataCategory::Monitor => Some(Self::Count),

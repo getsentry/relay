@@ -2,12 +2,23 @@
 
 ## Unreleased
 
+- Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+
+## 0.8.21
+
+- Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
+
+## 0.8.20
+
 - Add `thread.state` field to protocol. ([#1896](https://github.com/getsentry/relay/pull/1896))
+- Smart trim loggers for Java platforms. ([#1941](https://github.com/getsentry/relay/pull/1941))
+- Perform PII scrubbing on meta's original_value field. ([#1892](https://github.com/getsentry/relay/pull/1892))
 - PII scrub `span.data` by default. ([#1953](https://github.com/getsentry/relay/pull/1953))
 - Scrub sensitive cookies. ([#1951](https://github.com/getsentry/relay/pull/1951))
-- Apply transaction clustering rules before UUID scrubbing rules. ([#1964](https://github.com/getsentry/relay/pull/1964))
 - Changes how device class is determined for iPhone devices. Instead of checking processor frequency, the device model is mapped to a device class. ([#1970](https://github.com/getsentry/relay/pull/1970))
 - Don't sanitize transactions if no clustering rules exist and no UUIDs were scrubbed. ([#1976](https://github.com/getsentry/relay/pull/1976))
+- Add iPad support for device.class synthesis in light normalization. ([#2008](https://github.com/getsentry/relay/pull/2008))
+- Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
 
 ## 0.8.19
 
