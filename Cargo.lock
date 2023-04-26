@@ -1157,7 +1157,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.21",
- "syn 1.0.109",
+ "syn 2.0.15",
  "toml",
  "walkdir",
 ]

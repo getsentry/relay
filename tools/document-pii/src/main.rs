@@ -496,17 +496,26 @@ fn is_file_module(file_path: &Path) -> bool {
 
 /// Checks if an attribute is equal to a specified name and value.
 fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
-    if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+    if let Meta::List(meta_list) = &attr.meta {
         if meta_list.path.is_ident("metastructure") {
-            for nested_meta in meta_list.nested {
-                if let syn::NestedMeta::Meta(Meta::NameValue(MetaNameValue { path, lit, .. })) =
-                    nested_meta
-                {
-                    if path.is_ident(name) {
-                        if let Lit::Str(lit_str) = lit {
-                            return lit_str.value() == value;
+            let mut iter = meta_list.tokens.clone().into_iter();
+            while let Some(token) = iter.next() {
+                if let proc_macro2::TokenTree::Ident(ident) = &token {
+                    if ident == name {
+                        if let Some(proc_macro2::TokenTree::Punct(punct)) = iter.next() {
+                            if punct.as_char() == '=' {
+                                if let Some(proc_macro2::TokenTree::Literal(lit_val)) = iter.next()
+                                {
+                                    let mut lit_val = lit_val.to_string();
+                                    lit_val.pop(); // remove superfluous quotes. "\"true\"" -> "true"
+                                    lit_val.remove(0);
+                                    if lit_val == value {
+                                        return true;
+                                    }
+                                }
+                            }
                         }
-                    }
+                    };
                 }
             }
         }

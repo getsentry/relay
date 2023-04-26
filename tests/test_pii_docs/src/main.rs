@@ -7,7 +7,7 @@ pub mod anothermod;
 use crate::anothermod::{BarFoo, FooBar};
 
 struct MyStruct {
-    #[metastructure(pii = "true")]
+    #[metastructure(foo = "bar", pii = "true")]
     foo: String,
     sub_struct: SubStruct,
 }
@@ -22,7 +22,7 @@ struct SubStruct {
 
 struct HasGeneric<T> {
     inner_generic: T,
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "maybe", apple = "oranges")]
     maybe_sensitive_stuff: u32,
 }
 
