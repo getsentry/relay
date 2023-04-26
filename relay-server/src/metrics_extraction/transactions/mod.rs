@@ -380,6 +380,9 @@ fn extract_transaction_metrics_inner(
     Ok(())
 }
 
+/// Extracts metrics from the spans of the given transaction, and sets common
+/// tags for all the metrics and spans. If a span already contains a tag
+/// extracted for a metric, the tag value is overwritten.
 fn extract_span_metrics(
     aggregator_config: &AggregatorConfig,
     event: &mut Event,
