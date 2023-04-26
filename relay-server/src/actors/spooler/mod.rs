@@ -510,10 +510,15 @@ impl BufferState {
 
     /// Becomes a different state, depdending on the current state and the current conditions of
     /// underlying spool.
-    async fn transition(self, config: &Arc<Config>) -> Result<Self, BufferError> {
-        let state = match self {
+    async fn transition(self, config: &Arc<Config>) -> Self {
+        match self {
             Self::MemoryFileStandby { mut ram, disk } if ram.is_full() => {
-                disk.spool(&mut ram.buffer).await?;
+                if let Err(err) = disk.spool(&mut ram.buffer).await {
+                    relay_log::error!(
+                        "failed to spool the in-memory buffer to disk: {}",
+                        LogError(&err)
+                    );
+                }
                 Self::Disk(disk)
             }
             Self::Disk(disk) if disk.is_empty().await.unwrap_or_default() => {
@@ -530,16 +535,19 @@ impl BufferState {
                 Self::MemoryFileStandby { ram, disk }
             }
             Self::MemoryFileRead { mut ram, disk } if disk.can_fit(ram.used_memory).await => {
-                disk.spool(&mut ram.buffer).await?;
+                if let Err(err) = disk.spool(&mut ram.buffer).await {
+                    relay_log::error!(
+                        "failed to spool the in-memory buffer to disk: {}",
+                        LogError(&err)
+                    );
+                }
                 Self::Disk(disk)
             }
-            // In all other cases we do not change the state and return back Self.
             Self::Memory(_)
             | Self::MemoryFileStandby { .. }
             | Self::Disk(_)
             | Self::MemoryFileRead { .. } => self,
-        };
-        Ok(state)
+        }
     }
 }
 
@@ -679,7 +687,7 @@ impl BufferService {
         }
 
         let state = std::mem::take(&mut self.state);
-        self.state = state.transition(&self.config).await?;
+        self.state = state.transition(&self.config).await;
         Ok(())
     }
 
@@ -712,7 +720,7 @@ impl BufferService {
             }
         }
         let state = std::mem::take(&mut self.state);
-        self.state = state.transition(&self.config).await?;
+        self.state = state.transition(&self.config).await;
 
         Ok(())
     }
@@ -744,7 +752,7 @@ impl BufferService {
         }
 
         let state = std::mem::take(&mut self.state);
-        self.state = state.transition(&self.config).await?;
+        self.state = state.transition(&self.config).await;
 
         if count > 0 {
             relay_log::with_scope(
