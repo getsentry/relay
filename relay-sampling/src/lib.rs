@@ -316,6 +316,27 @@ impl NotCondition {
     }
 }
 
+/// Has condition combinator.
+///
+/// Creates a condition that is true when a specific field is present.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HasCondition {
+    field: String,
+}
+
+impl HasCondition {
+    fn supported(&self) -> bool {
+        true
+    }
+
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
+        !value.get_value(&self.field).is_null()
+    }
+}
+
 /// A condition from a sampling rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
@@ -329,6 +350,7 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
+    Has(HasCondition),
     Custom(CustomCondition),
     #[serde(other)]
     Unsupported,
@@ -357,6 +379,7 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
+            RuleCondition::Has(rule) => rule.supported(),
             RuleCondition::Custom(_) => true,
         }
     }
@@ -374,6 +397,7 @@ impl RuleCondition {
             RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
             RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
             RuleCondition::Not(condition) => condition.matches(value, ip_addr),
+            RuleCondition::Has(condition) => condition.matches(value, ip_addr),
             RuleCondition::Unsupported => false,
             RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
@@ -856,6 +880,10 @@ impl FieldValueProvider for DynamicSamplingContext {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
             },
+            "trace.replay_id" => match self.replay_id {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.to_string()),
+            },
             _ => Value::Null,
         }
     }
@@ -1070,11 +1098,6 @@ impl SamplingMatch {
     where
         I: Iterator<Item = &'a SamplingRule>,
     {
-        let overridden_sm = SamplingMatch::get_overridden_sampling_match(event, dsc, ip_addr, now);
-        if overridden_sm.is_some() {
-            return overridden_sm;
-        }
-
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
         // still incur in inconsistent trace sampling because of multi-matching of rules across event
@@ -1143,25 +1166,6 @@ impl SamplingMatch {
         }
 
         // In case no match is available, we won't return any specification.
-        None
-    }
-
-    fn get_overridden_sampling_match(
-        _: &Event,
-        dsc: Option<&DynamicSamplingContext>,
-        _: Option<IpAddr>,
-        _: DateTime<Utc>,
-    ) -> Option<SamplingMatch> {
-        if let Some(dsc) = dsc {
-            if dsc.replay_id.is_some() {
-                return Some(SamplingMatch {
-                    sample_rate: 1.0,
-                    seed: dsc.trace_id,
-                    matched_rule_ids: MatchedRuleIds(vec![]),
-                });
-            }
-        }
-
         None
     }
 }
@@ -1498,6 +1502,12 @@ mod tests {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+
+    fn has(field: &str) -> RuleCondition {
+        RuleCondition::Has(HasCondition {
+            field: field.to_string(),
         })
     }
 
@@ -1860,6 +1870,7 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
+        let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1871,7 +1882,7 @@ mod tests {
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
-            replay_id: Some(Uuid::new_v4()),
+            replay_id: Some(replay_id),
             other: BTreeMap::new(),
         };
 
@@ -1894,7 +1905,11 @@ mod tests {
         assert_eq!(
             Value::String("transaction1".into()),
             dsc.get_value("trace.transaction")
-        )
+        );
+        assert_eq!(
+            Value::String(replay_id.to_string()),
+            dsc.get_value("trace.replay_id")
+        );
     }
 
     #[test]
@@ -1915,6 +1930,7 @@ mod tests {
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
+        assert_eq!(Value::Null, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -3204,13 +3220,10 @@ mod tests {
 
         let result = match_against_rules(
             &mocked_sampling_config_with_rules(vec![SamplingRule {
-                condition: and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["prod"], true),
-                ]),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                condition: and(vec![has("trace.replay_id")]),
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
                 ty: RuleType::Trace,
-                id: RuleId(2),
+                id: RuleId(1),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             }]),
@@ -3218,7 +3231,7 @@ mod tests {
             &dsc,
             Utc::now(),
         );
-        assert_trace_match!(result, 1.0, dsc,)
+        assert_trace_match!(result, 1.0, dsc, 1)
     }
 
     #[test]
