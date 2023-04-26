@@ -15,7 +15,7 @@ syn = { version = "1.0", features = ["full", "visit", "extra-traits"] }
 quote = "1.0"
 walkdir = "2.3.3"
 toml = "0.7.3"
-proc-macro2 = "1.0"
+proc-macro2 = "1.0.56"
 clap = { version = "4.1.4", features = ["derive"] }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
