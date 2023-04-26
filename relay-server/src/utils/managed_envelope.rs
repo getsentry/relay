@@ -311,8 +311,8 @@ impl ManagedEnvelope {
 
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
-                outcome,
-                if self.context.summary.event_metrics_extracted {
+                outcome.clone(),
+                if self.context.summary.profile_counted_as_processed {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile

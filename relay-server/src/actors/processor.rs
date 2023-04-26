@@ -1097,10 +1097,13 @@ impl EnvelopeProcessorService {
     fn count_processed_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profile_count: usize = state
             .managed_envelope
-            .envelope()
-            .items()
+            .envelope_mut()
+            .items_mut()
             .filter(|item| item.ty() == &ItemType::Profile)
-            .map(|item| item.quantity())
+            .map(|item| {
+                item.set_profile_counted_as_processed();
+                item.quantity()
+            })
             .sum();
 
         if profile_count == 0 {
@@ -1115,7 +1118,11 @@ impl EnvelopeProcessorService {
             remote_addr: None,
             category: DataCategory::Profile,
             quantity: profile_count as u32, // truncates to `u32::MAX`
-        })
+        });
+
+        // TODO: At this point, we should also ensure that the envelope summary gets recomputed.
+        // But recomputing the summary after extracting the event is currently problematic. This needs
+        // to be solved in a follow-up.
     }
 
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
