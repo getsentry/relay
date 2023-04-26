@@ -412,26 +412,26 @@ fn extract_span_metrics(
         if let Some(transaction_name) = event.transaction.value() {
             shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
         }
-        // TODO(iker): must add tags: environment, op, release
+        // TODO(iker): must add shared tags: environment, op, release
 
-        for span in spans {
-            // TODO(iker): extract the rest of tags for the current span here
+        for annotated_span in spans {
+            if let Some(span) = annotated_span.value_mut() {
+                // TODO(iker): add span-specific tags here
 
-            if let Some(user) = event.user.value() {
-                if let Some(value) = get_eventuser_tag(user) {
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        "user",
-                        MetricUnit::None,
-                        MetricValue::set_from_str(&value),
-                        timestamp,
-                        shared_tags.clone(),
-                    ));
+                if let Some(user) = event.user.value() {
+                    if let Some(value) = get_eventuser_tag(user) {
+                        metrics.push(Metric::new_mri(
+                            MetricNamespace::Spans,
+                            "user",
+                            MetricUnit::None,
+                            MetricValue::set_from_str(&value),
+                            timestamp,
+                            shared_tags.clone(),
+                        ));
+                    }
                 }
-            }
 
-            // Add to the span all the tags that exist in the metrics
-            if let Some(span) = span.value_mut() {
+                // Add to the span all the tags that exist in the metrics
                 let span_tags = span.tags.get_or_insert_with(BTreeMap::new);
                 for (key, value) in &shared_tags {
                     // NOTE(iker): if the tag already existed before, we are overwriting it
