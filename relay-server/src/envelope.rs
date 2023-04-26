@@ -671,6 +671,7 @@ impl Item {
     }
 
     /// Mark the item as "counted towards `DataCategory::Profile`".
+    #[cfg(feature = "processing")]
     pub fn set_profile_counted_as_processed(&mut self) {
         if self.ty() == &ItemType::Profile {
             self.headers.profile_counted_as_processed = true;
