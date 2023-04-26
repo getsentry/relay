@@ -3463,7 +3463,6 @@ mod tests {
         assert_transaction_match!(result, 0.5, event, 3);
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
-
         let result = merge_configs_and_match(
             true,
             &sampling_config,
@@ -3752,7 +3751,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_transaction_match!(result, 0.75, event, 1);
 
@@ -3767,7 +3765,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_transaction_match!(result, 1.0, event, 1);
 
@@ -3782,7 +3779,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
     }
@@ -3804,7 +3800,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
 
@@ -3819,7 +3814,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
 
@@ -3834,7 +3828,6 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-
         let result = merge_configs_and_match(true, &sampling_config, None, None, &event, None, now);
         assert_no_match!(result);
     }
