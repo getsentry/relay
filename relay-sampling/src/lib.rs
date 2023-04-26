@@ -316,27 +316,6 @@ impl NotCondition {
     }
 }
 
-/// Has condition combinator.
-///
-/// Creates a condition that is true when a specific field is present.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HasCondition {
-    field: String,
-}
-
-impl HasCondition {
-    fn supported(&self) -> bool {
-        true
-    }
-
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
-    where
-        T: FieldValueProvider,
-    {
-        !value.get_value(&self.field).is_null()
-    }
-}
-
 /// A condition from a sampling rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
@@ -350,7 +329,6 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
-    Has(HasCondition),
     Custom(CustomCondition),
     #[serde(other)]
     Unsupported,
@@ -379,7 +357,6 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
-            RuleCondition::Has(rule) => rule.supported(),
             RuleCondition::Custom(_) => true,
         }
     }
@@ -397,7 +374,6 @@ impl RuleCondition {
             RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
             RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
             RuleCondition::Not(condition) => condition.matches(value, ip_addr),
-            RuleCondition::Has(condition) => condition.matches(value, ip_addr),
             RuleCondition::Unsupported => false,
             RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
@@ -1490,6 +1466,14 @@ mod tests {
         })
     }
 
+    fn eq_null(name: &str) -> RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: Value::Null,
+            options: EqCondOptions { ignore_case: true },
+        })
+    }
+
     fn eq_bool(name: &str, value: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
@@ -1502,12 +1486,6 @@ mod tests {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
-        })
-    }
-
-    fn has(field: &str) -> RuleCondition {
-        RuleCondition::Has(HasCondition {
-            field: field.to_string(),
         })
     }
 
@@ -3220,7 +3198,7 @@ mod tests {
 
         let result = match_against_rules(
             &mocked_sampling_config_with_rules(vec![SamplingRule {
-                condition: and(vec![has("trace.replay_id")]),
+                condition: and(vec![not(eq_null("trace.replay_id"))]),
                 sampling_value: SamplingValue::SampleRate { value: 1.0 },
                 ty: RuleType::Trace,
                 id: RuleId(1),
