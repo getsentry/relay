@@ -3800,7 +3800,145 @@
 <a href="#3799" id="3799">3799</a>
 <a href="#3800" id="3800">3800</a>
 <a href="#3801" id="3801">3801</a>
-</pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
+<a href="#3802" id="3802">3802</a>
+<a href="#3803" id="3803">3803</a>
+<a href="#3804" id="3804">3804</a>
+<a href="#3805" id="3805">3805</a>
+<a href="#3806" id="3806">3806</a>
+<a href="#3807" id="3807">3807</a>
+<a href="#3808" id="3808">3808</a>
+<a href="#3809" id="3809">3809</a>
+<a href="#3810" id="3810">3810</a>
+<a href="#3811" id="3811">3811</a>
+<a href="#3812" id="3812">3812</a>
+<a href="#3813" id="3813">3813</a>
+<a href="#3814" id="3814">3814</a>
+<a href="#3815" id="3815">3815</a>
+<a href="#3816" id="3816">3816</a>
+<a href="#3817" id="3817">3817</a>
+<a href="#3818" id="3818">3818</a>
+<a href="#3819" id="3819">3819</a>
+<a href="#3820" id="3820">3820</a>
+<a href="#3821" id="3821">3821</a>
+<a href="#3822" id="3822">3822</a>
+<a href="#3823" id="3823">3823</a>
+<a href="#3824" id="3824">3824</a>
+<a href="#3825" id="3825">3825</a>
+<a href="#3826" id="3826">3826</a>
+<a href="#3827" id="3827">3827</a>
+<a href="#3828" id="3828">3828</a>
+<a href="#3829" id="3829">3829</a>
+<a href="#3830" id="3830">3830</a>
+<a href="#3831" id="3831">3831</a>
+<a href="#3832" id="3832">3832</a>
+<a href="#3833" id="3833">3833</a>
+<a href="#3834" id="3834">3834</a>
+<a href="#3835" id="3835">3835</a>
+<a href="#3836" id="3836">3836</a>
+<a href="#3837" id="3837">3837</a>
+<a href="#3838" id="3838">3838</a>
+<a href="#3839" id="3839">3839</a>
+<a href="#3840" id="3840">3840</a>
+<a href="#3841" id="3841">3841</a>
+<a href="#3842" id="3842">3842</a>
+<a href="#3843" id="3843">3843</a>
+<a href="#3844" id="3844">3844</a>
+<a href="#3845" id="3845">3845</a>
+<a href="#3846" id="3846">3846</a>
+<a href="#3847" id="3847">3847</a>
+<a href="#3848" id="3848">3848</a>
+<a href="#3849" id="3849">3849</a>
+<a href="#3850" id="3850">3850</a>
+<a href="#3851" id="3851">3851</a>
+<a href="#3852" id="3852">3852</a>
+<a href="#3853" id="3853">3853</a>
+<a href="#3854" id="3854">3854</a>
+<a href="#3855" id="3855">3855</a>
+<a href="#3856" id="3856">3856</a>
+<a href="#3857" id="3857">3857</a>
+<a href="#3858" id="3858">3858</a>
+<a href="#3859" id="3859">3859</a>
+<a href="#3860" id="3860">3860</a>
+<a href="#3861" id="3861">3861</a>
+<a href="#3862" id="3862">3862</a>
+<a href="#3863" id="3863">3863</a>
+<a href="#3864" id="3864">3864</a>
+<a href="#3865" id="3865">3865</a>
+<a href="#3866" id="3866">3866</a>
+<a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+</pre><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
+//!
+//! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
+//! all transactions, but only forwards a random sample of raw transaction payloads to the upstream.
+//! What exact percentage is sampled is determined by `dynamic sampling rules`, and depends on
+//! the project, the environment, the transaction name, etc.
+//!
+//! In order to determine the sample rate, Relay uses a [`SamplingConfig`] which contains a set of
+//! [`SamplingRule`]s that are matched against the incoming [`Event`] or [`DynamicSamplingContext`].
+//!
+//! # Trace and Transaction Sampling
+//!
+//! Relay samples both transactions looking at [`Event`] and traces looking at [`DynamicSamplingContext`]:
+//! - **Trace sampling**: ensures that either all transactions of a trace are sampled or none.
+//! - **Transaction sampling**: does not guarantee complete traces and instead applies to individual transactions.
+//!
+//! # Components
+//!
+//! The sampling system implemented in Relay is composed of the following components:
+//! - [`DynamicSamplingContext`]: a struct that contains the trace information.
+//! - [`FieldValueProvider`]: an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
+//! expose fields that are read during matching.
+//! - [`SamplingRule`]: a rule that is matched against [`Event`] or [`DynamicSamplingContext`] that
+//! can contain a [`RuleCondition`] for expressing predicates on the incoming payload.
+//! - [`SamplingMatch`]: the result of the matching of one or more [`SamplingRule`].
+//!
+//! # How It Works
+//! - The incoming [`Event`] and optionally [`DynamicSamplingContext`] are received by Relay.
+//! - Relay fetches the [`SamplingConfig`] of the project to which the [`Event`] belongs and (if exists) the
+//! [`SamplingConfig`] of the root project of the trace.
+//! - The [`SamplingConfig`]s are merged together and the matching algorithm in
+//! [`SamplingMatch::match_against_rules`] is executed.
+//! - The sampling algorithm will go over each [`SamplingRule`] and compute either a factor or
+//! sample rate based on the [`SamplingValue`] of the rule.
+//! - The [`SamplingMatch`] is finally returned containing the final `sample_rate` and some additional
+//! data that will be used in `relay_server` to perform the sampling decision.
+//!
+//! # Sampling Determinism
+//! The concept of determinism is extremely important for sampling. We want to be able to make the
+//! a deterministic sampling decision for a wide variety of reasons, including:
+//! - Across a **chain of Relays** (e.g., we don&#39;t want to drop an event that was retained by a previous
+//! Relay and vice-versa).
+//! - Across **transactions of the same trace** (e.g., we want to be able to sample all the transactions
+//! of the same trace, even though some exceptions apply).
+//!
+//! In order to perform deterministic sampling, we use the id of the event or trace as the seed
+//! for the random number generator (e.g., all transactions with the same trace id will have the same
+//! random number being generated). _Since we allow the matching of both transaction and trace rules, we might
+//! end up in cases in which we perform inconsistent trace sampling but this is something we decided
+//! to live with as long as there are no big implications on the product._
+//!
+//! # Examples
+//!
+//! ## [`SamplingConfig`]
+//!
+//! ```json
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/sampling_config.json&quot;</span>)]
+</span><span class="doccomment">//! ```
+//!
+//! ## [`DynamicSamplingContext`]
+//!
+//! ```json
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/dynamic_sampling_context.json&quot;</span>)]
+</span><span class="doccomment">//! ```
 </span><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -4119,7 +4257,7 @@
     }
 }
 
-<span class="doccomment">/// Sampling rule Id
+<span class="doccomment">/// The id of the [`SamplingRule`].
 </span><span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 </span><span class="kw">pub struct </span>RuleId(<span class="kw">pub </span>u32);
 
@@ -4132,7 +4270,7 @@
 <span class="doccomment">/// A range of time.
 ///
 /// The time range should be applicable between the start time, inclusive, and
-/// end time, exclusive.  There aren&#39;t any explicit checks to ensure the end
+/// end time, exclusive. There aren&#39;t any explicit checks to ensure the end
 /// time is equal to or greater than the start time; the time range isn&#39;t valid
 /// in such cases.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
@@ -6096,6 +6234,18 @@
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, failure_name);
         }
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sampling_config_deserialization() {
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/sampling_config.json&quot;</span>);
+        serde_json::from_str::&lt;SamplingConfig&gt;(json).unwrap();
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_dynamic_sampling_context_deserialization() {
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/dynamic_sampling_context.json&quot;</span>);
+        serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
     }
 
     <span class="attr">#[test]
