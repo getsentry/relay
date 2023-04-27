@@ -757,8 +757,8 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "domain": "myhost",
                     "environment": "fake_environment",
-                    "server_name": "myhost",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                     "transaction.status": "ok",
