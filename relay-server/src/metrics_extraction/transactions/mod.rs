@@ -469,7 +469,7 @@ fn extract_span_metrics(
                 // TODO(iker): missing tag: span.group
 
                 if let Some(span_op) = span.op.value() {
-                    span_tags.insert("span.operation".to_owned(), span_op.to_owned());
+                    span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
                     let span_module = if span_op.starts_with("http") {
                         Some("http")
