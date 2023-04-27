@@ -411,37 +411,45 @@ fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
+    if event.spans.value().is_none() {
+        return Ok(());
+    }
+
+    // Collect the shared tags for all the metrics and spans on this transaction
+    let mut shared_tags = BTreeMap::new();
+
+    if let Some(environment) = event.environment.as_str() {
+        shared_tags.insert("environment".to_owned(), environment.to_owned());
+    }
+
+    if let Some(transaction_name) = event.transaction.value() {
+        shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+    }
+
+    if let Some(trace_context) = get_trace_context(event) {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            shared_tags.insert("transaction.op".to_owned(), op);
+        }
+
+        shared_tags.insert(
+            "transaction.status".to_owned(),
+            extract_transaction_status(trace_context).to_string(),
+        );
+    }
+
+    // server_name is extracted into an event tag during light_normalization
+    if let Some(event_tags) = event.tags.value() {
+        if let Some(server_name) = event_tags.get("server_name") {
+            shared_tags.insert("domain".to_owned(), server_name.to_owned());
+        }
+    }
+
+    // Some more tags are required, but need SDK work first:
+    // - span_status
+    // - action
+    // - event platform (e.g. MySQL, Redis).
+
     if let Some(spans) = event.spans.value_mut() {
-        // Collect the shared tags for all the metrics and spans on this transaction
-        let mut shared_tags = BTreeMap::new();
-
-        if let Some(environment) = event.environment.as_str() {
-            shared_tags.insert("environment".to_owned(), environment.to_owned());
-        }
-        if let Some(transaction_name) = event.transaction.value() {
-            shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
-        }
-        if let Some(trace_context) = get_trace_context(event) {
-            if let Some(op) = extract_transaction_op(trace_context) {
-                shared_tags.insert("transaction.op".to_owned(), op);
-            }
-
-            shared_tags.insert(
-                "transaction.status".to_owned(),
-                extract_transaction_status(trace_context).to_string(),
-            );
-        }
-        // server_name is extracted into an event tag during light_normalization
-        if let Some(event_tags) = event.tags.value() {
-            if let Some(server_name) = event_tags.get("server_name") {
-                shared_tags.insert("domain".to_owned(), server_name.to_owned());
-            }
-        }
-        // Some more tags are required, but need SDK work first:
-        // - span_status
-        // - action
-        // - event platform (e.g. MySQL, Redis).
-
         if let Some(user) = event.user.value() {
             if let Some(value) = get_eventuser_tag(user) {
                 metrics.push(Metric::new_mri(
@@ -458,7 +466,7 @@ fn extract_span_metrics(
         for annotated_span in spans {
             if let Some(span) = annotated_span.value() {
                 let mut span_tags = shared_tags.clone();
-                // TODO(iker): missing tags: span.group
+                // TODO(iker): missing tag: span.group
 
                 if let Some(span_op) = span.op.value() {
                     span_tags.insert("span.operation".to_owned(), span_op.to_owned());
