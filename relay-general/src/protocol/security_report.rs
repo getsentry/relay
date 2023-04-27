@@ -216,29 +216,33 @@ impl CspRaw {
         "self".to_string()
     }
 
-    fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
+    // The string in the result tuple represents the original value.
+    fn effective_directive(&self) -> Result<(CspDirective, String), InvalidSecurityError> {
         // Firefox doesn't send effective-directive, so parse it from
         // violated-directive but prefer effective-directive when present
         //
         // refs: https://bugzil.la/1192684#c8
 
         if let Some(directive) = &self.effective_directive {
-            let parsed_directive = directive
+            if let Ok(dir) = directive
                 .split_once(' ')
                 .map_or(directive.as_str(), |s| s.0)
-                .parse();
-
-            if parsed_directive.is_ok() {
-                return parsed_directive;
+                .parse()
+            {
+                return Ok((dir, directive.clone()));
             }
         }
 
-        self.violated_directive
+        if let Ok(dir) = self
+            .violated_directive
             .split_once(' ')
             .map_or(self.violated_directive.as_str(), |s| s.0)
             .parse()
-            .ok()
-            .ok_or(InvalidSecurityError)
+        {
+            Ok((dir, self.violated_directive.clone()))
+        } else {
+            Err(InvalidSecurityError)
+        }
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
@@ -292,10 +296,14 @@ impl CspRaw {
         }
     }
 
-    fn into_protocol(self, parsed_effective_directive: CspDirective) -> Csp {
+    fn into_protocol(
+        self,
+        parsed_effective_directive: CspDirective,
+        original_value: String,
+    ) -> Csp {
         Csp {
             effective_directive: Annotated::from(parsed_effective_directive.to_string()),
-            effective_directive_full: Annotated::from(self.effective_directive),
+            effective_directive_full: Annotated::from(original_value),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -494,7 +502,7 @@ impl Csp {
         let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
         let raw_csp = raw_report.csp_report;
 
-        let effective_directive = raw_csp
+        let (effective_directive, original_value) = raw_csp
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
 
@@ -502,7 +510,7 @@ impl Csp {
         event.culprit = Annotated::new(raw_csp.get_culprit());
         event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
         event.request = Annotated::new(raw_csp.get_request());
-        event.csp = Annotated::new(raw_csp.into_protocol(effective_directive));
+        event.csp = Annotated::new(raw_csp.into_protocol(effective_directive, original_value));
 
         Ok(())
     }
@@ -1264,6 +1272,7 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "default-src",
+            "effective_directive_full": "default-src self",
             "blocked_uri": "http://evilhackerscripts.com",
             "document_uri": "https://example.com/foo/bar",
             "original_policy": "default-src self; report-uri /csp-hotline.php",
@@ -1938,8 +1947,8 @@ mod tests {
         let csp_raw: CspRaw =
             serde_json::from_str(r#"{"violated-directive":"default-src"}"#).unwrap();
         assert!(matches!(
-            csp_raw.effective_directive(),
-            Ok(CspDirective::DefaultSrc)
+            csp_raw.effective_directive().unwrap().0,
+            CspDirective::DefaultSrc
         ));
     }
 
@@ -1956,8 +1965,8 @@ mod tests {
         let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
         let raw_csp = raw_report.csp_report;
 
-        let effective_directive = raw_csp.effective_directive().unwrap();
-        let csp = raw_csp.into_protocol(effective_directive);
+        let (effective_directive, og_value) = raw_csp.effective_directive().unwrap();
+        let csp = raw_csp.into_protocol(effective_directive, og_value);
 
         assert_eq!(effective_directive, CspDirective::ScriptSrc);
         assert_eq!(
