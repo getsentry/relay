@@ -411,7 +411,7 @@ fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    if let Some(_spans) = event.spans.value_mut() {
+    if let Some(spans) = event.spans.value_mut() {
         // Collect the shared tags for all the metrics and spans on this transaction
         let mut shared_tags = BTreeMap::new();
 
@@ -455,8 +455,36 @@ fn extract_span_metrics(
             }
         }
 
-        // TODO(iker): extract span-specific metrics
-        // still missing: span.operation, description, span.group, module
+        for annotated_span in spans {
+            if let Some(span) = annotated_span.value() {
+                let mut span_tags = shared_tags.clone();
+                // TODO(iker): missing tags: span.group
+
+                if let Some(span_op) = span.op.value() {
+                    span_tags.insert("span.operation".to_owned(), span_op.to_owned());
+
+                    let span_module = if span_op.starts_with("http") {
+                        Some("http")
+                    } else if span_op.starts_with("db") {
+                        Some("db")
+                    } else if span_op.starts_with("cache") {
+                        Some("cache")
+                    } else {
+                        None
+                    };
+                    if let Some(module) = span_module {
+                        span_tags.insert("module".to_owned(), module.to_owned());
+                    }
+                }
+
+                if let Some(description) = span.description.value() {
+                    // TODO(iker): needs sanitization
+                    span_tags.insert("description".to_owned(), description.to_owned());
+                }
+
+                // TODO(iker): emit span metrics
+            }
+        }
     }
 
     Ok(())
