@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
-use relay_metrics::{AggregatorConfig, Metric};
+use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
@@ -212,7 +212,8 @@ pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
-    event: &Event,
+    extract_spans_metrics: bool,
+    event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
     project_metrics: &mut Vec<Metric>,  // output parameter
@@ -229,6 +230,10 @@ pub fn extract_transaction_metrics(
         project_metrics,
         sampling_metrics,
     )?;
+
+    if extract_spans_metrics {
+        extract_span_metrics(aggregator_config, event, project_metrics)?;
+    }
 
     let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
@@ -375,6 +380,65 @@ fn extract_transaction_metrics_inner(
     Ok(())
 }
 
+/// Extracts metrics from the spans of the given transaction, and sets common
+/// tags for all the metrics and spans. If a span already contains a tag
+/// extracted for a metric, the tag value is overwritten.
+fn extract_span_metrics(
+    aggregator_config: &AggregatorConfig,
+    event: &mut Event,
+    metrics: &mut Vec<Metric>, // output parameter
+) -> Result<(), ExtractMetricsError> {
+    // TODO(iker): measure the performance of this whole method
+
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return Ok(());
+    }
+    let (Some(_), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+        relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        return Err(ExtractMetricsError::MissingTimestamp);
+    };
+
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        relay_log::debug!("event timestamp is not a valid unix timestamp");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    };
+
+    // Validate the transaction event against the metrics timestamp limits. If the metric is too
+    // old or too new, we cannot extract the metric and also need to drop the transaction event
+    // for consistency between metrics and events.
+    if !aggregator_config.timestamp_range().contains(&timestamp) {
+        relay_log::debug!("event timestamp is out of the valid range for metrics");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    if let Some(_spans) = event.spans.value_mut() {
+        // Collect the shared tags for all the metrics and spans on this transaction
+        let mut shared_tags = BTreeMap::new();
+
+        if let Some(transaction_name) = event.transaction.value() {
+            shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+        }
+        // TODO(iker): must add shared tags: environment, op, release, etc
+
+        if let Some(user) = event.user.value() {
+            if let Some(value) = get_eventuser_tag(user) {
+                metrics.push(Metric::new_mri(
+                    MetricNamespace::Spans,
+                    "user",
+                    MetricUnit::None,
+                    MetricValue::set_from_str(&value),
+                    timestamp,
+                    shared_tags.clone(),
+                ));
+            }
+        }
+
+        // TODO(iker): extract span-specific metrics
+    }
+
+    Ok(())
+}
+
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:
@@ -448,6 +512,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use insta;
     use relay_common::MetricUnit;
     use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, Timestamp, User};
@@ -559,7 +624,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            true,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -660,6 +726,16 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
+            Metric {
+                name: "s:spans/user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "transaction": "mytransaction",
+                },
+            },
         ]
         "###);
     }
@@ -700,7 +776,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -792,7 +869,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -860,7 +938,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -871,7 +949,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -946,7 +1025,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1019,7 +1099,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1056,7 +1136,8 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1106,7 +1187,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1143,7 +1224,8 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1184,7 +1266,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1192,7 +1274,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1223,7 +1306,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1231,7 +1314,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1261,7 +1345,7 @@ mod tests {
 
         let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
 
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(timestamp),
             start_timestamp: Annotated::new(timestamp),
@@ -1279,7 +1363,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1295,7 +1380,7 @@ mod tests {
         let mut config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
@@ -1304,7 +1389,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1332,7 +1418,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1343,7 +1429,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1716,7 +1803,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
