@@ -3875,6 +3875,89 @@
 <a href="#3874" id="3874">3874</a>
 <a href="#3875" id="3875">3875</a>
 <a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a>
+<a href="#3881" id="3881">3881</a>
+<a href="#3882" id="3882">3882</a>
+<a href="#3883" id="3883">3883</a>
+<a href="#3884" id="3884">3884</a>
+<a href="#3885" id="3885">3885</a>
+<a href="#3886" id="3886">3886</a>
+<a href="#3887" id="3887">3887</a>
+<a href="#3888" id="3888">3888</a>
+<a href="#3889" id="3889">3889</a>
+<a href="#3890" id="3890">3890</a>
+<a href="#3891" id="3891">3891</a>
+<a href="#3892" id="3892">3892</a>
+<a href="#3893" id="3893">3893</a>
+<a href="#3894" id="3894">3894</a>
+<a href="#3895" id="3895">3895</a>
+<a href="#3896" id="3896">3896</a>
+<a href="#3897" id="3897">3897</a>
+<a href="#3898" id="3898">3898</a>
+<a href="#3899" id="3899">3899</a>
+<a href="#3900" id="3900">3900</a>
+<a href="#3901" id="3901">3901</a>
+<a href="#3902" id="3902">3902</a>
+<a href="#3903" id="3903">3903</a>
+<a href="#3904" id="3904">3904</a>
+<a href="#3905" id="3905">3905</a>
+<a href="#3906" id="3906">3906</a>
+<a href="#3907" id="3907">3907</a>
+<a href="#3908" id="3908">3908</a>
+<a href="#3909" id="3909">3909</a>
+<a href="#3910" id="3910">3910</a>
+<a href="#3911" id="3911">3911</a>
+<a href="#3912" id="3912">3912</a>
+<a href="#3913" id="3913">3913</a>
+<a href="#3914" id="3914">3914</a>
+<a href="#3915" id="3915">3915</a>
+<a href="#3916" id="3916">3916</a>
+<a href="#3917" id="3917">3917</a>
+<a href="#3918" id="3918">3918</a>
+<a href="#3919" id="3919">3919</a>
+<a href="#3920" id="3920">3920</a>
+<a href="#3921" id="3921">3921</a>
+<a href="#3922" id="3922">3922</a>
+<a href="#3923" id="3923">3923</a>
+<a href="#3924" id="3924">3924</a>
+<a href="#3925" id="3925">3925</a>
+<a href="#3926" id="3926">3926</a>
+<a href="#3927" id="3927">3927</a>
+<a href="#3928" id="3928">3928</a>
+<a href="#3929" id="3929">3929</a>
+<a href="#3930" id="3930">3930</a>
+<a href="#3931" id="3931">3931</a>
+<a href="#3932" id="3932">3932</a>
+<a href="#3933" id="3933">3933</a>
+<a href="#3934" id="3934">3934</a>
+<a href="#3935" id="3935">3935</a>
+<a href="#3936" id="3936">3936</a>
+<a href="#3937" id="3937">3937</a>
+<a href="#3938" id="3938">3938</a>
+<a href="#3939" id="3939">3939</a>
+<a href="#3940" id="3940">3940</a>
+<a href="#3941" id="3941">3941</a>
+<a href="#3942" id="3942">3942</a>
+<a href="#3943" id="3943">3943</a>
+<a href="#3944" id="3944">3944</a>
+<a href="#3945" id="3945">3945</a>
+<a href="#3946" id="3946">3946</a>
+<a href="#3947" id="3947">3947</a>
+<a href="#3948" id="3948">3948</a>
+<a href="#3949" id="3949">3949</a>
+<a href="#3950" id="3950">3950</a>
+<a href="#3951" id="3951">3951</a>
+<a href="#3952" id="3952">3952</a>
+<a href="#3953" id="3953">3953</a>
+<a href="#3954" id="3954">3954</a>
+<a href="#3955" id="3955">3955</a>
+<a href="#3956" id="3956">3956</a>
+<a href="#3957" id="3957">3957</a>
+<a href="#3958" id="3958">3958</a>
+<a href="#3959" id="3959">3959</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -4733,6 +4816,10 @@
                 <span class="prelude-val">None </span>=&gt; Value::Null,
                 <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>s) =&gt; s.as_str().into(),
             },
+            <span class="string">&quot;trace.replay_id&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.replay_id {
+                <span class="prelude-val">None </span>=&gt; Value::Null,
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>s) =&gt; Value::String(s.to_string()),
+            },
             <span class="kw">_ </span>=&gt; Value::Null,
         }
     }
@@ -5339,6 +5426,14 @@
         })
     }
 
+    <span class="kw">fn </span>eq_null(name: <span class="kw-2">&amp;</span>str) -&gt; RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: Value::Null,
+            options: EqCondOptions { ignore_case: <span class="bool-val">true </span>},
+        })
+    }
+
     <span class="kw">fn </span>eq_bool(name: <span class="kw-2">&amp;</span>str, value: bool) -&gt; RuleCondition {
         RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
@@ -5417,6 +5512,7 @@
         environment: <span class="kw-2">&amp;</span>str,
         user_segment: <span class="kw-2">&amp;</span>str,
         user_id: <span class="kw-2">&amp;</span>str,
+        replay_id: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
     ) -&gt; DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -5429,7 +5525,7 @@
                 user_segment: user_segment.to_string(),
                 user_id: user_id.to_string(),
             },
-            replay_id: Default::default(),
+            replay_id,
             other: Default::default(),
         }
     }
@@ -5712,6 +5808,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_field_value_provider_trace_filled() {
+        <span class="kw">let </span>replay_id = Uuid::new_v4();
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse(<span class="string">&quot;abd0f232775f45feab79864e580d160b&quot;</span>).unwrap(),
@@ -5723,7 +5820,7 @@
             environment: <span class="prelude-val">Some</span>(<span class="string">&quot;prod&quot;</span>.into()),
             transaction: <span class="prelude-val">Some</span>(<span class="string">&quot;transaction1&quot;</span>.into()),
             sample_rate: <span class="prelude-val">None</span>,
-            replay_id: <span class="prelude-val">Some</span>(Uuid::new_v4()),
+            replay_id: <span class="prelude-val">Some</span>(replay_id),
             other: BTreeMap::new(),
         };
 
@@ -5746,7 +5843,11 @@
         <span class="macro">assert_eq!</span>(
             Value::String(<span class="string">&quot;transaction1&quot;</span>.into()),
             dsc.get_value(<span class="string">&quot;trace.transaction&quot;</span>)
-        )
+        );
+        <span class="macro">assert_eq!</span>(
+            Value::String(replay_id.to_string()),
+            dsc.get_value(<span class="string">&quot;trace.replay_id&quot;</span>)
+        );
     }
 
     <span class="attr">#[test]
@@ -5767,6 +5868,7 @@
         <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.user.id&quot;</span>));
         <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.user.segment&quot;</span>));
         <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.user.transaction&quot;</span>));
+        <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.replay_id&quot;</span>));
 
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -6789,6 +6891,7 @@
                 <span class="string">&quot;debug&quot;</span>,
                 <span class="string">&quot;vip&quot;</span>,
                 <span class="string">&quot;user-id&quot;</span>,
+                <span class="prelude-val">None</span>,
             ),
             Utc::now(),
         );
@@ -6857,15 +6960,27 @@
 
         <span class="comment">// early return of first rule
         </span><span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;healthcheck&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
-        <span class="kw">let </span>dsc =
-            mocked_dynamic_sampling_context(<span class="string">&quot;root_transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;debug&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;user-id&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;debug&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
+        );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.1</span>, event, <span class="number">1</span>);
 
         <span class="comment">// early return of second rule
         </span><span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
-        <span class="kw">let </span>dsc =
-            mocked_dynamic_sampling_context(<span class="string">&quot;root_transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;dev&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;user-id&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;dev&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
+        );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_trace_match!</span>(result, <span class="number">1.0</span>, dsc, <span class="number">2</span>);
 
@@ -6877,14 +6992,21 @@
             <span class="string">&quot;testing&quot;</span>,
             <span class="string">&quot;non-vip&quot;</span>,
             <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
         );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_trace_match!</span>(result, <span class="number">0.04</span>, dsc, <span class="number">3</span>, <span class="number">6</span>);
 
         <span class="comment">// factor match third rule and early return fourth rule
         </span><span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
-        <span class="kw">let </span>dsc =
-            mocked_dynamic_sampling_context(<span class="string">&quot;root_transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;prod&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;user-id&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;prod&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
+        );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_trace_match!</span>(result, <span class="number">1.0</span>, dsc, <span class="number">3</span>, <span class="number">4</span>);
 
@@ -6896,6 +7018,7 @@
             <span class="string">&quot;prod&quot;</span>,
             <span class="string">&quot;non-vip&quot;</span>,
             <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
         );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_trace_match!</span>(result, <span class="number">0.06</span>, dsc, <span class="number">3</span>, <span class="number">5</span>, <span class="number">6</span>);
@@ -6908,6 +7031,7 @@
             <span class="string">&quot;prod&quot;</span>,
             <span class="string">&quot;non-vip&quot;</span>,
             <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
         );
         <span class="kw">let </span>result = match_against_rules(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>dsc, Utc::now());
         <span class="macro">assert_trace_match!</span>(result, <span class="number">0.03</span>, dsc, <span class="number">5</span>, <span class="number">6</span>);
@@ -6957,8 +7081,14 @@
 
         <span class="comment">// factor match first rule and early return third rule
         </span><span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
-        <span class="kw">let </span>dsc =
-            mocked_dynamic_sampling_context(<span class="string">&quot;root_transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;dev&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;user-id&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;dev&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
+        );
         <span class="comment">// We will use a time in the middle of 10th and 11th.
         </span><span class="kw">let </span>result = match_against_rules(
             <span class="kw-2">&amp;</span>config,
@@ -6970,8 +7100,14 @@
 
         <span class="comment">// early return second rule
         </span><span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
-        <span class="kw">let </span>dsc =
-            mocked_dynamic_sampling_context(<span class="string">&quot;root_transaction&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;prod&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;user-id&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;prod&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
+        );
         <span class="comment">// We will use a time in the middle of 10th and 11th.
         </span><span class="kw">let </span>result = match_against_rules(
             <span class="kw-2">&amp;</span>config,
@@ -6995,6 +7131,7 @@
             <span class="string">&quot;testing&quot;</span>,
             <span class="string">&quot;vip&quot;</span>,
             <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">None</span>,
         );
         <span class="comment">// We will use a time in the middle of 10th and 11th.
         </span><span class="kw">let </span>result = match_against_rules(
@@ -7004,6 +7141,35 @@
             Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap(),
         );
         <span class="macro">assert_trace_match!</span>(result, <span class="number">0.02</span>, dsc, <span class="number">3</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="doccomment">/// test that the correct match is performed when replay id is present in the dsc.
+    </span><span class="kw">fn </span>test_sampling_match_with_trace_replay_id() {
+        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;healthcheck&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>, <span class="string">&quot;testing&quot;</span>);
+        <span class="kw">let </span>dsc = mocked_dynamic_sampling_context(
+            <span class="string">&quot;root_transaction&quot;</span>,
+            <span class="string">&quot;1.1.1&quot;</span>,
+            <span class="string">&quot;prod&quot;</span>,
+            <span class="string">&quot;vip&quot;</span>,
+            <span class="string">&quot;user-id&quot;</span>,
+            <span class="prelude-val">Some</span>(Uuid::new_v4()),
+        );
+
+        <span class="kw">let </span>result = match_against_rules(
+            <span class="kw-2">&amp;</span>mocked_sampling_config_with_rules(<span class="macro">vec!</span>[SamplingRule {
+                condition: and(<span class="macro">vec!</span>[not(eq_null(<span class="string">&quot;trace.replay_id&quot;</span>))]),
+                sampling_value: SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+                ty: RuleType::Trace,
+                id: RuleId(<span class="number">1</span>),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }]),
+            <span class="kw-2">&amp;</span>event,
+            <span class="kw-2">&amp;</span>dsc,
+            Utc::now(),
+        );
+        <span class="macro">assert_trace_match!</span>(result, <span class="number">1.0</span>, dsc, <span class="number">1</span>)
     }
 
     <span class="attr">#[test]
