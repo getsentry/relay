@@ -440,7 +440,7 @@ fn extract_span_metrics(
     // server_name is extracted into an event tag during light_normalization
     if let Some(event_tags) = event.tags.value() {
         if let Some(server_name) = event_tags.get("server_name") {
-            shared_tags.insert("domain".to_owned(), server_name.to_owned());
+            shared_tags.insert("span.domain".to_owned(), server_name.to_owned());
         }
     }
 
@@ -481,13 +481,13 @@ fn extract_span_metrics(
                         None
                     };
                     if let Some(module) = span_module {
-                        span_tags.insert("module".to_owned(), module.to_owned());
+                        span_tags.insert("span.module".to_owned(), module.to_owned());
                     }
                 }
 
                 if let Some(description) = span.description.value() {
                     // TODO(iker): needs sanitization
-                    span_tags.insert("description".to_owned(), description.to_owned());
+                    span_tags.insert("span.description".to_owned(), description.to_owned());
                 }
 
                 // TODO(iker): emit span metrics
@@ -793,8 +793,8 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "domain": "myhost",
                     "environment": "fake_environment",
+                    "span.domain": "myhost",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                     "transaction.status": "ok",
