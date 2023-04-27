@@ -164,7 +164,11 @@ mod tests {
 
     use super::*;
 
-    fn get_csp_event(blocked_uri: Option<&str>, source_file: Option<&str>) -> Event {
+    fn get_csp_event(
+        blocked_uri: Option<&str>,
+        source_file: Option<&str>,
+        document_uri: Option<&str>,
+    ) -> Event {
         fn annotated_string_or_none(val: Option<&str>) -> Annotated<String> {
             match val {
                 None => Annotated::empty(),
@@ -176,6 +180,7 @@ mod tests {
             csp: Annotated::from(Csp {
                 blocked_uri: annotated_string_or_none(blocked_uri),
                 source_file: annotated_string_or_none(source_file),
+                document_uri: annotated_string_or_none(document_uri),
                 ..Csp::default()
             }),
             ..Event::default()
@@ -308,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_filters_known_blocked_source_files() {
-        let event = get_csp_event(None, Some("http://known.bad.com"));
+        let event = get_csp_event(None, Some("http://known.bad.com"), None);
         let config = CspFilterConfig {
             disallowed_sources: vec!["http://known.bad.com".to_string()],
         };
@@ -323,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_does_not_filter_benign_source_files() {
-        let event = get_csp_event(None, Some("http://good.file.com"));
+        let event = get_csp_event(None, Some("http://good.file.com"), None);
         let config = CspFilterConfig {
             disallowed_sources: vec!["http://known.bad.com".to_string()],
         };
@@ -337,8 +342,23 @@ mod tests {
     }
 
     #[test]
+    fn test_filters_known_document_uris() {
+        let event = get_csp_event(None, None, Some("http://known.bad.com"));
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
+        assert_ne!(
+            actual,
+            Ok(()),
+            "CSP filter should have filtered known document uri"
+        );
+    }
+
+    #[test]
     fn test_filters_known_blocked_uris() {
-        let event = get_csp_event(Some("http://known.bad.com"), None);
+        let event = get_csp_event(Some("http://known.bad.com"), None, None);
         let config = CspFilterConfig {
             disallowed_sources: vec!["http://known.bad.com".to_string()],
         };
@@ -353,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_does_not_filter_benign_uris() {
-        let event = get_csp_event(Some("http://good.file.com"), None);
+        let event = get_csp_event(Some("http://good.file.com"), None, None);
         let config = CspFilterConfig {
             disallowed_sources: vec!["http://known.bad.com".to_string()],
         };
@@ -368,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_does_not_filter_non_csp_messages() {
-        let mut event = get_csp_event(Some("http://known.bad.com"), None);
+        let mut event = get_csp_event(Some("http://known.bad.com"), None, None);
         event.ty = Annotated::from(EventType::Transaction);
         let config = CspFilterConfig {
             disallowed_sources: vec!["http://known.bad.com".to_string()],
@@ -409,7 +429,7 @@ mod tests {
         ];
 
         for (blocked_uri, source_file) in examples {
-            let event = get_csp_event(*blocked_uri, *source_file);
+            let event = get_csp_event(*blocked_uri, *source_file, None);
             let config = CspFilterConfig {
                 disallowed_sources: get_disallowed_sources(),
             };
@@ -432,7 +452,7 @@ mod tests {
         ];
 
         for (blocked_uri, source_file) in examples {
-            let event = get_csp_event(*blocked_uri, *source_file);
+            let event = get_csp_event(*blocked_uri, *source_file, None);
             let config = CspFilterConfig {
                 disallowed_sources: get_disallowed_sources(),
             };
