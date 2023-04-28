@@ -2863,67 +2863,10 @@ mod tests {
             .unwrap()
     }
 
-
     fn services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
         (outcome_aggregator, test_store)
-    }
-
-    #[test]
-    fn test_apply_trace_rules_if_error() {
-        relay_test::setup();
-
-        // an empty json still produces a valid config
-        let json_config = serde_json::json!({});
-
-        let config = Config::from_json_value(json_config.clone()).unwrap();
-        let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
-
-        let runtime = crate::service::create_runtime("test-rt", 1);
-        let _guard = runtime.enter();
-        ServiceState::start(arconfig).unwrap();
-
-        let service = create_test_processor(config);
-
-        let event = Event {
-            id: Annotated::new(EventId::new()),
-            ty: Annotated::new(EventType::Error),
-            ..Event::default()
-        };
-
-        let project_state = state_with_rule_and_condition(
-            Some(1.0),
-            RuleType::Transaction,
-            SamplingMode::Received,
-            RuleCondition::all(),
-        );
-
-        let sampling_project_state = state_with_rule_and_condition(
-            Some(1.0),
-            RuleType::Trace,
-            SamplingMode::Received,
-            RuleCondition::all(),
-        );
-
-        let mut state = ProcessEnvelopeState {
-            event: Annotated::from(event.clone()),
-            transaction_metrics_extracted: false,
-            metrics: Default::default(),
-            sample_rates: None,
-            sampling_result: SamplingResult::Keep,
-            extracted_metrics: Default::default(),
-            project_state: Arc::new(project_state),
-            sampling_project_state: Some(Arc::new(sampling_project_state)),
-            project_id: ProjectId::new(42),
-            managed_envelope: ManagedEnvelope::new(
-                new_envelope(true, "foo"),
-                TestSemaphore::new(42).try_acquire().unwrap(),
-            ),
-        };
-
-        service.apply_trace_rules_if_error(&mut state);
-        // TODO: assert that tracecontext is modified on match.
     }
 
     #[tokio::test]
@@ -3163,6 +3106,7 @@ mod tests {
     #[tokio::test]
     async fn test_has_full_trace_injection() {
         let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -3186,7 +3130,7 @@ mod tests {
         });
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
