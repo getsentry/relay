@@ -3,15 +3,15 @@ source: tools/document-pii/src/main.rs
 expression: use_statements
 ---
 {
-    "test_pii_docs::anothermod": {
-        "test_pii_docs::anothermod::BarFoo",
-        "test_pii_docs::anothermod::FooBar",
-    },
     "test_pii_docs": {
         "test_pii_docs::HasGeneric",
         "test_pii_docs::InnerGeneric",
         "test_pii_docs::MyStruct",
         "test_pii_docs::SelfReferential",
         "test_pii_docs::SubStruct",
+    },
+    "test_pii_docs::anothermod": {
+        "test_pii_docs::anothermod::BarFoo",
+        "test_pii_docs::anothermod::FooBar",
     },
 }
