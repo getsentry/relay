@@ -485,11 +485,6 @@ fn extract_span_metrics(
                     }
                 }
 
-                if let Some(description) = span.description.value() {
-                    // TODO(iker): needs sanitization
-                    span_tags.insert("span.description".to_owned(), description.to_owned());
-                }
-
                 // TODO(iker): emit span metrics
             }
         }
