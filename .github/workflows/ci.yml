@@ -320,15 +320,26 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d' ' -f2)"
+          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
           echo "relay@$VERSION+$REVISION" > release-name
 
           docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > libs.tar
 
-          gsutil -m cp ./release-name ./libs.tar ./relay-debug.zip ./relay.src.zip \
-          "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/"
+          # debugging for mysterious "Couldn't write tracker file" issue:
+          (env | grep runner) || true
+          ls -ld  \
+            /home \
+            /home/runner \
+            /home/runner/.gsutil \
+            /home/runner/.gsutil/tracker-files \
+            /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
+          || true
+          gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/" || status=$? && status=$?
+          cat gsutil.log
+          exit "$status"
 
   test_integration:
     name: Integration Tests
