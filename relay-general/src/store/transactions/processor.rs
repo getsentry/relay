@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use relay_common::SpanStatus;
+use relay_metrics::is_valid_metric_name;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -392,6 +393,20 @@ impl Processor for TransactionsProcessor<'_> {
         set_default_transaction_source(event);
 
         event.process_child_values(self, state)?;
+
+        Ok(())
+    }
+
+    fn process_measurements(
+        &mut self,
+        value: &mut crate::protocol::Measurements,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        let measurements = &mut value.0;
+        let huge_number: usize = todo!();
+
+        measurements.retain(|key, _| key.len() < huge_number && is_valid_metric_name(key));
 
         Ok(())
     }

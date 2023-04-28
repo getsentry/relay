@@ -153,7 +153,7 @@ impl fmt::Display for ParseMetricError {
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
 /// underscores, slashes and periods.
-fn is_valid_name(name: &str) -> bool {
+pub fn is_valid_metric_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
@@ -291,7 +291,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !is_valid_name(name) {
+    if !is_valid_metric_name(name) {
         return None;
     }
 
