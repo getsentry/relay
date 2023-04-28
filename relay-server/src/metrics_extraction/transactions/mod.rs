@@ -415,7 +415,7 @@ fn extract_span_metrics(
         return Ok(());
     }
 
-    // Collect the shared tags for all the metrics and spans on this transaction
+    // Collect the shared tags for all the metrics and spans on this transaction.
     let mut shared_tags = BTreeMap::new();
 
     if let Some(environment) = event.environment.as_str() {
@@ -437,7 +437,7 @@ fn extract_span_metrics(
         );
     }
 
-    // server_name is extracted into an event tag during light_normalization
+    // The `server_name` is extracted into an event tag during light normalization.
     if let Some(event_tags) = event.tags.value() {
         if let Some(server_name) = event_tags.get("server_name") {
             shared_tags.insert("span.domain".to_owned(), server_name.to_owned());
