@@ -292,6 +292,37 @@
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -394,6 +425,17 @@
     </span>timezone: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
+<span class="comment">// XXX(epurkhiser): This is a duplicate of the ClientSdkInfo that is part of the relay-general
+// crate. Until we&#39;re able to migrate the checkin payload over to it&#39;s own protocol using
+// metastructure we&#39;ll need to have this duplicated here
+//
+</span><span class="doccomment">/// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
+</span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">struct </span>MinimalClientSdkInfo {
+    <span class="kw">pub </span>name: String,
+    <span class="kw">pub </span>version: String,
+}
+
 <span class="doccomment">/// The monitor check-in payload.
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>CheckIn {
@@ -406,6 +448,10 @@
 
     <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
     </span>status: CheckInStatus,
+
+    <span class="doccomment">/// monitor configuration to support upserts.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>sdk: <span class="prelude-ty">Option</span>&lt;MinimalClientSdkInfo&gt;,
 
     <span class="doccomment">/// The environment to associate the check-in with
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
@@ -470,6 +516,10 @@
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;sdk&quot;: {
+    &quot;name&quot;: &quot;sentry.rust&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
   &quot;environment&quot;: &quot;production&quot;,
   &quot;duration&quot;: 21.0
 }&quot;#</span>;
@@ -486,6 +536,10 @@
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;sdk&quot;: {
+    &quot;name&quot;: &quot;sentry.rust&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
   &quot;monitor_config&quot;: {
     &quot;schedule&quot;: {
       &quot;type&quot;: &quot;crontab&quot;,
@@ -506,6 +560,10 @@
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;sdk&quot;: {
+    &quot;name&quot;: &quot;sentry.rust&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
   &quot;monitor_config&quot;: {
     &quot;schedule&quot;: {
       &quot;type&quot;: &quot;interval&quot;,
@@ -530,6 +588,10 @@
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
   &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;sdk&quot;: {
+    &quot;name&quot;: &quot;sentry.rust&quot;,
+    &quot;version&quot;: &quot;1.0.0&quot;
+  },
   &quot;monitor_config&quot;: {
     &quot;schedule&quot;: {
       &quot;type&quot;: &quot;crontab&quot;,
