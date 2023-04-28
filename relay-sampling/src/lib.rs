@@ -856,6 +856,10 @@ impl FieldValueProvider for DynamicSamplingContext {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
             },
+            "trace.replay_id" => match self.replay_id {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.to_string()),
+            },
             _ => Value::Null,
         }
     }
@@ -1462,6 +1466,14 @@ mod tests {
         })
     }
 
+    fn eq_null(name: &str) -> RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: Value::Null,
+            options: EqCondOptions { ignore_case: true },
+        })
+    }
+
     fn eq_bool(name: &str, value: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
@@ -1540,6 +1552,7 @@ mod tests {
         environment: &str,
         user_segment: &str,
         user_id: &str,
+        replay_id: Option<Uuid>,
     ) -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -1552,7 +1565,7 @@ mod tests {
                 user_segment: user_segment.to_string(),
                 user_id: user_id.to_string(),
             },
-            replay_id: Default::default(),
+            replay_id,
             other: Default::default(),
         }
     }
@@ -1835,6 +1848,7 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
+        let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1846,7 +1860,7 @@ mod tests {
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
-            replay_id: Some(Uuid::new_v4()),
+            replay_id: Some(replay_id),
             other: BTreeMap::new(),
         };
 
@@ -1869,7 +1883,11 @@ mod tests {
         assert_eq!(
             Value::String("transaction1".into()),
             dsc.get_value("trace.transaction")
-        )
+        );
+        assert_eq!(
+            Value::String(replay_id.to_string()),
+            dsc.get_value("trace.replay_id")
+        );
     }
 
     #[test]
@@ -1890,6 +1908,7 @@ mod tests {
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
+        assert_eq!(Value::Null, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -2912,6 +2931,7 @@ mod tests {
                 "debug",
                 "vip",
                 "user-id",
+                None,
             ),
             Utc::now(),
         );
@@ -2980,15 +3000,27 @@ mod tests {
 
         // early return of first rule
         let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
-        let dsc =
-            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "debug", "vip", "user-id");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "debug",
+            "vip",
+            "user-id",
+            None,
+        );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_transaction_match!(result, 0.1, event, 1);
 
         // early return of second rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc =
-            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "dev", "vip", "user-id");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "dev",
+            "vip",
+            "user-id",
+            None,
+        );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 1.0, dsc, 2);
 
@@ -3000,14 +3032,21 @@ mod tests {
             "testing",
             "non-vip",
             "user-id",
+            None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 0.04, dsc, 3, 6);
 
         // factor match third rule and early return fourth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc =
-            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "prod", "vip", "user-id");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "vip",
+            "user-id",
+            None,
+        );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 1.0, dsc, 3, 4);
 
@@ -3019,6 +3058,7 @@ mod tests {
             "prod",
             "non-vip",
             "user-id",
+            None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 0.06, dsc, 3, 5, 6);
@@ -3031,6 +3071,7 @@ mod tests {
             "prod",
             "non-vip",
             "user-id",
+            None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_trace_match!(result, 0.03, dsc, 5, 6);
@@ -3080,8 +3121,14 @@ mod tests {
 
         // factor match first rule and early return third rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc =
-            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "dev", "vip", "user-id");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "dev",
+            "vip",
+            "user-id",
+            None,
+        );
         // We will use a time in the middle of 10th and 11th.
         let result = match_against_rules(
             &config,
@@ -3093,8 +3140,14 @@ mod tests {
 
         // early return second rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc =
-            mocked_dynamic_sampling_context("root_transaction", "1.1.1", "prod", "vip", "user-id");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "vip",
+            "user-id",
+            None,
+        );
         // We will use a time in the middle of 10th and 11th.
         let result = match_against_rules(
             &config,
@@ -3118,6 +3171,7 @@ mod tests {
             "testing",
             "vip",
             "user-id",
+            None,
         );
         // We will use a time in the middle of 10th and 11th.
         let result = match_against_rules(
@@ -3127,6 +3181,35 @@ mod tests {
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
         assert_trace_match!(result, 0.02, dsc, 3);
+    }
+
+    #[test]
+    /// test that the correct match is performed when replay id is present in the dsc.
+    fn test_sampling_match_with_trace_replay_id() {
+        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "prod",
+            "vip",
+            "user-id",
+            Some(Uuid::new_v4()),
+        );
+
+        let result = match_against_rules(
+            &mocked_sampling_config_with_rules(vec![SamplingRule {
+                condition: and(vec![not(eq_null("trace.replay_id"))]),
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }]),
+            &event,
+            &dsc,
+            Utc::now(),
+        );
+        assert_trace_match!(result, 1.0, dsc, 1)
     }
 
     #[test]

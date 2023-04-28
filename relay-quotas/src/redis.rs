@@ -79,7 +79,10 @@ impl<'a> RedisQuota<'a> {
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
     fn limit(&self) -> i64 {
-        self.limit.map(i64::from).unwrap_or(-1)
+        self.limit
+            // If it does not fit into i64, treat as unlimited:
+            .and_then(|limit| limit.try_into().ok())
+            .unwrap_or(-1)
     }
 
     fn shift(&self) -> u64 {
@@ -653,6 +656,33 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(234_531);
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
         assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
+    }
+
+    #[test]
+    fn test_large_redis_limit_large() {
+        let quota = Quota {
+            id: Some("foo".to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            window: Some(10),
+            limit: Some(9223372036854775808), // i64::MAX + 1
+            reason_code: None,
+        };
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 69420,
+                project_id: ProjectId::new(42),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(4711),
+            },
+        };
+
+        let timestamp = UnixTimestamp::from_secs(234_531);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.limit(), -1);
     }
 
     #[test]
