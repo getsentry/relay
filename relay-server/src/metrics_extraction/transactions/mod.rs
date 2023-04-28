@@ -449,7 +449,7 @@ fn extract_span_metrics(
     // - action
     // - event platform (e.g. MySQL, Redis).
 
-    if let Some(spans) = event.spans.value_mut() {
+    if let Some(spans) = event.spans.value() {
         if let Some(user) = event.user.value() {
             if let Some(value) = get_eventuser_tag(user) {
                 metrics.push(Metric::new_mri(
