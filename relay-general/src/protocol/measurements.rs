@@ -65,6 +65,7 @@ pub struct Measurement {
 ///
 /// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[metastructure(process_func = "process_measurements")]
 pub struct Measurements(pub Object<Measurement>);
 
 impl Measurements {

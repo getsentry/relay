@@ -2969,7 +2969,8 @@ mod tests {
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             tags: BTreeMap::new(),
         };
-        let validation = AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
+        let validation: Result<BucketKey, AggregateMetricsError> =
+            AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
 
         assert_eq!(
             validation.unwrap_err(),

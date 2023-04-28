@@ -219,6 +219,21 @@ impl Processor for TrimmingProcessor {
         Ok(())
     }
 
+    fn process_measurements(
+        &mut self,
+        value: &mut crate::protocol::Measurements,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        let measurements = &mut value.0;
+        let huge_number = 50;
+
+        for (key, _) in measurements {
+            if key.len() > huge_number {}
+        }
+        Ok(())
+    }
+
     fn process_value(
         &mut self,
         value: &mut Value,
