@@ -773,6 +773,34 @@
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
 <a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1019,8 +1047,10 @@
     <span class="doccomment">/// Maximum number of matching events allowed. Can be `0` to reject all events, `None` for an
     /// unlimited counted quota, or a positive number for enforcement. Requires `window` if the
     /// limit is not `0`.
+    ///
+    /// For attachments, this limit expresses the number of allowed bytes.
     </span><span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
     <span class="doccomment">/// The time window in seconds to enforce this quota in. Required in all cases except `limit=0`,
     /// since those quotas are not measured.
@@ -1178,6 +1208,32 @@
           scope: project,
           scopeId: Some(&quot;1&quot;),
           limit: Some(4711),
+          window: Some(42),
+          reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
+        )
+        &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_quota_project_large() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;id&quot;: &quot;p&quot;,
+            &quot;scope&quot;: &quot;project&quot;,
+            &quot;scopeId&quot;: &quot;1&quot;,
+            &quot;limit&quot;: 4294967296,
+            &quot;window&quot;: 42,
+            &quot;reasonCode&quot;: &quot;not_so_fast&quot;
+        }&quot;#</span>;
+
+        <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
+
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        Quota(
+          id: Some(&quot;p&quot;),
+          categories: [],
+          scope: project,
+          scopeId: Some(&quot;1&quot;),
+          limit: Some(4294967296),
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
