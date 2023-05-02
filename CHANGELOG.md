@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
+- Allow rate limits greater than `u32::MAX`. ([#2079](https://github.com/getsentry/relay/pull/2079))
 
 **Features**:
 
