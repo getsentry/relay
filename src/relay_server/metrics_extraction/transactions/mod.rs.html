@@ -2403,7 +2403,7 @@
             <span class="kw">let </span><span class="kw-2">mut </span>span_tags = shared_tags.clone();
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(span_op) = span.op.value() {
-                span_tags.insert(<span class="string">&quot;op&quot;</span>.to_owned(), span_op.to_owned());
+                span_tags.insert(<span class="string">&quot;span.op&quot;</span>.to_owned(), span_op.to_owned());
 
                 <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
                     <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>)
@@ -2416,7 +2416,7 @@
                 </span>};
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
-                    span_tags.insert(<span class="string">&quot;module&quot;</span>.to_owned(), module.to_owned());
+                    span_tags.insert(<span class="string">&quot;span.module&quot;</span>.to_owned(), module.to_owned());
                 }
 
                 <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
@@ -2438,7 +2438,7 @@
                 };
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
-                    span_tags.insert(<span class="string">&quot;action&quot;</span>.to_owned(), act.to_owned());
+                    span_tags.insert(<span class="string">&quot;span.action&quot;</span>.to_owned(), act.to_owned());
                 }
             }
 
@@ -2448,18 +2448,18 @@
                 .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
                 .and_then(|system| system.as_str());
             <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-                span_tags.insert(<span class="string">&quot;system&quot;</span>.to_owned(), sys.to_owned());
+                span_tags.insert(<span class="string">&quot;span.system&quot;</span>.to_owned(), sys.to_owned());
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
-                span_tags.insert(<span class="string">&quot;status&quot;</span>.to_owned(), span_status.to_string());
+                span_tags.insert(<span class="string">&quot;span.status&quot;</span>.to_owned(), span_status.to_string());
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        <span class="string">&quot;user&quot;</span>,
+                        MetricNamespace::Transactions,
+                        <span class="string">&quot;span.user&quot;</span>,
                         MetricUnit::None,
                         MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
                         timestamp,
@@ -2471,8 +2471,8 @@
             <span class="comment">// The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             </span>metrics.push(Metric::new_mri(
-                MetricNamespace::Spans,
-                <span class="string">&quot;duration&quot;</span>,
+                MetricNamespace::Transactions,
+                <span class="string">&quot;span.duration&quot;</span>,
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,
@@ -2773,27 +2773,27 @@
                 },
             },
             Metric {
-                name: &quot;s:spans/user@none&quot;,
+                name: &quot;s:transactions/span.user@none&quot;,
                 value: Set(
                     933084975,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;op&quot;: &quot;react.mount&quot;,
+                    &quot;span.op&quot;: &quot;react.mount&quot;,
                     &quot;transaction&quot;: &quot;mytransaction&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
             Metric {
-                name: &quot;d:spans/duration@millisecond&quot;,
+                name: &quot;d:transactions/span.duration@millisecond&quot;,
                 value: Distribution(
                     59000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;op&quot;: &quot;react.mount&quot;,
+                    &quot;span.op&quot;: &quot;react.mount&quot;,
                     &quot;transaction&quot;: &quot;mytransaction&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
