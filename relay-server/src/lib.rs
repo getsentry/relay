@@ -313,3 +313,31 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     relay_log::info!("relay shutdown complete");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn closed_connection() {
+        let config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "port": 3004,
+            },
+        }))
+        .unwrap();
+        let config = Arc::new(config);
+        let service = ServiceState::start(config.clone()).unwrap();
+        HttpServer::new(config, service).unwrap().start();
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        let client = reqwest::Client::new();
+        let result = client
+            .post("http://localhost:3004/api/42/envelope/")
+            .body("{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}")
+            .send()
+            .await
+            .unwrap();
+        dbg!(result);
+    }
+}
