@@ -3275,7 +3275,6 @@ dependencies = [
  "insta",
  "itertools",
  "json-forensics",
- "libc",
  "mime",
  "minidump",
  "multer",
