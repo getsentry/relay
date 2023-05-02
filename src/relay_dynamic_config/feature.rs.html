@@ -94,7 +94,7 @@
                 Feature::SessionReplayRecordingScrubbing
             }
             <span class="string">&quot;organizations:device-class-synthesis&quot; </span>=&gt; Feature::DeviceClassSynthesis,
-            <span class="string">&quot;organizations:span-metrics-extraction&quot; </span>=&gt; Feature::SpanMetricsExtraction,
+            <span class="string">&quot;projects:span-metrics-extraction&quot; </span>=&gt; Feature::SpanMetricsExtraction,
             <span class="kw">_ </span>=&gt; Feature::Unknown(feature_name.to_string()),
         })
     }
@@ -112,7 +112,7 @@
                 <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;
             </span>}
             Feature::DeviceClassSynthesis =&gt; <span class="string">&quot;organizations:device-class-synthesis&quot;</span>,
-            Feature::SpanMetricsExtraction =&gt; <span class="string">&quot;organizations:span-metrics-extraction&quot;</span>,
+            Feature::SpanMetricsExtraction =&gt; <span class="string">&quot;projects:span-metrics-extraction&quot;</span>,
             Feature::Unknown(s) =&gt; s,
         })
     }
