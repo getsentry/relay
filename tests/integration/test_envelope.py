@@ -18,11 +18,11 @@ def test_envelope(mini_sentry, relay_chain):
 
 
 def test_envelope_close_connection(mini_sentry, relay):
+    import socket
+    import time
+
     relay = relay(mini_sentry)
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    import socket
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(relay.server_address)
@@ -32,15 +32,12 @@ Hello World
 """
     req = f"""POST /api/42/envelope/ HTTP/1.1\r\nContent-Length: {len(body)}\r\n\r\n{body}""".encode()
     sock.send(req)
-    time.sleep(0.01)
+
+    time.sleep(0.0001)
 
     sock.close()
-    import time
 
-    time.sleep(1)
-
-    # event = mini_sentry.captured_events.get(timeout=1).get_event()
-    # assert event["logentry"] == {"formatted": "Hello, World!"}
+    time.sleep(0.5)
 
 
 def test_envelope_empty(mini_sentry, relay):
