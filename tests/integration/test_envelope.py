@@ -30,7 +30,8 @@ def test_envelope_close_connection(mini_sentry, relay):
         b"""POST /api/42/envelope/ HTTP/1.1
 Content-Length: 64
 
-{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}""".replace(
+{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+{"type": "event"}""".replace(
             b"\n", b"\r\n"
         )
     )
