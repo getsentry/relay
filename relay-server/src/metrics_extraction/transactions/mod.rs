@@ -460,7 +460,7 @@ fn extract_span_metrics(
                         .value()
                         // TODO(iker): some SDKs extract this as method
                         .and_then(|v| v.get("http.method"))
-                        .and_then(|db_op| db_op.as_str()),
+                        .and_then(|method| method.as_str()),
                     Some("db") => span
                         .data
                         .value()
