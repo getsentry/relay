@@ -26,19 +26,17 @@ def test_envelope_close_connection(mini_sentry, relay):
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(relay.server_address)
-    sock.send(
-        b"""POST /api/42/envelope/ HTTP/1.1
-Content-Length: 64
+    body = """{"event_id": "9ec79c33ec9942ab8353589fcb2e04dc","dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+{"type":"attachment","length":11,"content_type":"text/plain","filename":"hello.txt"}
+Hello World
+"""
+    req = f"""POST /api/42/envelope/ HTTP/1.1\r\nContent-Length: {len(body)}\r\n\r\n{body}""".encode()
+    sock.send(req)
 
-{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
-{"type": "event"}""".replace(
-            b"\n", b"\r\n"
-        )
-    )
-
-    response = sock.recv(1)
     sock.close()
-    print("RESPONSE", response.decode())
+    import time
+
+    time.sleep(1)
 
     # event = mini_sentry.captured_events.get(timeout=1).get_event()
     # assert event["logentry"] == {"formatted": "Hello, World!"}
