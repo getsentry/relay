@@ -27,3 +27,6 @@ relay-config = { path = "../relay-config" }
 relay-log = { path = "../relay-log", features = ["init"] }
 relay-server = { path = "../relay-server" }
 relay-statsd = { path = "../relay-statsd" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { version = "0.5.0", features = ["background_threads"] }
