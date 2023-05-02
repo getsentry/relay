@@ -435,7 +435,7 @@ fn extract_span_metrics(
             let mut span_tags = shared_tags.clone();
 
             if let Some(span_op) = span.op.value() {
-                span_tags.insert("op".to_owned(), span_op.to_owned());
+                span_tags.insert("spans.op".to_owned(), span_op.to_owned());
 
                 let span_module = if span_op.starts_with("http") {
                     Some("http")
@@ -448,7 +448,7 @@ fn extract_span_metrics(
                 };
 
                 if let Some(module) = span_module {
-                    span_tags.insert("module".to_owned(), module.to_owned());
+                    span_tags.insert("spans.module".to_owned(), module.to_owned());
                 }
 
                 // TODO(iker): we're relying on the existance of `http.method`
@@ -470,7 +470,7 @@ fn extract_span_metrics(
                 };
 
                 if let Some(act) = action {
-                    span_tags.insert("action".to_owned(), act.to_owned());
+                    span_tags.insert("spans.action".to_owned(), act.to_owned());
                 }
             }
 
@@ -480,18 +480,18 @@ fn extract_span_metrics(
                 .and_then(|v| v.get("db.system"))
                 .and_then(|system| system.as_str());
             if let Some(sys) = system {
-                span_tags.insert("system".to_owned(), sys.to_owned());
+                span_tags.insert("spans.system".to_owned(), sys.to_owned());
             }
 
             if let Some(span_status) = span.status.value() {
-                span_tags.insert("status".to_owned(), span_status.to_string());
+                span_tags.insert("spans.status".to_owned(), span_status.to_string());
             }
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        "user",
+                        MetricNamespace::Transactions,
+                        "spans.user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
                         timestamp,
@@ -503,8 +503,8 @@ fn extract_span_metrics(
             // The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             metrics.push(Metric::new_mri(
-                MetricNamespace::Spans,
-                "duration",
+                MetricNamespace::Transactions,
+                "spans.duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,
