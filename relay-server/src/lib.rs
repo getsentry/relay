@@ -320,24 +320,40 @@ mod tests {
 
     #[tokio::test]
     async fn closed_connection() {
+        relay_test::setup();
+
         let config = Config::from_json_value(serde_json::json!({
             "relay": {
                 "port": 3004,
             },
+            "logging": {"level": "trace"},
         }))
         .unwrap();
         let config = Arc::new(config);
         let service = ServiceState::start(config.clone()).unwrap();
         HttpServer::new(config, service).unwrap().start();
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let client = reqwest::Client::new();
-        let result = client
-            .post("http://localhost:3004/api/42/envelope/")
-            .body("{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}")
-            .send()
+        // let stream = tokio::net::TcpStream::connect("http://localhost:3004/api/42/envelope/")
+        let stream = tokio::net::TcpStream::connect("localhost:3004")
             .await
             .unwrap();
-        dbg!(result);
+
+        stream
+            .try_write(
+                "{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}".as_bytes(),
+            )
+            .unwrap();
+        drop(stream); // close prematurely.
+
+        // let result = client
+        //     .post("http://localhost:3004/api/42/envelope/")
+        //     .body("{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}")
+        //     .send()
+        //     .await
+        //     .unwrap();
+        // join_handle.abort();
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
     }
 }
