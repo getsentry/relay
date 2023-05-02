@@ -87,4 +87,4 @@ libc = "0.2.71"
 insta = { version = "1.19.0", features = ["json"] }
 relay-test = { path = "../relay-test" }
 similar-asserts = "1.4.2"
-tempfile = "3"
+tempfile = "3.5.0"
