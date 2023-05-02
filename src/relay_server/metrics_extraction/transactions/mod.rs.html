@@ -1872,6 +1872,100 @@
 <a href="#1871" id="1871">1871</a>
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
@@ -2264,10 +2358,12 @@
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExtractMetricsError&gt; {
     <span class="comment">// TODO(iker): measure the performance of this whole method
 
-    </span><span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+    </span><span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(())};
+
+    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value()) <span class="kw">else </span>{
+    <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value()) <span class="kw">else </span>{
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;</span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::MissingTimestamp);
     };
@@ -2285,30 +2381,105 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(_spans) = event.spans.value_mut() {
-        <span class="comment">// Collect the shared tags for all the metrics and spans on this transaction
-        </span><span class="kw">let </span><span class="kw-2">mut </span>shared_tags = BTreeMap::new();
+    <span class="comment">// Collect the shared tags for all the metrics and spans on this transaction.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>shared_tags = BTreeMap::new();
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
-            shared_tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name.to_owned());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
+        shared_tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.to_owned());
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
+        shared_tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name.to_owned());
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
+            shared_tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op);
         }
-        <span class="comment">// TODO(iker): must add shared tags: environment, op, release, etc
+    }
 
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
-                metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    <span class="string">&quot;user&quot;</span>,
-                    MetricUnit::None,
-                    MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
-                    timestamp,
-                    shared_tags.clone(),
-                ));
+    <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
+            <span class="kw">let </span><span class="kw-2">mut </span>span_tags = shared_tags.clone();
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_op) = span.op.value() {
+                span_tags.insert(<span class="string">&quot;op&quot;</span>.to_owned(), span_op.to_owned());
+
+                <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>)
+                } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>)
+                } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;cache&quot;</span>) {
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;cache&quot;</span>)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>};
+
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
+                    span_tags.insert(<span class="string">&quot;module&quot;</span>.to_owned(), module.to_owned());
+                }
+
+                <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
+                // or `db.operation`. This is not guaranteed, and we&#39;ll need to
+                // parse the span description in that case.
+                </span><span class="kw">let </span>action = <span class="kw">match </span>span_module {
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>) =&gt; span
+                        .data
+                        .value()
+                        <span class="comment">// TODO(iker): some SDKs extract this as method
+                        </span>.and_then(|v| v.get(<span class="string">&quot;http.method&quot;</span>))
+                        .and_then(|method| method.as_str()),
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>) =&gt; span
+                        .data
+                        .value()
+                        .and_then(|v| v.get(<span class="string">&quot;db.operation&quot;</span>))
+                        .and_then(|db_op| db_op.as_str()),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                };
+
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
+                    span_tags.insert(<span class="string">&quot;action&quot;</span>.to_owned(), act.to_owned());
+                }
             }
-        }
 
-        <span class="comment">// TODO(iker): extract span-specific metrics
-    </span>}
+            <span class="kw">let </span>system = span
+                .data
+                .value()
+                .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
+                .and_then(|system| system.as_str());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
+                span_tags.insert(<span class="string">&quot;system&quot;</span>.to_owned(), sys.to_owned());
+            }
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
+                span_tags.insert(<span class="string">&quot;status&quot;</span>.to_owned(), span_status.to_string());
+            }
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
+                    metrics.push(Metric::new_mri(
+                        MetricNamespace::Spans,
+                        <span class="string">&quot;user&quot;</span>,
+                        MetricUnit::None,
+                        MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
+                        timestamp,
+                        span_tags.clone(),
+                    ));
+                }
+            }
+
+            <span class="comment">// The `duration` of a span. This metric also serves as the
+            // counter metric `throughput`.
+            </span>metrics.push(Metric::new_mri(
+                MetricNamespace::Spans,
+                <span class="string">&quot;duration&quot;</span>,
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
+                timestamp,
+                span_tags.clone(),
+            ));
+        }
+    }
 
     <span class="prelude-val">Ok</span>(())
 }
@@ -2415,6 +2586,7 @@
             &quot;platform&quot;: &quot;javascript&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
             &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
+            &quot;server_name&quot;: &quot;myhost&quot;,
             &quot;release&quot;: &quot;1.2.3&quot;,
             &quot;dist&quot;: &quot;foo &quot;,
             &quot;environment&quot;: &quot;fake_environment&quot;,
@@ -2607,7 +2779,23 @@
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;op&quot;: &quot;react.mount&quot;,
                     &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:spans/duration@millisecond&quot;,
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;op&quot;: &quot;react.mount&quot;,
+                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
         ]
