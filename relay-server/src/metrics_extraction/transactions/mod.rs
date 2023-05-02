@@ -805,27 +805,27 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:spans/user@none",
+                name: "s:transactions/spans.user@none",
                 value: Set(
                     933084975,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "op": "react.mount",
+                    "spans.op": "react.mount",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
             },
             Metric {
-                name: "d:spans/duration@millisecond",
+                name: "d:transactions/spans.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "op": "react.mount",
+                    "spans.op": "react.mount",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
