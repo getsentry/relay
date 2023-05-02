@@ -32,6 +32,7 @@ Hello World
 """
     req = f"""POST /api/42/envelope/ HTTP/1.1\r\nContent-Length: {len(body)}\r\n\r\n{body}""".encode()
     sock.send(req)
+    time.sleep(0.01)
 
     sock.close()
     import time
