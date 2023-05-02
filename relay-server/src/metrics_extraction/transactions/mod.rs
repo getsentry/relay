@@ -811,7 +811,6 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "domain": "todo",
                     "environment": "fake_environment",
                     "op": "react.mount",
                     "transaction": "mytransaction",
