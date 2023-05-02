@@ -435,7 +435,7 @@ fn extract_span_metrics(
             let mut span_tags = shared_tags.clone();
 
             if let Some(span_op) = span.op.value() {
-                span_tags.insert("spans.op".to_owned(), span_op.to_owned());
+                span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
                 let span_module = if span_op.starts_with("http") {
                     Some("http")
@@ -448,7 +448,7 @@ fn extract_span_metrics(
                 };
 
                 if let Some(module) = span_module {
-                    span_tags.insert("spans.module".to_owned(), module.to_owned());
+                    span_tags.insert("span.module".to_owned(), module.to_owned());
                 }
 
                 // TODO(iker): we're relying on the existance of `http.method`
@@ -470,7 +470,7 @@ fn extract_span_metrics(
                 };
 
                 if let Some(act) = action {
-                    span_tags.insert("spans.action".to_owned(), act.to_owned());
+                    span_tags.insert("span.action".to_owned(), act.to_owned());
                 }
             }
 
@@ -480,18 +480,18 @@ fn extract_span_metrics(
                 .and_then(|v| v.get("db.system"))
                 .and_then(|system| system.as_str());
             if let Some(sys) = system {
-                span_tags.insert("spans.system".to_owned(), sys.to_owned());
+                span_tags.insert("span.system".to_owned(), sys.to_owned());
             }
 
             if let Some(span_status) = span.status.value() {
-                span_tags.insert("spans.status".to_owned(), span_status.to_string());
+                span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
                         MetricNamespace::Transactions,
-                        "spans.user",
+                        "span.user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
                         timestamp,
@@ -504,7 +504,7 @@ fn extract_span_metrics(
             // counter metric `throughput`.
             metrics.push(Metric::new_mri(
                 MetricNamespace::Transactions,
-                "spans.duration",
+                "span.duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,
@@ -805,27 +805,27 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/spans.user@none",
+                name: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "spans.op": "react.mount",
+                    "span.op": "react.mount",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
             },
             Metric {
-                name: "d:transactions/spans.duration@millisecond",
+                name: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "spans.op": "react.mount",
+                    "span.op": "react.mount",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
