@@ -451,6 +451,9 @@ fn extract_span_metrics(
                     span_tags.insert("module".to_owned(), module.to_owned());
                 }
 
+                // TODO(iker): we're relying on the existance of `http.method`
+                // or `db.operation`. This is not guaranteed, and we'll need to
+                // parse the span description in that case.
                 let action = match span_module {
                     Some("http") => span
                         .data
