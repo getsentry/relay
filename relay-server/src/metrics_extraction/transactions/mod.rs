@@ -469,9 +469,6 @@ fn extract_span_metrics(
                 if let Some(act) = action {
                     span_tags.insert("action".to_owned(), act.to_owned());
                 }
-
-                // TBD product requirements, adding it as a placeholder
-                span_tags.insert("domain".to_owned(), "todo".to_owned());
             }
 
             let system = span
