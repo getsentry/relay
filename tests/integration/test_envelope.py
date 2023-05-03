@@ -33,11 +33,13 @@ Hello World
     req = f"""POST /api/42/envelope/ HTTP/1.1\r\nContent-Length: {len(body)}\r\n\r\n{body}""".encode()
     sock.send(req)
 
-    time.sleep(0.0001)
+    time.sleep(0.0001)  # Give relay time to start processing event
 
-    sock.close()
+    sock.close()  # Close the connection
 
-    time.sleep(0.5)
+    time.sleep(0.5)  # Give relay time to emit an error
+
+    assert not mini_sentry.test_failures  # Relay did not report a sentry error
 
 
 def test_envelope_empty(mini_sentry, relay):
