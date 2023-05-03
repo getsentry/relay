@@ -182,6 +182,7 @@ struct InMemory {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     max_memory_size: usize,
     used_memory: usize,
+    envelope_count: usize,
 }
 
 impl InMemory {
@@ -191,6 +192,7 @@ impl InMemory {
             max_memory_size,
             buffer: BTreeMap::new(),
             used_memory: 0,
+            envelope_count: 0,
         }
     }
 
@@ -209,8 +211,12 @@ impl InMemory {
             count += current_count;
             self.used_memory -= current_size;
         }
+        self.envelope_count -= count;
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
 
         count
@@ -221,20 +227,28 @@ impl InMemory {
         for key in keys {
             for envelope in self.buffer.remove(key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
+                self.envelope_count -= 1;
                 sender.send(envelope).ok();
             }
         }
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
     }
 
     /// Enqueues the envelope into the in-memory buffer.
     fn enqueue(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
+        self.envelope_count += 1;
         self.used_memory += managed_envelope.estimated_size();
         self.buffer.entry(key).or_default().push(managed_envelope);
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
     }
 
@@ -260,7 +274,7 @@ impl OnDisk {
         &self,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
-        relay_statsd::metric!(histogram(RelayHistograms::BufferEnvelopesMemory) = 0);
+        relay_statsd::metric!(histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = 0);
         let envelopes = buffer
             .into_iter()
             .flat_map(|(key, values)| {
@@ -492,6 +506,7 @@ impl BufferState {
             buffer: BTreeMap::new(),
             max_memory_size,
             used_memory: 0,
+            envelope_count: 0,
         };
         match disk {
             Some(disk) => {
@@ -1009,15 +1024,20 @@ mod tests {
         assert_debug_snapshot!(captures, @r###"
         [
             "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem_count:1|h",
             "buffer.envelopes_mem:4000|h",
+            "buffer.envelopes_mem_count:2|h",
             "buffer.envelopes_mem:6000|h",
+            "buffer.envelopes_mem_count:3|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
             "buffer.writes:1|c",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem_count:1|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
+            "buffer.envelopes_mem_count:0|h",
             "buffer.reads:1|c",
             "buffer.reads:1|c",
         ]

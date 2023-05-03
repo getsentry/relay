@@ -42,12 +42,18 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The estimated number of envelope bytes buffered in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    BufferEnvelopesMemoryBytes,
     /// The number of envelopes waiting for project states in memory.
     ///
     /// This number is always <= `EnvelopeQueueSize`.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemory,
+    BufferEnvelopesMemoryCount,
     /// The file size of the buffer db on disk, in bytes.
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
@@ -140,7 +146,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
+            RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
+            RelayHistograms::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
