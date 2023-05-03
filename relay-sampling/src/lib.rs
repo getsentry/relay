@@ -3608,7 +3608,7 @@ mod tests {
             mocked_root_project_sampling_config(SamplingMode::Received);
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
         let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
-        println!("{}", serde_json::to_string(&event).unwrap());
+
         let result = merge_configs_and_match(
             true,
             &sampling_config,
