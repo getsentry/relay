@@ -468,6 +468,57 @@ def test_run_dynamic_sampling_with_valid_params_and_no_match():
         "sampling_match": None,
     }
 
+def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": []
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    dsc = ""
+
+    event = ""
+
+    result = sentry_relay.run_dynamic_sampling(
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+    )
+    assert result == {
+        "merged_sampling_configs": [
+            {
+                "condition": {
+                    "op": "and",
+                    "inner": [],
+                },
+                "samplingValue": {"type": "sampleRate", "value": 0.5},
+                "type": "trace",
+                "id": 1001,
+            },
+        ],
+        "sampling_match": None,
+    }
 
 def test_run_dynamic_sampling_with_invalid_params():
     sampling_config = """{

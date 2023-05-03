@@ -361,8 +361,9 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     let sampling_config = serde_json::from_str::<SamplingConfig>((*sampling_config).as_str())?;
     let root_sampling_config =
         serde_json::from_str::<SamplingConfig>((*root_sampling_config).as_str())?;
-    let dsc = serde_json::from_str::<DynamicSamplingContext>((*dsc).as_str())?;
-    let event = serde_json::from_str::<EphemeralEvent>((*event).as_str())?;
+    // We can optionally accept a dsc and event.
+    let dsc = serde_json::from_str::<DynamicSamplingContext>((*dsc).as_str());
+    let event = serde_json::from_str::<EphemeralEvent>((*event).as_str());
 
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
@@ -371,13 +372,20 @@ pub unsafe extern "C" fn run_dynamic_sampling(
         merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
             .cloned()
             .collect();
-    let match_result = SamplingMatch::match_against_rules(
-        rules.iter(),
-        &event.to_event(),
-        Some(&dsc),
-        None,
-        Utc::now(),
-    );
+
+    // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
+    // the merged sampling configs.
+    let match_result = if let (Ok(dsc), Ok(event)) = (dsc, event) {
+        SamplingMatch::match_against_rules(
+            rules.iter(),
+            &event.to_event(),
+            Some(&dsc),
+            None,
+            Utc::now(),
+        )
+    } else {
+        None
+    };
 
     let result = EphemeralSamplingResult {
         merged_sampling_configs: rules,
