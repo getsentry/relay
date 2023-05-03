@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
+use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
@@ -472,6 +473,23 @@ fn extract_span_metrics(
                 if let Some(act) = action {
                     span_tags.insert("span.action".to_owned(), act.to_owned());
                 }
+
+                if span_op == "http.client" {
+                    let domain = match span.description.value().and_then(|v| v.split_once(' ')) {
+                        Some((_method, url)) => {
+                            let url = SchemeDomainPort::from(url);
+                            match (url.domain, url.port) {
+                                (Some(dom), Some(port)) => Some(format!("{}:{}", dom, port)),
+                                (Some(dom), None) => Some(dom),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    if let Some(dom) = domain {
+                        span_tags.insert("span.domain".to_owned(), dom.to_owned());
+                    }
+                }
             }
 
             let system = span
@@ -485,6 +503,15 @@ fn extract_span_metrics(
 
             if let Some(span_status) = span.status.value() {
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
+            }
+
+            if let Some(status_code) = span
+                .data
+                .value()
+                .and_then(|v| v.get("status_code"))
+                .and_then(|sc| sc.as_str())
+            {
+                span_tags.insert("span.status_code".to_owned(), status_code.to_owned());
             }
 
             if let Some(user) = event.user.value() {
