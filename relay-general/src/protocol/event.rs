@@ -6,7 +6,7 @@ use relay_common::Uuid;
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;

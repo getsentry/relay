@@ -21,7 +21,10 @@ use relay_general::store::{
 };
 use relay_general::types::{Annotated, Remark};
 use relay_general::user_agent::RawUserAgentInfo;
-use relay_sampling::{RuleCondition, SamplingConfig};
+use relay_sampling::{
+    merge_configs_and_match, merge_rules_from_configs, DynamicSamplingContext, RuleCondition,
+    SamplingConfig, SamplingMatch,
+};
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -320,4 +323,44 @@ pub unsafe extern "C" fn relay_validate_project_config(
         Ok(()) => RelayStr::default(),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
+}
+
+struct EphemeralEvent {
+    transaction: String,
+}
+
+impl EphemeralEvent {
+    fn to_event(&self) -> Event {
+        Event {
+            transaction: Annotated::new(self.transaction.clone()),
+            ..Default::default()
+        }
+    }
+}
+
+/// Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
+///
+/// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn run_dynamic_sampling(
+    sampling_config: *const RelayStr,
+    root_sampling_config: *const RelayStr,
+    dsc: *const RelayStr,
+    event: *const RelayStr,
+) -> RelayStr {
+    let sampling_config = serde_json::from_str::<SamplingConfig>((*sampling_config).as_str())?;
+    let root_sampling_config =
+        serde_json::from_str::<SamplingConfig>((*root_sampling_config).as_str())?;
+    let dsc = serde_json::from_str::<DynamicSamplingContext>((*dsc).as_str())?;
+    let event = serde_json::from_str::<EphemeralEvent>((*event).as_str())?;
+
+    // Instead of creating a new function, we decided to reuse the existing code here. This will have
+    // the only downside of not having the possibility to set the sample rate to a different value
+    // based on the `SamplingMode` but for this simulation it is not that relevant.
+    let rules = merge_rules_from_configs(&sampling_config, Some(&root_sampling_config));
+    let mut match_result =
+        SamplingMatch::match_against_rules(rules, &event.to_event(), Some(&dsc), ip_addr, now)?;
+
+    RelayStr::new("Hello")
 }

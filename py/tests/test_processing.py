@@ -283,3 +283,73 @@ def test_validate_project_config():
     with pytest.raises(ValueError) as e:
         sentry_relay.validate_project_config(json.dumps(config), strict=True)
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+
+
+def test_run_dynamic_sampling_with_valid_params():
+    sampling_config = """
+        {
+               "rules": [],
+               "rulesV2": [
+                  {
+                     "samplingValue":{
+                        "type": "sampleRate",
+                        "value": 0.5
+                     },
+                     "type": "trace",
+                     "active": true,
+                     "condition": {
+                        "op": "and",
+                        "inner": []
+                     },
+                     "id": 1000
+                  }
+               ],
+               "mode": "received"
+        }
+    """
+
+    root_sampling_config = """
+        {
+               "rules": [],
+               "rulesV2": [
+                  {
+                     "samplingValue":{
+                        "type": "sampleRate",
+                        "value": 0.5
+                     },
+                     "type": "trace",
+                     "active": true,
+                     "condition": {
+                        "op": "and",
+                        "inner": []
+                     },
+                     "id": 1000
+                  }
+               ],
+               "mode": "received"
+        }
+    """
+
+    dsc = """
+        {
+            "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "release": "1.0",
+            "environment": "dev",
+            "transaction": "/hello",
+            "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b",
+        }
+    """
+
+    event = """
+        {
+            "transaction": "/world"
+        }
+    """
+
+    result = sentry_relay.run_dynamic_sampling(
+        json.dumps(sampling_config),
+        json.dumps(root_sampling_config),
+        json.dumps(dsc),
+        json.dumps(event),
+    )

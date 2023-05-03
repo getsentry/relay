@@ -970,7 +970,7 @@ fn check_unsupported_rules(
 ///
 /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
 /// rules from the root project and concatenate them.
-fn merge_rules_from_configs<'a>(
+pub fn merge_rules_from_configs<'a>(
     sampling_config: &'a SamplingConfig,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> impl Iterator<Item = &'a SamplingRule> {
@@ -3608,7 +3608,7 @@ mod tests {
             mocked_root_project_sampling_config(SamplingMode::Received);
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
         let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
-
+        println!("{}", serde_json::to_string(&event).unwrap());
         let result = merge_configs_and_match(
             true,
             &sampling_config,
