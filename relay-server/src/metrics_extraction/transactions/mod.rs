@@ -479,8 +479,8 @@ fn extract_span_metrics(
                         Some((_method, url)) => {
                             let url = SchemeDomainPort::from(url);
                             match (url.domain, url.port) {
-                                (Some(dom), Some(port)) => Some(format!("{}:{}", dom, port)),
-                                (Some(dom), None) => Some(dom),
+                                (Some(domain), Some(port)) => Some(format!("{}:{}", domain, port)),
+                                (Some(domain), None) => Some(domain),
                                 _ => None,
                             }
                         }
