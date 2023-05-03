@@ -369,7 +369,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     let rules: Vec<SamplingRule> =
         merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
-            .map(|value| value.clone())
+            .cloned()
             .collect();
     let match_result = SamplingMatch::match_against_rules(
         rules.iter(),
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
 
     let result = EphemeralSamplingResult {
         merged_sampling_configs: rules,
-        sampling_match: match_result.clone(),
+        sampling_match: match_result,
     };
 
     RelayStr::from(serde_json::to_string(&result).unwrap())
