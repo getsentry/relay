@@ -285,7 +285,7 @@ def test_validate_project_config():
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
 
 
-def test_run_dynamic_sampling_with_valid_params():
+def test_run_dynamic_sampling_with_valid_params_and_match():
     sampling_config = """{
        "rules": [],
        "rulesV2": [
@@ -387,3 +387,108 @@ def test_run_dynamic_sampling_with_valid_params():
             "matched_rule_ids": [1000, 1001],
         },
     }
+
+def test_run_dynamic_sampling_with_valid_params_and_match():
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": [
+                    {
+                        "op": "eq",
+                        "name": "trace.transaction",
+                        "value": [
+                          "/foo"
+                        ],
+                        "options": {
+                          "ignoreCase": true
+                        }
+                    }
+                ]
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "public_key": "abd0f232775f45feab79864e580d160b",
+        "release": "1.0",
+        "environment": "dev",
+        "transaction": "/hello",
+        "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b"
+    }"""
+
+    event = """{
+        "transaction": "/world"
+    }"""
+
+    result = sentry_relay.run_dynamic_sampling(
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+    )
+    assert result == {
+        "merged_sampling_configs": [
+            {
+                "condition": {"op": "and", "inner": [                    {
+                        "op": "eq",
+                        "name": "trace.transaction",
+                        "value": [
+                          "/foo"
+                        ],
+                        "options": {
+                          "ignoreCase": True
+                        }
+                    }]},
+                "samplingValue": {"type": "sampleRate", "value": 0.5},
+                "type": "trace",
+                "id": 1001,
+            },
+        ],
+        "sampling_match": None,
+    }
+
+def test_run_dynamic_sampling_with_invalid_params():
+    sampling_config = """{
+       "rules": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "mode": "received"
+    }"""
+
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+    }"""
+
+    event = """{
+        "test": "/test"
+    }"""
+
+    with pytest.raises(sentry_relay.InvalidJsonError):
+        sentry_relay.run_dynamic_sampling(
+            sampling_config,
+            root_sampling_config,
+            dsc,
+            event,
+        )
