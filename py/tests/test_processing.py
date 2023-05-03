@@ -468,6 +468,7 @@ def test_run_dynamic_sampling_with_valid_params_and_no_match():
         "sampling_match": None,
     }
 
+
 def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
     sampling_config = """{
        "rules": [],
@@ -519,6 +520,7 @@ def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
         ],
         "sampling_match": None,
     }
+
 
 def test_run_dynamic_sampling_with_invalid_params():
     sampling_config = """{
