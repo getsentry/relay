@@ -58,6 +58,15 @@ pub enum RelayHistograms {
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
+    /// The number of envelopes spooled to disk by this process.
+    ///
+    /// This metric gets incremented when we spool and decremented when we unspool,
+    /// but it does *not* necessarily represent the number of envelopes currently on disk,
+    /// because it does not take into account the initial database size.
+    ///
+    /// Initializing this counter with a `SELECT count(*)` query would be too expensive, because
+    /// sqlite cannot count the number of rows in a table in constant time.
+    BufferSpooledCount,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -149,6 +158,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
+            RelayHistograms::BufferSpooledCount => "buffer.spooled",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",

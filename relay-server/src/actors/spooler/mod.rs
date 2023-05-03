@@ -182,7 +182,7 @@ struct InMemory {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     max_memory_size: usize,
     used_memory: usize,
-    envelope_count: usize,
+    envelope_count: isize,
 }
 
 impl InMemory {
@@ -211,7 +211,7 @@ impl InMemory {
             count += current_count;
             self.used_memory -= current_size;
         }
-        self.envelope_count -= count;
+        self.envelope_count -= count as isize;
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
         );
@@ -264,6 +264,11 @@ struct OnDisk {
     db: Pool<Sqlite>,
     buffer_guard: Arc<BufferGuard>,
     max_disk_size: usize,
+    /// The number of items spooled to disk.
+    ///
+    /// This number can be negative when relay picks up an existing db and immediately starts
+    /// unspooling.
+    spool_count: isize,
 }
 
 impl OnDisk {
@@ -271,7 +276,7 @@ impl OnDisk {
     ///
     /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
     async fn spool(
-        &self,
+        &mut self,
         buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     ) -> Result<(), BufferError> {
         relay_statsd::metric!(histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = 0);
@@ -292,24 +297,38 @@ impl OnDisk {
                 },
             );
 
-        sql::do_insert(stream::iter(envelopes), &self.db)
+        let inserted = sql::do_insert(stream::iter(envelopes), &self.db)
             .await
-            .map_err(BufferError::InsertFailed)
+            .map_err(BufferError::InsertFailed)?;
+
+        self.spool_count += inserted as isize;
+
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
+        );
+
+        Ok(())
     }
 
     /// Removes the envelopes from the on-disk spool.
     ///
     /// Returns the count of removed envelopes.
-    async fn remove(&self, keys: &BTreeSet<QueueKey>) -> Result<usize, BufferError> {
+    async fn remove(&mut self, keys: &BTreeSet<QueueKey>) -> Result<usize, BufferError> {
         let mut count = 0;
         for key in keys {
             let result = sql::delete(*key)
                 .execute(&self.db)
                 .await
                 .map_err(BufferError::DeleteFailed)?;
-            count += result.rows_affected() as usize;
+            count += result.rows_affected();
         }
-        Ok(count)
+
+        self.spool_count -= count as isize;
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
+        );
+
+        Ok(count as usize)
     }
 
     /// Extracts the envelope from the `SqliteRow`.
@@ -346,7 +365,7 @@ impl OnDisk {
     ///
     /// Returns the amount of envelopes deleted from disk.
     async fn delete_and_fetch(
-        &self,
+        &mut self,
         key: QueueKey,
         sender: &mpsc::UnboundedSender<ManagedEnvelope>,
         services: &Services,
@@ -367,7 +386,9 @@ impl OnDisk {
                 return Ok(());
             }
 
+            let mut count = 0;
             while let Some(envelope) = envelopes.next().await {
+                count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
 
@@ -391,6 +412,11 @@ impl OnDisk {
                     ),
                 }
             }
+
+            self.spool_count -= count;
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
+            );
         }
     }
 
@@ -399,7 +425,7 @@ impl OnDisk {
     /// The keys for which the envelopes could not be fetched, send back to `ProjectCache` to merge
     /// back into index.
     async fn dequeue(
-        &self,
+        &mut self,
         project_key: ProjectKey,
         keys: &mut Vec<QueueKey>,
         sender: mpsc::UnboundedSender<ManagedEnvelope>,
@@ -526,7 +552,7 @@ impl BufferState {
     /// underlying spool.
     async fn transition(self, config: &Arc<Config>) -> Self {
         match self {
-            Self::MemoryFileStandby { ram, disk } if ram.is_full() => {
+            Self::MemoryFileStandby { ram, mut disk } if ram.is_full() => {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",
@@ -548,7 +574,7 @@ impl BufferState {
             Self::MemoryFileRead { ram, disk } if disk.is_empty().await.unwrap_or_default() => {
                 Self::MemoryFileStandby { ram, disk }
             }
-            Self::MemoryFileRead { ram, disk } if disk.can_fit(ram.used_memory).await => {
+            Self::MemoryFileRead { ram, mut disk } if disk.can_fit(ram.used_memory).await => {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",
@@ -661,6 +687,7 @@ impl BufferService {
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
+            spool_count: 0,
         }))
     }
 
@@ -720,13 +747,13 @@ impl BufferService {
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 ram.dequeue(&keys, sender);
             }
-            BufferState::Disk(ref disk) => {
+            BufferState::Disk(ref mut disk) => {
                 disk.dequeue(project_key, &mut keys, sender, &self.services)
                     .await;
             }
             BufferState::MemoryFileRead {
                 ref mut ram,
-                ref disk,
+                ref mut disk,
             } => {
                 ram.dequeue(&keys, sender.clone());
                 disk.dequeue(project_key, &mut keys, sender, &self.services)
@@ -753,12 +780,12 @@ impl BufferService {
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 count += ram.remove(&keys);
             }
-            BufferState::Disk(ref disk) => {
+            BufferState::Disk(ref mut disk) => {
                 count += disk.remove(&keys).await?;
             }
             BufferState::MemoryFileRead {
                 ref mut ram,
-                ref disk,
+                ref mut disk,
             } => {
                 count += ram.remove(&keys);
                 count += disk.remove(&keys).await?;
@@ -792,7 +819,7 @@ impl BufferService {
     /// Tries to spool to disk if the current buffer state is `BufferState::MemoryDiskStandby`,
     /// which means we use the in-memory buffer active and disk still free or not used before.
     async fn handle_shutdown(&mut self) -> Result<(), BufferError> {
-        let BufferState::MemoryFileStandby{ref mut ram, ref disk} = self.state else { return Ok(()) };
+        let BufferState::MemoryFileStandby{ref mut ram, ref mut disk} = self.state else { return Ok(()) };
 
         let count: usize = ram.count();
         if count == 0 {
