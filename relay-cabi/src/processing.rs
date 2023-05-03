@@ -3,11 +3,13 @@
 #![deny(unused_must_use)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use chrono::Utc;
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
+use crate::core::{RelayBuf, RelayStr};
 use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
@@ -22,11 +24,9 @@ use relay_general::store::{
 use relay_general::types::{Annotated, Remark};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_sampling::{
-    merge_configs_and_match, merge_rules_from_configs, DynamicSamplingContext, RuleCondition,
-    SamplingConfig, SamplingMatch,
+    merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
 };
-
-use crate::core::{RelayBuf, RelayStr};
+use serde::{Deserialize, Serialize};
 
 /// A geo ip lookup helper based on maxmind db files.
 pub struct RelayGeoIpLookup;
@@ -325,6 +325,7 @@ pub unsafe extern "C" fn relay_validate_project_config(
     }
 }
 
+#[derive(Debug, Deserialize)]
 struct EphemeralEvent {
     transaction: String,
 }
@@ -360,7 +361,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     let rules = merge_rules_from_configs(&sampling_config, Some(&root_sampling_config));
     let mut match_result =
-        SamplingMatch::match_against_rules(rules, &event.to_event(), Some(&dsc), ip_addr, now)?;
+        SamplingMatch::match_against_rules(rules, &event.to_event(), Some(&dsc), None, Utc::now());
 
     RelayStr::new("Hello")
 }
