@@ -28,10 +28,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, Transa
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
-use relay_metrics::{
-    Bucket, DistributionType, InsertMetrics, MergeBuckets, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricType,
-};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;

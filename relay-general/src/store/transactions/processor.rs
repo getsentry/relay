@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use relay_common::SpanStatus;
-use relay_metrics::{is_valid_metric_name, MetricType};
+use relay_metrics::is_valid_metric_name;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -416,14 +416,23 @@ impl Processor for TransactionsProcessor<'_> {
         let measurements = &mut value.0;
 
         measurements.retain(|key, val| {
-            let unit = val.value().unwrap().unit.value().unwrap().length();
             let name = key.len();
 
-            is_valid_metric_name(key)
-                && match (self.fixed_metric_len, self.max_metric_name_len) {
-                    (Some(fixed), Some(max)) => (name + unit + fixed) < max,
-                    (_, _) => true,
-                }
+            let unit = val
+                .value()
+                .and_then(|val| val.unit.value().map(|val| val.length()));
+
+            let is_valid_name = is_valid_metric_name(key)
+                && match (self.fixed_metric_len, self.max_metric_name_len, unit) {
+                    (Some(fixed), Some(max), Some(unit)) => (name + unit + fixed) < max,
+                    (_, _, _) => true,
+                };
+
+            if !is_valid_name {
+                relay_log::error!("Invalid measurement metric name");
+            }
+
+            is_valid_name
         });
 
         Ok(())
