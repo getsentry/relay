@@ -223,7 +223,7 @@
             .into_make_service_with_connect_info::&lt;SocketAddr&gt;();
 
         <span class="kw">let </span>http_config = HttpConfig::new()
-            .http1_half_close(<span class="bool-val">false</span>)
+            .http1_half_close(<span class="bool-val">true</span>)
             .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
             .http1_writev(<span class="bool-val">true</span>)
             .http2_keep_alive_timeout(config.keepalive_timeout())
