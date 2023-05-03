@@ -25,6 +25,7 @@ use relay_general::types::{Annotated, Remark};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_sampling::{
     merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
+    SamplingRule,
 };
 use serde::{Deserialize, Serialize};
 
@@ -339,6 +340,12 @@ impl EphemeralEvent {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct EphemeralSamplingResult {
+    merged_sampling_configs: Vec<SamplingRule>,
+    sampling_match: Option<SamplingMatch>,
+}
+
 /// Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
 ///
 /// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
@@ -359,9 +366,22 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
-    let rules = merge_rules_from_configs(&sampling_config, Some(&root_sampling_config));
-    let mut match_result =
-        SamplingMatch::match_against_rules(rules, &event.to_event(), Some(&dsc), None, Utc::now());
+    let rules: Vec<SamplingRule> =
+        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+            .map(|value| value.clone())
+            .collect();
+    let match_result = SamplingMatch::match_against_rules(
+        rules.iter(),
+        &event.to_event(),
+        Some(&dsc),
+        None,
+        Utc::now(),
+    );
 
-    RelayStr::new("Hello")
+    let result = EphemeralSamplingResult {
+        merged_sampling_configs: rules,
+        sampling_match: match_result.clone(),
+    };
+
+    RelayStr::from(serde_json::to_string(&result).unwrap())
 }

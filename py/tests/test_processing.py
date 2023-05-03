@@ -286,70 +286,83 @@ def test_validate_project_config():
 
 
 def test_run_dynamic_sampling_with_valid_params():
-    sampling_config = """
-        {
-               "rules": [],
-               "rulesV2": [
-                  {
-                     "samplingValue":{
-                        "type": "sampleRate",
-                        "value": 0.5
-                     },
-                     "type": "trace",
-                     "active": true,
-                     "condition": {
-                        "op": "and",
-                        "inner": []
-                     },
-                     "id": 1000
-                  }
-               ],
-               "mode": "received"
-        }
-    """
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "transaction",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": []
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
 
-    root_sampling_config = """
-        {
-               "rules": [],
-               "rulesV2": [
-                  {
-                     "samplingValue":{
-                        "type": "sampleRate",
-                        "value": 0.5
-                     },
-                     "type": "trace",
-                     "active": true,
-                     "condition": {
-                        "op": "and",
-                        "inner": []
-                     },
-                     "id": 1000
-                  }
-               ],
-               "mode": "received"
-        }
-    """
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 1.0
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": []
+             },
+             "id": 1000
+          }
+       ],
+       "mode": "received"
+    }"""
 
-    dsc = """
-        {
-            "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
-            "public_key": "abd0f232775f45feab79864e580d160b",
-            "release": "1.0",
-            "environment": "dev",
-            "transaction": "/hello",
-            "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b",
-        }
-    """
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "public_key": "abd0f232775f45feab79864e580d160b",
+        "release": "1.0",
+        "environment": "dev",
+        "transaction": "/hello",
+        "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b"
+    }"""
 
-    event = """
-        {
-            "transaction": "/world"
-        }
-    """
+    event = """{
+        "transaction": "/world"
+    }"""
 
     result = sentry_relay.run_dynamic_sampling(
-        json.dumps(sampling_config),
-        json.dumps(root_sampling_config),
-        json.dumps(dsc),
-        json.dumps(event),
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
     )
+    assert result == {
+        "merged_sampling_configs": [
+            {
+                "condition": {"op": "and", "inner": []},
+                "samplingValue": {"type": "sampleRate", "value": 0.5},
+                "type": "transaction",
+                "id": 1001,
+            },
+            {
+                "condition": {"op": "and", "inner": []},
+                "samplingValue": {"type": "sampleRate", "value": 1.0},
+                "type": "trace",
+                "id": 1000,
+            },
+        ],
+        "sampling_match": {
+            "sample_rate": 1.0,
+            "seed": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+            "matched_rule_ids": [1000],
+        },
+    }
