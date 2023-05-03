@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use relay_common::SpanStatus;
-use relay_metrics::is_valid_metric_name;
+use relay_metrics::{is_valid_metric_name, MetricType};
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -22,11 +22,21 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
+    max_metric_name_len: Option<usize>,
+    fixed_metric_len: Option<usize>,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
-        Self { name_config }
+    pub fn new(
+        name_config: TransactionNameConfig<'r>,
+        max_metric_name_len: Option<usize>,
+        fixed_metric_len: Option<usize>,
+    ) -> Self {
+        Self {
+            name_config,
+            max_metric_name_len,
+            fixed_metric_len,
+        }
     }
 
     /// Applies the rule if any found to the transaction name.
@@ -404,9 +414,17 @@ impl Processor for TransactionsProcessor<'_> {
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         let measurements = &mut value.0;
-        let huge_number: usize = todo!();
 
-        measurements.retain(|key, _| key.len() < huge_number && is_valid_metric_name(key));
+        measurements.retain(|key, val| {
+            let unit = val.value().unwrap().unit.value().unwrap().length();
+            let name = key.len();
+
+            is_valid_metric_name(key)
+                && match (self.fixed_metric_len, self.max_metric_name_len) {
+                    (Some(fixed), Some(max)) => (name + unit + fixed) < max,
+                    (_, _) => true,
+                }
+        });
 
         Ok(())
     }
@@ -473,6 +491,9 @@ mod tests {
     use crate::store::{LazyGlob, RedactionRule, RuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
+
+    const MAX_LEN: Option<usize> = None;
+    const FIXED_LEN: Option<usize> = None;
 
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
@@ -1460,7 +1481,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1544,7 +1565,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1578,7 +1599,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1677,9 +1698,13 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1738,9 +1763,13 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1833,9 +1862,13 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1899,7 +1932,11 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig { rules: &[rule] },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1993,7 +2030,11 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+                    &mut TransactionsProcessor::new(
+                        TransactionNameConfig::default(),
+                        MAX_LEN,
+                        FIXED_LEN,
+                    ),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2118,14 +2159,18 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[TransactionNameRule {
-                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
-                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                    scope: RuleScope::default(),
-                    redaction: RedactionRule::default(),
-                }],
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: RuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2161,14 +2206,18 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[TransactionNameRule {
-                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
-                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                    scope: RuleScope::default(),
-                    redaction: RedactionRule::default(),
-                }],
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: RuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                MAX_LEN,
+                FIXED_LEN,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2199,7 +2248,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
             ProcessingState::root(),
         )
         .unwrap();

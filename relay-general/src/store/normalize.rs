@@ -693,6 +693,8 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
+    pub max_metric_name_length: Option<usize>,
+    pub fixed_metric_name_length: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
@@ -714,8 +716,11 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
-        let mut transactions_processor =
-            transactions::TransactionsProcessor::new(config.transaction_name_config);
+        let mut transactions_processor = transactions::TransactionsProcessor::new(
+            config.transaction_name_config,
+            config.max_metric_name_length,
+            config.fixed_metric_name_length,
+        );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values

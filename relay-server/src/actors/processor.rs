@@ -13,7 +13,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
-use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{DurationUnit, MetricUnit, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
@@ -28,7 +28,10 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, Transa
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{
+    Bucket, DistributionType, InsertMetrics, MergeBuckets, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricType,
+};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
@@ -59,12 +62,42 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::transactions::types::CommonTags;
+use crate::metrics_extraction::transactions::types::{
+    ExtractMetricsError, TransactionMeasurementTags, TransactionMetric,
+};
+use crate::metrics_extraction::IntoMetric;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
 };
+use once_cell::sync::Lazy;
+
+/// In 'fn process_measurements' we want to check if a measurement name is too long, to do that we
+/// check with a maximum length provided by the config, but that length represents the entire MRI name,
+/// and in process_measurements we only have access to the name part, and the unit part, so here
+/// we calculate the length of the remainder part. which isn't changing so we only need to do it once.
+static FIXED_MEASUREMENT_LEN: Lazy<usize> = Lazy::new(|| {
+    let name = "foobar".to_string();
+    let value = 5.0;
+    let unit = MetricUnit::Duration(DurationUnit::default());
+    let tags = TransactionMeasurementTags {
+        measurement_rating: None,
+        universal_tags: CommonTags(BTreeMap::new()),
+    };
+
+    let measurement = TransactionMetric::Measurement {
+        name: name.clone(),
+        value,
+        unit,
+        tags,
+    };
+
+    let metric: Metric = measurement.into_metric(UnixTimestamp::now());
+
+    metric.name.len() - unit.to_string().len() - name.len()
+});
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -2270,6 +2303,8 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
+                max_metric_name_length: Some(self.config.aggregator_config().max_name_length),
+                fixed_metric_name_length: Some(*FIXED_MEASUREMENT_LEN),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
