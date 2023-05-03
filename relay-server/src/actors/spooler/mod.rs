@@ -398,6 +398,11 @@ impl OnDisk {
                             "failed to read the buffer stream from the disk: {}",
                             LogError(&err)
                         );
+                        self.spool_count -= count;
+                        relay_statsd::metric!(
+                            histogram(RelayHistograms::BufferSpooledCount) =
+                                self.spool_count as f64
+                        );
                         return Err(key);
                     }
                 };
@@ -483,7 +488,7 @@ impl OnDisk {
 
     /// Enqueues data into on-disk spool.
     async fn enqueue(
-        &self,
+        &mut self,
         key: QueueKey,
         managed_envelope: ManagedEnvelope,
     ) -> Result<(), BufferError> {
@@ -497,6 +502,10 @@ impl OnDisk {
         .await
         .map_err(BufferError::InsertFailed)?;
 
+        self.spool_count += 1;
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
+        );
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
         Ok(())
     }
@@ -722,7 +731,7 @@ impl BufferService {
             | BufferState::MemoryFileRead { ref mut ram, .. } => {
                 ram.enqueue(key, managed_envelope);
             }
-            BufferState::Disk(ref disk) =>{
+            BufferState::Disk(ref mut disk) =>{
                 disk.enqueue(key, managed_envelope).await?;
             }
         }
@@ -1058,6 +1067,8 @@ mod tests {
             "buffer.envelopes_mem_count:3|h",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
+            "buffer.spooled:3|h",
+            "buffer.spooled:4|h",
             "buffer.writes:1|c",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:2000|h",
@@ -1066,6 +1077,7 @@ mod tests {
             "buffer.envelopes_mem:0|h",
             "buffer.envelopes_mem_count:0|h",
             "buffer.reads:1|c",
+            "buffer.spooled:0|h",
             "buffer.reads:1|c",
         ]
         "###);
