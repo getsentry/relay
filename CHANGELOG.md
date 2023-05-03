@@ -6,6 +6,7 @@
 
 - Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
 - Allow rate limits greater than `u32::MAX`. ([#2079](https://github.com/getsentry/relay/pull/2079))
+- Do not drop envelope when client closes connection. ([#2089](https://github.com/getsentry/relay/pull/2089))
 
 **Features**:
 
