@@ -389,7 +389,7 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
     }
 
 
-def test_run_dynamic_sampling_with_valid_params_and_match():
+def test_run_dynamic_sampling_with_valid_params_and_no_match():
     sampling_config = """{
        "rules": [],
        "rulesV2": [],
