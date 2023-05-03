@@ -102,8 +102,6 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     pub version: u16,
-    /// Deprecated. Still here to be forwarded to external relays.
-    pub extract_metrics: BTreeSet<String>,
     /// Custom event tags that are transferred from the transaction to metrics.
     pub extract_custom_tags: BTreeSet<String>,
     /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
