@@ -388,6 +388,7 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
         },
     }
 
+
 def test_run_dynamic_sampling_with_valid_params_and_match():
     sampling_config = """{
        "rules": [],
@@ -448,16 +449,17 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
     assert result == {
         "merged_sampling_configs": [
             {
-                "condition": {"op": "and", "inner": [                    {
-                        "op": "eq",
-                        "name": "trace.transaction",
-                        "value": [
-                          "/foo"
-                        ],
-                        "options": {
-                          "ignoreCase": True
+                "condition": {
+                    "op": "and",
+                    "inner": [
+                        {
+                            "op": "eq",
+                            "name": "trace.transaction",
+                            "value": ["/foo"],
+                            "options": {"ignoreCase": True},
                         }
-                    }]},
+                    ],
+                },
                 "samplingValue": {"type": "sampleRate", "value": 0.5},
                 "type": "trace",
                 "id": 1001,
@@ -465,6 +467,7 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
         ],
         "sampling_match": None,
     }
+
 
 def test_run_dynamic_sampling_with_invalid_params():
     sampling_config = """{
