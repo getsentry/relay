@@ -777,7 +777,6 @@ impl ProjectCacheBroker {
                 sender.send(self.handle_get_cached(message))
             }
             ProjectCache::CheckEnvelope(message, sender) => {
-                dbg!("HANDLING THE ENVELOPE");
                 sender.send(self.handle_check_envelope(message))
             }
             ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
