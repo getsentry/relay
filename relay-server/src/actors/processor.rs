@@ -77,7 +77,7 @@ use once_cell::sync::Lazy;
 /// we calculate the length of the remainder part. which isn't changing so we only need to do it once.
 static FIXED_MEASUREMENT_LEN: Lazy<usize> = Lazy::new(|| {
     let name = "foobar".to_string();
-    let value = 5.0;
+    let value = 5.0; // Arbitrary value.
     let unit = MetricUnit::Duration(DurationUnit::default());
     let tags = TransactionMeasurementTags {
         measurement_rating: None,

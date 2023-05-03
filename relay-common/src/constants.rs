@@ -604,11 +604,6 @@ impl MetricUnit {
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
-
-    /// Returns the length.
-    pub fn length(&self) -> usize {
-        self.to_string().len()
-    }
 }
 
 impl fmt::Display for MetricUnit {

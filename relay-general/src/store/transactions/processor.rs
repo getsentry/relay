@@ -407,6 +407,7 @@ impl Processor for TransactionsProcessor<'_> {
         Ok(())
     }
 
+    /// Validates the length and characters of measurement names.
     fn process_measurements(
         &mut self,
         value: &mut crate::protocol::Measurements,
@@ -416,23 +417,30 @@ impl Processor for TransactionsProcessor<'_> {
         let measurements = &mut value.0;
 
         measurements.retain(|key, val| {
-            let name = key.len();
-
-            let unit = val
-                .value()
-                .and_then(|val| val.unit.value().map(|val| val.length()));
-
-            let is_valid_name = is_valid_metric_name(key)
-                && match (self.fixed_metric_len, self.max_metric_name_len, unit) {
-                    (Some(fixed), Some(max), Some(unit)) => (name + unit + fixed) < max,
-                    (_, _, _) => true,
-                };
-
-            if !is_valid_name {
-                relay_log::error!("Invalid measurement metric name");
+            if !is_valid_metric_name(key) {
+                relay_log::error!("Measurement name contains invalid characters");
+                return false;
             }
 
-            is_valid_name
+            let name_len = key.len();
+
+            let unit_len = val
+                .value()
+                .and_then(|val| val.unit.value().map(|val| val.to_string().len()));
+
+            if let (Some(fixed_len), Some(max_len), Some(unit_len)) =
+                (self.fixed_metric_len, self.max_metric_name_len, unit_len)
+            {
+                if (name_len + unit_len + fixed_len) > max_len {
+                    relay_log::error!(
+                        "Measurement name is too long({}/{})",
+                        name_len + unit_len + fixed_len,
+                        max_len
+                    );
+                    return false;
+                }
+            }
+            true
         });
 
         Ok(())
@@ -489,14 +497,19 @@ impl Processor for TransactionsProcessor<'_> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
     use insta::assert_debug_snapshot;
+    use relay_common::{DurationUnit, MetricUnit};
     use similar_asserts::assert_eq;
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
+    use crate::protocol::{
+        Contexts, Measurement, Measurements, SpanId, TraceContext, TraceId, TransactionSource,
+    };
     use crate::store::{LazyGlob, RedactionRule, RuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
@@ -568,6 +581,108 @@ mod tests {
                 "timestamp hard-required for transaction events"
             ))
         );
+    }
+
+    #[test]
+    fn test_keeps_valid_measurements() {
+        let mut event = new_test_event().0.unwrap();
+
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(
+            "lcp".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(420.69),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+        event.measurements = Annotated::from(Measurements(measurements));
+
+        let mut processor = TransactionsProcessor {
+            max_metric_name_len: Some(50),
+            fixed_metric_len: Some(20),
+            ..Default::default()
+        };
+
+        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+
+        processor
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(event.measurements.0.unwrap().0.len(), 1);
+    }
+
+    #[test]
+    fn test_drops_too_long_measurement_names() {
+        let mut event = new_test_event().0.unwrap();
+
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(
+            "lcpppppppppppppppppppppppppppp".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(420.69),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+        event.measurements = Annotated::from(Measurements(measurements));
+
+        let mut processor = TransactionsProcessor {
+            max_metric_name_len: Some(50),
+            fixed_metric_len: Some(20),
+            ..Default::default()
+        };
+
+        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+
+        processor
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(event.measurements.0.unwrap().0.len(), 0);
+    }
+
+    #[test]
+    fn test_drops_measurements_with_invalid_characters() {
+        let mut event = new_test_event().0.unwrap();
+
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(
+            "i æm frøm nørwåy".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(420.69),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+        event.measurements = Annotated::from(Measurements(measurements));
+
+        let mut processor = TransactionsProcessor {
+            max_metric_name_len: Some(50),
+            fixed_metric_len: Some(20),
+            ..Default::default()
+        };
+
+        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+
+        processor
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(event.measurements.0.unwrap().0.len(), 0);
     }
 
     #[test]
