@@ -291,16 +291,27 @@ def test_run_dynamic_sampling_with_valid_params():
        "rulesV2": [
           {
              "samplingValue":{
-                "type": "sampleRate",
-                "value": 0.5
+                "type": "factor",
+                "value": 2.0
              },
              "type": "transaction",
              "active": true,
              "condition": {
                 "op": "and",
-                "inner": []
+                "inner": [
+                    {
+                        "op": "eq",
+                        "name": "event.transaction",
+                        "value": [
+                          "/world"
+                        ],
+                        "options": {
+                          "ignoreCase": true
+                        }
+                    }
+                ]
              },
-             "id": 1001
+             "id": 1000
           }
        ],
        "mode": "received"
@@ -312,7 +323,7 @@ def test_run_dynamic_sampling_with_valid_params():
           {
              "samplingValue":{
                 "type": "sampleRate",
-                "value": 1.0
+                "value": 0.5
              },
              "type": "trace",
              "active": true,
@@ -320,7 +331,7 @@ def test_run_dynamic_sampling_with_valid_params():
                 "op": "and",
                 "inner": []
              },
-             "id": 1000
+             "id": 1001
           }
        ],
        "mode": "received"
@@ -348,21 +359,31 @@ def test_run_dynamic_sampling_with_valid_params():
     assert result == {
         "merged_sampling_configs": [
             {
-                "condition": {"op": "and", "inner": []},
-                "samplingValue": {"type": "sampleRate", "value": 0.5},
+                "condition": {
+                    "op": "and",
+                    "inner": [
+                        {
+                            "op": "eq",
+                            "name": "event.transaction",
+                            "value": ["/world"],
+                            "options": {"ignoreCase": True},
+                        }
+                    ],
+                },
+                "samplingValue": {"type": "factor", "value": 2.0},
                 "type": "transaction",
-                "id": 1001,
+                "id": 1000,
             },
             {
                 "condition": {"op": "and", "inner": []},
-                "samplingValue": {"type": "sampleRate", "value": 1.0},
+                "samplingValue": {"type": "sampleRate", "value": 0.5},
                 "type": "trace",
-                "id": 1000,
+                "id": 1001,
             },
         ],
         "sampling_match": {
             "sample_rate": 1.0,
             "seed": "d0303a19-909a-4b0b-a639-b17a74c3533b",
-            "matched_rule_ids": [1000],
+            "matched_rule_ids": [1000, 1001],
         },
     }

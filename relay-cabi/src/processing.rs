@@ -11,7 +11,7 @@ use std::slice;
 
 use crate::core::{RelayBuf, RelayStr};
 use once_cell::sync::OnceCell;
-use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
+use relay_common::{codeowners_match_bytes, glob_match_bytes, EventType, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
@@ -335,6 +335,7 @@ impl EphemeralEvent {
     fn to_event(&self) -> Event {
         Event {
             transaction: Annotated::new(self.transaction.clone()),
+            ty: Annotated::new(EventType::Transaction),
             ..Default::default()
         }
     }
