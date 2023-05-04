@@ -296,9 +296,9 @@ impl CspRaw {
         }
     }
 
-    fn into_protocol(self, parsed_effective_directive: CspDirective) -> Csp {
+    fn into_protocol(self, effective_directive: CspDirective) -> Csp {
         Csp {
-            effective_directive: Annotated::from(parsed_effective_directive.to_string()),
+            effective_directive: Annotated::from(effective_directive.to_string()),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
