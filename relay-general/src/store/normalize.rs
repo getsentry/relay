@@ -19,7 +19,9 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
+use crate::store::{
+    ClockDriftProcessor, GeoIpLookup, MeasurementNameConfig, StoreConfig, TransactionNameConfig,
+};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Remark, RemarkType, Value,
@@ -718,8 +720,10 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.max_metric_name_length,
-            config.fixed_metric_name_length,
+            MeasurementNameConfig {
+                max_len: config.max_metric_name_length,
+                fixed_length: config.fixed_metric_name_length,
+            },
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 

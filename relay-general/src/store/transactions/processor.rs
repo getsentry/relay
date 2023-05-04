@@ -18,24 +18,29 @@ pub struct TransactionNameConfig<'r> {
     pub rules: &'r [TransactionNameRule],
 }
 
+#[derive(Default)]
+pub struct MeasurementNameConfig {
+    /// How long the name-part of the MRI can be.
+    pub max_len: Option<usize>,
+    /// The length of a measurement MRI without the unit and the name.
+    pub fixed_length: Option<usize>,
+}
+
 /// Rejects transactions based on required fields.
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    max_metric_name_len: Option<usize>,
-    fixed_metric_len: Option<usize>,
+    measurement_config: MeasurementNameConfig,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     pub fn new(
         name_config: TransactionNameConfig<'r>,
-        max_metric_name_len: Option<usize>,
-        fixed_metric_len: Option<usize>,
+        measurement_config: MeasurementNameConfig,
     ) -> Self {
         Self {
             name_config,
-            max_metric_name_len,
-            fixed_metric_len,
+            measurement_config,
         }
     }
 
@@ -428,9 +433,11 @@ impl Processor for TransactionsProcessor<'_> {
                 .value()
                 .and_then(|val| val.unit.value().map(|val| val.to_string().len()));
 
-            if let (Some(fixed_len), Some(max_len), Some(unit_len)) =
-                (self.fixed_metric_len, self.max_metric_name_len, unit_len)
-            {
+            if let (Some(fixed_len), Some(max_len), Some(unit_len)) = (
+                self.measurement_config.fixed_length,
+                self.measurement_config.max_len,
+                unit_len,
+            ) {
                 if (name_len + unit_len + fixed_len) > max_len {
                     relay_log::error!(
                         "Measurement name is too long({}/{})",
@@ -514,9 +521,6 @@ mod tests {
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
-    const MAX_LEN: Option<usize> = None;
-    const FIXED_LEN: Option<usize> = None;
-
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
@@ -598,13 +602,16 @@ mod tests {
 
         event.measurements = Annotated::from(Measurements(measurements));
 
-        let mut processor = TransactionsProcessor {
-            max_metric_name_len: Some(50),
-            fixed_metric_len: Some(20),
-            ..Default::default()
-        };
+        let mut processor = TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            MeasurementNameConfig {
+                max_len: Some(50),
+                fixed_length: Some(20),
+            },
+        );
 
-        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
         processor
             .process_event(
@@ -614,7 +621,8 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(event.measurements.0.unwrap().0.len(), 1);
+        // Verifies that this measurement has not been dropped after processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
     }
 
     #[test]
@@ -632,13 +640,16 @@ mod tests {
 
         event.measurements = Annotated::from(Measurements(measurements));
 
-        let mut processor = TransactionsProcessor {
-            max_metric_name_len: Some(50),
-            fixed_metric_len: Some(20),
-            ..Default::default()
-        };
+        let mut processor = TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            MeasurementNameConfig {
+                max_len: Some(50),
+                fixed_length: Some(20),
+            },
+        );
 
-        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
         processor
             .process_event(
@@ -648,7 +659,8 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(event.measurements.0.unwrap().0.len(), 0);
+        // Verifies that this measurement has been dropped after processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 0);
     }
 
     #[test]
@@ -666,13 +678,16 @@ mod tests {
 
         event.measurements = Annotated::from(Measurements(measurements));
 
-        let mut processor = TransactionsProcessor {
-            max_metric_name_len: Some(50),
-            fixed_metric_len: Some(20),
-            ..Default::default()
-        };
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
-        assert_eq!(event.measurements.0.clone().unwrap().0.len(), 1);
+        let mut processor = TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            MeasurementNameConfig {
+                max_len: Some(50),
+                fixed_length: Some(20),
+            },
+        );
 
         processor
             .process_event(
@@ -682,7 +697,8 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(event.measurements.0.unwrap().0.len(), 0);
+        // Verifies that this measurement has been dropped after processing.
+        assert_eq!(event.measurements.value().unwrap().0.len(), 0);
     }
 
     #[test]
@@ -1605,7 +1621,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1689,7 +1705,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1723,7 +1739,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1826,8 +1842,7 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -1891,8 +1906,7 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -1990,8 +2004,7 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -2058,8 +2071,7 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(
                 TransactionNameConfig { rules: &[rule] },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -2154,11 +2166,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(
-                        TransactionNameConfig::default(),
-                        MAX_LEN,
-                        FIXED_LEN,
-                    ),
+                    &mut TransactionsProcessor::default(),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2292,8 +2300,7 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -2339,8 +2346,7 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                MAX_LEN,
-                FIXED_LEN,
+                MeasurementNameConfig::default(),
             ),
             ProcessingState::root(),
         )
@@ -2372,7 +2378,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), MAX_LEN, FIXED_LEN),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
