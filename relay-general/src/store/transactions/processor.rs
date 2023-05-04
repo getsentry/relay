@@ -264,18 +264,18 @@ fn set_default_transaction_source(event: &mut Event) {
     }
 }
 
-/// Normalize the transaction name.
+/// Normalize the given string.
 ///
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
-fn scrub_identifiers(transaction: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
         .capture_names()
         .flatten()
         .collect::<Vec<_>>();
 
     let mut did_change = false;
-    transaction.apply(|trans, meta| {
+    string.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
         for captures in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
@@ -438,10 +438,18 @@ impl Processor for TransactionsProcessor<'_> {
 
         span.op.get_or_insert_with(|| "default".to_owned());
 
+        scrub_span_description(span)?;
+
         span.process_child_values(self, state)?;
 
         Ok(())
     }
+}
+
+fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
+    scrub_identifiers(&mut span.description)?; // URLs
+
+    Ok(())
 }
 
 #[cfg(test)]
