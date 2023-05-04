@@ -1930,6 +1930,52 @@
 <a href="#1929" id="1929">1929</a>
 <a href="#1930" id="1930">1930</a>
 <a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
@@ -2115,7 +2161,7 @@
 #[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
 </span><span class="kw">struct </span>CspRaw {
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>effective_directive: <span class="prelude-ty">Option</span>&lt;CspDirective&gt;,
+    </span>effective_directive: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(default = <span class="string">&quot;CspRaw::default_blocked_uri&quot;</span>)]
     </span>blocked_uri: String,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
@@ -2150,20 +2196,31 @@
 
     <span class="kw">fn </span>effective_directive(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;CspDirective, InvalidSecurityError&gt; {
         <span class="comment">// Firefox doesn&#39;t send effective-directive, so parse it from
-        // violated-directive but prefer effective-directive when present
-        //
+        // violated-directive but prefer effective-directive when present.
         // refs: https://bugzil.la/1192684#c8
 
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(directive) = <span class="self">self</span>.effective_directive {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(directive);
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(directive) = <span class="kw-2">&amp;</span><span class="self">self</span>.effective_directive {
+            <span class="comment">// In C2P1 and CSP2, violated_directive and possibly effective_directive might contain
+            // more information than just the CSP-directive.
+            </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_directive) = directive
+                .split_once(<span class="string">&#39; &#39;</span>)
+                .map_or(directive.as_str(), |s| s.<span class="number">0</span>)
+                .parse()
+            {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(parsed_directive);
+            }
         }
 
-        <span class="self">self</span>.violated_directive
+        <span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_directive) = <span class="self">self
+            </span>.violated_directive
             .split_once(<span class="string">&#39; &#39;</span>)
-            .map_or(<span class="kw-2">&amp;*</span><span class="self">self</span>.violated_directive, |x| x.<span class="number">0</span>)
+            .map_or(<span class="self">self</span>.violated_directive.as_str(), |s| s.<span class="number">0</span>)
             .parse()
-            .ok()
-            .ok_or(InvalidSecurityError)
+        {
+            <span class="prelude-val">Ok</span>(parsed_directive)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(InvalidSecurityError)
+        }
     }
 
     <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>, effective_directive: CspDirective) -&gt; String {
@@ -3859,6 +3916,41 @@
             csp_raw.effective_directive(),
             <span class="prelude-val">Ok</span>(CspDirective::DefaultSrc)
         ));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extract_effective_directive_from_long_form() {
+        <span class="comment">// First try from &#39;effective-directive&#39; field
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;csp-report&quot;: {
+                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
+                &quot;effective-directive&quot;: &quot;script-src &#39;report-sample&#39; &#39;strict-dynamic&#39; &#39;unsafe-eval&#39; &#39;nonce-random&quot; ,
+                &quot;blocked-uri&quot;: &quot;data&quot;
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let </span>raw_report = serde_json::from_slice::&lt;CspReportRaw&gt;(json.as_bytes()).unwrap();
+        <span class="kw">let </span>raw_csp = raw_report.csp_report;
+
+        <span class="kw">let </span>effective_directive = raw_csp.effective_directive().unwrap();
+
+        <span class="macro">assert_eq!</span>(effective_directive, CspDirective::ScriptSrc);
+
+        <span class="comment">// Then from &#39;violated-directive&#39; field
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;csp-report&quot;: {
+                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
+                &quot;violated-directive&quot;: &quot;script-src &#39;report-sample&#39; &#39;strict-dynamic&#39; &#39;unsafe-eval&#39; &#39;nonce-random&quot; ,
+                &quot;blocked-uri&quot;: &quot;data&quot;
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let </span>raw_report = serde_json::from_slice::&lt;CspReportRaw&gt;(json.as_bytes()).unwrap();
+        <span class="kw">let </span>raw_csp = raw_report.csp_report;
+
+        <span class="kw">let </span>effective_directive = raw_csp.effective_directive().unwrap();
+
+        <span class="macro">assert_eq!</span>(effective_directive, CspDirective::ScriptSrc);
     }
 }
 </code></pre></div>
