@@ -5,9 +5,23 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
+    /// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    BufferEnvelopesMemoryCount,
+    /// The number of envelopes spooled to disk by this process.
+    ///
+    /// This metric gets incremented when we spool and decremented when we unspool,
+    /// but it does *not* necessarily represent the number of envelopes currently on disk,
+    /// because it does not take into account the initial database size.
+    ///
+    /// Initializing this counter with a `SELECT count(*)` query would be too expensive, because
+    /// sqlite cannot count the number of rows in a table in constant time.
+    BufferSpooledCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -15,6 +29,8 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
+            RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
+            RelayGauges::BufferSpooledCount => "buffer.spooled",
         }
     }
 }
@@ -44,29 +60,12 @@ pub enum RelayHistograms {
     EnvelopeQueueSize,
     /// The estimated number of envelope bytes buffered in memory.
     ///
-    /// This number is always <= `EnvelopeQueueSize`.
-    ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
     BufferEnvelopesMemoryBytes,
-    /// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always <= `EnvelopeQueueSize`.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemoryCount,
     /// The file size of the buffer db on disk, in bytes.
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
-    /// The number of envelopes spooled to disk by this process.
-    ///
-    /// This metric gets incremented when we spool and decremented when we unspool,
-    /// but it does *not* necessarily represent the number of envelopes currently on disk,
-    /// because it does not take into account the initial database size.
-    ///
-    /// Initializing this counter with a `SELECT count(*)` query would be too expensive, because
-    /// sqlite cannot count the number of rows in a table in constant time.
-    BufferSpooledCount,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -156,9 +155,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
-            RelayHistograms::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
-            RelayHistograms::BufferSpooledCount => "buffer.spooled",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",

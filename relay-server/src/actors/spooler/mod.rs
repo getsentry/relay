@@ -21,7 +21,7 @@ use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
@@ -216,7 +216,7 @@ impl InMemory {
             histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
         );
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
 
         count
@@ -235,7 +235,7 @@ impl InMemory {
             histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
         );
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
     }
 
@@ -248,7 +248,7 @@ impl InMemory {
             histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
         );
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
         );
     }
 
@@ -303,9 +303,7 @@ impl OnDisk {
 
         self.spool_count += inserted as isize;
 
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
-        );
+        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
 
         Ok(())
     }
@@ -324,9 +322,7 @@ impl OnDisk {
         }
 
         self.spool_count -= count as isize;
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
-        );
+        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
 
         Ok(count as usize)
     }
@@ -400,8 +396,7 @@ impl OnDisk {
                         );
                         self.spool_count -= count;
                         relay_statsd::metric!(
-                            histogram(RelayHistograms::BufferSpooledCount) =
-                                self.spool_count as f64
+                            gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64
                         );
                         return Err(key);
                     }
@@ -419,9 +414,7 @@ impl OnDisk {
             }
 
             self.spool_count -= count;
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
-            );
+            relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
         }
     }
 
@@ -503,9 +496,7 @@ impl OnDisk {
         .map_err(BufferError::InsertFailed)?;
 
         self.spool_count += 1;
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferSpooledCount) = self.spool_count as f64
-        );
+        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
         Ok(())
     }
@@ -1060,24 +1051,24 @@ mod tests {
         assert_debug_snapshot!(captures, @r###"
         [
             "buffer.envelopes_mem:2000|h",
-            "buffer.envelopes_mem_count:1|h",
+            "buffer.envelopes_mem_count:1|g",
             "buffer.envelopes_mem:4000|h",
-            "buffer.envelopes_mem_count:2|h",
+            "buffer.envelopes_mem_count:2|g",
             "buffer.envelopes_mem:6000|h",
-            "buffer.envelopes_mem_count:3|h",
+            "buffer.envelopes_mem_count:3|g",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.spooled:3|h",
-            "buffer.spooled:4|h",
+            "buffer.spooled:3|g",
+            "buffer.spooled:4|g",
             "buffer.writes:1|c",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:2000|h",
-            "buffer.envelopes_mem_count:1|h",
+            "buffer.envelopes_mem_count:1|g",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
-            "buffer.envelopes_mem_count:0|h",
+            "buffer.envelopes_mem_count:0|g",
             "buffer.reads:1|c",
-            "buffer.spooled:0|h",
+            "buffer.spooled:0|g",
             "buffer.reads:1|c",
         ]
         "###);
