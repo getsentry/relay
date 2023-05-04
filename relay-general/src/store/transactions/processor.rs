@@ -2199,4 +2199,28 @@ mod tests {
 
         assert_annotated_snapshot!(event);
     }
+
+    #[test]
+    fn test_span_description_urls_parameterized() {
+        let json = r#"
+        {
+            "description": "GET http://whatever/api/0987654321",
+            "span_id": "bd2eb23da2beb459",
+            "start_timestamp": 1597976393.4619668,
+            "timestamp": 1597976393.4718769,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81"
+        }
+        "#;
+
+        let mut span: Annotated<Span> = Annotated::from_json(json).unwrap();
+
+        process_value(
+            &mut span,
+            &mut TransactionsProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(span);
+    }
 }
