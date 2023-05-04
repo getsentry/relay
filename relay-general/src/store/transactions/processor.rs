@@ -9,7 +9,9 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::types::{
+    Annotated, Error, Meta, Object, ProcessingAction, ProcessingResult, Remark, RemarkType,
+};
 
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Clone, Debug, Default)]
@@ -416,22 +418,26 @@ impl Processor for TransactionsProcessor<'_> {
     fn process_measurements(
         &mut self,
         value: &mut crate::protocol::Measurements,
-        _meta: &mut Meta,
+        meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         let measurements = &mut value.0;
+        let mut removed_measurements = Object::new();
 
-        measurements.retain(|key, val| {
+        measurements.retain(|key, value| {
+            let measurement = match value.value_mut() {
+                Some(m) => m,
+                None => return false,
+            };
+
             if !is_valid_metric_name(key) {
-                relay_log::error!("Measurement name contains invalid characters");
+                removed_measurements
+                    .insert(key.clone(), Annotated::new(std::mem::take(measurement)));
                 return false;
             }
 
             let name_len = key.len();
-
-            let unit_len = val
-                .value()
-                .and_then(|val| val.unit.value().map(|val| val.to_string().len()));
+            let unit_len = measurement.unit.value().map(|val| val.to_string().len());
 
             if let (Some(fixed_len), Some(max_len), Some(unit_len)) = (
                 self.measurement_config.fixed_length,
@@ -439,16 +445,18 @@ impl Processor for TransactionsProcessor<'_> {
                 unit_len,
             ) {
                 if (name_len + unit_len + fixed_len) > max_len {
-                    relay_log::error!(
-                        "Measurement name is too long({}/{})",
-                        name_len + unit_len + fixed_len,
-                        max_len
-                    );
+                    removed_measurements
+                        .insert(key.clone(), Annotated::new(std::mem::take(measurement)));
                     return false;
                 }
             }
             true
         });
+
+        if !removed_measurements.is_empty() {
+            meta.add_error(Error::invalid("Invalid measurement names"));
+            meta.set_original_value(Some(removed_measurements));
+        }
 
         Ok(())
     }
