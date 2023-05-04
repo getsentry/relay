@@ -1171,7 +1171,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "style-src",
-            "effective_directive_full": "style-src",
             "blocked_uri": "http://example.com/lol.css",
             "document_uri": "http://example.com",
             "violated_directive": "style-src cdn.example.com"
@@ -1213,7 +1212,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "script-src",
-            "effective_directive_full": "script-src",
             "blocked_uri": "self",
             "document_uri": "http://example.com",
             "violated_directive": ""
@@ -1264,7 +1262,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "default-src",
-            "effective_directive_full": "default-src self",
             "blocked_uri": "http://evilhackerscripts.com",
             "document_uri": "https://example.com/foo/bar",
             "original_policy": "default-src self; report-uri /csp-hotline.php",
@@ -1324,7 +1321,6 @@ mod tests {
           ],
           "csp": {
             "effective_directive": "script-src",
-            "effective_directive_full": "script-src",
             "blocked_uri": "http://baddomain.com/test.js?_=1515535030116",
             "document_uri": "https://sentry.io/sentry/csp/issues/88513416/",
             "original_policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
@@ -1939,13 +1935,14 @@ mod tests {
         let csp_raw: CspRaw =
             serde_json::from_str(r#"{"violated-directive":"default-src"}"#).unwrap();
         assert!(matches!(
-            csp_raw.effective_directive().unwrap().0,
+            csp_raw.effective_directive().unwrap(),
             CspDirective::DefaultSrc
         ));
     }
 
     #[test]
-    fn test_effective_directive_full() {
+    fn test_extract_effective_directive_from_long_form() {
+        // First try from 'effective-directive' field
         let json = r#"{
             "csp-report": {
                 "document-uri": "http://example.com/foo",
@@ -1957,14 +1954,24 @@ mod tests {
         let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
         let raw_csp = raw_report.csp_report;
 
-        let (effective_directive, effective_directive_full) =
-            raw_csp.effective_directive().unwrap();
-        let csp = raw_csp.into_protocol(effective_directive, effective_directive_full);
+        let effective_directive = raw_csp.effective_directive().unwrap();
 
         assert_eq!(effective_directive, CspDirective::ScriptSrc);
-        assert_eq!(
-            csp.effective_directive_full.value().unwrap(),
-            "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random"
-        );
+
+        // Then from 'violated-directive' field
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
+            }
+        }"#;
+
+        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
+        let raw_csp = raw_report.csp_report;
+
+        let effective_directive = raw_csp.effective_directive().unwrap();
+
+        assert_eq!(effective_directive, CspDirective::ScriptSrc);
     }
 }
