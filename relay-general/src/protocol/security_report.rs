@@ -216,21 +216,20 @@ impl CspRaw {
         "self".to_string()
     }
 
-    fn effective_directive(&self) -> Result<(CspDirective, String), InvalidSecurityError> {
+    fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
         // Firefox doesn't send effective-directive, so parse it from
         // violated-directive but prefer effective-directive when present.
         // refs: https://bugzil.la/1192684#c8
 
         if let Some(directive) = &self.effective_directive {
             // In C2P1 and CSP2, violated_directive and possibly effective_directive might contain
-            // more information than just the CSP-directive. For that reason, we try to split it
-            // and we return the original value as well so as to not lose any information.
+            // more information than just the CSP-directive.
             if let Ok(parsed_directive) = directive
                 .split_once(' ')
                 .map_or(directive.as_str(), |s| s.0)
                 .parse()
             {
-                return Ok((parsed_directive, directive.clone()));
+                return Ok(parsed_directive);
             }
         }
 
@@ -240,7 +239,7 @@ impl CspRaw {
             .map_or(self.violated_directive.as_str(), |s| s.0)
             .parse()
         {
-            Ok((parsed_directive, self.violated_directive.clone()))
+            Ok(parsed_directive)
         } else {
             Err(InvalidSecurityError)
         }
@@ -297,14 +296,9 @@ impl CspRaw {
         }
     }
 
-    fn into_protocol(
-        self,
-        parsed_effective_directive: CspDirective,
-        original_value: String,
-    ) -> Csp {
+    fn into_protocol(self, parsed_effective_directive: CspDirective) -> Csp {
         Csp {
             effective_directive: Annotated::from(parsed_effective_directive.to_string()),
-            effective_directive_full: Annotated::from(original_value),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -464,9 +458,6 @@ pub struct Csp {
     /// The directive whose enforcement caused the violation.
     #[metastructure(pii = "true")]
     pub effective_directive: Annotated<String>,
-    /// The original value of 'effective-directory'
-    #[metastructure(pii = "true")]
-    pub effective_directive_full: Annotated<String>,
     /// The URI of the resource that was blocked from loading by the Content Security Policy.
     #[metastructure(pii = "true")]
     pub blocked_uri: Annotated<String>,
@@ -503,7 +494,7 @@ impl Csp {
         let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
         let raw_csp = raw_report.csp_report;
 
-        let (effective_directive, original_value) = raw_csp
+        let effective_directive = raw_csp
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
 
@@ -511,7 +502,7 @@ impl Csp {
         event.culprit = Annotated::new(raw_csp.get_culprit());
         event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
         event.request = Annotated::new(raw_csp.get_request());
-        event.csp = Annotated::new(raw_csp.into_protocol(effective_directive, original_value));
+        event.csp = Annotated::new(raw_csp.into_protocol(effective_directive));
 
         Ok(())
     }
