@@ -1935,8 +1935,8 @@ mod tests {
         let csp_raw: CspRaw =
             serde_json::from_str(r#"{"violated-directive":"default-src"}"#).unwrap();
         assert!(matches!(
-            csp_raw.effective_directive().unwrap(),
-            CspDirective::DefaultSrc
+            csp_raw.effective_directive(),
+            Ok(CspDirective::DefaultSrc)
         ));
     }
 
