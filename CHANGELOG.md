@@ -11,6 +11,7 @@
 **Features**:
 
 - Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
+- Add support for old 'violated-directive' CSP format. ([#2048](https://github.com/getsentry/relay/pull/2048))
 - Add document_uri to csp filter. ([#2059](https://github.com/getsentry/relay/pull/2059))
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
 
