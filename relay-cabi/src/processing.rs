@@ -3,13 +3,13 @@
 #![deny(unused_must_use)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use anyhow::{anyhow, Context};
 use chrono::Utc;
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use crate::core::{RelayBuf, RelayStr};
 use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, EventType, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
@@ -28,6 +28,8 @@ use relay_sampling::{
     SamplingRule,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::core::{RelayBuf, RelayStr};
 
 /// A geo ip lookup helper based on maxmind db files.
 pub struct RelayGeoIpLookup;
@@ -353,17 +355,18 @@ struct EphemeralSamplingResult {
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn run_dynamic_sampling(
-    sampling_config: *const RelayStr,
-    root_sampling_config: *const RelayStr,
-    dsc: *const RelayStr,
-    event: *const RelayStr,
+    sampling_config: &RelayStr,
+    root_sampling_config: &RelayStr,
+    dsc: &RelayStr,
+    event: &RelayStr,
 ) -> RelayStr {
-    let sampling_config = serde_json::from_str::<SamplingConfig>((*sampling_config).as_str())?;
+    let sampling_config = serde_json::from_str::<SamplingConfig>(sampling_config.as_str())?;
     let root_sampling_config =
-        serde_json::from_str::<SamplingConfig>((*root_sampling_config).as_str())?;
+        serde_json::from_str::<SamplingConfig>(root_sampling_config.as_str())?;
     // We can optionally accept a dsc and event.
-    let dsc = serde_json::from_str::<DynamicSamplingContext>((*dsc).as_str());
-    let event = serde_json::from_str::<EphemeralEvent>((*event).as_str());
+    let dsc = serde_json::from_str::<DynamicSamplingContext>(dsc.as_str());
+    let event = Annotated::<Event>::from_json(event.as_str())?;
+    let event = event.value().context("the event can't be serialized")?;
 
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
@@ -375,14 +378,8 @@ pub unsafe extern "C" fn run_dynamic_sampling(
 
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
-    let match_result = if let (Ok(dsc), Ok(event)) = (dsc, event) {
-        SamplingMatch::match_against_rules(
-            rules.iter(),
-            &event.to_event(),
-            Some(&dsc),
-            None,
-            Utc::now(),
-        )
+    let match_result = if let Ok(dsc) = dsc {
+        SamplingMatch::match_against_rules(rules.iter(), &event, Some(&dsc), None, Utc::now())
     } else {
         None
     };

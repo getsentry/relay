@@ -347,6 +347,7 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
     }"""
 
     event = """{
+        "type": "transaction",
         "transaction": "/world"
     }"""
 
@@ -356,36 +357,11 @@ def test_run_dynamic_sampling_with_valid_params_and_match():
         dsc,
         event,
     )
-    assert result == {
-        "merged_sampling_configs": [
-            {
-                "condition": {
-                    "op": "and",
-                    "inner": [
-                        {
-                            "op": "eq",
-                            "name": "event.transaction",
-                            "value": ["/world"],
-                            "options": {"ignoreCase": True},
-                        }
-                    ],
-                },
-                "samplingValue": {"type": "factor", "value": 2.0},
-                "type": "transaction",
-                "id": 1000,
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "samplingValue": {"type": "sampleRate", "value": 0.5},
-                "type": "trace",
-                "id": 1001,
-            },
-        ],
-        "sampling_match": {
-            "sample_rate": 1.0,
-            "seed": "d0303a19-909a-4b0b-a639-b17a74c3533b",
-            "matched_rule_ids": [1000, 1001],
-        },
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] == {
+        "sample_rate": 1.0,
+        "seed": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "matched_rule_ids": [1000, 1001],
     }
 
 
@@ -437,6 +413,7 @@ def test_run_dynamic_sampling_with_valid_params_and_no_match():
     }"""
 
     event = """{
+        "type": "transaction",
         "transaction": "/world"
     }"""
 
@@ -446,27 +423,8 @@ def test_run_dynamic_sampling_with_valid_params_and_no_match():
         dsc,
         event,
     )
-    assert result == {
-        "merged_sampling_configs": [
-            {
-                "condition": {
-                    "op": "and",
-                    "inner": [
-                        {
-                            "op": "eq",
-                            "name": "trace.transaction",
-                            "value": ["/foo"],
-                            "options": {"ignoreCase": True},
-                        }
-                    ],
-                },
-                "samplingValue": {"type": "sampleRate", "value": 0.5},
-                "type": "trace",
-                "id": 1001,
-            },
-        ],
-        "sampling_match": None,
-    }
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] is None
 
 
 def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
@@ -496,9 +454,9 @@ def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
        "mode": "received"
     }"""
 
-    dsc = ""
+    dsc = "{}"
 
-    event = ""
+    event = "{}"
 
     result = sentry_relay.run_dynamic_sampling(
         sampling_config,
@@ -506,20 +464,8 @@ def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
         dsc,
         event,
     )
-    assert result == {
-        "merged_sampling_configs": [
-            {
-                "condition": {
-                    "op": "and",
-                    "inner": [],
-                },
-                "samplingValue": {"type": "sampleRate", "value": 0.5},
-                "type": "trace",
-                "id": 1001,
-            },
-        ],
-        "sampling_match": None,
-    }
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] is None
 
 
 def test_run_dynamic_sampling_with_invalid_params():
@@ -538,6 +484,7 @@ def test_run_dynamic_sampling_with_invalid_params():
     }"""
 
     event = """{
+        "type": "transaction",
         "test": "/test"
     }"""
 

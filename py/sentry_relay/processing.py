@@ -274,14 +274,12 @@ def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
     assert isinstance(dsc, string_types)
     assert isinstance(event, string_types)
 
-    return json.loads(
-        decode_str(
-            rustcall(
-                lib.run_dynamic_sampling,
-                encode_str(sampling_config),
-                encode_str(root_sampling_config),
-                encode_str(dsc),
-                encode_str(event),
-            )
-        )
+    result_json = rustcall(
+        lib.run_dynamic_sampling,
+        encode_str(sampling_config),
+        encode_str(root_sampling_config),
+        encode_str(dsc),
+        encode_str(event),
     )
+
+    return json.loads(decode_str(result_json, free=True))
