@@ -558,7 +558,7 @@ impl Default for BufferState {
 }
 
 /// The services, which rely on the state of the envelopes in this buffer.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Services {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
@@ -865,12 +865,16 @@ mod tests {
         }
     }
 
-    fn empty_envelope() -> ManagedEnvelope {
+    fn empty_envelope() -> Box<Envelope> {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
-        let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+        Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
+    }
+
+    fn empty_managed_envelope() -> ManagedEnvelope {
+        let envelope = empty_envelope();
         let Services {
             outcome_aggregator,
             test_store,
@@ -915,7 +919,7 @@ mod tests {
 
             addr.send(Enqueue {
                 key,
-                value: empty_envelope(),
+                value: empty_managed_envelope(),
             });
 
             // How long to wait to dequeue the message from the spool.
@@ -934,6 +938,89 @@ mod tests {
 
             assert_eq!((Instant::now() - start_time).as_secs(), result);
         }
+    }
+
+    #[tokio::test]
+    async fn dequeue_waits_for_permits() {
+        relay_test::setup();
+        let num_permits = 1;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let services = services();
+
+        let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
+            .await
+            .unwrap();
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+
+        // Enqueue an envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+
+        // Nothing dequeued yet:
+        assert!(rx.try_recv().is_err());
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // There is a permit, so get an envelope:
+        let res = rx.try_recv();
+        assert!(res.is_ok(), "{:?}", res);
+        drop(res); // Drop envelope, frees the permit.
+
+        // Simulate a new envelope coming in via a web request:
+        let new_envelope = buffer_guard.enter(
+            empty_envelope(),
+            services.outcome_aggregator,
+            services.test_store,
+        );
+
+        // Enqueue & dequeue another envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+        // Request to dequeue:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // No permits left, so cannot dequeue:
+        assert!(rx.try_recv().is_err());
+
+        // Freeing one permit flushes the envelope:
+        dbg!(buffer_guard.available());
+        drop(new_envelope);
+        dbg!(buffer_guard.available());
+        assert!(rx.try_recv().is_ok());
     }
 
     #[test]
@@ -973,7 +1060,7 @@ mod tests {
                     service
                         .handle_enqueue(Enqueue {
                             key,
-                            value: empty_envelope(),
+                            value: empty_managed_envelope(),
                         })
                         .await
                         .unwrap();
