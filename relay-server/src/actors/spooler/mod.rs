@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -348,7 +349,19 @@ impl OnDisk {
             // to pick up.
             //
             // Right now we use 100 for batch size.
-            let mut envelopes = sql::delete_and_fetch(key, 100).fetch(&self.db).peekable();
+            let batch_size = 100;
+
+            // Before querying the db, make sure that the buffer guard has enough availability:
+            let mut attempts = 1;
+            while self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                attempts += 1;
+            }
+            relay_statsd::metric!(histogram(RelayHistograms::BufferDequeueAttempts) = attempts);
+
+            let mut envelopes = sql::delete_and_fetch(key, batch_size)
+                .fetch(&self.db)
+                .peekable();
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
@@ -1109,7 +1122,9 @@ mod tests {
             "buffer.envelopes_mem:2000|h",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:0|h",
+            "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
+            "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
         ]
         "###);

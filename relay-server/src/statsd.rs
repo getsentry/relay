@@ -52,6 +52,11 @@ pub enum RelayHistograms {
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
+    /// Number of attempts needed to dequeue a batch of envelopes from disk.
+    ///
+    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
+    /// always be one.
+    BufferDequeueAttempts,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -142,6 +147,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
+            RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",

@@ -159,7 +159,7 @@ impl ManagedEnvelope {
 
     /// Consumes itself returning the managed envelope.
     ///
-    /// This also releases the slot with [`SemaphorePermit`] and sets the internal context
+    /// This also releases the slot with [`OwnedSemaphorePermit`] and sets the internal context
     /// to done so there is no rejection issued once the [`ManagedEnvelope`] is consumed.
     pub fn into_envelope(mut self) -> Box<Envelope> {
         self.context.slot.take();

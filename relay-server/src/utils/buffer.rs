@@ -41,6 +41,11 @@ impl BufferGuard {
         Self { inner, capacity }
     }
 
+    /// Returns the total capacity of the pipeline.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
     /// Returns the unused capacity of the pipeline.
     pub fn available(&self) -> usize {
         self.inner.available_permits()
