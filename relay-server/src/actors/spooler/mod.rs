@@ -1007,14 +1007,21 @@ mod tests {
         // There is a permit, so get an envelope:
         let res = rx.try_recv();
         assert!(res.is_ok(), "{:?}", res);
-        drop(res); // Drop envelope, frees the permit.
+
+        // Drop envelope, free permit again:
+        assert_eq!(buffer_guard.available(), 0);
+        drop(res);
+        assert_eq!(buffer_guard.available(), 1);
 
         // Simulate a new envelope coming in via a web request:
-        let new_envelope = buffer_guard.try_enter(
-            empty_envelope(),
-            services.outcome_aggregator,
-            services.test_store,
-        );
+        let new_envelope = buffer_guard
+            .try_enter(
+                empty_envelope(),
+                services.outcome_aggregator,
+                services.test_store,
+            )
+            .unwrap();
+        assert_eq!(buffer_guard.available(), 0);
 
         // Enqueue & dequeue another envelope:
         addr.send(Enqueue {
@@ -1033,7 +1040,6 @@ mod tests {
         assert!(rx.try_recv().is_err());
 
         // Freeing one permit flushes the envelope:
-        assert_eq!(buffer_guard.available(), 0);
         drop(new_envelope);
         tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
         assert!(rx.try_recv().is_ok());
