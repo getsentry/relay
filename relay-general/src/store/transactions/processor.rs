@@ -2274,4 +2274,6 @@ mod tests {
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "GET /clients/*/project/*"
     );
+
+    // TODO(iker): Add span description test for URLs with paths
 }
