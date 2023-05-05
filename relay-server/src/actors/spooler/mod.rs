@@ -1022,7 +1022,7 @@ mod tests {
         // Freeing one permit flushes the envelope:
         assert_eq!(buffer_guard.available(), 0);
         drop(new_envelope);
-        tokio::time::sleep(Duration::from_millis(100)).await; // TODO: pause time?
+        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
         assert!(rx.try_recv().is_ok());
         assert_eq!(buffer_guard.available(), 1);
     }
