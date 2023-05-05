@@ -1167,6 +1167,8 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
@@ -3040,5 +3042,69 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_keeps_valid_measurement() {
+        let name = "lcp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+        let should_keep = true;
+
+        test_invalid_measurement(name, measurement, should_keep);
+    }
+
+    #[test]
+    fn test_drops_too_long_measurement_names() {
+        let name = "lcpppppppppppppppppppppppppppp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+        let should_keep = false;
+
+        test_invalid_measurement(name, measurement, should_keep);
+    }
+
+    #[test]
+    fn test_drops_measurements_with_invalid_characters() {
+        let name = "i æm frøm nørwåy";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+        let should_keep = false;
+
+        test_invalid_measurement(name, measurement, should_keep);
+    }
+
+    fn test_invalid_measurement(name: &str, measurement: Measurement, should_keep: bool) {
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(name.to_string(), Annotated::new(measurement));
+
+        let mut measurements = Measurements(measurements);
+        let mut meta = Meta::default();
+        let measurements_config = MeasurementsConfig {
+            max_custom_measurements: 1,
+            ..Default::default()
+        };
+        let max_name_len = Some(50);
+        let fixed_len = Some(20);
+
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(measurements.len(), 1);
+
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut meta,
+            &measurements_config,
+            max_name_len,
+            fixed_len,
+        );
+
+        // Verifies that this measurement has not been dropped after processing.
+        assert_eq!(measurements.len(), usize::from(should_keep));
     }
 }

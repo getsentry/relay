@@ -17,14 +17,6 @@ pub struct TransactionNameConfig<'r> {
     pub rules: &'r [TransactionNameRule],
 }
 
-#[derive(Default)]
-pub struct MeasurementNameConfig {
-    /// How long the name-part of the MRI can be.
-    pub max_len: Option<usize>,
-    /// The length of a measurement MRI without the unit and the name.
-    pub fixed_length: Option<usize>,
-}
-
 /// Rejects transactions based on required fields.
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
@@ -532,121 +524,7 @@ mod tests {
             ))
         );
     }
-    /*
-        #[test]
-        fn test_keeps_valid_measurements() {
-            let mut event = new_test_event().0.unwrap();
 
-            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-            measurements.insert(
-                "lcp".to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
-                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-                }),
-            );
-
-            event.measurements = Annotated::from(Measurements(measurements));
-
-            let mut processor = TransactionsProcessor::new(
-                TransactionNameConfig::default(),
-                MeasurementNameConfig {
-                    max_len: Some(50),
-                    fixed_length: Some(20),
-                },
-            );
-
-            // Checks that there is 1 measurement before processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
-
-            processor
-                .process_event(
-                    &mut event,
-                    &mut Meta::default(),
-                    &ProcessingState::default(),
-                )
-                .unwrap();
-
-            // Verifies that this measurement has not been dropped after processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
-        }
-
-        #[test]
-        fn test_drops_too_long_measurement_names() {
-            let mut event = new_test_event().0.unwrap();
-
-            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-            measurements.insert(
-                "lcpppppppppppppppppppppppppppp".to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
-                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-                }),
-            );
-
-            event.measurements = Annotated::from(Measurements(measurements));
-
-            let mut processor = TransactionsProcessor::new(
-                TransactionNameConfig::default(),
-                MeasurementNameConfig {
-                    max_len: Some(50),
-                    fixed_length: Some(20),
-                },
-            );
-
-            // Checks that there is 1 measurement before processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
-
-            processor
-                .process_event(
-                    &mut event,
-                    &mut Meta::default(),
-                    &ProcessingState::default(),
-                )
-                .unwrap();
-
-            // Verifies that this measurement has been dropped after processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 0);
-        }
-
-        #[test]
-        fn test_drops_measurements_with_invalid_characters() {
-            let mut event = new_test_event().0.unwrap();
-
-            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-            measurements.insert(
-                "i æm frøm nørwåy".to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
-                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-                }),
-            );
-
-            event.measurements = Annotated::from(Measurements(measurements));
-
-            // Checks that there is 1 measurement before processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
-
-            let mut processor = TransactionsProcessor::new(
-                TransactionNameConfig::default(),
-                MeasurementNameConfig {
-                    max_len: Some(50),
-                    fixed_length: Some(20),
-                },
-            );
-
-            processor
-                .process_event(
-                    &mut event,
-                    &mut Meta::default(),
-                    &ProcessingState::default(),
-                )
-                .unwrap();
-
-            // Verifies that this measurement has been dropped after processing.
-            assert_eq!(event.measurements.value().unwrap().0.len(), 0);
-        }
-    */
     #[test]
     fn test_replace_missing_timestamp() {
         let span = Span {

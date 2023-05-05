@@ -3067,7 +3067,6 @@ dependencies = [
  "relay-common",
  "relay-general-derive",
  "relay-log",
- "relay-metrics",
  "schemars",
  "sentry-release-parser",
  "serde",
