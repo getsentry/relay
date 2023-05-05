@@ -959,7 +959,7 @@ mod tests {
     #[tokio::test]
     async fn dequeue_waits_for_permits() {
         relay_test::setup();
-        let num_permits = 1;
+        let num_permits = 3;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
@@ -1004,14 +1004,10 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // There is a permit, so get an envelope:
+        // There are enough permits, so get an envelope:
         let res = rx.try_recv();
         assert!(res.is_ok(), "{:?}", res);
-
-        // Drop envelope, free permit again:
-        assert_eq!(buffer_guard.available(), 0);
-        drop(res);
-        assert_eq!(buffer_guard.available(), 1);
+        assert_eq!(buffer_guard.available(), 2);
 
         // Simulate a new envelope coming in via a web request:
         let new_envelope = buffer_guard
@@ -1021,7 +1017,8 @@ mod tests {
                 services.test_store,
             )
             .unwrap();
-        assert_eq!(buffer_guard.available(), 0);
+
+        assert_eq!(buffer_guard.available(), 1);
 
         // Enqueue & dequeue another envelope:
         addr.send(Enqueue {
@@ -1034,16 +1031,17 @@ mod tests {
             keys: [key].into(),
             sender: tx.clone(),
         });
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // No permits left, so cannot dequeue:
+        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
         assert!(rx.try_recv().is_err());
 
-        // Freeing one permit flushes the envelope:
+        // Freeing one permit gives us enough capacity
+        assert_eq!(buffer_guard.available(), 1);
         drop(new_envelope);
+        assert_eq!(buffer_guard.available(), 2);
         tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
         assert!(rx.try_recv().is_ok());
-        assert_eq!(buffer_guard.available(), 1);
     }
 
     #[test]
