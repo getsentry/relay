@@ -2200,27 +2200,78 @@ mod tests {
         assert_annotated_snapshot!(event);
     }
 
-    #[test]
-    fn test_span_description_urls_parameterized() {
-        let json = r#"
-        {
-            "description": "GET http://whatever/api/0987654321",
-            "span_id": "bd2eb23da2beb459",
-            "start_timestamp": 1597976393.4619668,
-            "timestamp": 1597976393.4718769,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81"
-        }
-        "#;
+    macro_rules! span_description_test {
+        ($name:ident, $input:literal, $output:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "description": "{}",
+                        "span_id": "bd2eb23da2beb459",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }}
+                "#,
+                    $input
+                );
 
-        let mut span: Annotated<Span> = Annotated::from_json(json).unwrap();
+                let mut span = Annotated::<Span>::from_json(&json).unwrap();
 
-        process_value(
-            &mut span,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
+                process_value(
+                    &mut span,
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+                    ProcessingState::root(),
+                )
+                .unwrap();
 
-        assert_annotated_snapshot!(span);
+                assert_eq!($output, span.value().unwrap().description.value().unwrap());
+            }
+        };
     }
+
+    span_description_test!(span_description_scrub_empty, "", "");
+
+    span_description_test!(
+        span_description_scrub_only_domain,
+        "GET http://service.io",
+        "GET http://service.io"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_ids_end,
+        "GET https://www.service.io/resources/01234",
+        "GET https://www.service.io/resources/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_ids_middle,
+        "GET https://www.service.io/resources/01234/details",
+        "GET https://www.service.io/resources/*/details"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_multiple_ids,
+        "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+        "GET https://www.service.io/users/*/settings/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_md5_hashes,
+        "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
+        "GET /clients/*/project/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_sha_hashes,
+        "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
+        "GET /clients/*/project/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_path_uuids,
+        "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
+        "GET /clients/*/project/*"
+    );
 }
