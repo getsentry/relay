@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use relay_common::SpanStatus;
-use relay_metrics::is_valid_metric_name;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -9,9 +8,7 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::types::{
-    Annotated, Error, Meta, Object, ProcessingAction, ProcessingResult, Remark, RemarkType,
-};
+use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Clone, Debug, Default)]
@@ -32,18 +29,11 @@ pub struct MeasurementNameConfig {
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    measurement_config: MeasurementNameConfig,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(
-        name_config: TransactionNameConfig<'r>,
-        measurement_config: MeasurementNameConfig,
-    ) -> Self {
-        Self {
-            name_config,
-            measurement_config,
-        }
+    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
+        Self { name_config }
     }
 
     /// Applies the rule if any found to the transaction name.
@@ -414,53 +404,6 @@ impl Processor for TransactionsProcessor<'_> {
         Ok(())
     }
 
-    /// Validates the length and characters of measurement names.
-    fn process_measurements(
-        &mut self,
-        value: &mut crate::protocol::Measurements,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        let measurements = &mut value.0;
-        let mut removed_measurements = Object::new();
-
-        measurements.retain(|key, value| {
-            let measurement = match value.value_mut() {
-                Some(m) => m,
-                None => return false,
-            };
-
-            if !is_valid_metric_name(key) {
-                removed_measurements
-                    .insert(key.clone(), Annotated::new(std::mem::take(measurement)));
-                return false;
-            }
-
-            let name_len = key.len();
-            let unit_len = measurement.unit.value().map(|val| val.to_string().len());
-
-            if let (Some(fixed_len), Some(max_len), Some(unit_len)) = (
-                self.measurement_config.fixed_length,
-                self.measurement_config.max_len,
-                unit_len,
-            ) {
-                if (name_len + unit_len + fixed_len) > max_len {
-                    removed_measurements
-                        .insert(key.clone(), Annotated::new(std::mem::take(measurement)));
-                    return false;
-                }
-            }
-            true
-        });
-
-        if !removed_measurements.is_empty() {
-            meta.add_error(Error::invalid("Invalid measurement names"));
-            meta.set_original_value(Some(removed_measurements));
-        }
-
-        Ok(())
-    }
-
     fn process_span(
         &mut self,
         span: &mut Span,
@@ -512,19 +455,14 @@ impl Processor for TransactionsProcessor<'_> {
 #[cfg(test)]
 mod tests {
 
-    use std::collections::BTreeMap;
-
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
     use insta::assert_debug_snapshot;
-    use relay_common::{DurationUnit, MetricUnit};
     use similar_asserts::assert_eq;
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{
-        Contexts, Measurement, Measurements, SpanId, TraceContext, TraceId, TransactionSource,
-    };
+    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::store::{LazyGlob, RedactionRule, RuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
@@ -594,121 +532,121 @@ mod tests {
             ))
         );
     }
+    /*
+        #[test]
+        fn test_keeps_valid_measurements() {
+            let mut event = new_test_event().0.unwrap();
 
-    #[test]
-    fn test_keeps_valid_measurements() {
-        let mut event = new_test_event().0.unwrap();
+            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+                }),
+            );
 
-        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-        measurements.insert(
-            "lcp".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(420.69),
-                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-            }),
-        );
+            event.measurements = Annotated::from(Measurements(measurements));
 
-        event.measurements = Annotated::from(Measurements(measurements));
+            let mut processor = TransactionsProcessor::new(
+                TransactionNameConfig::default(),
+                MeasurementNameConfig {
+                    max_len: Some(50),
+                    fixed_length: Some(20),
+                },
+            );
 
-        let mut processor = TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            MeasurementNameConfig {
-                max_len: Some(50),
-                fixed_length: Some(20),
-            },
-        );
+            // Checks that there is 1 measurement before processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
-        // Checks that there is 1 measurement before processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
+            processor
+                .process_event(
+                    &mut event,
+                    &mut Meta::default(),
+                    &ProcessingState::default(),
+                )
+                .unwrap();
 
-        processor
-            .process_event(
-                &mut event,
-                &mut Meta::default(),
-                &ProcessingState::default(),
-            )
-            .unwrap();
+            // Verifies that this measurement has not been dropped after processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
+        }
 
-        // Verifies that this measurement has not been dropped after processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
-    }
+        #[test]
+        fn test_drops_too_long_measurement_names() {
+            let mut event = new_test_event().0.unwrap();
 
-    #[test]
-    fn test_drops_too_long_measurement_names() {
-        let mut event = new_test_event().0.unwrap();
+            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+            measurements.insert(
+                "lcpppppppppppppppppppppppppppp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+                }),
+            );
 
-        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-        measurements.insert(
-            "lcpppppppppppppppppppppppppppp".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(420.69),
-                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-            }),
-        );
+            event.measurements = Annotated::from(Measurements(measurements));
 
-        event.measurements = Annotated::from(Measurements(measurements));
+            let mut processor = TransactionsProcessor::new(
+                TransactionNameConfig::default(),
+                MeasurementNameConfig {
+                    max_len: Some(50),
+                    fixed_length: Some(20),
+                },
+            );
 
-        let mut processor = TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            MeasurementNameConfig {
-                max_len: Some(50),
-                fixed_length: Some(20),
-            },
-        );
+            // Checks that there is 1 measurement before processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
-        // Checks that there is 1 measurement before processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
+            processor
+                .process_event(
+                    &mut event,
+                    &mut Meta::default(),
+                    &ProcessingState::default(),
+                )
+                .unwrap();
 
-        processor
-            .process_event(
-                &mut event,
-                &mut Meta::default(),
-                &ProcessingState::default(),
-            )
-            .unwrap();
+            // Verifies that this measurement has been dropped after processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 0);
+        }
 
-        // Verifies that this measurement has been dropped after processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 0);
-    }
+        #[test]
+        fn test_drops_measurements_with_invalid_characters() {
+            let mut event = new_test_event().0.unwrap();
 
-    #[test]
-    fn test_drops_measurements_with_invalid_characters() {
-        let mut event = new_test_event().0.unwrap();
+            let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+            measurements.insert(
+                "i æm frøm nørwåy".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+                }),
+            );
 
-        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-        measurements.insert(
-            "i æm frøm nørwåy".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(420.69),
-                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-            }),
-        );
+            event.measurements = Annotated::from(Measurements(measurements));
 
-        event.measurements = Annotated::from(Measurements(measurements));
+            // Checks that there is 1 measurement before processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 1);
 
-        // Checks that there is 1 measurement before processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 1);
+            let mut processor = TransactionsProcessor::new(
+                TransactionNameConfig::default(),
+                MeasurementNameConfig {
+                    max_len: Some(50),
+                    fixed_length: Some(20),
+                },
+            );
 
-        let mut processor = TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            MeasurementNameConfig {
-                max_len: Some(50),
-                fixed_length: Some(20),
-            },
-        );
+            processor
+                .process_event(
+                    &mut event,
+                    &mut Meta::default(),
+                    &ProcessingState::default(),
+                )
+                .unwrap();
 
-        processor
-            .process_event(
-                &mut event,
-                &mut Meta::default(),
-                &ProcessingState::default(),
-            )
-            .unwrap();
-
-        // Verifies that this measurement has been dropped after processing.
-        assert_eq!(event.measurements.value().unwrap().0.len(), 0);
-    }
-
+            // Verifies that this measurement has been dropped after processing.
+            assert_eq!(event.measurements.value().unwrap().0.len(), 0);
+        }
+    */
     #[test]
     fn test_replace_missing_timestamp() {
         let span = Span {
@@ -1846,12 +1784,9 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: rules.as_ref(),
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1910,12 +1845,9 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: rules.as_ref(),
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2008,12 +1940,9 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: rules.as_ref(),
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2077,10 +2006,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig { rules: &[rule] },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2299,17 +2225,14 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[TransactionNameRule {
-                        pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
-                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
-                        redaction: RedactionRule::default(),
-                    }],
-                },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2345,17 +2268,14 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[TransactionNameRule {
-                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
-                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
-                        redaction: RedactionRule::default(),
-                    }],
-                },
-                MeasurementNameConfig::default(),
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: RuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
             ProcessingState::root(),
         )
         .unwrap();

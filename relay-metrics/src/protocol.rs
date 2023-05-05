@@ -4,6 +4,7 @@ use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher as _};
+use relay_common::is_valid_metric_name;
 #[doc(inline)]
 pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
@@ -147,20 +148,6 @@ impl fmt::Display for ParseMetricError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "failed to parse metric")
     }
-}
-
-/// Validates a metric name. This is the statsd name, i.e. without type or unit.
-///
-/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-pub fn is_valid_metric_name(name: &str) -> bool {
-    let mut iter = name.as_bytes().iter();
-    if let Some(first_byte) = iter.next() {
-        if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
-        }
-    }
-    false
 }
 
 /// The namespace of a metric.

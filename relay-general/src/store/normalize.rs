@@ -7,7 +7,7 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
+use relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -19,9 +19,7 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{
-    ClockDriftProcessor, GeoIpLookup, MeasurementNameConfig, StoreConfig, TransactionNameConfig,
-};
+use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Remark, RemarkType, Value,
@@ -266,6 +264,8 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
+    max_name_len: Option<usize>,
+    fixed_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -275,8 +275,22 @@ fn remove_invalid_measurements(
             Some(m) => m,
             None => return false,
         };
+
+        if !is_valid_metric_name(name) {
+            return false;
+        }
+
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
+
+        if let (Some(fixed_len), Some(max_len)) = (fixed_len, max_name_len) {
+            let unit_len = unit.to_string().len();
+            let name_len = name.len();
+
+            if (name_len + unit_len + fixed_len) > max_len {
+                return false;
+            }
+        }
 
         // Check if this is a builtin measurement:
         for builtin_measurement in &measurements_config.builtin_measurements {
@@ -362,14 +376,25 @@ fn normalize_units(measurements: &mut Measurements) {
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(event: &mut Event, measurements_config: Option<&MeasurementsConfig>) {
+fn normalize_measurements(
+    event: &mut Event,
+    measurements_config: Option<&MeasurementsConfig>,
+    max_len: Option<usize>,
+    fixed_len: Option<usize>,
+) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config);
+            remove_invalid_measurements(
+                measurements,
+                meta,
+                measurements_config,
+                max_len,
+                fixed_len,
+            );
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -718,13 +743,8 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config,
-            MeasurementNameConfig {
-                max_len: config.max_metric_name_length,
-                fixed_length: config.fixed_metric_name_length,
-            },
-        );
+        let mut transactions_processor =
+            transactions::TransactionsProcessor::new(config.transaction_name_config);
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
@@ -778,7 +798,12 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(event, config.measurements_config); // Measurements are part of the metric extraction
+        normalize_measurements(
+            event,
+            config.measurements_config,
+            config.max_metric_name_length,
+            config.fixed_metric_name_length,
+        ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())
@@ -2420,7 +2445,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None);
+        normalize_measurements(&mut event, None, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2489,7 +2514,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, Some(&config));
+        normalize_measurements(&mut event, Some(&config), None, None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
