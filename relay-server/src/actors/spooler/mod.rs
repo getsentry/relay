@@ -301,7 +301,7 @@ impl OnDisk {
     /// Extracts the envelope from the `SqliteRow`.
     ///
     /// Reads the bytes and tries to perse them into `Envelope`.
-    fn extract_envelope(
+    async fn extract_envelope(
         &self,
         row: SqliteRow,
         services: &Services,
@@ -317,11 +317,14 @@ impl OnDisk {
 
         envelope.set_start_time(start_time.into_inner());
 
-        let managed_envelope = self.buffer_guard.try_enter(
-            envelope,
-            services.outcome_aggregator.clone(),
-            services.test_store.clone(),
-        )?;
+        let managed_envelope = self
+            .buffer_guard
+            .enter(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+            )
+            .await?;
         Ok(managed_envelope)
     }
 
@@ -367,7 +370,7 @@ impl OnDisk {
                     }
                 };
 
-                match self.extract_envelope(envelope, services) {
+                match self.extract_envelope(envelope, services).await {
                     Ok(managed_envelope) => {
                         sender.send(managed_envelope).ok();
                     }

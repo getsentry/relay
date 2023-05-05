@@ -55,7 +55,7 @@ impl BufferGuard {
     ///
     /// Returns `Ok(ManagedEnvelope)` on success, which internally holds a handle to the reserved
     /// resources. When the managed envelope is dropped, the slot is automatically reclaimed and can
-    /// be reused by a subsequent call to `enter`.
+    /// be reused by a subsequent call to `enter` or `try_enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
     pub fn try_enter(
@@ -68,6 +68,42 @@ impl BufferGuard {
             .inner
             .clone()
             .try_acquire_owned()
+            .map_err(|_| BufferError)?;
+
+        relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
+
+        relay_statsd::metric!(
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
+                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
+                queue_size_pct.floor() as u64
+            }
+        );
+
+        Ok(ManagedEnvelope::new(
+            envelope,
+            permit,
+            outcome_aggregator,
+            test_store,
+        ))
+    }
+
+    /// Reserves resources for processing an envelope in Relay.
+    ///
+    /// Returns `Ok(ManagedEnvelope)` when a permit becomes available, When the managed envelope is dropped, the slot is automatically reclaimed and can
+    /// be reused by a subsequent call to `enter`.
+    ///
+    /// Returns `Err` if the underlying semaphore has been closed.
+    pub async fn enter(
+        &self,
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Result<ManagedEnvelope, BufferError> {
+        let permit = self
+            .inner
+            .clone()
+            .acquire_owned()
+            .await
             .map_err(|_| BufferError)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
