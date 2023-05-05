@@ -994,7 +994,7 @@ mod tests {
         drop(res); // Drop envelope, frees the permit.
 
         // Simulate a new envelope coming in via a web request:
-        let new_envelope = buffer_guard.enter(
+        let new_envelope = buffer_guard.try_enter(
             empty_envelope(),
             services.outcome_aggregator,
             services.test_store,
@@ -1017,9 +1017,9 @@ mod tests {
         assert!(rx.try_recv().is_err());
 
         // Freeing one permit flushes the envelope:
-        dbg!(buffer_guard.available());
+        assert_eq!(buffer_guard.available(), 0);
         drop(new_envelope);
-        dbg!(buffer_guard.available());
+        assert_eq!(buffer_guard.available(), 1);
         assert!(rx.try_recv().is_ok());
     }
 

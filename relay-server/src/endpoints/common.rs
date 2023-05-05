@@ -284,7 +284,7 @@ fn queue_envelope(
         relay_log::trace!("queueing separate envelope for non-event items");
 
         // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard.enter(
+        let event_context = buffer_guard.try_enter(
             event_envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
@@ -325,7 +325,7 @@ pub async fn handle_envelope(
 ) -> Result<Option<EventId>, BadStoreRequest> {
     let buffer_guard = state.buffer_guard();
     let mut managed_envelope = buffer_guard
-        .enter(
+        .try_enter(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),

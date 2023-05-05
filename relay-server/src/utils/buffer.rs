@@ -1,12 +1,14 @@
 use std::fmt;
+use std::sync::Arc;
 
 use relay_system::Addr;
+use tokio::sync::Semaphore;
 
 use crate::actors::outcome::TrackOutcome;
 use crate::actors::test_store::TestStore;
 use crate::envelope::Envelope;
 use crate::statsd::RelayHistograms;
-use crate::utils::{ManagedEnvelope, Semaphore};
+use crate::utils::ManagedEnvelope;
 
 /// An error returned by [`BufferGuard::enter`] indicating that the buffer capacity has been
 /// exceeded.
@@ -28,20 +30,20 @@ impl std::error::Error for BufferError {}
 /// into the processing pipeline, use [`BufferGuard::enter`].
 #[derive(Debug)]
 pub struct BufferGuard {
-    inner: Semaphore,
+    inner: Arc<tokio::sync::Semaphore>,
     capacity: usize,
 }
 
 impl BufferGuard {
     /// Creates a new `BufferGuard` based on config values.
     pub fn new(capacity: usize) -> Self {
-        let inner = Semaphore::new(capacity);
+        let inner = Semaphore::new(capacity).into();
         Self { inner, capacity }
     }
 
     /// Returns the unused capacity of the pipeline.
     pub fn available(&self) -> usize {
-        self.inner.available()
+        self.inner.available_permits()
     }
 
     /// Returns the number of envelopes in the pipeline.
@@ -62,7 +64,7 @@ impl BufferGuard {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Result<ManagedEnvelope, BufferError> {
-        let permit = self.inner.try_acquire().ok_or(BufferError)?;
+        let permit = self.inner.try_acquire_owned().map_err(|_| BufferError)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
 
