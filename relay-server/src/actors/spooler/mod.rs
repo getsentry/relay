@@ -317,7 +317,7 @@ impl OnDisk {
 
         envelope.set_start_time(start_time.into_inner());
 
-        let managed_envelope = self.buffer_guard.enter(
+        let managed_envelope = self.buffer_guard.try_enter(
             envelope,
             services.outcome_aggregator.clone(),
             services.test_store.clone(),

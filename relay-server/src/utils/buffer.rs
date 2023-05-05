@@ -58,13 +58,17 @@ impl BufferGuard {
     /// be reused by a subsequent call to `enter`.
     ///
     /// If the buffer is full, this function returns `Err`.
-    pub fn enter(
+    pub fn try_enter(
         &self,
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Result<ManagedEnvelope, BufferError> {
-        let permit = self.inner.try_acquire_owned().map_err(|_| BufferError)?;
+        let permit = self
+            .inner
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| BufferError)?;
 
         relay_statsd::metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
 
