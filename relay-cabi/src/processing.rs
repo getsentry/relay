@@ -3,7 +3,7 @@
 #![deny(unused_must_use)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use chrono::Utc;
 use std::cmp::Ordering;
 use std::ffi::CStr;
@@ -11,7 +11,7 @@ use std::os::raw::c_char;
 use std::slice;
 
 use once_cell::sync::OnceCell;
-use relay_common::{codeowners_match_bytes, glob_match_bytes, EventType, GlobOptions};
+use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
@@ -27,7 +27,7 @@ use relay_sampling::{
     merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
     SamplingRule,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -364,7 +364,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
     let match_result = if let Ok(dsc) = dsc {
-        SamplingMatch::match_against_rules(rules.iter(), &event, Some(&dsc), None, Utc::now())
+        SamplingMatch::match_against_rules(rules.iter(), event, Some(&dsc), None, Utc::now())
     } else {
         None
     };
