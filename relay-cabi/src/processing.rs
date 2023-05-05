@@ -328,21 +328,6 @@ pub unsafe extern "C" fn relay_validate_project_config(
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct EphemeralEvent {
-    transaction: String,
-}
-
-impl EphemeralEvent {
-    fn to_event(&self) -> Event {
-        Event {
-            transaction: Annotated::new(self.transaction.clone()),
-            ty: Annotated::new(EventType::Transaction),
-            ..Default::default()
-        }
-    }
-}
-
 #[derive(Debug, Serialize)]
 struct EphemeralSamplingResult {
     merged_sampling_configs: Vec<SamplingRule>,
