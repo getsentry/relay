@@ -290,7 +290,26 @@ impl ManagedEnvelope {
         let handling = Handling::from_outcome(&outcome);
         match handling {
             Handling::Success => relay_log::debug!("dropped envelope: {}", outcome),
-            Handling::Failure => relay_log::error!("dropped envelope: {}", outcome),
+            Handling::Failure => {
+                let summary = &self.context.summary;
+                relay_log::with_scope(
+                    |scope| {
+                        scope.set_tag("event_category", format!("{:?}", summary.event_category));
+                        scope.set_tag("has_attachments", summary.attachment_quantity > 0);
+                        scope.set_tag("has_sessions", summary.session_quantity > 0);
+                        scope.set_tag("has_profiles", summary.profile_quantity > 0);
+                        scope.set_tag("has_replays", summary.replay_quantity > 0);
+                        scope.set_tag("has_checkins", summary.checkin_quantity > 0);
+                        scope.set_tag("event_category", format!("{:?}", summary.event_category));
+                        scope.set_extra("cached_summary", format!("{:?}", summary).into());
+                        scope.set_extra(
+                            "recomputed_summary",
+                            format!("{:?}", EnvelopeSummary::compute(self.envelope())).into(),
+                        );
+                    },
+                    || relay_log::error!("dropped envelope: {}", outcome),
+                );
+            }
         }
 
         // TODO: This could be optimized with Capture::should_capture
@@ -312,7 +331,7 @@ impl ManagedEnvelope {
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome,
-                if self.context.summary.event_metrics_extracted {
+                if self.context.summary.profile_counted_as_processed {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile

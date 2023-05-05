@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
+use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
-use relay_metrics::{AggregatorConfig, Metric};
+use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
@@ -212,7 +213,8 @@ pub fn extract_transaction_metrics(
     aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
-    event: &Event,
+    extract_spans_metrics: bool,
+    event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
     project_metrics: &mut Vec<Metric>,  // output parameter
@@ -229,6 +231,10 @@ pub fn extract_transaction_metrics(
         project_metrics,
         sampling_metrics,
     )?;
+
+    if extract_spans_metrics {
+        extract_span_metrics(aggregator_config, event, project_metrics)?;
+    }
 
     let added_slice = &mut project_metrics[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
@@ -375,6 +381,168 @@ fn extract_transaction_metrics_inner(
     Ok(())
 }
 
+/// Extracts metrics from the spans of the given transaction, and sets common
+/// tags for all the metrics and spans. If a span already contains a tag
+/// extracted for a metric, the tag value is overwritten.
+fn extract_span_metrics(
+    aggregator_config: &AggregatorConfig,
+    event: &mut Event,
+    metrics: &mut Vec<Metric>, // output parameter
+) -> Result<(), ExtractMetricsError> {
+    // TODO(iker): measure the performance of this whole method
+
+    let Some(spans) = event.spans.value() else { return Ok(())};
+
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return Ok(());
+    }
+    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+        relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        return Err(ExtractMetricsError::MissingTimestamp);
+    };
+
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        relay_log::debug!("event timestamp is not a valid unix timestamp");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    };
+
+    // Validate the transaction event against the metrics timestamp limits. If the metric is too
+    // old or too new, we cannot extract the metric and also need to drop the transaction event
+    // for consistency between metrics and events.
+    if !aggregator_config.timestamp_range().contains(&timestamp) {
+        relay_log::debug!("event timestamp is out of the valid range for metrics");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    // Collect the shared tags for all the metrics and spans on this transaction.
+    let mut shared_tags = BTreeMap::new();
+
+    if let Some(environment) = event.environment.as_str() {
+        shared_tags.insert("environment".to_owned(), environment.to_owned());
+    }
+
+    if let Some(transaction_name) = event.transaction.value() {
+        shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+    }
+
+    if let Some(trace_context) = get_trace_context(event) {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            shared_tags.insert("transaction.op".to_owned(), op);
+        }
+    }
+
+    for annotated_span in spans {
+        if let Some(span) = annotated_span.value() {
+            let mut span_tags = shared_tags.clone();
+
+            if let Some(span_op) = span.op.value() {
+                span_tags.insert("span.op".to_owned(), span_op.to_owned());
+
+                let span_module = if span_op.starts_with("http") {
+                    Some("http")
+                } else if span_op.starts_with("db") {
+                    Some("db")
+                } else if span_op.starts_with("cache") {
+                    Some("cache")
+                } else {
+                    None
+                };
+
+                if let Some(module) = span_module {
+                    span_tags.insert("span.module".to_owned(), module.to_owned());
+                }
+
+                // TODO(iker): we're relying on the existance of `http.method`
+                // or `db.operation`. This is not guaranteed, and we'll need to
+                // parse the span description in that case.
+                let action = match span_module {
+                    Some("http") => span
+                        .data
+                        .value()
+                        // TODO(iker): some SDKs extract this as method
+                        .and_then(|v| v.get("http.method"))
+                        .and_then(|method| method.as_str()),
+                    Some("db") => span
+                        .data
+                        .value()
+                        .and_then(|v| v.get("db.operation"))
+                        .and_then(|db_op| db_op.as_str()),
+                    _ => None,
+                };
+
+                if let Some(act) = action {
+                    span_tags.insert("span.action".to_owned(), act.to_owned());
+                }
+
+                if span_op == "http.client" {
+                    let domain = match span.description.value().and_then(|v| v.split_once(' ')) {
+                        Some((_method, url)) => {
+                            let url = SchemeDomainPort::from(url);
+                            match (url.domain, url.port) {
+                                (Some(domain), Some(port)) => Some(format!("{}:{}", domain, port)),
+                                (Some(domain), None) => Some(domain),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    if let Some(dom) = domain {
+                        span_tags.insert("span.domain".to_owned(), dom.to_owned());
+                    }
+                }
+            }
+
+            let system = span
+                .data
+                .value()
+                .and_then(|v| v.get("db.system"))
+                .and_then(|system| system.as_str());
+            if let Some(sys) = system {
+                span_tags.insert("span.system".to_owned(), sys.to_owned());
+            }
+
+            if let Some(span_status) = span.status.value() {
+                span_tags.insert("span.status".to_owned(), span_status.to_string());
+            }
+
+            if let Some(status_code) = span
+                .data
+                .value()
+                .and_then(|v| v.get("status_code"))
+                .and_then(|sc| sc.as_str())
+            {
+                span_tags.insert("span.status_code".to_owned(), status_code.to_owned());
+            }
+
+            if let Some(user) = event.user.value() {
+                if let Some(value) = get_eventuser_tag(user) {
+                    metrics.push(Metric::new_mri(
+                        MetricNamespace::Transactions,
+                        "span.user",
+                        MetricUnit::None,
+                        MetricValue::set_from_str(&value),
+                        timestamp,
+                        span_tags.clone(),
+                    ));
+                }
+            }
+
+            // The `duration` of a span. This metric also serves as the
+            // counter metric `throughput`.
+            metrics.push(Metric::new_mri(
+                MetricNamespace::Transactions,
+                "span.duration",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
+                timestamp,
+                span_tags.clone(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:
@@ -448,6 +616,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use insta;
     use relay_common::MetricUnit;
     use relay_dynamic_config::TaggingRule;
     use relay_general::protocol::{Contexts, Timestamp, User};
@@ -476,6 +645,7 @@ mod tests {
             "platform": "javascript",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
+            "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",
             "environment": "fake_environment",
@@ -509,6 +679,34 @@ mod tests {
                     "start_timestamp": 1597976393.4619668,
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://targetdomain:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "SELECT column FROM table WHERE id = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
                 }
             ],
             "request": {
@@ -559,7 +757,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            true,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -660,6 +859,102 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.op": "react.mount",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.op": "react.mount",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
         ]
         "###);
     }
@@ -700,7 +995,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -792,7 +1088,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -860,7 +1157,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -871,7 +1168,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -946,7 +1244,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1019,7 +1318,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1056,7 +1355,8 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1106,7 +1406,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1143,7 +1443,8 @@ mod tests {
             &aggregator_config,
             &config,
             &tagging_config,
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1184,7 +1485,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1192,7 +1493,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1223,7 +1525,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1231,7 +1533,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1261,7 +1564,7 @@ mod tests {
 
         let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
 
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(timestamp),
             start_timestamp: Annotated::new(timestamp),
@@ -1279,7 +1582,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1295,7 +1599,7 @@ mod tests {
         let mut config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
-        let event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
@@ -1304,7 +1608,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1332,7 +1637,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1343,7 +1648,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
             &mut metrics,
@@ -1716,7 +2022,8 @@ mod tests {
             &aggregator_config,
             &config,
             &[],
-            event.value().unwrap(),
+            false,
+            event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
             &mut metrics,

@@ -5,10 +5,14 @@
 **Bug Fixes**:
 
 - Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
+- Allow rate limits greater than `u32::MAX`. ([#2079](https://github.com/getsentry/relay/pull/2079))
+- Do not drop envelope when client closes connection. ([#2089](https://github.com/getsentry/relay/pull/2089))
 
 **Features**:
 
 - Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
+- Add support for old 'violated-directive' CSP format. ([#2048](https://github.com/getsentry/relay/pull/2048))
+- Add document_uri to csp filter. ([#2059](https://github.com/getsentry/relay/pull/2059))
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
 
 **Internal**:
@@ -17,10 +21,12 @@
 - Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 - Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
 - Increase chunking limit to 15MB for replay recordings. ([#2032](https://github.com/getsentry/relay/pull/2032))
-- Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051))
+- Add a data category for indexed profiles. ([#2051](https://github.com/getsentry/relay/pull/2051), [#2071](https://github.com/getsentry/relay/pull/2071))
 - Differentiate between `Profile` and `ProfileIndexed` outcomes. ([#2054](https://github.com/getsentry/relay/pull/2054))
 - Split dynamic sampling implementation before refactoring. ([#2047](https://github.com/getsentry/relay/pull/2047))
 - Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
+- Adds support for `replay_id` field for the `DynamicSamplingContext`'s `FieldValueProvider`. ([#2070](https://github.com/getsentry/relay/pull/2070))
+- On Linux, switch to `jemalloc` instead of the system memory allocator to reduce Relay's memory footprint. ([#2084](https://github.com/getsentry/relay/pull/2084))
 
 ## 23.4.0
 
