@@ -100,6 +100,17 @@ struct MonitorConfig {
     timezone: Option<String>,
 }
 
+// XXX(epurkhiser): This is a duplicate of the ClientSdkInfo that is part of the relay-general
+// crate. Until we're able to migrate the checkin payload over to it's own protocol using
+// metastructure we'll need to have this duplicated here
+//
+/// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
+#[derive(Debug, Deserialize, Serialize)]
+struct MinimalClientSdkInfo {
+    pub name: String,
+    pub version: String,
+}
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 struct CheckIn {
@@ -112,6 +123,10 @@ struct CheckIn {
 
     /// Status of this check-in. Defaults to `"unknown"`.
     status: CheckInStatus,
+
+    /// monitor configuration to support upserts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sdk: Option<MinimalClientSdkInfo>,
 
     /// The environment to associate the check-in with
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -176,6 +191,10 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
+  "sdk": {
+    "name": "sentry.rust",
+    "version": "1.0.0"
+  },
   "environment": "production",
   "duration": 21.0
 }"#;
@@ -192,6 +211,10 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
+  "sdk": {
+    "name": "sentry.rust",
+    "version": "1.0.0"
+  },
   "monitor_config": {
     "schedule": {
       "type": "crontab",
@@ -212,6 +235,10 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
+  "sdk": {
+    "name": "sentry.rust",
+    "version": "1.0.0"
+  },
   "monitor_config": {
     "schedule": {
       "type": "interval",
@@ -236,6 +263,10 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
+  "sdk": {
+    "name": "sentry.rust",
+    "version": "1.0.0"
+  },
   "monitor_config": {
     "schedule": {
       "type": "crontab",

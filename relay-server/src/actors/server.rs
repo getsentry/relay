@@ -93,7 +93,7 @@ impl Service for HttpServer {
             .into_make_service_with_connect_info::<SocketAddr>();
 
         let http_config = HttpConfig::new()
-            .http1_half_close(false)
+            .http1_half_close(true)
             .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
             .http1_writev(true)
             .http2_keep_alive_timeout(config.keepalive_timeout())
