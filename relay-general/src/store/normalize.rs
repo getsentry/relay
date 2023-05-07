@@ -717,7 +717,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
-    pub max_name_and_unit_len: Option<usize>,
+    pub max_metric_name_and_unit_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
@@ -797,7 +797,7 @@ pub fn light_normalize_event(
         normalize_measurements(
             event,
             config.measurements_config,
-            config.max_name_and_unit_len,
+            config.max_metric_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 

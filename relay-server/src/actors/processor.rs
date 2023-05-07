@@ -11,7 +11,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use relay_auth::RelayVersion;
 use relay_common::{DurationUnit, MetricUnit, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -69,8 +69,10 @@ use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
 };
-use once_cell::sync::Lazy;
 
+/// The length of a full measurement MRI, minus the name and the unit. This length is the same
+/// for every measurement-mri.
+///
 /// In 'fn process_measurements' we want to check if a measurement name is too long, to do that we
 /// check with a maximum length provided by the config, but that length represents the entire MRI name,
 /// and in process_measurements we only have access to the name part, and the unit part, so here
@@ -2289,8 +2291,8 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
-        let max_name_and_unit_len =
-            self.config.aggregator_config().max_name_length - *FIXED_MEASUREMENT_LEN;
+        let max_metric_name_and_unit_len =
+            Some(self.config.aggregator_config().max_name_length - *FIXED_MEASUREMENT_LEN);
 
         log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
@@ -2302,7 +2304,7 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
-                max_name_and_unit_len: Some(max_name_and_unit_len),
+                max_metric_name_and_unit_len,
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),

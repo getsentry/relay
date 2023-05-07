@@ -4,11 +4,10 @@ use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher as _};
-use relay_common::is_valid_metric_name;
 #[doc(inline)]
 pub use relay_common::{
-    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
-    UnixTimestamp,
+    is_valid_metric_name, CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit,
+    ParseMetricUnitError, UnixTimestamp,
 };
 use serde::{Deserialize, Serialize};
 
