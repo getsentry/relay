@@ -13,7 +13,7 @@ pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &
 
         // XXX(slow): this is a double-for-loop, but we extract like 6 metrics per transaction
         for metric in &mut *metrics {
-            if !rule.target_metrics.contains(&metric.name) {
+            if !rule.target_metrics.contains(&metric.mri) {
                 // this metric should not be updated as part of this rule
                 continue;
             }

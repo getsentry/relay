@@ -27,7 +27,7 @@ impl MetricInput {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
             let mut metric = self.metric.clone();
-            metric.name = metric_name;
+            metric.mri = metric_name;
             let key = ProjectKey::parse(&format!("{:0width$x}", key_id, width = 32)).unwrap();
             rv.push((key, metric));
         }
@@ -58,7 +58,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     };
 
     let counter = Metric {
-        name: "c:transactions/foo@none".to_owned(),
+        mri: "c:transactions/foo@none".to_owned(),
         value: MetricValue::Counter(42.),
         timestamp: UnixTimestamp::now(),
         tags: BTreeMap::new(),

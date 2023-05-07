@@ -457,7 +457,7 @@ pub struct Metric {
     /// [`MetricResourceIdentifier`] and validated for invalid characters as well.
     /// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces
     /// to certain topics.
-    pub name: String,
+    pub mri: String,
     /// The value of the metric.
     ///
     /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
@@ -498,7 +498,7 @@ impl Metric {
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: MetricResourceIdentifier {
+            mri: MetricResourceIdentifier {
                 ty: value.ty(),
                 name: name.as_ref(),
                 namespace,
@@ -606,7 +606,7 @@ pub trait MetricsContainer {
 
 impl MetricsContainer for Metric {
     fn name(&self) -> &str {
-        self.name.as_str()
+        self.mri.as_str()
     }
 
     fn len(&self) -> usize {
@@ -757,7 +757,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.mri).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -766,7 +766,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.mri).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 

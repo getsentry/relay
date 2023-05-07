@@ -569,7 +569,7 @@ impl StoreService {
                 MetricKafkaMessage {
                     org_id,
                     project_id,
-                    name: bucket.name,
+                    name: bucket.mri,
                     value: bucket.value,
                     timestamp: bucket.timestamp,
                     tags: bucket.tags,

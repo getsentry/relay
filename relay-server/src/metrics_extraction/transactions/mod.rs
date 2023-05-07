@@ -1180,7 +1180,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
+        assert_eq!(duration_metric.mri, "d:transactions/duration@millisecond");
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0); // millis
         } else {
@@ -1451,7 +1451,7 @@ mod tests {
             &mut sampling_metrics,
         )
         .unwrap();
-        metrics.retain(|m| m.name.contains("lcp"));
+        metrics.retain(|m| m.mri.contains("lcp"));
 
         assert_eq!(
             metrics,
@@ -1504,7 +1504,7 @@ mod tests {
 
         assert_eq!(metrics.len(), 1, "{metrics:?}");
 
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(metrics[0].mri, "d:transactions/duration@millisecond");
         assert_eq!(
             metrics[0].tags,
             BTreeMap::from([("platform".to_string(), "other".to_string())])
@@ -1544,7 +1544,7 @@ mod tests {
 
         assert_eq!(metrics.len(), 1, "{metrics:?}");
 
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(metrics[0].mri, "d:transactions/duration@millisecond");
         assert_eq!(
             metrics[0].tags,
             BTreeMap::from([
@@ -2031,7 +2031,7 @@ mod tests {
         )
         .unwrap();
 
-        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
+        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.mri).collect();
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
             "d:transactions/measurements.frames_frozen@none",

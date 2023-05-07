@@ -729,7 +729,7 @@ pub struct Bucket {
     /// The MRI (metric resource identifier).
     ///
     /// See [`Metric::name`].
-    pub name: String,
+    pub mri: String,
     /// The type and aggregated values of this bucket.
     ///
     /// See [`Metric::value`] for a mapping to inbound data.
@@ -747,7 +747,7 @@ impl Bucket {
         Self {
             timestamp: key.timestamp,
             width: bucket_interval,
-            name: key.metric_name,
+            mri: key.mri,
             value,
             tags: key.tags,
         }
@@ -829,7 +829,7 @@ impl Bucket {
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
     fn estimated_base_size(&self) -> usize {
-        50 + self.name.len() + tags_cost(&self.tags)
+        50 + self.mri.len() + tags_cost(&self.tags)
     }
 
     /// Estimates the number of bytes needed to serialize the bucket.
@@ -844,7 +844,7 @@ impl Bucket {
 
 impl MetricsContainer for Bucket {
     fn name(&self) -> &str {
-        self.name.as_str()
+        self.mri.as_str()
     }
 
     fn len(&self) -> usize {
@@ -895,7 +895,7 @@ enum AggregateMetricsErrorKind {
 struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: String,
+    mri: String,
     tags: BTreeMap<String, String>,
 }
 
@@ -913,7 +913,7 @@ impl BucketKey {
     /// Note that this does not necessarily match the exact memory footprint of the key,
     /// because data structures have a memory overhead.
     fn cost(&self) -> usize {
-        mem::size_of::<Self>() + self.metric_name.capacity() + tags_cost(&self.tags)
+        mem::size_of::<Self>() + self.mri.capacity() + tags_cost(&self.tags)
     }
 }
 
@@ -1543,14 +1543,14 @@ impl AggregatorService {
         mut key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
-        let metric_name_length = key.metric_name.len();
+        let metric_name_length = key.mri.len();
         if metric_name_length > aggregator_config.max_name_length {
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
                     "bucket.project_key",
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra("bucket.metric_name", key.metric_name.into());
+                scope.set_extra("bucket.metric_name", key.mri.into());
                 scope.set_extra(
                     "bucket.metric_name.length",
                     metric_name_length.to_string().into(),
@@ -1569,7 +1569,7 @@ impl AggregatorService {
                     "bucket.project_key",
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra("bucket.metric_name", key.metric_name.into());
+                scope.set_extra("bucket.metric_name", key.mri.into());
             });
             return Err(err);
         }
@@ -1578,10 +1578,10 @@ impl AggregatorService {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+        key.mri = match MetricResourceIdentifier::parse(&key.mri) {
             Ok(mri) => {
                 if matches!(mri.namespace, MetricNamespace::Unsupported) {
-                    relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
+                    relay_log::debug!("invalid metric namespace {:?}", key.mri);
                     return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
                 }
 
@@ -1591,7 +1591,7 @@ impl AggregatorService {
                 metric_name
             }
             Err(_) => {
-                relay_log::debug!("invalid metric name {:?}", key.metric_name);
+                relay_log::debug!("invalid metric name {:?}", key.mri);
                 return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
             }
         };
@@ -1693,7 +1693,7 @@ impl AggregatorService {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    metric_name = metric_name_tag(&entry.key().mri),
                 );
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
@@ -1704,11 +1704,11 @@ impl AggregatorService {
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    metric_name = metric_name_tag(&entry.key().mri),
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    metric_name = metric_name_tag(&entry.key().mri),
                 );
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
@@ -1738,7 +1738,7 @@ impl AggregatorService {
         let key = BucketKey {
             project_key,
             timestamp: self.config.get_bucket_timestamp(metric.timestamp, 0)?,
-            metric_name: metric.name,
+            mri: metric.mri,
             tags: metric.tags,
         };
         self.merge_in(key, metric.value)
@@ -1757,7 +1757,7 @@ impl AggregatorService {
             timestamp: self
                 .config
                 .get_bucket_timestamp(bucket.timestamp, bucket.width)?,
-            metric_name: bucket.name,
+            mri: bucket.mri,
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -2088,7 +2088,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "c:transactions/foo".to_owned(),
+            mri: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2420,7 +2420,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: name,
+            mri: name,
             tags: BTreeMap::from([
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
@@ -2624,7 +2624,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let metric = Metric {
-            name: "c:transactions/foo@none".to_owned(),
+            mri: "c:transactions/foo@none".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2632,7 +2632,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/foo@none".to_owned(),
+            mri: "c:transactions/foo@none".to_owned(),
             tags: BTreeMap::new(),
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
@@ -2670,7 +2670,7 @@ mod tests {
         ] {
             let mut metric = metric.clone();
             metric.value = metric_value;
-            metric.name = metric_name.to_string();
+            metric.mri = metric_name.to_string();
 
             let current_cost = aggregator.cost_tracker.total_cost;
             aggregator.insert(project_key, metric).unwrap();
@@ -2910,7 +2910,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/hergus.bergus".to_owned(),
+            mri: "c:transactions/hergus.bergus".to_owned(),
             tags: {
                 let mut tags = BTreeMap::new();
                 // There are some SDKs which mess up content encodings, and interpret the raw bytes
@@ -2945,7 +2945,7 @@ mod tests {
         );
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
-        bucket_key.metric_name = "hergus\0bergus".to_owned();
+        bucket_key.mri = "hergus\0bergus".to_owned();
         AggregatorService::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
     }
 
@@ -2958,7 +2958,7 @@ mod tests {
         let short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric".to_owned(),
+            mri: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::new(),
         };
         assert!(AggregatorService::validate_bucket_key(short_metric, &aggregator_config).is_ok());
@@ -2966,7 +2966,7 @@ mod tests {
         let long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            mri: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             tags: BTreeMap::new(),
         };
         let validation = AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
@@ -2979,7 +2979,7 @@ mod tests {
         let short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
+            mri: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
         let validation =
@@ -2990,7 +2990,7 @@ mod tests {
         let short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
+            mri: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
         let validation =
@@ -3007,7 +3007,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:transactions/foo".to_owned(),
+            mri: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -3032,7 +3032,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:transactions/foo".to_owned(),
+            mri: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -3057,14 +3057,14 @@ mod tests {
         };
 
         let metric1 = Metric {
-            name: "c:transactions/foo".to_owned(),
+            mri: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
         };
 
         let metric2 = Metric {
-            name: "c:transactions/bar".to_owned(),
+            mri: "c:transactions/bar".to_owned(),
             value: MetricValue::Counter(43.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
