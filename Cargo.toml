@@ -1,5 +1,4 @@
 [workspace]
-exclude = ["tools/document-pii"]
 members = ["relay", "relay-*", "tools/*"]
 default-members = ["relay"]
 

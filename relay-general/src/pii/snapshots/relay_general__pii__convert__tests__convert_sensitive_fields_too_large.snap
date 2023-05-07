@@ -5,26 +5,7 @@ expression: data
 {
   "user": {
     "data": {
-      "1": "[Filtered]"
-    }
-  },
-  "_meta": {
-    "user": {
-      "data": {
-        "1": {
-          "": {
-            "rem": [
-              [
-                "strip-fields",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 4
-          }
-        }
-      }
+      "1": "test"
     }
   }
 }

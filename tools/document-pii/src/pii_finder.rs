@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::EnumOrStruct;
-
 use anyhow::anyhow;
+use proc_macro2::TokenTree;
 use syn::visit::Visit;
 use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Type};
+
+use crate::EnumOrStruct;
 
 /// The name of a field along with its type. Used for the path to a pii-field.
 #[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
@@ -27,55 +28,63 @@ pub struct PiiFinder<'a> {
     pub pii_types: &'a mut BTreeSet<Vec<TypeAndField>>, // output
 }
 
+/// Finds the full path to the given types by comparing them to the types in the scope.
+fn get_matching_use_paths<'a>(
+    field_types: &'a BTreeSet<String>,
+    local_paths: &'a BTreeSet<String>,
+) -> Vec<&'a String> {
+    local_paths
+        .iter()
+        .filter(|use_path| {
+            let last_use_path = use_path.split("::").last().unwrap().trim();
+            field_types
+                .iter()
+                .any(|field_type| field_type.trim() == last_use_path)
+        })
+        .collect()
+}
+
 impl<'a> PiiFinder<'a> {
     /// Takes a Field and visit the types that it consist of if we have
     /// the full path to it in self.use_statements.
     fn visit_field_types(&mut self, node: &Field) {
         let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
 
-        let mut field_types = vec![];
+        let mut field_types = BTreeSet::new();
         get_field_types(&node.ty, &mut field_types);
 
-        for field_type in &field_types {
-            for use_path in &local_paths {
-                if use_path.split("::").last().unwrap() == field_type.trim() {
-                    let enum_or_struct = { self.all_types.get(use_path).cloned() };
+        let use_paths = get_matching_use_paths(&field_types, &local_paths);
+        for use_path in use_paths {
+            if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
+                // Theses values will be changed when recursing, so we save them here so when we
+                // return to this function after the match statement, we can set them back.
+                let current_type = self.current_type.clone();
+                let module_path = self.module_path.clone();
+                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
 
-                    if let Some(enum_or_struct) = enum_or_struct {
-                        match enum_or_struct {
-                            EnumOrStruct::Enum(itemenum) => {
-                                let current_type = self.current_type.clone();
-                                let module_path = self.module_path.clone();
-                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
-                                self.visit_item_enum(&itemenum.clone());
-                                self.module_path = module_path;
-                                self.current_type = current_type;
-                            }
-                            EnumOrStruct::Struct(itemstruct) => {
-                                let current_type = self.current_type.clone();
-                                let module_path = self.module_path.clone();
-                                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
-                                self.visit_item_struct(&itemstruct.clone());
-                                self.module_path = module_path;
-                                self.current_type = current_type;
-                            }
-                        }
-                    }
+                match enum_or_struct {
+                    EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),
+                    EnumOrStruct::Enum(itemenum) => self.visit_item_enum(&itemenum),
                 }
+
+                self.module_path = module_path;
+                self.current_type = current_type;
             }
         }
+    }
+
+    /// Checks if the type we are on has already been visited, this is to avoid infinite recursion.
+    fn is_current_type_already_visited(&self) -> bool {
+        self.current_path
+            .iter()
+            .any(|ty| ty.qualified_type_name == self.current_type)
     }
 }
 
 impl<'ast> Visit<'ast> for PiiFinder<'_> {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         self.current_type = node.ident.to_string();
-
-        if !self // This should stop any infinite recursion
-            .current_path
-            .iter()
-            .any(|x| x.qualified_type_name == self.current_type)
-        {
+        if !self.is_current_type_already_visited() {
             for field in node.fields.iter() {
                 self.visit_field(field);
             }
@@ -84,11 +93,7 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         self.current_type = node.ident.to_string();
-        if !self
-            .current_path
-            .iter()
-            .any(|x| x.qualified_type_name == self.current_type)
-        {
+        if !self.is_current_type_already_visited() {
             for variant in node.variants.iter() {
                 for field in variant.fields.iter() {
                     self.visit_field(field);
@@ -122,7 +127,7 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
 
 /// if you have a field such as `foo: Foo<Bar<Baz>>` this function can take the type of the field
 /// and return a vector of the types like: ["Foo", "Bar", "Baz"].
-fn get_field_types(ty: &Type, segments: &mut Vec<String>) {
+fn get_field_types(ty: &Type, segments: &mut BTreeSet<String>) {
     match ty {
         Type::Path(type_path) => {
             let mut path_iter = type_path.path.segments.iter();
@@ -146,9 +151,9 @@ fn get_field_types(ty: &Type, segments: &mut Vec<String>) {
                 if let Some(second_segment) = path_iter.next() {
                     ident.push_str("::");
                     ident.push_str(&second_segment.ident.to_string());
-                    segments.push(ident);
+                    segments.insert(ident);
                 } else {
-                    segments.push(ident);
+                    segments.insert(ident);
                 }
             }
         }
@@ -156,111 +161,107 @@ fn get_field_types(ty: &Type, segments: &mut Vec<String>) {
             use quote::ToTokens;
             let mut tokens = proc_macro2::TokenStream::new();
             ty.to_tokens(&mut tokens);
-            segments.push(tokens.to_string());
+            segments.insert(tokens.to_string());
         }
     }
 }
 
 /// Checks if an attribute is equal to a specified name and value.
-fn has_attr_value(attr: &Attribute, name: &str, value: &str) -> bool {
-    if let Meta::List(meta_list) = &attr.meta {
-        if meta_list.path.is_ident("metastructure") {
-            let mut iter = meta_list.tokens.clone().into_iter();
-            while let Some(token) = iter.next() {
-                if let proc_macro2::TokenTree::Ident(ident) = &token {
-                    if ident == name {
-                        if let Some(proc_macro2::TokenTree::Punct(punct)) = iter.next() {
-                            if punct.as_char() == '=' {
-                                if let Some(proc_macro2::TokenTree::Literal(lit_val)) = iter.next()
-                                {
-                                    let mut lit_val = lit_val.to_string();
-                                    lit_val.pop(); // remove superfluous quotes. "\"true\"" -> "true"
-                                    lit_val.remove(0);
-                                    if lit_val == value {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                    };
-                }
-            }
-        }
+fn has_attr_value(attr: &Attribute, ident: &str, name: &str, value: &str) -> bool {
+    let meta_list = match &attr.meta {
+        Meta::List(meta_list) => meta_list,
+        _ => return false,
+    };
+
+    if !meta_list.path.is_ident(ident) {
+        return false;
     }
-    false
+
+    // Looks for the pattern '{name} = "{value}"'
+
+    let mut iter = meta_list.tokens.clone().into_iter();
+
+    if !iter.any(|token| matches!(token, TokenTree::Ident(ident) if ident == name)) {
+        return false;
+    };
+
+    if !iter.any(|token| matches!(token, TokenTree::Punct(punct) if punct.as_char() == '=')) {
+        return false;
+    };
+
+    iter.any(
+        |token| matches!(token, TokenTree::Literal(lit_val) if lit_val.to_string() == format!("\"{value}\"")),
+    )
 }
 
 /// Checks if a field has the metastructure "pii" and if it does, if it is equal to any
 /// of the values that the user defines.
-fn has_pii_value(pii_values: &Vec<String>, field: &Field) -> bool {
-    for attr in &field.attrs {
-        for pii_value in pii_values {
-            if has_attr_value(attr, "pii", pii_value) {
-                return true;
-            }
-        }
-    }
-    false
+fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
+    field.attrs.iter().any(|attribute| {
+        pii_values
+            .iter()
+            .any(|pii_value| has_attr_value(attribute, "metastructure", "pii", pii_value))
+    })
 }
 
-/// Finds all pii-fields of either a single type if provided, or of all the defined types in the
-/// rust project.
-pub fn find_pii_fields(
-    item: Option<&str>,
+/// Finds all the pii fields recursively of a given type.
+pub fn find_pii_fields_of_type(
+    path: &str,
+    value: &EnumOrStruct,
+    all_types: &HashMap<String, EnumOrStruct>,
+    use_statements: &BTreeMap<String, BTreeSet<String>>,
+    pii_values: &Vec<String>,
+) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+    // This is where we collect all the pii-fields.
+    let mut pii_types: BTreeSet<Vec<TypeAndField>> = BTreeSet::new();
+
+    // When we recursively dive into the fields of an item, we have to keep track of where we are
+    // at a given time.
+    let mut current_path: Vec<TypeAndField> = vec![];
+
+    // Module path of a type is the full path up to the type itself.
+    // E.g. relay_general::protocol::Event -> relay_general::protocol
+    let module_path = path
+        .rsplit_once("::")
+        .ok_or_else(|| anyhow!("invalid module path: {}", path))?
+        .0
+        .to_owned();
+
+    // Keeps track of all states during recursion.
+    let mut visitor = PiiFinder {
+        module_path,
+        current_type: String::new(),
+        all_types,
+        use_statements,
+        pii_values,
+        pii_types: &mut pii_types,
+        current_path: &mut current_path,
+    };
+
+    match value {
+        EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
+        EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
+    };
+    Ok(pii_types)
+}
+
+/// Finds all the pii fields recursively of all the types in the rust crate/workspace.
+pub fn find_pii_fields_of_all_types(
     all_types: &HashMap<String, EnumOrStruct>,
     use_statements: &BTreeMap<String, BTreeSet<String>>,
     pii_values: &Vec<String>,
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
     let mut pii_types = BTreeSet::new();
-    let mut current_path = vec![];
-    match item {
-        Some(path) => {
-            if let Some(structorenum) = { all_types.get(path).cloned() } {
-                let module_path = path
-                    .rsplit_once("::")
-                    .ok_or_else(|| anyhow!("invalid module path: {}", path))?
-                    .0
-                    .to_owned();
-                let theitem = structorenum;
-                let mut visitor = PiiFinder {
-                    module_path,
-                    current_type: String::new(),
-                    all_types,
-                    use_statements,
-                    pii_values,
-                    pii_types: &mut pii_types,
-                    current_path: &mut current_path,
-                };
-                match theitem {
-                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(&itemstruct),
-                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(&itemenum),
-                };
-            } else {
-                panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
-            }
-        }
-        None => {
-            for (key, value) in all_types.iter() {
-                let module_path = key
-                    .rsplit_once("::")
-                    .ok_or_else(|| anyhow!("invalid module path: {}", key))?
-                    .0
-                    .to_owned();
-                let mut visitor = PiiFinder {
-                    module_path,
-                    current_type: String::new(),
-                    all_types,
-                    use_statements,
-                    pii_values,
-                    pii_types: &mut pii_types,
-                    current_path: &mut current_path,
-                };
-                match value {
-                    EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
-                    EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
-                };
-            }
-        }
+
+    for (path, value) in all_types.iter() {
+        pii_types.extend(find_pii_fields_of_type(
+            path,
+            value,
+            all_types,
+            use_statements,
+            pii_values,
+        )?);
     }
+
     Ok(pii_types)
 }
