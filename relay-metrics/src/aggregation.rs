@@ -1931,7 +1931,7 @@ impl AggregatorService {
         } = msg;
         for metric in metrics {
             if let Err(err) = self.insert(project_key, metric) {
-                relay_log::error!("failed to insert mertrics: {}", LogError(&err));
+                relay_log::error!("failed to insert metrics: {}", LogError(&err));
             }
         }
     }

@@ -34,7 +34,7 @@ impl<'de> Deserialize<'de> for Feature {
                 Feature::SessionReplayRecordingScrubbing
             }
             "organizations:device-class-synthesis" => Feature::DeviceClassSynthesis,
-            "organizations:span-metrics-extraction" => Feature::SpanMetricsExtraction,
+            "projects:span-metrics-extraction" => Feature::SpanMetricsExtraction,
             _ => Feature::Unknown(feature_name.to_string()),
         })
     }
@@ -52,7 +52,7 @@ impl Serialize for Feature {
                 "organizations:session-replay-recording-scrubbing"
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
-            Feature::SpanMetricsExtraction => "organizations:span-metrics-extraction",
+            Feature::SpanMetricsExtraction => "projects:span-metrics-extraction",
             Feature::Unknown(s) => s,
         })
     }
