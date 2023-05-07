@@ -2459,7 +2459,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:transactions/foo@none",
+                    mri: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2504,7 +2504,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:transactions/foo@none",
+                    mri: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2515,7 +2515,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:transactions/foo@none",
+                    mri: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(

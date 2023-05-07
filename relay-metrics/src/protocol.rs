@@ -683,7 +683,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "c:transactions/foo@none",
+            mri: "c:transactions/foo@none",
             value: Counter(
                 42.0,
             ),
@@ -700,7 +700,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "d:transactions/foo@none",
+            mri: "d:transactions/foo@none",
             value: Distribution(
                 17.5,
             ),
@@ -725,7 +725,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "s:transactions/foo@none",
+            mri: "s:transactions/foo@none",
             value: Set(
                 4267882815,
             ),
@@ -742,7 +742,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "g:transactions/foo@none",
+            mri: "g:transactions/foo@none",
             value: Gauge(
                 42.0,
             ),
