@@ -2291,8 +2291,12 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
-        let max_metric_name_and_unit_len =
-            Some(self.config.aggregator_config().max_name_length - *FIXED_MEASUREMENT_LEN);
+        let max_metric_name_and_unit_len = {
+            let max_mri_len = self.config.aggregator_config().max_name_length;
+            // Length of mri without the parts 'name' and 'unit'.
+            let fixed_len = *FIXED_MEASUREMENT_LEN;
+            (max_mri_len > fixed_len).then_some(max_mri_len - fixed_len)
+        };
 
         log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {

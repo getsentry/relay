@@ -283,10 +283,9 @@ fn remove_invalid_measurements(
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
         if let Some(max_name_and_unit_len) = max_name_and_unit_len {
-            let unit_len = unit.to_string().len();
-            let name_len = name.len();
+            let max_name_len = max_name_and_unit_len - unit.to_string().len();
 
-            if (name_len + unit_len) > max_name_and_unit_len {
+            if name.len() > max_name_len {
                 return false;
             }
         }
