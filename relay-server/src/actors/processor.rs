@@ -77,7 +77,7 @@ use crate::utils::{
 /// check with a maximum length provided by the config, but that length represents the entire MRI name,
 /// and in process_measurements we only have access to the name part, and the unit part, so here
 /// we calculate the length of the remainder part. which isn't changing so we only need to do it once.
-static FIXED_MEASUREMENT_LEN: Lazy<usize> = Lazy::new(|| {
+static FIXED_MEASUREMENT_LEN: Lazy<isize> = Lazy::new(|| {
     let name = "foobar".to_string();
     let value = 5.0; // Arbitrary value.
     let unit = MetricUnit::Duration(DurationUnit::default());
@@ -95,7 +95,7 @@ static FIXED_MEASUREMENT_LEN: Lazy<usize> = Lazy::new(|| {
 
     let metric: Metric = measurement.into_metric(UnixTimestamp::now());
 
-    metric.name.len() - unit.to_string().len() - name.len()
+    (metric.name.len() - unit.to_string().len() - name.len()) as isize
 });
 
 /// The minimum clock drift for correction to apply.
@@ -2292,7 +2292,7 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
         let max_metric_name_and_unit_len = {
-            let max_mri_len = self.config.aggregator_config().max_name_length;
+            let max_mri_len = self.config.aggregator_config().max_name_length as isize;
             // Length of mri without the parts 'name' and 'unit'.
             let fixed_len = *FIXED_MEASUREMENT_LEN;
             (max_mri_len > fixed_len).then_some(max_mri_len - fixed_len)

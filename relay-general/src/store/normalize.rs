@@ -264,7 +264,7 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
-    max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: Option<isize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -283,9 +283,9 @@ fn remove_invalid_measurements(
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
         if let Some(max_name_and_unit_len) = max_name_and_unit_len {
-            let max_name_len = max_name_and_unit_len - unit.to_string().len();
+            let max_name_len = max_name_and_unit_len - unit.to_string().len() as isize;
 
-            if name.len() > max_name_len {
+            if name.len() as isize > max_name_len {
                 return false;
             }
         }
@@ -377,7 +377,7 @@ fn normalize_units(measurements: &mut Measurements) {
 fn normalize_measurements(
     event: &mut Event,
     measurements_config: Option<&MeasurementsConfig>,
-    max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: Option<isize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
@@ -716,7 +716,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
-    pub max_metric_name_and_unit_len: Option<usize>,
+    pub max_metric_name_and_unit_len: Option<isize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
