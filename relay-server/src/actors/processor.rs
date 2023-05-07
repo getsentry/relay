@@ -2293,9 +2293,7 @@ impl EnvelopeProcessorService {
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
         let max_metric_name_and_unit_len = {
             let max_mri_len = self.config.aggregator_config().max_name_length as isize;
-            // Length of mri without the parts 'name' and 'unit'.
-            let fixed_len = *FIXED_MEASUREMENT_LEN;
-            Some(max_mri_len - fixed_len)
+            Some(max_mri_len - *FIXED_MEASUREMENT_LEN)
         };
 
         log_transaction_name_metrics(&mut state.event, |event| {
