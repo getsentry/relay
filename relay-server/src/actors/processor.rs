@@ -2295,7 +2295,7 @@ impl EnvelopeProcessorService {
             let max_mri_len = self.config.aggregator_config().max_name_length as isize;
             // Length of mri without the parts 'name' and 'unit'.
             let fixed_len = *FIXED_MEASUREMENT_LEN;
-            (max_mri_len > fixed_len).then_some(max_mri_len - fixed_len)
+            Some(max_mri_len - fixed_len)
         };
 
         log_transaction_name_metrics(&mut state.event, |event| {
