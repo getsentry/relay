@@ -264,8 +264,7 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
-    max_name_len: Option<usize>,
-    fixed_len: Option<usize>,
+    max_name_and_unit_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -283,11 +282,11 @@ fn remove_invalid_measurements(
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
-        if let (Some(fixed_len), Some(max_len)) = (fixed_len, max_name_len) {
+        if let Some(max_name_and_unit_len) = max_name_and_unit_len {
             let unit_len = unit.to_string().len();
             let name_len = name.len();
 
-            if (name_len + unit_len + fixed_len) > max_len {
+            if (name_len + unit_len) > max_name_and_unit_len {
                 return false;
             }
         }
@@ -379,8 +378,7 @@ fn normalize_units(measurements: &mut Measurements) {
 fn normalize_measurements(
     event: &mut Event,
     measurements_config: Option<&MeasurementsConfig>,
-    max_len: Option<usize>,
-    fixed_len: Option<usize>,
+    max_name_and_unit_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
@@ -392,8 +390,7 @@ fn normalize_measurements(
                 measurements,
                 meta,
                 measurements_config,
-                max_len,
-                fixed_len,
+                max_name_and_unit_len,
             );
         }
 
@@ -720,8 +717,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
-    pub max_metric_name_length: Option<usize>,
-    pub fixed_metric_name_length: Option<usize>,
+    pub max_name_and_unit_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
@@ -801,8 +797,7 @@ pub fn light_normalize_event(
         normalize_measurements(
             event,
             config.measurements_config,
-            config.max_metric_name_length,
-            config.fixed_metric_name_length,
+            config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
@@ -1164,7 +1159,6 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
         tokens.pop();
     }
 }
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -2447,7 +2441,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None, None, None);
+        normalize_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2516,7 +2510,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, Some(&config), None, None);
+        normalize_measurements(&mut event, Some(&config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
@@ -3081,6 +3075,8 @@ mod tests {
     }
 
     fn test_invalid_measurement(name: &str, measurement: Measurement, should_keep: bool) {
+        let max_name_and_unit_len = Some(30);
+
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
         measurements.insert(name.to_string(), Annotated::new(measurement));
 
@@ -3090,8 +3086,6 @@ mod tests {
             max_custom_measurements: 1,
             ..Default::default()
         };
-        let max_name_len = Some(50);
-        let fixed_len = Some(20);
 
         // Checks that there is 1 measurement before processing.
         assert_eq!(measurements.len(), 1);
@@ -3100,8 +3094,7 @@ mod tests {
             &mut measurements,
             &mut meta,
             &measurements_config,
-            max_name_len,
-            fixed_len,
+            max_name_and_unit_len,
         );
 
         // Verifies that this measurement has not been dropped after processing.

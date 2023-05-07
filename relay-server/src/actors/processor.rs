@@ -2289,6 +2289,8 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+        let max_name_and_unit_len =
+            self.config.aggregator_config().max_name_length - *FIXED_MEASUREMENT_LEN;
 
         log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
@@ -2300,8 +2302,7 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
-                max_metric_name_length: Some(self.config.aggregator_config().max_name_length),
-                fixed_metric_name_length: Some(*FIXED_MEASUREMENT_LEN),
+                max_name_and_unit_len: Some(max_name_and_unit_len),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
