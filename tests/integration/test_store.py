@@ -600,7 +600,7 @@ def test_rate_limit_metrics_buckets(
     produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
 
     # Sort buckets to prevent ordering flakiness:
-    produced_buckets.sort(key=lambda b: (b["mri"], b["value"]))
+    produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
     for bucket in produced_buckets:
         del bucket["timestamp"]
 
