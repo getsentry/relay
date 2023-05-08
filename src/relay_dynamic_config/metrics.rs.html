@@ -125,8 +125,6 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -231,8 +229,6 @@
 </span><span class="kw">pub struct </span>TransactionMetricsConfig {
     <span class="doccomment">/// The required version to extract transaction metrics.
     </span><span class="kw">pub </span>version: u16,
-    <span class="doccomment">/// Deprecated. Still here to be forwarded to external relays.
-    </span><span class="kw">pub </span>extract_metrics: BTreeSet&lt;String&gt;,
     <span class="doccomment">/// Custom event tags that are transferred from the transaction to metrics.
     </span><span class="kw">pub </span>extract_custom_tags: BTreeSet&lt;String&gt;,
     <span class="doccomment">/// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
