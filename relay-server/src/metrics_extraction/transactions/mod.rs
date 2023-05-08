@@ -566,7 +566,7 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
             extracted_domain[0], extracted_domain[1], p
         ));
     }
-    return Some(format!("*.{}.{}", extracted_domain[0], extracted_domain[1]));
+    Some(format!("*.{}.{}", extracted_domain[0], extracted_domain[1]))
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
