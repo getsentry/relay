@@ -268,7 +268,7 @@ fn remove_invalid_measurements(
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
-    let mut excessive_measurements = 0;
+    let mut excessive_measurements = false;
 
     measurements.retain(|name, value| {
         let measurement = match value.value_mut() {
@@ -321,13 +321,13 @@ fn remove_invalid_measurements(
         }
 
         // Retain payloads in _meta just for excessive custom measurements.
-        excessive_measurements += 1;
+        excessive_measurements = true;
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
     });
 
-    if excessive_measurements != 0 {
+    if excessive_measurements {
         meta.add_error(Error::invalid("too many measurements"));
     }
 
