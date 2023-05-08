@@ -3532,6 +3532,9 @@
 <a href="#3531" id="3531">3531</a>
 <a href="#3532" id="3532">3532</a>
 <a href="#3533" id="3533">3533</a>
+<a href="#3534" id="3534">3534</a>
+<a href="#3535" id="3535">3535</a>
+<a href="#3536" id="3536">3536</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5813,6 +5816,9 @@
                 device_class_synthesis_config: state
                     .project_state
                     .has_feature(Feature::DeviceClassSynthesis),
+                scrub_span_descriptions: state
+                    .project_state
+                    .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: <span class="bool-val">false</span>,
             };
 
