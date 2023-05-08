@@ -325,7 +325,7 @@ fn remove_invalid_measurements(
         false
     });
 
-    if custom_measurements_count > measurements_config.max_custom_measurements {
+    if custom_measurements_count >= measurements_config.max_custom_measurements {
         meta.add_error(Error::invalid("too many measurements"));
     }
 
