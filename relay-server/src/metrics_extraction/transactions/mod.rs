@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_filter::csp::SchemeDomainPort;
@@ -491,8 +492,7 @@ fn extract_span_metrics(
                         Some((_method, url)) => {
                             let url = SchemeDomainPort::from(url);
                             match (url.domain, url.port) {
-                                (Some(domain), Some(port)) => Some(format!("{}:{}", domain, port)),
-                                (Some(domain), None) => Some(domain),
+                                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
                                 _ => None,
                             }
                         }
@@ -553,6 +553,24 @@ fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+    let mut tokens = domain.rsplitn(3, '.');
+    let tld = tokens.next();
+    let domain = tokens.next();
+    let prefix = tokens.next().map(|_| "*");
+
+    let mut replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(".");
+
+    if let Some(port) = port {
+        replaced = format!("{}:{}", replaced, port);
+    }
+    Some(replaced)
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -693,7 +711,21 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    "description": "POST http://targetdomain:targetport/api/hi",
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain.tld:targetport/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -921,7 +953,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
-                    "span.domain": "targetdomain:targetport",
+                    "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
@@ -939,7 +971,43 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
-                    "span.domain": "targetdomain:targetport",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
