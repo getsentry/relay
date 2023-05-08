@@ -460,22 +460,22 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
         return Ok(());
     }
 
-    // let mut scrubbed: Annotated<Value::String> = span.description.clone();
     let mut scrubbed = span.description.clone();
 
-    // Scrub URLs
-    if scrub_identifiers(&mut scrubbed)? {
-        let Some(new_desc) = scrubbed.value() else {
-            return Ok(());
-        };
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(new_desc.to_owned())),
-            );
+    if let Some(is_url_like) = span.op.value().map(|op| op.starts_with("http")) {
+        if is_url_like && scrub_identifiers(&mut scrubbed)? {
+            let Some(new_desc) = scrubbed.value() else {
+                    return Ok(());
+                };
+            span.data
+                .get_or_insert_with(BTreeMap::new)
+                // We don't care what the cause of scrubbing was, since we assume
+                // that after scrubbing the value is sanitized.
+                .insert(
+                    "description.scrubbed".to_owned(),
+                    Annotated::new(Value::String(new_desc.to_owned())),
+                );
+        }
     }
 
     Ok(())
@@ -2255,7 +2255,8 @@ mod tests {
                         "span_id": "bd2eb23da2beb459",
                         "start_timestamp": 1597976393.4619668,
                         "timestamp": 1597976393.4718769,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "op": "http.client"
                     }}
                 "#,
                     $input
