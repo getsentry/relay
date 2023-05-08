@@ -2316,6 +2316,9 @@ impl EnvelopeProcessorService {
                 device_class_synthesis_config: state
                     .project_state
                     .has_feature(Feature::DeviceClassSynthesis),
+                scrub_span_descriptions: state
+                    .project_state
+                    .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: false,
             };
 

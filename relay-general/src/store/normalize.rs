@@ -737,6 +737,7 @@ pub struct LightNormalizationConfig<'a> {
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
     pub device_class_synthesis_config: bool,
+    pub scrub_span_descriptions: bool,
 }
 
 pub fn light_normalize_event(
@@ -752,8 +753,10 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
-        let mut transactions_processor =
-            transactions::TransactionsProcessor::new(config.transaction_name_config);
+        let mut transactions_processor = transactions::TransactionsProcessor::new(
+            config.transaction_name_config,
+            config.scrub_span_descriptions,
+        );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
