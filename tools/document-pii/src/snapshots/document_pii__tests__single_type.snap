@@ -1,0 +1,12 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    Pii {
+        path: "SubStruct.field2",
+    },
+    Pii {
+        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+    },
+]

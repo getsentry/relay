@@ -103,7 +103,7 @@ impl Cli {
         let rust_file_paths = find_rs_files(&path);
 
         // Before we can iterate over the pii fields properly, we make a mapping between all
-        // paths to types and their AST node.
+        // paths to types and their AST node, and of all modules and the items in their scope.
         let TypesAndUseStatements {
             all_types,
             use_statements,
@@ -112,17 +112,7 @@ impl Cli {
         let pii_types = match self.item.as_deref() {
             // If user provides path to an item, find pii_fields under this item in particular.
             Some(path) => {
-                if let Some(value) = all_types.get(path).cloned() {
-                    find_pii_fields_of_type(
-                        path,
-                        &value,
-                        &all_types,
-                        &use_statements,
-                        &self.pii_values,
-                    )
-                } else {
-                    panic!("Please provide a fully qualified path to a struct or an enum. E.g. 'relay_general::protocol::Event'");
-                }
+                find_pii_fields_of_type(path, &all_types, &use_statements, &self.pii_values)
             }
             // If no item is provided, find pii fields of all types in crate/workspace.
             None => find_pii_fields_of_all_types(&all_types, &use_statements, &self.pii_values),
@@ -197,6 +187,29 @@ mod tests {
     use super::*;
 
     const RUST_TEST_CRATE: &str = "../../tests/test_pii_docs";
+
+    #[test]
+    fn test_single_type() {
+        let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
+
+        let rust_file_paths = find_rs_files(&rust_crate);
+
+        let TypesAndUseStatements {
+            all_types,
+            use_statements,
+        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+
+        let pii_types = find_pii_fields_of_type(
+            "test_pii_docs::SubStruct",
+            &all_types,
+            &use_statements,
+            &vec!["true".to_string()],
+        )
+        .unwrap();
+
+        let output = get_pii_fields_output(pii_types, "".into());
+        insta::assert_debug_snapshot!(output);
+    }
 
     #[test]
     fn test_use_statements() {

@@ -115,10 +115,13 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
                 .unwrap_or_else(|| "{{Unnamed}}".to_string()),
         });
 
+        // Here we make like a 'snapshot' of the current path whenever we encounter a field with the
+        // correct PII-value.
         if has_pii_value(self.pii_values, node) {
             self.pii_types.insert(self.current_path.clone());
         }
 
+        // Recursively diving into the types of the field to look for more PII-fields.
         self.visit_field_types(node);
 
         self.current_path.pop();
@@ -173,6 +176,7 @@ fn has_attr_value(attr: &Attribute, ident: &str, name: &str, value: &str) -> boo
         _ => return false,
     };
 
+    // Checks name of attribute, E.g. 'metastructure'
     if !meta_list.path.is_ident(ident) {
         return false;
     }
@@ -207,11 +211,14 @@ fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
 /// Finds all the pii fields recursively of a given type.
 pub fn find_pii_fields_of_type(
     path: &str,
-    value: &EnumOrStruct,
     all_types: &HashMap<String, EnumOrStruct>,
     use_statements: &BTreeMap<String, BTreeSet<String>>,
     pii_values: &Vec<String>,
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+    let value = all_types
+        .get(path)
+        .ok_or_else(|| anyhow!("Unable to find item with following path: {}", path))?;
+
     // This is where we collect all the pii-fields.
     let mut pii_types: BTreeSet<Vec<TypeAndField>> = BTreeSet::new();
 
@@ -227,7 +234,8 @@ pub fn find_pii_fields_of_type(
         .0
         .to_owned();
 
-    // Keeps track of all states during recursion.
+    // Keeps track of all states during recursion, and implements the 'visitor'-trait responsible
+    // for recursion.
     let mut visitor = PiiFinder {
         module_path,
         current_type: String::new(),
@@ -253,10 +261,9 @@ pub fn find_pii_fields_of_all_types(
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
     let mut pii_types = BTreeSet::new();
 
-    for (path, value) in all_types.iter() {
+    for path in all_types.keys() {
         pii_types.extend(find_pii_fields_of_type(
             path,
-            value,
             all_types,
             use_statements,
             pii_values,
