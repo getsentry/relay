@@ -4873,7 +4873,7 @@
 }
 
 <span class="doccomment">/// Represents a list of rule ids which is used for outcomes.
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 </span><span class="kw">pub struct </span>MatchedRuleIds(<span class="kw">pub </span>Vec&lt;RuleId&gt;);
 
 <span class="kw">impl </span>MatchedRuleIds {
@@ -4930,7 +4930,7 @@
 ///
 /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
 /// rules from the root project and concatenate them.
-</span><span class="kw">fn </span>merge_rules_from_configs&lt;<span class="lifetime">&#39;a</span>&gt;(
+</span><span class="kw">pub fn </span>merge_rules_from_configs&lt;<span class="lifetime">&#39;a</span>&gt;(
     sampling_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingConfig,
     root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingConfig&gt;,
 ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingRule&gt; {
@@ -4992,7 +4992,7 @@
 }
 
 <span class="doccomment">/// Represents the specification for sampling an incoming event.
-</span><span class="attr">#[derive(Clone, Debug, PartialEq)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Serialize)]
 </span><span class="kw">pub struct </span>SamplingMatch {
     <span class="doccomment">/// The sample rate to use for the incoming event.
     </span><span class="kw">pub </span>sample_rate: f64,
