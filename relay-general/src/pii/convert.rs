@@ -32,6 +32,7 @@ static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
         "*.cookies.sudo",      // Sentry default sudo cookie name
         "*.cookies.su",        // Sentry superuser cookie name
         "*.cookies.session",
+        "*.cookies.__session",
         "*.cookies.sessionid",
         "*.cookies.user_session",
         "*.cookies.symfony",
@@ -228,6 +229,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "sudo": "my sudo",   // Sentry default sudo cookie name
         "su": "my su",    // Sentry superuser cookie name
         "session": "my session",
+        "__session": "my __session",
         "sessionid": "my sessionid",
         "user_session": "my user_session",
         "symfony": "my symfony",
