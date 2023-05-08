@@ -322,7 +322,6 @@
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
 <a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -485,7 +484,7 @@
 
 <span class="kw">fn </span>slugify(input: <span class="kw-2">&amp;</span>str) -&gt; String {
     <span class="kw">static </span>SLUG_CLEANER: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;[^a-zA-Z0-9\s_-]&quot;</span>).unwrap());
-    <span class="kw">static </span>SLUGIFIER: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;[\s_\-]+&quot;</span>).unwrap());
+    <span class="kw">static </span>SLUGIFIER: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;[\s\-]+&quot;</span>).unwrap());
 
     <span class="kw">let </span>cleaned = SLUG_CLEANER.replace_all(input, <span class="string">&quot;&quot;</span>);
     <span class="kw">let </span><span class="kw-2">mut </span>slug = SLUGIFIER
@@ -642,8 +641,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>slugify_unicode() {
         <span class="kw">let </span>input = <span class="string">&quot;🚀🚀🚀\tmyComplicated_slug\u{200A}name is here...&quot;</span>;
-
-        <span class="kw">let </span>expected = <span class="string">&quot;mycomplicated-slug-name-is-here&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">&quot;mycomplicated_slug-name-is-here&quot;</span>;
         <span class="macro">assert_eq!</span>(expected, slugify(input));
     }
 }
