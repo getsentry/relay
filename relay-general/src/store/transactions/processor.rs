@@ -21,11 +21,15 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
+    scrub_span_descriptions: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
-        Self { name_config }
+    pub fn new(name_config: TransactionNameConfig<'r>, scrub_span_descriptions: bool) -> Self {
+        Self {
+            name_config,
+            scrub_span_descriptions,
+        }
     }
 
     /// Applies the rule if any found to the transaction name.
@@ -438,7 +442,9 @@ impl Processor for TransactionsProcessor<'_> {
 
         span.op.get_or_insert_with(|| "default".to_owned());
 
-        scrub_span_description(span)?;
+        if self.scrub_span_descriptions {
+            scrub_span_description(span)?;
+        }
 
         span.process_child_values(self, state)?;
 
@@ -1453,7 +1459,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1537,7 +1543,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1571,7 +1577,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1670,9 +1676,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1731,9 +1740,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1826,9 +1838,12 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: rules.as_ref(),
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1892,7 +1907,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1986,7 +2001,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2111,14 +2126,17 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[TransactionNameRule {
-                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
-                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                    scope: RuleScope::default(),
-                    redaction: RedactionRule::default(),
-                }],
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: RuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2154,14 +2172,17 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
-                rules: &[TransactionNameRule {
-                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
-                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                    scope: RuleScope::default(),
-                    redaction: RedactionRule::default(),
-                }],
-            }),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: RuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2192,7 +2213,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2221,7 +2242,7 @@ mod tests {
 
                 process_value(
                     &mut span,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default()),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), true),
                     ProcessingState::root(),
                 )
                 .unwrap();
