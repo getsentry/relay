@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_filter::csp::SchemeDomainPort;
@@ -543,30 +544,21 @@ fn extract_span_metrics(
 }
 
 fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
-    let tokens = domain.split('.').collect::<Vec<&str>>();
-    if tokens.is_empty() {
-        return None;
-    }
+    let mut tokens = domain.rsplitn(3, '.');
+    let tld = tokens.next();
+    let domain = tokens.next();
+    let prefix = tokens.next().map(|_| "*");
 
-    if tokens.len() == 1 {
-        if let Some(p) = port {
-            return Some(format!("{}:{}", tokens[0], p));
-        }
-        return Some(tokens[0].to_owned());
-    }
+    let mut replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(".");
 
-    // sth.subdomain.domain.tld => *.domain.tld
-    // TODO(iker): find a proper way to do
-    // this and consider cloud domains, e.g.
-    // <name>.service.<cloud-region>.<whatever>
-    let extracted_domain: Vec<&&str> = tokens.iter().rev().take(2).rev().collect();
-    if let Some(p) = port {
-        return Some(format!(
-            "*.{}.{}:{}",
-            extracted_domain[0], extracted_domain[1], p
-        ));
+    if let Some(port) = port {
+        replaced = format!("{}:{}", replaced, port);
     }
-    Some(format!("*.{}.{}", extracted_domain[0], extracted_domain[1]))
+    Some(replaced)
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -721,7 +713,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://targetdomain:targetport/api/hi",
+                    "description": "POST http://targetdomain.tld:targetport/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -970,7 +962,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
-                    "span.domain": "targetdomain:targetport",
+                    "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
@@ -988,7 +980,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
-                    "span.domain": "targetdomain:targetport",
+                    "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
