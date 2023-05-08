@@ -606,7 +606,7 @@ def test_rate_limit_metrics_buckets(
 
     assert produced_buckets == [
         {
-            "mri": "d:sessions/duration@second",
+            "name": "d:sessions/duration@second",
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -615,7 +615,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "mri": "d:sessions/session@none",
+            "name": "d:sessions/session@none",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -624,7 +624,7 @@ def test_rate_limit_metrics_buckets(
             "value": 1.0,
         },
         {
-            "mri": "d:sessions/session@user",
+            "name": "d:sessions/session@user",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -633,7 +633,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1254],
         },
         {
-            "mri": "d:transactions/duration@millisecond",
+            "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -642,7 +642,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 2.0, 3.0],
         },
         {
-            "mri": "d:transactions/duration@millisecond",
+            "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -651,7 +651,7 @@ def test_rate_limit_metrics_buckets(
             "value": violating_bucket,
         },
         {
-            "mri": "d:transactions/measurements.lcp@millisecond",
+            "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -660,7 +660,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "mri": "d:transactions/measurements.lcp@millisecond",
+            "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
