@@ -479,7 +479,23 @@ fn extract_span_metrics(
                         Some((_method, url)) => {
                             let url = SchemeDomainPort::from(url);
                             match (url.domain, url.port) {
-                                (Some(domain), Some(port)) => Some(format!("{}:{}", domain, port)),
+                                (Some(domain), Some(port)) => {
+                                    let tokens = domain.split('.').collect::<Vec<&str>>();
+                                    if tokens.len() > 2 {
+                                        // sth.subdomain.domain.tld => *.domain.tld
+                                        // TODO(iker): find a proper way to do
+                                        // this and consider cloud domains, e.g.
+                                        // <name>.service.<cloud-region>.<whatever>
+                                        let extracted_domain: Vec<&&str> =
+                                            tokens.iter().rev().take(2).rev().collect();
+                                        Some(format!(
+                                            "*.{}.{}:{}",
+                                            extracted_domain[0], extracted_domain[1], port
+                                        ))
+                                    } else {
+                                        Some(format!("{}:{}", domain, port))
+                                    }
+                                }
                                 (Some(domain), None) => Some(domain),
                                 _ => None,
                             }
@@ -679,6 +695,20 @@ mod tests {
                     "start_timestamp": 1597976393.4619668,
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
                 },
                 {
                     "description": "POST http://targetdomain:targetport/api/hi",
@@ -881,6 +911,42 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
