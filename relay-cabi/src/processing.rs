@@ -3,13 +3,13 @@
 #![deny(unused_must_use)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use anyhow::Context;
-use chrono::Utc;
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
+use anyhow::Context;
+use chrono::Utc;
 use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
