@@ -479,24 +479,7 @@ fn extract_span_metrics(
                         Some((_method, url)) => {
                             let url = SchemeDomainPort::from(url);
                             match (url.domain, url.port) {
-                                (Some(domain), Some(port)) => {
-                                    let tokens = domain.split('.').collect::<Vec<&str>>();
-                                    if tokens.len() > 2 {
-                                        // sth.subdomain.domain.tld => *.domain.tld
-                                        // TODO(iker): find a proper way to do
-                                        // this and consider cloud domains, e.g.
-                                        // <name>.service.<cloud-region>.<whatever>
-                                        let extracted_domain: Vec<&&str> =
-                                            tokens.iter().rev().take(2).rev().collect();
-                                        Some(format!(
-                                            "*.{}.{}:{}",
-                                            extracted_domain[0], extracted_domain[1], port
-                                        ))
-                                    } else {
-                                        Some(format!("{}:{}", domain, port))
-                                    }
-                                }
-                                (Some(domain), None) => Some(domain),
+                                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
                                 _ => None,
                             }
                         }
@@ -557,6 +540,33 @@ fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+    let tokens = domain.split('.').collect::<Vec<&str>>();
+    if tokens.is_empty() {
+        return None;
+    }
+
+    if tokens.len() == 1 {
+        if let Some(p) = port {
+            return Some(format!("{}:{}", tokens[0], p));
+        }
+        return Some(tokens[0].to_owned());
+    }
+
+    // sth.subdomain.domain.tld => *.domain.tld
+    // TODO(iker): find a proper way to do
+    // this and consider cloud domains, e.g.
+    // <name>.service.<cloud-region>.<whatever>
+    let extracted_domain: Vec<&&str> = tokens.iter().rev().take(2).rev().collect();
+    if let Some(p) = port {
+        return Some(format!(
+            "*.{}.{}:{}",
+            extracted_domain[0], extracted_domain[1], p
+        ));
+    }
+    return Some(format!("*.{}.{}", extracted_domain[0], extracted_domain[1]));
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
