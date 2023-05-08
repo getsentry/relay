@@ -8,7 +8,9 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::types::{
+    Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
+};
 
 /// Configuration around removing high-cardinality parts of URL transactions.
 #[derive(Clone, Debug, Default)]
@@ -453,7 +455,30 @@ impl Processor for TransactionsProcessor<'_> {
 }
 
 fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
-    scrub_identifiers(&mut span.description)?; // URLs
+    if span.description.value().is_none() {
+        return Ok(());
+    }
+
+    // let mut scrubbed: Annotated<Value::String> = span.description.clone();
+    let mut scrubbed = span.description.clone();
+
+    // Scrub URLs
+    if scrub_identifiers(&mut scrubbed)? {
+        let Some(new_desc) = scrubbed.value() else {
+            return Ok(());
+        };
+        span.data
+            .value_mut()
+            .as_mut()
+            // We don't care what the cause of scrubbing was, since we assume
+            // that after scrubbing the value is sanitized.
+            .and_then(|data| {
+                data.insert(
+                    "description.scrubbed".to_owned(),
+                    Annotated::new(Value::String(new_desc.to_owned())),
+                )
+            });
+    }
 
     Ok(())
 }

@@ -435,6 +435,18 @@ fn extract_span_metrics(
         if let Some(span) = annotated_span.value() {
             let mut span_tags = shared_tags.clone();
 
+            if let Some(scrubbed_description) = span
+                .data
+                .value()
+                .and_then(|data| data.get("description.scrubbed"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    "span.description".to_owned(),
+                    scrubbed_description.to_owned(),
+                );
+            }
+
             if let Some(span_op) = span.op.value() {
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
@@ -695,6 +707,20 @@ mod tests {
                     }
                 },
                 {
+                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
                     "description": "SELECT column FROM table WHERE id = %s",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
@@ -746,6 +772,7 @@ mod tests {
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
+                scrub_span_descriptions: true,
                 ..Default::default()
             },
         );
@@ -912,6 +939,44 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
