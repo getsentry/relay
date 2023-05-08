@@ -268,14 +268,20 @@ fn remove_invalid_measurements(
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
+    let mut excessive_measurements = 0;
 
     measurements.retain(|name, value| {
-        let measurement = match value.value() {
+        let measurement = match value.value_mut() {
             Some(m) => m,
             None => return false,
         };
 
         if !is_valid_metric_name(name) {
+            meta.add_error(Error::invalid(format!(
+                "Metric name contains invalid characters: \"{}\"",
+                name
+            )));
+            removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
             return false;
         }
 
@@ -286,6 +292,14 @@ fn remove_invalid_measurements(
             let max_name_len = max_name_and_unit_len - unit.to_string().len() as isize;
 
             if name.len() as isize > max_name_len {
+                meta.add_error(Error::invalid(format!(
+                    "Metric name too long {}/{}: \"{}\"",
+                    name.len(),
+                    max_name_len,
+                    name
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
                 return false;
             }
         }
@@ -307,15 +321,17 @@ fn remove_invalid_measurements(
         }
 
         // Retain payloads in _meta just for excessive custom measurements.
-        if let Some(measurement) = value.value_mut().take() {
-            removed_measurements.insert(name.clone(), Annotated::new(measurement));
-        }
+        excessive_measurements += 1;
+        removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
     });
 
-    if !removed_measurements.is_empty() {
+    if excessive_measurements != 0 {
         meta.add_error(Error::invalid("too many measurements"));
+    }
+
+    if !removed_measurements.is_empty() {
         meta.set_original_value(Some(removed_measurements));
     }
 }
