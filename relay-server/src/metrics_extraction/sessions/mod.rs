@@ -473,7 +473,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     135.0,
                 ),
@@ -486,7 +486,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     12.0,
                 ),
@@ -499,7 +499,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     5.0,
                 ),
@@ -512,7 +512,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     7.0,
                 ),
@@ -525,7 +525,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     15.0,
                 ),
@@ -538,7 +538,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@none",
+                mri: "c:sessions/session@none",
                 value: Counter(
                     3.0,
                 ),
@@ -551,7 +551,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:sessions/user@none",
+                mri: "s:sessions/user@none",
                 value: Set(
                     3097475539,
                 ),

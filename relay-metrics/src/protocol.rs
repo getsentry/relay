@@ -581,7 +581,7 @@ impl Metric {
     ///
     /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
     ///     let metric = metric_result.expect("metric should parse");
-    ///     println!("Metric {}: {}", metric.name, metric.value);
+    ///     println!("Metric {}: {}", metric.mri, metric.value);
     /// }
     /// ```
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
@@ -810,7 +810,7 @@ mod tests {
     #[test]
     fn test_serde_json() {
         let json = r#"{
-  "name": "foo",
+  "mri": "foo",
   "type": "c",
   "value": 42.0,
   "timestamp": 4711,
@@ -823,7 +823,7 @@ mod tests {
         let metric = serde_json::from_str::<Metric>(json).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            mri: "foo",
             value: Counter(
                 42.0,
             ),
@@ -843,7 +843,7 @@ mod tests {
     fn test_serde_json_defaults() {
         // NB: timestamp is required in JSON as opposed to the text representation
         let json = r#"{
-            "name": "foo",
+            "mri": "foo",
             "value": 42,
             "type": "c",
             "timestamp": 4711
@@ -852,7 +852,7 @@ mod tests {
         let metric = serde_json::from_str::<Metric>(json).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            mri: "foo",
             value: Counter(
                 42.0,
             ),

@@ -2172,7 +2172,7 @@ mod tests {
     fn test_parse_buckets() {
         let json = r#"[
           {
-            "name": "endpoint.response_time",
+            "mri": "endpoint.response_time",
             "unit": "millisecond",
             "value": [36, 49, 57, 68],
             "type": "d",
@@ -2190,7 +2190,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                mri: "endpoint.response_time",
                 value: Distribution(
                     {
                         36.0: 1,
@@ -2211,7 +2211,7 @@ mod tests {
     fn test_parse_bucket_defaults() {
         let json = r#"[
           {
-            "name": "endpoint.hits",
+            "mri": "endpoint.hits",
             "value": 4,
             "type": "c",
             "timestamp": 1615889440,
@@ -2225,7 +2225,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                mri: "endpoint.hits",
                 value: Counter(
                     4.0,
                 ),
@@ -2241,7 +2241,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "endpoint.response_time",
+    "mri": "endpoint.response_time",
     "type": "d",
     "value": [
       36.0,
@@ -2256,7 +2256,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "endpoint.hits",
+    "mri": "endpoint.hits",
     "type": "c",
     "value": 4.0,
     "tags": {
@@ -2266,7 +2266,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "endpoint.parallel_requests",
+    "mri": "endpoint.parallel_requests",
     "type": "g",
     "value": {
       "max": 42.0,
@@ -2279,7 +2279,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "endpoint.users",
+    "mri": "endpoint.users",
     "type": "s",
     "value": [
       3182887624,
@@ -2694,7 +2694,7 @@ mod tests {
     fn test_capped_iter_single() {
         let json = r#"[
           {
-            "name": "endpoint.response_time",
+            "mri": "endpoint.response_time",
             "unit": "millisecond",
             "value": [36, 49, 57, 68],
             "type": "d",
@@ -2719,7 +2719,7 @@ mod tests {
     fn test_capped_iter_split() {
         let json = r#"[
           {
-            "name": "endpoint.response_time",
+            "mri": "endpoint.response_time",
             "unit": "millisecond",
             "value": [1, 1, 1, 1],
             "type": "d",
@@ -3127,7 +3127,7 @@ mod tests {
     fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
         let json = r#"[
           {
-            "name": "endpoint.response_time",
+            "mri": "endpoint.response_time",
             "unit": "millisecond",
             "value": [1, 1, 1, 1],
             "type": "d",

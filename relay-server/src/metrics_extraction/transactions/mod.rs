@@ -769,7 +769,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "d:transactions/measurements.foo@none",
+                mri: "d:transactions/measurements.foo@none",
                 value: Distribution(
                     420.69,
                 ),
@@ -787,7 +787,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
+                mri: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
                     3000.0,
                 ),
@@ -806,7 +806,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                mri: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
                     9.910106,
                 ),
@@ -824,7 +824,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/duration@millisecond",
+                mri: "d:transactions/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -842,7 +842,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/user@none",
+                mri: "s:transactions/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -860,7 +860,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                mri: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
@@ -873,7 +873,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                mri: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -886,7 +886,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                mri: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
@@ -904,7 +904,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                mri: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -922,7 +922,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                mri: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
@@ -939,7 +939,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                mri: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1007,7 +1007,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "d:transactions/measurements.fcp@millisecond",
+                mri: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
                     1.1,
                 ),
@@ -1019,7 +1019,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/measurements.foo@none",
+                mri: "d:transactions/measurements.foo@none",
                 value: Distribution(
                     8.8,
                 ),
@@ -1030,7 +1030,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/measurements.stall_count@none",
+                mri: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
                     3.3,
                 ),
@@ -1041,7 +1041,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/duration@millisecond",
+                mri: "d:transactions/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1100,7 +1100,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "d:transactions/measurements.fcp@second",
+                mri: "d:transactions/measurements.fcp@second",
                 value: Distribution(
                     1.1,
                 ),
@@ -1112,7 +1112,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/measurements.lcp@none",
+                mri: "d:transactions/measurements.lcp@none",
                 value: Distribution(
                     2.2,
                 ),
@@ -1124,7 +1124,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/duration@millisecond",
+                mri: "d:transactions/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1254,53 +1254,53 @@ mod tests {
         .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
-            [
-                Metric {
-                    name: "d:transactions/measurements.a_custom1@none",
-                    value: Distribution(
-                        41.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+        [
+            Metric {
+                mri: "d:transactions/measurements.a_custom1@none",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/measurements.fcp@millisecond",
-                    value: Distribution(
-                        0.123,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "measurement_rating": "good",
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                mri: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    0.123,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/measurements.g_custom2@second",
-                    value: Distribution(
-                        42.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                mri: "d:transactions/measurements.g_custom2@second",
+                value: Distribution(
+                    42.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/duration@millisecond",
-                    value: Distribution(
-                        2000.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                mri: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
                 },
-            ]
+            },
+        ]
         "###);
     }
 
@@ -1367,7 +1367,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
+                mri: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
                     41.0,
                 ),
@@ -1378,7 +1378,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/duration@millisecond",
+                mri: "d:transactions/duration@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1660,7 +1660,7 @@ mod tests {
         insta::assert_debug_snapshot!(sampling_metrics, @r###"
         [
             Metric {
-                name: "c:transactions/count_per_root_project@none",
+                mri: "c:transactions/count_per_root_project@none",
                 value: Counter(
                     1.0,
                 ),
