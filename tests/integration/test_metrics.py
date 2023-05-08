@@ -72,7 +72,7 @@ def test_metrics(mini_sentry, relay):
     assert metrics_item.type == "metric_buckets"
 
     received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    received_metrics = sorted(received_metrics, key=lambda x: x["mri"])
     assert received_metrics == [
         {
             "timestamp": timestamp,
@@ -112,7 +112,7 @@ def test_metrics_backdated(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:transactions/foo@none",
+            "mri": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -380,7 +380,7 @@ def test_session_metrics_non_processing(
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "name": "c:sessions/session@none",
+                "mri": "c:sessions/session@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
                     "environment": "production",
@@ -393,7 +393,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "s:sessions/user@none",
+                "mri": "s:sessions/user@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
                     "environment": "production",
@@ -826,14 +826,13 @@ def test_transaction_metrics_extraction_external_relays(
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
         assert len(m_item_body) == 2
         m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
-        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
+        assert m_item_body_sorted[1]["mri"] == "d:transactions/duration@millisecond"
         assert (
             m_item_body_sorted[1]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         assert (
-            m_item_body_sorted[0]["name"]
-            == "c:transactions/count_per_root_project@none"
+            m_item_body_sorted[0]["mri"] == "c:transactions/count_per_root_project@none"
         )
         assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
         assert m_item_body_sorted[0]["value"] == 1.0
