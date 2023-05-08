@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use relay_common::SpanStatus;
 
@@ -468,16 +469,13 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
             return Ok(());
         };
         span.data
-            .value_mut()
-            .as_mut()
+            .get_or_insert_with(BTreeMap::new)
             // We don't care what the cause of scrubbing was, since we assume
             // that after scrubbing the value is sanitized.
-            .and_then(|data| {
-                data.insert(
-                    "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(new_desc.to_owned())),
-                )
-            });
+            .insert(
+                "description.scrubbed".to_owned(),
+                Annotated::new(Value::String(new_desc.to_owned())),
+            );
     }
 
     Ok(())
@@ -2272,7 +2270,23 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!($output, span.value().unwrap().description.value().unwrap());
+                assert_eq!($input, span.value().unwrap().description.value().unwrap());
+                if $output == "" {
+                    assert!(span
+                        .value()
+                        .and_then(|span| span.data.value())
+                        .and_then(|data| data.get("description.scrubbed"))
+                        .is_none());
+                } else {
+                    assert_eq!(
+                        $output,
+                        span.value()
+                            .and_then(|span| span.data.value())
+                            .and_then(|data| data.get("description.scrubbed"))
+                            .and_then(|an_value| an_value.as_str())
+                            .unwrap()
+                    );
+                }
             }
         };
     }
@@ -2282,7 +2296,7 @@ mod tests {
     span_description_test!(
         span_description_scrub_only_domain,
         "GET http://service.io",
-        "GET http://service.io"
+        ""
     );
 
     span_description_test!(
