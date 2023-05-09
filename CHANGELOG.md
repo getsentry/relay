@@ -29,6 +29,7 @@
 - Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
 - Adds support for `replay_id` field for the `DynamicSamplingContext`'s `FieldValueProvider`. ([#2070](https://github.com/getsentry/relay/pull/2070))
 - On Linux, switch to `jemalloc` instead of the system memory allocator to reduce Relay's memory footprint. ([#2084](https://github.com/getsentry/relay/pull/2084))
+- Scrub sensitive cookies `__session`. ([#2105](https://github.com/getsentry/relay/pull/2105)))
 
 ## 23.4.0
 
