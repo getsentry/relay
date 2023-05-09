@@ -283,7 +283,8 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
 
     try:
         mini_sentry.captured_outcomes.get(timeout=0.2)
-        assert False  # we should not be here ( previous call should have failed)
+        # we should not be here ( previous call should have failed)
+        assert False
     except Empty:
         pass  # we do expect not to get anything since we have outcomes disabled
 
@@ -1080,7 +1081,8 @@ def test_profile_outcomes(
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
-        2: "pop-relay",  # outcomes from client reports do not have a correct source (known issue)
+        # outcomes from client reports do not have a correct source (known issue)
+        2: "pop-relay",
     }[num_intermediate_relays]
     expected_outcomes = [
         {
@@ -1188,20 +1190,9 @@ def test_profile_outcomes_invalid(
             "category": 6,  # Profile
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 1,
-            "source": "processing-relay",
-        },
-        {
-            "category": 11,  # ProfileIndexed
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "processing-relay",
         },
     ]
