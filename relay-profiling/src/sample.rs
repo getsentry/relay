@@ -151,6 +151,8 @@ struct SampleProfile {
     event_id: EventId,
     platform: String,
     profile: Profile,
+
+    #[serde(default)]
     release: String,
     timestamp: DateTime<Utc>,
 
