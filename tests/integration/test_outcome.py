@@ -1313,7 +1313,7 @@ def test_profile_outcomes_data_invalid(
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-            "source": "pop-relay",
+            "source": "processing-relay",
         },
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
