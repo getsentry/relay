@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use once_cell::sync::Lazy;
+use regex::Regex;
 use relay_common::SpanStatus;
 
 use super::TransactionNameRule;
@@ -276,16 +278,20 @@ fn set_default_transaction_source(event: &mut Event) {
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
 fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
-        .capture_names()
-        .flatten()
-        .collect::<Vec<_>>();
+    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX)
+}
+
+fn scrub_identifiers_with_regex(
+    string: &mut Annotated<String>,
+    regex: &Lazy<Regex>,
+) -> Result<bool, ProcessingAction> {
+    let capture_names = regex.capture_names().flatten().collect::<Vec<_>>();
 
     let mut did_change = false;
     string.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
-        for captures in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+        for captures in regex.captures_iter(trans) {
             for name in &capture_names {
                 if let Some(capture) = captures.name(name) {
                     let remark = Remark::with_range(
