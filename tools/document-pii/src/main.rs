@@ -118,6 +118,7 @@ impl Cli {
             None => find_pii_fields_of_all_types(&all_types, &use_statements, &self.pii_values),
         }?;
 
+        // Function also takes a string to replace unnamed fields, for now we just remove them.
         let output_vec = get_pii_fields_output(pii_types, "".to_string());
 
         match self.output {

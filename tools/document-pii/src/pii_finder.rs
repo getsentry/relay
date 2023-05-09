@@ -128,9 +128,61 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
     }
 }
 
+/// This function takes a reference to a Type and a mutable reference to a BTreeSet of Strings.
+/// It extracts the names of all the types contained within the provided Type and inserts them into the BTreeSet.
+/// The BTreeSet is used here to automatically sort the type names and remove any duplicates.
+fn get_field_types(ty: &Type, segments: &mut BTreeSet<String>) {
+    match ty {
+        // If the type is a path type, we further process it
+        Type::Path(type_path) => {
+            // Create an iterator over the segments of the type path
+            let mut path_iter = type_path.path.segments.iter();
+
+            // Try to get the first segment of the path
+            let first_segment = path_iter.next();
+
+            if let Some(first_segment) = first_segment {
+                // Convert the identifier of the first segment to a string
+                let mut ident = first_segment.ident.to_string();
+
+                // If the first segment has angle-bracketed arguments, recursively call the function for each of them
+                let args = &first_segment.arguments;
+                if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
+                    for generic_arg in angle_bracketed.args.iter() {
+                        match generic_arg {
+                            syn::GenericArgument::Type(ty) => {
+                                get_field_types(ty, segments);
+                            }
+                            // Ignore other kinds of arguments
+                            _ => continue,
+                        }
+                    }
+                }
+
+                // If there is a second segment in the path, append its identifier to the string
+                if let Some(second_segment) = path_iter.next() {
+                    ident.push_str("::");
+                    ident.push_str(&second_segment.ident.to_string());
+                    segments.insert(ident);
+                } else {
+                    // If there's no second segment, just insert the identifier of the first one
+                    segments.insert(ident);
+                }
+            }
+        }
+        // If the type is not a path type, convert it to a token stream and insert its string representation into the set
+        _ => {
+            use quote::ToTokens;
+            let mut tokens = proc_macro2::TokenStream::new();
+            ty.to_tokens(&mut tokens);
+            segments.insert(tokens.to_string());
+        }
+    }
+}
+
 /// if you have a field such as `foo: Foo<Bar<Baz>>` this function can take the type of the field
 /// and return a vector of the types like: ["Foo", "Bar", "Baz"].
-fn get_field_types(ty: &Type, segments: &mut BTreeSet<String>) {
+fn get_ssfield_types(ty: &Type, segments: &mut BTreeSet<String>) {
     match ty {
         Type::Path(type_path) => {
             let mut path_iter = type_path.path.segments.iter();
