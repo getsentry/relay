@@ -1050,18 +1050,9 @@ impl EnvelopeProcessorService {
                 match relay_profiling::parse_metadata(&item.payload()) {
                     Ok(_) => ItemAction::Keep,
                     Err(err) => {
-                        self.outcome_aggregator.send(TrackOutcome {
-                            timestamp,
-                            scoping,
-                            outcome: Outcome::Invalid(DiscardReason::Profiling(
-                                relay_profiling::discard_reason(err),
-                            )),
-                            event_id: None,
-                            remote_addr: None,
-                            category: DataCategory::Profile,
-                            quantity: 1,
-                        });
-                        ItemAction::DropSilently
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )))
                     }
                 }
             }
