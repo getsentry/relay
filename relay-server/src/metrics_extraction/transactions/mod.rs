@@ -721,7 +721,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id = %s",
+                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -995,6 +995,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (*)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1012,6 +1013,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (*)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
