@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - release-library/**
-      - remove-unsupported-macos-15 # TODO: Remove before merge!
 
 env:
   CARGO_TERM_COLOR: always
