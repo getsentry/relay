@@ -568,6 +568,87 @@ def _get_event_payload(event_type):
         raise Exception("Invalid event type")
 
 
+def _get_profile_payload(metadata_only=True):
+    profile = {
+        "event_id": "41fed0925670468bb0457f61a74688ec",
+        "version": "1",
+        "os": {"name": "iOS", "version": "16.0", "build_number": "19H253"},
+        "device": {
+            "architecture": "arm64e",
+            "is_emulator": False,
+            "locale": "en_US",
+            "manufacturer": "Apple",
+            "model": "iPhone14,3",
+        },
+        "timestamp": "2022-09-01T09:45:00.000Z",
+        "release": "0.1 (199)",
+        "platform": "cocoa",
+        "debug_meta": {
+            "images": [
+                {
+                    "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
+                    "image_addr": "0x000000010258c000",
+                    "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
+                    "type": "macho",
+                    "image_size": 1720320,
+                    "image_vmaddr": "0x0000000100000000",
+                }
+            ]
+        },
+        "transactions": [
+            {
+                "name": "example_ios_movies_sources.MoviesViewController",
+                "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+                "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+                "active_thread_id": "259",
+                "relative_start_ns": "500500",
+                "relative_end_ns": "50500500",
+            }
+        ],
+    }
+    if metadata_only:
+        return profile
+    profile["profile"] = {
+        "samples": [
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "10500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "20500500",
+            },
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "30500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "40500500",
+            },
+        ],
+        "stacks": [[0], [1]],
+        "frames": [
+            {"instruction_addr": "0xa722447ffffffffc"},
+            {"instruction_addr": "0x442e4b81f5031e58"},
+        ],
+        "thread_metadata": {"1": {"priority": 31}, "2": {}},
+        "queue_metadata": {
+            "0x0000000102adc700": {"label": "com.apple.main-thread"},
+            "0x000000016d8fb180": {"label": "com.apple.network.connections"},
+        },
+    }
+    return profile
+
+
 @pytest.mark.parametrize(
     "category,is_outcome_expected", [("session", False), ("transaction", True)]
 )
@@ -1132,13 +1213,13 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_profile_outcomes_invalid(
+def test_profile_outcomes_metadata_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
 ):
     """
-    Tests that Relay reports correct outcomes for invalid profiles as `ProfileIndexed`.
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
 
@@ -1159,7 +1240,7 @@ def test_profile_outcomes_invalid(
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-            "source": "processing-relay",
+            "source": "pop-relay",
         },
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
@@ -1193,6 +1274,96 @@ def test_profile_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+
+def test_profile_outcomes_data_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    """
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(
+                    bytes=json.dumps(_get_profile_payload()), type="profile"
+                )
+            )
+        )
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 6,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+            "source": "processing-relay",
+        },
+        {
+            "category": 11,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
             "source": "processing-relay",
         },
     ]
