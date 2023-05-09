@@ -305,6 +305,14 @@
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>relay_general::protocol::{Addr, EventId};
@@ -378,7 +386,7 @@
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">struct </span>CocoaProfile {
+</span><span class="kw">pub struct </span>ProfileMetadata {
     debug_meta: DebugMeta,
     device_is_emulator: bool,
     device_locale: String,
@@ -393,7 +401,6 @@
 
     platform: String,
     profile_id: EventId,
-    sampled_profile: SampledProfile,
     version_code: String,
     version_name: String,
 
@@ -414,9 +421,16 @@
     </span>transactions: Vec&lt;TransactionMetadata&gt;,
 }
 
+<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">struct </span>CocoaProfile {
+    <span class="attr">#[serde(flatten)]
+    </span>metadata: ProfileMetadata,
+    sampled_profile: SampledProfile,
+}
+
 <span class="kw">impl </span>CocoaProfile {
     <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.duration_ns &gt; <span class="number">0
+        !<span class="self">self</span>.metadata.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.metadata.duration_ns &gt; <span class="number">0
     </span>}
 
     <span class="doccomment">/// Removes a sample when it&#39;s the only sample on its thread
@@ -442,16 +456,16 @@
     <span class="kw">let </span><span class="kw-2">mut </span>profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>transaction_opt = profile.transactions.drain(..).next();
+    <span class="kw">let </span>transaction_opt = profile.metadata.transactions.drain(..).next();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction_opt {
         <span class="kw">if </span>!transaction.valid() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
         }
 
-        profile.duration_ns = transaction.duration_ns();
-        profile.trace_id = transaction.trace_id;
-        profile.transaction_id = transaction.id;
-        profile.transaction_name = transaction.name;
+        profile.metadata.duration_ns = transaction.duration_ns();
+        profile.metadata.trace_id = transaction.trace_id;
+        profile.metadata.transaction_id = transaction.id;
+        profile.metadata.transaction_name = transaction.name;
 
         profile.sampled_profile.samples.retain_mut(|sample| {
             (transaction.relative_start_ns..transaction.relative_end_ns)
@@ -496,29 +510,31 @@
 
     <span class="kw">fn </span>generate_profile() -&gt; CocoaProfile {
         CocoaProfile {
-            debug_meta: DebugMeta { images: Vec::new() },
-            device_is_emulator: <span class="bool-val">true</span>,
-            device_locale: <span class="string">&quot;en_US&quot;</span>.to_string(),
-            device_manufacturer: <span class="string">&quot;Apple&quot;</span>.to_string(),
-            device_model: <span class="string">&quot;iPhome11,3&quot;</span>.to_string(),
-            device_os_build_number: <span class="string">&quot;H3110&quot;</span>.to_string(),
-            device_os_name: <span class="string">&quot;iOS&quot;</span>.to_string(),
-            device_os_version: <span class="string">&quot;16.0&quot;</span>.to_string(),
-            duration_ns: <span class="number">1337</span>,
-            environment: <span class="string">&quot;testing&quot;</span>.to_string(),
-            platform: <span class="string">&quot;cocoa&quot;</span>.to_string(),
-            profile_id: EventId::new(),
+            metadata: ProfileMetadata {
+                debug_meta: DebugMeta { images: Vec::new() },
+                device_is_emulator: <span class="bool-val">true</span>,
+                device_locale: <span class="string">&quot;en_US&quot;</span>.to_string(),
+                device_manufacturer: <span class="string">&quot;Apple&quot;</span>.to_string(),
+                device_model: <span class="string">&quot;iPhome11,3&quot;</span>.to_string(),
+                device_os_build_number: <span class="string">&quot;H3110&quot;</span>.to_string(),
+                device_os_name: <span class="string">&quot;iOS&quot;</span>.to_string(),
+                device_os_version: <span class="string">&quot;16.0&quot;</span>.to_string(),
+                duration_ns: <span class="number">1337</span>,
+                environment: <span class="string">&quot;testing&quot;</span>.to_string(),
+                platform: <span class="string">&quot;cocoa&quot;</span>.to_string(),
+                profile_id: EventId::new(),
+                trace_id: EventId::new(),
+                transaction_id: EventId::new(),
+                transaction_name: <span class="string">&quot;test&quot;</span>.to_string(),
+                transactions: Vec::new(),
+                version_code: <span class="string">&quot;9999&quot;</span>.to_string(),
+                version_name: <span class="string">&quot;1.0&quot;</span>.to_string(),
+            },
             sampled_profile: SampledProfile {
                 thread_metadata: HashMap::new(),
                 samples: Vec::new(),
                 queue_metadata: HashMap::new(),
             },
-            trace_id: EventId::new(),
-            transaction_id: EventId::new(),
-            transaction_name: <span class="string">&quot;test&quot;</span>.to_string(),
-            transactions: Vec::new(),
-            version_code: <span class="string">&quot;9999&quot;</span>.to_string(),
-            version_name: <span class="string">&quot;1.0&quot;</span>.to_string(),
         }
     }
 
@@ -601,14 +617,14 @@
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
         <span class="macro">assert_eq!</span>(
-            profile.transaction_id,
+            profile.metadata.transaction_id,
             <span class="string">&quot;30976f2ddbe04ac9b6bffe6e35d4710c&quot;</span>.parse().unwrap()
         );
-        <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">10</span>);
+        <span class="macro">assert_eq!</span>(profile.metadata.duration_ns, <span class="number">10</span>);
         <span class="macro">assert_eq!</span>(profile.sampled_profile.samples.len(), <span class="number">2</span>);
 
         <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span>profile.sampled_profile.samples {
-            <span class="macro">assert!</span>(sample.relative_timestamp_ns &lt; profile.duration_ns);
+            <span class="macro">assert!</span>(sample.relative_timestamp_ns &lt; profile.metadata.duration_ns);
         }
     }
 }

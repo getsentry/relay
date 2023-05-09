@@ -323,6 +323,12 @@
 <a href="#323" id="323">323</a>
 <a href="#324" id="324">324</a>
 <a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
@@ -337,7 +343,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::ProfileError;
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">struct </span>AndroidProfile {
+</span><span class="kw">pub struct </span>ProfileMetadata {
     android_api_level: u16,
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
@@ -390,12 +396,6 @@
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>transaction: <span class="prelude-ty">Option</span>&lt;TransactionMetadata&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing)]
-    </span>sampled_profile: String,
-
-    <span class="attr">#[serde(default = <span class="string">&quot;AndroidProfile::default&quot;</span>)]
-    </span>profile: AndroidTraceLog,
-
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, Measurement&gt;&gt;,
 
@@ -404,6 +404,18 @@
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
     </span>transaction_tags: BTreeMap&lt;String, String&gt;,
+}
+
+<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">struct </span>AndroidProfile {
+    <span class="attr">#[serde(flatten)]
+    </span>metadata: ProfileMetadata,
+
+    <span class="attr">#[serde(default, skip_serializing)]
+    </span>sampled_profile: String,
+
+    <span class="attr">#[serde(default = <span class="string">&quot;AndroidProfile::default&quot;</span>)]
+    </span>profile: AndroidTraceLog,
 }
 
 <span class="kw">impl </span>AndroidProfile {
@@ -437,7 +449,7 @@
     }
 
     <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.duration_ns &gt; <span class="number">0
+        !<span class="self">self</span>.metadata.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.metadata.duration_ns &gt; <span class="number">0
     </span>}
 
     <span class="doccomment">/// Removes an event with a duration of 0
@@ -465,26 +477,26 @@
     <span class="kw">let </span><span class="kw-2">mut </span>profile: AndroidProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>transaction_opt = profile.transactions.drain(..).next();
+    <span class="kw">let </span>transaction_opt = profile.metadata.transactions.drain(..).next();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction_opt {
         <span class="kw">if </span>!transaction.valid() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
         }
 
         <span class="comment">// this is for compatibility
-        </span>profile.active_thread_id = transaction.active_thread_id;
-        profile.duration_ns = transaction.duration_ns();
-        profile.trace_id = transaction.trace_id;
-        profile.transaction_id = transaction.id;
-        profile.transaction_name = transaction.name.clone();
+        </span>profile.metadata.active_thread_id = transaction.active_thread_id;
+        profile.metadata.duration_ns = transaction.duration_ns();
+        profile.metadata.trace_id = transaction.trace_id;
+        profile.metadata.transaction_id = transaction.id;
+        profile.metadata.transaction_name = transaction.name.clone();
 
-        profile.transaction = <span class="prelude-val">Some</span>(transaction);
+        profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
     } <span class="kw">else if </span>profile.has_transaction_metadata() {
-        profile.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
-            active_thread_id: profile.active_thread_id,
-            id: profile.transaction_id,
-            name: profile.transaction_name.clone(),
-            trace_id: profile.trace_id,
+        profile.metadata.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
+            active_thread_id: profile.metadata.active_thread_id,
+            id: profile.metadata.transaction_id,
+            name: profile.metadata.transaction_name.clone(),
+            trace_id: profile.metadata.trace_id,
             ..Default::default()
         });
     } <span class="kw">else </span>{
@@ -511,23 +523,23 @@
     <span class="kw">let </span><span class="kw-2">mut </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = transaction_metadata.get(<span class="string">&quot;transaction&quot;</span>) {
-        profile.transaction_name = transaction_name.to_owned();
+        profile.metadata.transaction_name = transaction_name.to_owned();
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>transaction) = profile.transaction {
-            transaction.name = profile.transaction_name.to_owned();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>transaction) = profile.metadata.transaction {
+            transaction.name = profile.metadata.transaction_name.to_owned();
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = transaction_metadata.get(<span class="string">&quot;release&quot;</span>) {
-        profile.release = release.to_owned();
+        profile.metadata.release = release.to_owned();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">&quot;environment&quot;</span>) {
-        profile.environment = environment.to_owned();
+        profile.metadata.environment = environment.to_owned();
     }
 
-    profile.transaction_metadata = transaction_metadata;
-    profile.transaction_tags = transaction_tags;
+    profile.metadata.transaction_metadata = transaction_metadata;
+    profile.metadata.transaction_tags = transaction_tags;
 
     serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
 }
@@ -608,16 +620,16 @@
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
         <span class="macro">assert_eq!</span>(
-            profile.transaction_id,
+            profile.metadata.transaction_id,
             <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.parse().unwrap()
         );
         <span class="macro">assert_eq!</span>(
-            profile.trace_id,
+            profile.metadata.trace_id,
             <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.parse().unwrap()
         );
-        <span class="macro">assert_eq!</span>(profile.active_thread_id, <span class="number">12345</span>);
-        <span class="macro">assert_eq!</span>(profile.transaction_name, <span class="string">&quot;transaction1&quot;</span>);
-        <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">1000000000</span>);
+        <span class="macro">assert_eq!</span>(profile.metadata.active_thread_id, <span class="number">12345</span>);
+        <span class="macro">assert_eq!</span>(profile.metadata.transaction_name, <span class="string">&quot;transaction1&quot;</span>);
+        <span class="macro">assert_eq!</span>(profile.metadata.duration_ns, <span class="number">1000000000</span>);
     }
 
     <span class="attr">#[test]
@@ -637,13 +649,13 @@
         <span class="kw">let </span>output: AndroidProfile = serde_json::from_slice(<span class="kw-2">&amp;</span>profile_json.unwrap()[..])
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        <span class="macro">assert_eq!</span>(output.release, <span class="string">&quot;some-random-release&quot;</span>.to_string());
+        <span class="macro">assert_eq!</span>(output.metadata.release, <span class="string">&quot;some-random-release&quot;</span>.to_string());
         <span class="macro">assert_eq!</span>(
-            output.transaction_name,
+            output.metadata.transaction_name,
             <span class="string">&quot;some-random-transaction&quot;</span>.to_string()
         );
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = output.transaction {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = output.metadata.transaction {
             <span class="macro">assert_eq!</span>(transaction.name, <span class="string">&quot;some-random-transaction&quot;</span>.to_string());
         }
     }
