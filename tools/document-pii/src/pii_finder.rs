@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use anyhow::anyhow;
 use proc_macro2::TokenTree;
 use syn::visit::Visit;
-use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Type};
+use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Type, TypePath};
 
 use crate::EnumOrStruct;
 
@@ -47,29 +47,51 @@ fn get_matching_use_paths<'a>(
 impl<'a> PiiFinder<'a> {
     /// Takes a Field and visit the types that it consist of if we have
     /// the full path to it in self.use_statements.
-    fn visit_field_types(&mut self, node: &Field) {
-        let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
+    fn visit_field_types(&mut self, ty: &Type) {
+        match ty {
+            Type::Path(path) => {
+                let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
 
-        let mut field_types = BTreeSet::new();
-        get_field_types(&node.ty, &mut field_types);
+                let mut field_types = BTreeSet::new();
+                get_field_types(path, &mut field_types);
 
-        let use_paths = get_matching_use_paths(&field_types, &local_paths);
-        for use_path in use_paths {
-            if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
-                // Theses values will be changed when recursing, so we save them here so when we
-                // return to this function after the match statement, we can set them back.
-                let current_type = self.current_type.clone();
-                let module_path = self.module_path.clone();
-                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
+                let use_paths = get_matching_use_paths(&field_types, &local_paths);
+                for use_path in use_paths {
+                    if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
+                        // Theses values will be changed when recursing, so we save them here so when we
+                        // return to this function after the match statement, we can set them back.
+                        let current_type = self.current_type.clone();
+                        let module_path = self.module_path.clone();
+                        self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
 
-                match enum_or_struct {
-                    EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),
-                    EnumOrStruct::Enum(itemenum) => self.visit_item_enum(&itemenum),
+                        match enum_or_struct {
+                            EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),
+                            EnumOrStruct::Enum(itemenum) => self.visit_item_enum(&itemenum),
+                        }
+
+                        self.module_path = module_path;
+                        self.current_type = current_type;
+                    }
                 }
-
-                self.module_path = module_path;
-                self.current_type = current_type;
             }
+            Type::Reference(reference) => self.visit_field_types(&reference.elem),
+            Type::Array(arr) => self.visit_field_types(&arr.elem),
+            Type::BareFn(bare_fn) => bare_fn
+                .inputs
+                .iter()
+                .for_each(|ty| self.visit_field_types(&ty.ty)),
+            Type::Group(group) => self.visit_field_types(&group.elem),
+            Type::ImplTrait(_) => {}
+            Type::Infer(_) => {}
+            Type::Macro(_) => {}
+            Type::Never(_) => {}
+            Type::Paren(paren) => self.visit_field_types(&paren.elem),
+            Type::Ptr(ptr) => self.visit_field_types(&ptr.elem),
+            Type::Slice(slice) => self.visit_field_types(&slice.elem),
+            Type::TraitObject(_) => {}
+            Type::Tuple(tuple) => tuple.elems.iter().for_each(|ty| self.visit_field_types(ty)),
+            Type::Verbatim(_) => {}
+            _ => {}
         }
     }
 
@@ -122,102 +144,35 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
         }
 
         // Recursively diving into the types of the field to look for more PII-fields.
-        self.visit_field_types(node);
+        self.visit_field_types(&node.ty);
 
         self.current_path.pop();
     }
 }
 
-/// This function takes a reference to a Type and a mutable reference to a BTreeSet of Strings.
-/// It extracts the names of all the types contained within the provided Type and inserts them into the BTreeSet.
-/// The BTreeSet is used here to automatically sort the type names and remove any duplicates.
-fn get_field_types(ty: &Type, segments: &mut BTreeSet<String>) {
-    match ty {
-        // If the type is a path type, we further process it
-        Type::Path(type_path) => {
-            // Create an iterator over the segments of the type path
-            let mut path_iter = type_path.path.segments.iter();
+/// This function extracts the type names from a complex type and stores them in a BTreeSet.
+/// It's designed to handle nested generic types, such as `Foo<Bar<Baz>>`, and return ["Foo", "Bar", "Baz"].
+fn get_field_types(ty: &TypePath, segments: &mut BTreeSet<String>) {
+    // Iterating over path segments allows us to handle complex, possibly nested types
+    let mut path_iter = ty.path.segments.iter();
+    if let Some(first_segment) = path_iter.next() {
+        let mut ident = first_segment.ident.to_string();
 
-            // Try to get the first segment of the path
-            let first_segment = path_iter.next();
-
-            if let Some(first_segment) = first_segment {
-                // Convert the identifier of the first segment to a string
-                let mut ident = first_segment.ident.to_string();
-
-                // If the first segment has angle-bracketed arguments, recursively call the function for each of them
-                let args = &first_segment.arguments;
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
-                    for generic_arg in angle_bracketed.args.iter() {
-                        match generic_arg {
-                            syn::GenericArgument::Type(ty) => {
-                                get_field_types(ty, segments);
-                            }
-                            // Ignore other kinds of arguments
-                            _ => continue,
-                        }
-                    }
-                }
-
-                // If there is a second segment in the path, append its identifier to the string
-                if let Some(second_segment) = path_iter.next() {
-                    ident.push_str("::");
-                    ident.push_str(&second_segment.ident.to_string());
-                    segments.insert(ident);
-                } else {
-                    // If there's no second segment, just insert the identifier of the first one
-                    segments.insert(ident);
+        // Recursion on AngleBracketed args is necessary for nested generic types
+        if let syn::PathArguments::AngleBracketed(angle_bracketed) = &first_segment.arguments {
+            for generic_arg in angle_bracketed.args.iter() {
+                if let syn::GenericArgument::Type(Type::Path(path)) = generic_arg {
+                    get_field_types(path, segments);
                 }
             }
         }
-        // If the type is not a path type, convert it to a token stream and insert its string representation into the set
-        _ => {
-            use quote::ToTokens;
-            let mut tokens = proc_macro2::TokenStream::new();
-            ty.to_tokens(&mut tokens);
-            segments.insert(tokens.to_string());
+
+        // Namespace resolution: if a second segment exists, it's part of the first type's namespace
+        if let Some(second_segment) = path_iter.next() {
+            ident.push_str("::");
+            ident.push_str(&second_segment.ident.to_string());
         }
-    }
-}
-
-/// if you have a field such as `foo: Foo<Bar<Baz>>` this function can take the type of the field
-/// and return a vector of the types like: ["Foo", "Bar", "Baz"].
-fn get_ssfield_types(ty: &Type, segments: &mut BTreeSet<String>) {
-    match ty {
-        Type::Path(type_path) => {
-            let mut path_iter = type_path.path.segments.iter();
-            let first_segment = path_iter.next();
-
-            if let Some(first_segment) = first_segment {
-                let mut ident = first_segment.ident.to_string();
-
-                let args = &first_segment.arguments;
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = args {
-                    for generic_arg in angle_bracketed.args.iter() {
-                        match generic_arg {
-                            syn::GenericArgument::Type(ty) => {
-                                get_field_types(ty, segments);
-                            }
-                            _ => continue,
-                        }
-                    }
-                }
-
-                if let Some(second_segment) = path_iter.next() {
-                    ident.push_str("::");
-                    ident.push_str(&second_segment.ident.to_string());
-                    segments.insert(ident);
-                } else {
-                    segments.insert(ident);
-                }
-            }
-        }
-        _ => {
-            use quote::ToTokens;
-            let mut tokens = proc_macro2::TokenStream::new();
-            ty.to_tokens(&mut tokens);
-            segments.insert(tokens.to_string());
-        }
+        segments.insert(ident);
     }
 }
 
