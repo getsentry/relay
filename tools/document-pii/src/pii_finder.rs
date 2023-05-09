@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use anyhow::anyhow;
 use proc_macro2::TokenTree;
 use syn::visit::Visit;
-use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Type, TypePath};
+use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type};
 
 use crate::EnumOrStruct;
 
@@ -53,7 +53,7 @@ impl<'a> PiiFinder<'a> {
                 let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
 
                 let mut field_types = BTreeSet::new();
-                get_field_types(path, &mut field_types);
+                get_field_types(&path.path, &mut field_types);
 
                 let use_paths = get_matching_use_paths(&field_types, &local_paths);
                 for use_path in use_paths {
@@ -152,9 +152,9 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
 
 /// This function extracts the type names from a complex type and stores them in a BTreeSet.
 /// It's designed to handle nested generic types, such as `Foo<Bar<Baz>>`, and return ["Foo", "Bar", "Baz"].
-fn get_field_types(ty: &TypePath, segments: &mut BTreeSet<String>) {
+fn get_field_types(path: &Path, segments: &mut BTreeSet<String>) {
     // Iterating over path segments allows us to handle complex, possibly nested types
-    let mut path_iter = ty.path.segments.iter();
+    let mut path_iter = path.segments.iter();
     if let Some(first_segment) = path_iter.next() {
         let mut ident = first_segment.ident.to_string();
 
@@ -162,7 +162,7 @@ fn get_field_types(ty: &TypePath, segments: &mut BTreeSet<String>) {
         if let syn::PathArguments::AngleBracketed(angle_bracketed) = &first_segment.arguments {
             for generic_arg in angle_bracketed.args.iter() {
                 if let syn::GenericArgument::Type(Type::Path(path)) = generic_arg {
-                    get_field_types(path, segments);
+                    get_field_types(&path.path, segments);
                 }
             }
         }
