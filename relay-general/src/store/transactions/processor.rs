@@ -2267,6 +2267,8 @@ mod tests {
     }
 
     macro_rules! span_description_test {
+        // Tests the scrubbed span description for the given op.
+        // An empty output `""` means the span description was not scrubbed at all.
         ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
             #[test]
             fn $name() {
