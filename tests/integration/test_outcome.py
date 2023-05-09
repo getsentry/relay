@@ -1332,9 +1332,8 @@ def test_profile_outcomes_data_invalid(
         )
         envelope.add_item(
             Item(
-                payload=PayloadRef(
-                    bytes=json.dumps(_get_profile_payload()), type="profile"
-                )
+                payload=PayloadRef(bytes=json.dumps(_get_profile_payload()).encode()),
+                type="profile",
             )
         )
         return envelope
