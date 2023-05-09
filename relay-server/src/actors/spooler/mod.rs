@@ -264,11 +264,11 @@ struct OnDisk {
     db: Pool<Sqlite>,
     buffer_guard: Arc<BufferGuard>,
     max_disk_size: usize,
-    /// The number of items spooled to disk.
+    /// The number of items currently on disk.
     ///
-    /// This number can be negative when relay picks up an existing db and immediately starts
-    /// unspooling.
-    spool_count: isize,
+    /// We do not track the count when we encounter envelopes in the database on startup,
+    /// because counting those envelopes would risk locking the db for multiple seconds.
+    count: Option<u64>,
 }
 
 impl OnDisk {
@@ -301,11 +301,7 @@ impl OnDisk {
             .await
             .map_err(BufferError::InsertFailed)?;
 
-        self.spool_count += inserted as isize;
-
-        relay_statsd::metric!(
-            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
-        );
+        self.track_count(inserted as i64);
 
         Ok(())
     }
@@ -323,10 +319,7 @@ impl OnDisk {
             count += result.rows_affected();
         }
 
-        self.spool_count -= count as isize;
-        relay_statsd::metric!(
-            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
-        );
+        self.track_count(-(count as i64));
 
         Ok(count as usize)
     }
@@ -386,7 +379,7 @@ impl OnDisk {
                 return Ok(());
             }
 
-            let mut count = 0;
+            let mut count: i64 = 0;
             while let Some(envelope) = envelopes.next().await {
                 count += 1;
                 let envelope = match envelope {
@@ -398,10 +391,7 @@ impl OnDisk {
                             "failed to read the buffer stream from the disk: {}",
                             LogError(&err)
                         );
-                        self.spool_count -= count;
-                        relay_statsd::metric!(
-                            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
-                        );
+                        self.track_count(-count);
                         return Err(key);
                     }
                 };
@@ -417,10 +407,7 @@ impl OnDisk {
                 }
             }
 
-            self.spool_count -= count;
-            relay_statsd::metric!(
-                gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
-            );
+            self.track_count(-count);
         }
     }
 
@@ -501,12 +488,25 @@ impl OnDisk {
         .await
         .map_err(BufferError::InsertFailed)?;
 
-        self.spool_count += 1;
-        relay_statsd::metric!(
-            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
-        );
+        self.track_count(1);
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
         Ok(())
+    }
+
+    fn track_count(&mut self, increment: i64) {
+        // Track the number of envelopes read/written:
+        let metric = if increment < 0 {
+            RelayCounters::BufferEnvelopesRead
+        } else {
+            RelayCounters::BufferEnvelopesWritten
+        };
+        relay_statsd::metric!(counter(metric) += increment);
+
+        // If used, also track the total envelope count:
+        if let Some(count) = &mut self.count {
+            *count = count.saturating_add_signed(increment);
+            relay_statsd::metric!(gauge(RelayGauges::BufferEnvelopesDiskCount) = *count);
+        }
     }
 }
 
@@ -691,12 +691,19 @@ impl BufferService {
             .await
             .map_err(BufferError::SetupFailed)?;
 
-        Ok(Some(OnDisk {
+        let mut on_disk = OnDisk {
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
-            spool_count: 0,
-        }))
+            count: None,
+        };
+
+        if on_disk.is_empty().await? {
+            // Only start live-tracking the count if there's nothing in the db yet.
+            on_disk.count = Some(0);
+        }
+
+        Ok(Some(on_disk))
     }
 
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
