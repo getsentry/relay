@@ -1073,8 +1073,10 @@ mod tests {
             "buffer.envelopes_mem_count:3|g",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.spooled:3|g",
-            "buffer.spooled:4|g",
+            "buffer.envelopes_written:3|c",
+            "buffer.envelopes_disk_count:3|g",
+            "buffer.envelopes_written:1|c",
+            "buffer.envelopes_disk_count:4|g",
             "buffer.writes:1|c",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_mem:2000|h",
@@ -1083,7 +1085,8 @@ mod tests {
             "buffer.envelopes_mem:0|h",
             "buffer.envelopes_mem_count:0|g",
             "buffer.reads:1|c",
-            "buffer.spooled:0|g",
+            "buffer.envelopes_read:-4|c",
+            "buffer.envelopes_disk_count:0|g",
             "buffer.reads:1|c",
         ]
         "###);
