@@ -56,16 +56,23 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_general::protocol::{Addr, DebugId, NativeImagePath};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
 </span><span class="kw">enum </span>ImageType {
     MachO,
     Symbolic,
+    Sourcemap,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -74,16 +81,21 @@
     </span>code_file: NativeImagePath,
     <span class="attr">#[serde(alias = <span class="string">&quot;id&quot;</span>)]
     </span>debug_id: DebugId,
-    image_addr: Addr,
-
-    <span class="attr">#[serde(default)]
-    </span>image_vmaddr: Addr,
-
-    <span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
-    </span>image_size: u64,
-
     <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
     </span>image_type: ImageType,
+
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>image_addr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
+
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>image_vmaddr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
+
+    <span class="attr">#[serde(
+        default,
+        deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_zero&quot;
+    </span>)]
+    </span>image_size: u64,
 }
 
 <span class="attr">#[cfg(test)]
