@@ -2329,6 +2329,13 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_only_urllike_on_http_ops,
+        "GET https://www.service.io/resources/01234",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
         span_description_scrub_path_ids_end,
         "GET https://www.service.io/resources/01234",
         "http.client",
@@ -2368,6 +2375,48 @@ mod tests {
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "http.client",
         "GET /clients/*/project/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_only_dblike_on_db_ops,
+        "SELECT count() FROM table WHERE id IN (%s, %s)",
+        "http.client",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_percentage,
+        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (*) AND id IN (*)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_dollar,
+        "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (*)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_questionmarks,
+        "SELECT count() FROM table WHERE id IN (?, ?, ?)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (*)"
+    );
+
+    span_description_test!(
+        span_description_scrub_unparameterized_ins_uppercase,
+        "SELECT count() FROM table WHERE id IN (100, 101, 102)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (*)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_lowercase,
+        "select count() from table where id in (100, 101, 102)",
+        "db.sql.query",
+        "select count() from table where id in (*)"
     );
 
     // TODO(iker): Add span description test for URLs with paths
