@@ -2267,7 +2267,7 @@ mod tests {
     }
 
     macro_rules! span_description_test {
-        ($name:ident, $input:literal, $output:literal) => {
+        ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -2278,10 +2278,10 @@ mod tests {
                         "start_timestamp": 1597976393.4619668,
                         "timestamp": 1597976393.4718769,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "op": "http.client"
+                        "op": "{}"
                     }}
                 "#,
-                    $input
+                    $description_in, $op_in
                 );
 
                 let mut span = Annotated::<Span>::from_json(&json).unwrap();
@@ -2293,7 +2293,10 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!($input, span.value().unwrap().description.value().unwrap());
+                assert_eq!(
+                    $description_in,
+                    span.value().unwrap().description.value().unwrap()
+                );
                 if $output == "" {
                     assert!(span
                         .value()
@@ -2314,47 +2317,54 @@ mod tests {
         };
     }
 
-    span_description_test!(span_description_scrub_empty, "", "");
+    span_description_test!(span_description_scrub_empty, "", "http.client", "");
 
     span_description_test!(
         span_description_scrub_only_domain,
         "GET http://service.io",
+        "http.client",
         ""
     );
 
     span_description_test!(
         span_description_scrub_path_ids_end,
         "GET https://www.service.io/resources/01234",
+        "http.client",
         "GET https://www.service.io/resources/*"
     );
 
     span_description_test!(
         span_description_scrub_path_ids_middle,
         "GET https://www.service.io/resources/01234/details",
+        "http.client",
         "GET https://www.service.io/resources/*/details"
     );
 
     span_description_test!(
         span_description_scrub_path_multiple_ids,
         "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+        "http.client",
         "GET https://www.service.io/users/*/settings/*"
     );
 
     span_description_test!(
         span_description_scrub_path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
     span_description_test!(
         span_description_scrub_path_sha_hashes,
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
     span_description_test!(
         span_description_scrub_path_uuids,
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
