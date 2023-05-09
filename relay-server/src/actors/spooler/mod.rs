@@ -303,7 +303,9 @@ impl OnDisk {
 
         self.spool_count += inserted as isize;
 
-        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
+        );
 
         Ok(())
     }
@@ -322,7 +324,9 @@ impl OnDisk {
         }
 
         self.spool_count -= count as isize;
-        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
+        );
 
         Ok(count as usize)
     }
@@ -396,7 +400,7 @@ impl OnDisk {
                         );
                         self.spool_count -= count;
                         relay_statsd::metric!(
-                            gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64
+                            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
                         );
                         return Err(key);
                     }
@@ -414,7 +418,9 @@ impl OnDisk {
             }
 
             self.spool_count -= count;
-            relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
+            relay_statsd::metric!(
+                gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
+            );
         }
     }
 
@@ -496,7 +502,9 @@ impl OnDisk {
         .map_err(BufferError::InsertFailed)?;
 
         self.spool_count += 1;
-        relay_statsd::metric!(gauge(RelayGauges::BufferSpooledCount) = self.spool_count as f64);
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesDiskCount) = self.spool_count as f64
+        );
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
         Ok(())
     }

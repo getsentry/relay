@@ -13,15 +13,13 @@ pub enum RelayGauges {
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
     BufferEnvelopesMemoryCount,
-    /// The number of envelopes spooled to disk by this process.
+    /// The number of envelopes waiting for project states on disk.
     ///
-    /// This metric gets incremented when we spool and decremented when we unspool,
-    /// but it does *not* necessarily represent the number of envelopes currently on disk,
-    /// because it does not take into account the initial database size.
+    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
+    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
     ///
-    /// Initializing this counter with a `SELECT count(*)` query would be too expensive, because
-    /// sqlite cannot count the number of rows in a table in constant time.
-    BufferSpooledCount,
+    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
+    BufferEnvelopesDiskCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -30,7 +28,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
-            RelayGauges::BufferSpooledCount => "buffer.spooled",
+            RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
         }
     }
 }
@@ -381,6 +379,10 @@ pub enum RelayCounters {
     BufferWrites,
     /// Number times the envelope buffer reads back from disk.
     BufferReads,
+    /// Number of _envelopes_ the envelope buffer spools to disk.
+    BufferEnvelopesWritten,
+    /// Number of _envelopes_ the envelope buffer reads back from disk.
+    BufferEnvelopesRead,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -544,6 +546,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::BufferWrites => "buffer.writes",
             RelayCounters::BufferReads => "buffer.reads",
+            RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
+            RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
