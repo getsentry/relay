@@ -134,7 +134,7 @@ pub enum Version {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct SampleProfile {
+pub struct ProfileMetadata {
     version: Version,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -150,9 +150,6 @@ struct SampleProfile {
     #[serde(alias = "profile_id")]
     event_id: EventId,
     platform: String,
-    profile: Profile,
-
-    #[serde(default)]
     release: String,
     timestamp: DateTime<Utc>,
 
@@ -171,15 +168,22 @@ struct SampleProfile {
     transaction_tags: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SampleProfile {
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+    profile: Profile,
+}
+
 impl SampleProfile {
     fn valid(&self) -> bool {
-        match self.platform.as_str() {
+        match self.metadata.platform.as_str() {
             "cocoa" => {
-                self.os.build_number.is_some()
-                    && self.device.is_emulator.is_some()
-                    && self.device.locale.is_some()
-                    && self.device.manufacturer.is_some()
-                    && self.device.model.is_some()
+                self.metadata.os.build_number.is_some()
+                    && self.metadata.device.is_emulator.is_some()
+                    && self.metadata.device.locale.is_some()
+                    && self.metadata.device.manufacturer.is_some()
+                    && self.metadata.device.model.is_some()
             }
             _ => true,
         }
@@ -224,8 +228,10 @@ impl SampleProfile {
     }
 
     fn strip_pointer_authentication_code(&mut self) {
-        self.profile
-            .strip_pointer_authentication_code(&self.platform, &self.device.architecture);
+        self.profile.strip_pointer_authentication_code(
+            &self.metadata.platform,
+            &self.metadata.device.architecture,
+        );
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
@@ -279,11 +285,12 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MissingProfileMetadata);
     }
 
-    if profile.transaction.is_none() {
-        profile.transaction = profile.transactions.drain(..).next();
+    if profile.metadata.transaction.is_none() {
+        profile.metadata.transaction = profile.metadata.transactions.drain(..).next();
     }
 
     let transaction = profile
+        .metadata
         .transaction
         .as_ref()
         .ok_or(ProfileError::NoTransactionAssociated)?;
@@ -331,21 +338,21 @@ pub fn parse_sample_profile(
     let mut profile = parse_profile(payload)?;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
-        if let Some(ref mut transaction) = profile.transaction {
+        if let Some(ref mut transaction) = profile.metadata.transaction {
             transaction.name = transaction_name.to_owned();
         }
     }
 
     if let Some(release) = transaction_metadata.get("release") {
-        profile.release = release.to_owned();
+        profile.metadata.release = release.to_owned();
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.environment = environment.to_owned();
+        profile.metadata.environment = environment.to_owned();
     }
 
-    profile.transaction_metadata = transaction_metadata;
-    profile.transaction_tags = transaction_tags;
+    profile.metadata.transaction_metadata = transaction_metadata;
+    profile.metadata.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -372,25 +379,33 @@ mod tests {
 
     fn generate_profile() -> SampleProfile {
         SampleProfile {
-            debug_meta: Option::None,
-            version: Version::V1,
-            timestamp: Utc::now(),
-            runtime: Option::None,
-            device: DeviceMetadata {
-                architecture: "arm64e".to_string(),
-                is_emulator: Some(true),
-                locale: Some("en_US".to_string()),
-                manufacturer: Some("Apple".to_string()),
-                model: Some("iPhome11,3".to_string()),
+            metadata: ProfileMetadata {
+                debug_meta: Option::None,
+                version: Version::V1,
+                timestamp: Utc::now(),
+                runtime: Option::None,
+                device: DeviceMetadata {
+                    architecture: "arm64e".to_string(),
+                    is_emulator: Some(true),
+                    locale: Some("en_US".to_string()),
+                    manufacturer: Some("Apple".to_string()),
+                    model: Some("iPhome11,3".to_string()),
+                },
+                os: OSMetadata {
+                    build_number: Some("H3110".to_string()),
+                    name: "iOS".to_string(),
+                    version: "16.0".to_string(),
+                },
+                environment: "testing".to_string(),
+                platform: "cocoa".to_string(),
+                event_id: EventId::new(),
+                transaction: Option::None,
+                transactions: Vec::new(),
+                release: "1.0 (9999)".to_string(),
+                measurements: None,
+                transaction_metadata: BTreeMap::new(),
+                transaction_tags: BTreeMap::new(),
             },
-            os: OSMetadata {
-                build_number: Some("H3110".to_string()),
-                name: "iOS".to_string(),
-                version: "16.0".to_string(),
-            },
-            environment: "testing".to_string(),
-            platform: "cocoa".to_string(),
-            event_id: EventId::new(),
             profile: Profile {
                 queue_metadata: Some(HashMap::new()),
                 samples: Vec::new(),
@@ -398,12 +413,6 @@ mod tests {
                 frames: Vec::new(),
                 thread_metadata: Some(HashMap::new()),
             },
-            transaction: Option::None,
-            transactions: Vec::new(),
-            release: "1.0 (9999)".to_string(),
-            measurements: None,
-            transaction_metadata: BTreeMap::new(),
-            transaction_tags: BTreeMap::new(),
         }
     }
 
@@ -494,7 +503,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transaction = Some(TransactionMetadata {
+        profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -552,7 +561,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transaction = Some(TransactionMetadata {
+        profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -610,7 +619,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transactions.push(transaction.clone());
+        profile.metadata.transactions.push(transaction.clone());
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -652,8 +661,8 @@ mod tests {
         let payload = serde_json::to_vec(&profile).unwrap();
         let profile = parse_profile(&payload[..]).unwrap();
 
-        assert_eq!(Some(transaction), profile.transaction);
-        assert!(profile.transactions.is_empty());
+        assert_eq!(Some(transaction), profile.metadata.transaction);
+        assert!(profile.metadata.transactions.is_empty());
     }
 
     #[test]
@@ -677,7 +686,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transaction = Some(transaction);
+        profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -784,7 +793,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transaction = Some(transaction);
+        profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -885,9 +894,9 @@ mod tests {
         let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(output.metadata.release, "some-random-release".to_string());
         assert_eq!(
-            output.transaction.unwrap().name,
+            output.metadata.transaction.unwrap().name,
             "some-random-transaction".to_string()
         );
     }
