@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+- Scrub URLs in span descriptions. ([#2095](https://github.com/getsentry/relay/pull/2095))
+- Add new FFI function for running dynamic sampling. ([#2091](https://github.com/getsentry/relay/pull/2091))
 
 ## 0.8.21
 
