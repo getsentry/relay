@@ -24,4 +24,22 @@ expression: output
     Pii {
         path: "SubStruct.mystery_field.bitcoin_wallet_key",
     },
+    Pii {
+        path: "WeirdType.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.func.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.ptr.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.reference.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.slice.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.tuple.pii_true",
+    },
 ]

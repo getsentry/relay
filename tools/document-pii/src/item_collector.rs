@@ -39,7 +39,6 @@ impl AstItemCollector {
     /// Gets both a mapping of the full type to a type and its actual AST node, and also the
     /// use_statements in its module, which is needed to fetch the types that it referes to in its
     /// fields.
-    #[allow(clippy::type_complexity)]
     pub fn get_types_and_use_statements(
         paths: &Vec<PathBuf>,
     ) -> anyhow::Result<TypesAndUseStatements> {
@@ -51,7 +50,10 @@ impl AstItemCollector {
         for path in paths {
             visitor.module_path = rust_file_to_use_path(path)?;
             let file_content = fs::read_to_string(path.as_path())?;
-            let syntax_tree: syn::File = syn::parse_file(&file_content)?;
+            let syntax_tree: syn::File = match syn::parse_file(&file_content) {
+                Ok(syntax_tree) => syntax_tree,
+                Err(_) => continue,
+            };
             visitor.visit_file(&syntax_tree);
         }
         Ok(TypesAndUseStatements {

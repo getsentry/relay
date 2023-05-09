@@ -13,5 +13,7 @@ expression: use_statements
     "test_pii_docs::anothermod": {
         "test_pii_docs::anothermod::BarFoo",
         "test_pii_docs::anothermod::FooBar",
+        "test_pii_docs::anothermod::WeirdType",
+        "test_pii_docs::anothermod::WeirdTypes",
     },
 }

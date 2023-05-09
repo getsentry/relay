@@ -107,7 +107,7 @@ impl Cli {
         let TypesAndUseStatements {
             all_types,
             use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths)?;
 
         let pii_types = match self.item.as_deref() {
             // If user provides path to an item, find pii_fields under this item in particular.

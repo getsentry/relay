@@ -4,7 +4,7 @@ fn main() {
 
 pub mod anothermod;
 
-use crate::anothermod::{BarFoo, FooBar};
+use crate::anothermod::{BarFoo, FooBar, WeirdTypes};
 
 struct MyStruct {
     #[metastructure(foo = "bar", pii = "true")]

@@ -36,4 +36,22 @@ expression: output
     Pii {
         path: "SubStruct.mystery_field.maybe_sensitive_stuff",
     },
+    Pii {
+        path: "WeirdType.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.func.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.ptr.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.reference.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.slice.pii_true",
+    },
+    Pii {
+        path: "WeirdTypes.tuple.pii_true",
+    },
 ]
