@@ -71,7 +71,7 @@ struct DebugMeta {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct CocoaProfile {
+pub struct ProfileMetadata {
     debug_meta: DebugMeta,
     device_is_emulator: bool,
     device_locale: String,
@@ -86,7 +86,6 @@ struct CocoaProfile {
 
     platform: String,
     profile_id: EventId,
-    sampled_profile: SampledProfile,
     version_code: String,
     version_name: String,
 
@@ -107,9 +106,16 @@ struct CocoaProfile {
     transactions: Vec<TransactionMetadata>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct CocoaProfile {
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+    sampled_profile: SampledProfile,
+}
+
 impl CocoaProfile {
     fn has_transaction_metadata(&self) -> bool {
-        !self.transaction_name.is_empty() && self.duration_ns > 0
+        !self.metadata.transaction_name.is_empty() && self.metadata.duration_ns > 0
     }
 
     /// Removes a sample when it's the only sample on its thread
@@ -135,16 +141,16 @@ fn parse_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
     let mut profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    let transaction_opt = profile.transactions.drain(..).next();
+    let transaction_opt = profile.metadata.transactions.drain(..).next();
     if let Some(transaction) = transaction_opt {
         if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
 
-        profile.duration_ns = transaction.duration_ns();
-        profile.trace_id = transaction.trace_id;
-        profile.transaction_id = transaction.id;
-        profile.transaction_name = transaction.name;
+        profile.metadata.duration_ns = transaction.duration_ns();
+        profile.metadata.trace_id = transaction.trace_id;
+        profile.metadata.transaction_id = transaction.id;
+        profile.metadata.transaction_name = transaction.name;
 
         profile.sampled_profile.samples.retain_mut(|sample| {
             (transaction.relative_start_ns..transaction.relative_end_ns)
@@ -189,29 +195,31 @@ mod tests {
 
     fn generate_profile() -> CocoaProfile {
         CocoaProfile {
-            debug_meta: DebugMeta { images: Vec::new() },
-            device_is_emulator: true,
-            device_locale: "en_US".to_string(),
-            device_manufacturer: "Apple".to_string(),
-            device_model: "iPhome11,3".to_string(),
-            device_os_build_number: "H3110".to_string(),
-            device_os_name: "iOS".to_string(),
-            device_os_version: "16.0".to_string(),
-            duration_ns: 1337,
-            environment: "testing".to_string(),
-            platform: "cocoa".to_string(),
-            profile_id: EventId::new(),
+            metadata: ProfileMetadata {
+                debug_meta: DebugMeta { images: Vec::new() },
+                device_is_emulator: true,
+                device_locale: "en_US".to_string(),
+                device_manufacturer: "Apple".to_string(),
+                device_model: "iPhome11,3".to_string(),
+                device_os_build_number: "H3110".to_string(),
+                device_os_name: "iOS".to_string(),
+                device_os_version: "16.0".to_string(),
+                duration_ns: 1337,
+                environment: "testing".to_string(),
+                platform: "cocoa".to_string(),
+                profile_id: EventId::new(),
+                trace_id: EventId::new(),
+                transaction_id: EventId::new(),
+                transaction_name: "test".to_string(),
+                transactions: Vec::new(),
+                version_code: "9999".to_string(),
+                version_name: "1.0".to_string(),
+            },
             sampled_profile: SampledProfile {
                 thread_metadata: HashMap::new(),
                 samples: Vec::new(),
                 queue_metadata: HashMap::new(),
             },
-            trace_id: EventId::new(),
-            transaction_id: EventId::new(),
-            transaction_name: "test".to_string(),
-            transactions: Vec::new(),
-            version_code: "9999".to_string(),
-            version_name: "1.0".to_string(),
         }
     }
 
@@ -294,14 +302,14 @@ mod tests {
             Ok(profile) => profile,
         };
         assert_eq!(
-            profile.transaction_id,
+            profile.metadata.transaction_id,
             "30976f2ddbe04ac9b6bffe6e35d4710c".parse().unwrap()
         );
-        assert_eq!(profile.duration_ns, 10);
+        assert_eq!(profile.metadata.duration_ns, 10);
         assert_eq!(profile.sampled_profile.samples.len(), 2);
 
         for sample in &profile.sampled_profile.samples {
-            assert!(sample.relative_timestamp_ns < profile.duration_ns);
+            assert!(sample.relative_timestamp_ns < profile.metadata.duration_ns);
         }
     }
 }
