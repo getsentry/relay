@@ -17,16 +17,40 @@ use std::fmt;
 use std::io::Read;
 use std::rc::Rc;
 
-use flate2::{bufread::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::bufread::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use once_cell::sync::Lazy;
-use serde::{de, ser, Deserializer};
-use serde_json::value::RawValue;
-
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
+use serde::{de, ser, Deserializer};
+use serde_json::value::RawValue;
 
 use crate::transform::Transform;
+
+/// Paths to fields on which datascrubbing rules should be applied.
+///
+/// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
+static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
+    [
+        vec!["data", "payload", "description"],
+        vec!["data", "payload", "data"],
+    ]
+});
+
+/// Returns `True` if the given path should be treated as `pii = true`.
+fn scrub_at_path(path: &Vec<String>) -> bool {
+    PII_FIELDS.iter().any(|pii_path| {
+        path.len() >= pii_path.len() && pii_path.iter().zip(path).all(|(k1, k2)| k1 == k2)
+    })
+}
+
+/// Static field attributes used for fields in [`PII_FIELDS`].
+const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+
+/// Static field attributes used for fields without PII scrubbing.
+const FIELD_ATTRS_PII_FALSE: FieldAttrs = FieldAttrs::new().pii(Pii::False);
 
 /// Error returned from [`RecordingScrubber`].
 #[derive(Debug)]
@@ -67,23 +91,55 @@ impl From<serde_json::Error> for ParseRecordingError {
     }
 }
 
-static STRING_STATE: Lazy<ProcessingState> = Lazy::new(|| {
-    ProcessingState::root().enter_static(
-        "",
-        Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
-        Some(ValueType::String),
-    )
-});
-
 /// The [`Transform`] implementation for data scrubbing.
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
 struct ScrubberTransform<'a> {
+    /// PII processors that are applied one by one on each value.
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
+    /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
+    state: ProcessingState<'a>,
+    /// The current path. This is redundant with `state`, which also contains the full path,
+    /// but easier to match on.
+    path: Vec<String>,
 }
 
-impl Transform for &'_ mut ScrubberTransform<'_> {
+impl ScrubberTransform<'_> {
+    fn ensure_empty(&mut self) {
+        if !self.path.is_empty() || self.state.depth() > 0 {
+            debug_assert!(false, "ScrubberTransform not empty");
+            relay_log::error!("ScrubberTransform not empty");
+        }
+        self.state = ProcessingState::new_root(None, None);
+        self.path.clear();
+    }
+}
+
+impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
+    fn push_path(&mut self, key: &'de str) {
+        self.path.push(key.to_owned());
+        let field_attrs = if scrub_at_path(&self.path) {
+            &FIELD_ATTRS_PII_TRUE
+        } else {
+            &FIELD_ATTRS_PII_FALSE
+        };
+
+        self.state = std::mem::take(&mut self.state).enter_owned(
+            key.to_owned(),
+            Some(Cow::Borrowed(field_attrs)),
+            Some(ValueType::String), // Pretend everything is a string.
+        )
+    }
+
+    fn pop_path(&mut self) {
+        if let Ok(Some(parent)) = std::mem::take(&mut self.state).try_into_parent() {
+            self.state = parent;
+        }
+        let popped = self.path.pop();
+        debug_assert!(popped.is_some()); // pop_path should never be called on an empty state.
+    }
+
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
         self.transform_string(v.to_owned())
     }
@@ -91,7 +147,7 @@ impl Transform for &'_ mut ScrubberTransform<'_> {
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
         if let Some(ref mut processor) = self.processor1 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
@@ -100,7 +156,7 @@ impl Transform for &'_ mut ScrubberTransform<'_> {
 
         if let Some(ref mut processor) = self.processor2 {
             if processor
-                .process_string(&mut value, &mut Meta::default(), &STRING_STATE)
+                .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
             {
                 return Cow::Borrowed("");
@@ -194,6 +250,9 @@ where
             if helper.ty == Self::SENTRY_EVENT_TYPE {
                 seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
                     .map_err(s2d)?;
+                // `pop_path` calls should have reset the scrubber's state, but force a
+                // reset here just to be sure:
+                self.scrubber.borrow_mut().ensure_empty();
             } else {
                 seq.serialize_element(raw).map_err(s2d)?;
             }
@@ -254,6 +313,8 @@ impl<'a> RecordingScrubber<'a> {
             transform: Rc::new(RefCell::new(ScrubberTransform {
                 processor1: config1.map(|c| PiiProcessor::new(c.compiled())),
                 processor2: config2.map(|c| PiiProcessor::new(c.compiled())),
+                state: ProcessingState::new_root(None, None),
+                path: vec![],
             })),
         }
     }
@@ -351,6 +412,8 @@ mod tests {
     // End to end test coverage.
 
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+
+    use crate::recording::scrub_at_path;
 
     use super::RecordingScrubber;
 
@@ -560,5 +623,62 @@ mod tests {
         assert!(scrubbed_result.contains("\"description\":\"https://sentry.io?ip-address=[ip]\""));
         // NOTE: default scrubbers do not remove email address
         // assert!(scrubbed_result.contains("\"message\":\"[email]\""));
+    }
+
+    #[test]
+    fn test_scrub_pii_key_based() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-request.json");
+
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
+
+        // Normal fields are not scrubbed:
+        assert_eq!(scrubbed[0]["data"]["payload"]["data"]["method"], "POST");
+
+        assert_eq!(
+            scrubbed[0]["data"]["payload"]["data"]["request"]["body"]["api_key"],
+            "[Filtered]"
+        );
+    }
+
+    #[test]
+    fn test_scrub_pii_key_based_edge_cases() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-request-edge-cases.json");
+
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
+
+        let scrubbed_result = std::str::from_utf8(&transcoded).unwrap();
+        let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
+
+        insta::assert_ron_snapshot!(scrubbed);
+    }
+
+    #[test]
+    fn test_scrub_at_path() {
+        for (should_scrub, path) in [
+            (false, vec![]),
+            (false, vec!["data"]),
+            (false, vec!["data", "payload"]),
+            (false, vec!["data", "payload", "foo"]),
+            (false, vec!["foo", "payload", "data"]),
+            (true, vec!["data", "payload", "data"]),
+            (true, vec!["data", "payload", "data", "request"]),
+            (true, vec!["data", "payload", "data", "request", "body"]),
+        ] {
+            let path = path.into_iter().map(|p| p.to_owned()).collect::<Vec<_>>();
+            assert_eq!(should_scrub, scrub_at_path(&path));
+        }
     }
 }

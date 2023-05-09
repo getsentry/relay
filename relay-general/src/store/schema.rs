@@ -105,14 +105,13 @@ fn verify_value_characters(
 mod tests {
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::{
         CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
         RawStacktrace, User,
     };
     use crate::types::{Annotated, Array, Error, ErrorKind, Object};
-
-    use super::*;
 
     fn assert_nonempty_base<T>()
     where

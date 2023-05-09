@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -22,11 +23,12 @@ mod schema;
 mod transactions;
 mod trimming;
 
-pub use self::clock_drift::*;
-pub use self::geo::*;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use transactions::*;
+
+pub use self::clock_drift::*;
+pub use self::geo::*;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -65,6 +67,8 @@ pub struct StoreConfig {
 
     /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
+    /// The replay_id associated with the current event communicated via envelope headers.
+    pub replay_id: Option<Uuid>,
 }
 
 /// The processor that normalizes events for store.

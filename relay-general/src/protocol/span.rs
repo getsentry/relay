@@ -1,4 +1,6 @@
-use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+use crate::protocol::{
+    JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -43,8 +45,12 @@ pub struct Span {
     #[metastructure(pii = "maybe")]
     pub tags: Annotated<Object<JsonLenientString>>,
 
+    /// The origin of the span indicates what created the span (see [OriginType] docs).
+    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    pub origin: Annotated<OriginType>,
+
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
@@ -70,7 +76,8 @@ mod tests {
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "status": "ok"
+  "status": "ok",
+  "origin": "auto.http"
 }"#;
 
         let span = Annotated::new(Span {
@@ -84,6 +91,7 @@ mod tests {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
+            origin: Annotated::new("auto.http".to_owned()),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());

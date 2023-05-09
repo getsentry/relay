@@ -152,13 +152,12 @@ mod tests {
     use chrono::offset::TimeZone;
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::processor::process_value;
     use crate::protocol::{
         Context, ContextInner, Contexts, EventType, SpanId, TraceContext, TraceId,
     };
     use crate::types::{Annotated, Object};
-
-    use super::*;
 
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
         Annotated::new(Event {

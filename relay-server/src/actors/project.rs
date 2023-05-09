@@ -1,38 +1,29 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
-use smallvec::SmallVec;
-use tokio::time::Instant;
-use url::Url;
-
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
-use relay_system::BroadcastChannel;
+use relay_system::{Addr, BroadcastChannel};
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use tokio::time::Instant;
+use url::Url;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
-use crate::actors::project_cache::{
-    AddSamplingState, CheckedEnvelope, ProjectCache, RequestUpdate,
-};
-use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
-
-use crate::service::Registry;
-use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, MetricsLimiter, RetryBackoff};
-
+use crate::actors::envelopes::SendMetrics;
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
+use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
+
+use crate::extractors::RequestMeta;
+use crate::statsd::RelayCounters;
+use crate::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -399,8 +390,6 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
-    pending_validations: VecDeque<(Box<Envelope>, EnvelopeContext)>,
-    pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
 }
@@ -416,8 +405,6 @@ impl Project {
             config,
             state: None,
             state_channel: None,
-            pending_validations: VecDeque::new(),
-            pending_sampling: VecDeque::new(),
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
         }
@@ -453,7 +440,7 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    fn valid_state(&self) -> Option<Arc<ProjectState>> {
+    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
         match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
@@ -486,12 +473,16 @@ impl Project {
     /// Applies cached rate limits to the given metrics or metrics buckets.
     ///
     /// This only applies the rate limits currently stored on the project.
-    fn rate_limit_metrics<T: MetricsContainer>(&self, metrics: Vec<T>) -> Vec<T> {
+    fn rate_limit_metrics<T: MetricsContainer>(
+        &self,
+        metrics: Vec<T>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> Vec<T> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {
                 match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
                     Ok(mut limiter) => {
-                        limiter.enforce_limits(Ok(&self.rate_limits));
+                        limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
                         limiter.into_metrics()
                     }
                     Err(metrics) => metrics,
@@ -504,11 +495,16 @@ impl Project {
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
-    pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+    pub fn merge_buckets(
+        &mut self,
+        aggregator: Addr<Aggregator>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        buckets: Vec<Bucket>,
+    ) {
         if self.metrics_allowed() {
-            let buckets = self.rate_limit_metrics(buckets);
+            let buckets = self.rate_limit_metrics(buckets, outcome_aggregator);
             if !buckets.is_empty() {
-                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+                aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
         }
     }
@@ -516,11 +512,16 @@ impl Project {
     /// Inserts given [metrics](Metric) into the metrics aggregator.
     ///
     /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+    pub fn insert_metrics(
+        &mut self,
+        aggregator: Addr<Aggregator>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        metrics: Vec<Metric>,
+    ) {
         if self.metrics_allowed() {
-            let metrics = self.rate_limit_metrics(metrics);
+            let metrics = self.rate_limit_metrics(metrics, outcome_aggregator);
             if !metrics.is_empty() {
-                Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+                aggregator.send(InsertMetrics::new(self.project_key, metrics));
             }
         }
     }
@@ -536,7 +537,11 @@ impl Project {
     ///
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
-    fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
+    fn fetch_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        no_cache: bool,
+    ) -> &mut StateChannel {
         // If there is a running request and we do not need to upgrade it to no_cache, or if the
         // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
@@ -552,13 +557,17 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
         }
 
         channel
     }
 
-    fn get_or_fetch_state(&mut self, mut no_cache: bool) -> GetOrFetch<'_> {
+    fn get_or_fetch_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        mut no_cache: bool,
+    ) -> GetOrFetch<'_> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -583,7 +592,7 @@ impl Project {
             ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
         };
 
-        let channel = self.fetch_state(no_cache);
+        let channel = self.fetch_state(project_cache, no_cache);
 
         match cached_state {
             Some(state) => GetOrFetch::Cached(state),
@@ -606,8 +615,12 @@ impl Project {
     /// background refresh.
     ///
     /// To wait for a valid state instead, use [`get_state`](Self::get_state).
-    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
-        match self.get_or_fetch_state(no_cache) {
+    pub fn get_cached_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        no_cache: bool,
+    ) -> Option<Arc<ProjectState>> {
+        match self.get_or_fetch_state(project_cache, no_cache) {
             GetOrFetch::Cached(state) => Some(state),
             GetOrFetch::Scheduled(_) => None,
         }
@@ -621,10 +634,20 @@ impl Project {
     ///
     /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
     /// are in the [grace period](Config::project_grace_period).
-    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
-        match self.get_or_fetch_state(no_cache) {
-            GetOrFetch::Cached(state) => sender.send(state),
-            GetOrFetch::Scheduled(channel) => channel.inner.attach(sender),
+    pub fn get_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        sender: ProjectSender,
+        no_cache: bool,
+    ) {
+        match self.get_or_fetch_state(project_cache, no_cache) {
+            GetOrFetch::Cached(state) => {
+                sender.send(state);
+            }
+
+            GetOrFetch::Scheduled(channel) => {
+                channel.inner.attach(sender);
+            }
         }
     }
 
@@ -638,104 +661,25 @@ impl Project {
     /// point. Therefore, this method is useful to trigger an update early if it is already clear
     /// that the project state will be needed soon. To retrieve an updated state, use
     /// [`Project::get_state`] instead.
-    pub fn prefetch(&mut self, no_cache: bool) {
-        self.get_cached_state(no_cache);
-    }
-
-    /// Validates the envelope and submits the envelope to the next stage.
-    ///
-    /// If this project is disabled or rate limited, corresponding items are dropped from the
-    /// envelope. Remaining items in the Envelope are forwarded:
-    ///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
-    ///    [`ProjectCache`] to add the required project state.
-    ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
-    fn flush_validation(
-        &mut self,
-        envelope: Box<Envelope>,
-        envelope_context: EnvelopeContext,
-        project_state: Arc<ProjectState>,
-    ) {
-        if let Ok(checked) = self.check_envelope(envelope, envelope_context) {
-            if let Some((envelope, envelope_context)) = checked.envelope {
-                let mut process = ProcessEnvelope {
-                    envelope,
-                    envelope_context,
-                    project_state,
-                    sampling_project_state: None,
-                };
-
-                if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
-                    let own_key = process
-                        .project_state
-                        .get_public_key_config()
-                        .map(|c| c.public_key);
-
-                    if Some(sampling_key) == own_key {
-                        process.sampling_project_state = Some(process.project_state.clone());
-                        EnvelopeProcessor::from_registry().send(process);
-                    } else {
-                        ProjectCache::from_registry()
-                            .send(AddSamplingState::new(sampling_key, process));
-                    }
-                } else {
-                    EnvelopeProcessor::from_registry().send(process);
-                }
-            }
-        }
-    }
-
-    /// Enqueues an envelope for validation.
-    ///
-    /// If the project state is up to date, the message will be immediately sent to the next stage.
-    /// Otherwise, this queues the envelope and flushes it when the project has been updated.
-    ///
-    /// This method will trigger an update of the project state internally if the state is stale or
-    /// outdated.
-    pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
-        match self.get_cached_state(envelope.meta().no_cache()) {
-            Some(state) if !state.invalid() => self.flush_validation(envelope, context, state),
-            _ => self.pending_validations.push_back((envelope, context)),
-        }
-    }
-
-    /// Adds the project state for dynamic sampling and submits the Envelope for processing.
-    fn flush_sampling(&self, mut message: ProcessEnvelope) {
-        // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
-        if let Some(state) = self.valid_state().filter(|state| !state.invalid()) {
-            // Never use rules from another organization.
-            if state.organization_id == message.project_state.organization_id {
-                message.sampling_project_state = Some(state);
-            }
-        }
-
-        EnvelopeProcessor::from_registry().send(message);
-    }
-
-    /// Enqueues an envelope for adding a dynamic sampling project state.
-    ///
-    /// If the project state is up to date, the message will be immediately submitted for
-    /// processing. Otherwise, this queues the envelope and flushes it when the project has been
-    /// updated.
-    ///
-    /// This method will trigger an update of the project state internally if the state is stale or
-    /// outdated.
-    pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
-        match self.get_cached_state(message.envelope.meta().no_cache()) {
-            Some(_) => self.flush_sampling(message),
-            None => self.pending_sampling.push_back(message),
-        }
+    pub fn prefetch(&mut self, project_cache: Addr<ProjectCache>, no_cache: bool) {
+        self.get_cached_state(project_cache, no_cache);
     }
 
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
-    /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
+    /// This flushes pending envelopes from [`ValidateEnvelope`] and
     /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
-    pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
+    pub fn update_state(
+        &mut self,
+        project_cache: Addr<ProjectCache>,
+        mut state: Arc<ProjectState>,
+        no_cache: bool,
+    ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
         if state.invalid() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
@@ -771,18 +715,9 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
             return;
-        }
-
-        // Flush all queued `ValidateEnvelope` messages
-        while let Some((envelope, context)) = self.pending_validations.pop_front() {
-            self.flush_validation(envelope, context, state.clone());
-        }
-
-        // Flush all queued `AddSamplingState` messages
-        while let Some(message) = self.pending_sampling.pop_front() {
-            self.flush_sampling(message);
         }
 
         // Flush all waiting recipients.
@@ -821,18 +756,18 @@ impl Project {
     /// pipeline.
     pub fn check_envelope(
         &mut self,
-        mut envelope: Box<Envelope>,
-        mut envelope_context: EnvelopeContext,
+        mut envelope: ManagedEnvelope,
+        outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
-        let mut scoping = envelope_context.scoping();
+        let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope.meta());
-            envelope_context.scope(scoping);
+            scoping = state.scope_request(envelope.envelope().meta());
+            envelope.scope(scoping);
 
-            if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
-                envelope_context.reject(Outcome::Invalid(reason));
+            if let Err(reason) = state.check_request(envelope.envelope().meta(), &self.config) {
+                envelope.reject(Outcome::Invalid(reason));
                 return Err(reason);
             }
         }
@@ -845,16 +780,17 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
-        enforcement.track_outcomes(&envelope, &scoping);
-        envelope_context.update(&envelope);
+        let (enforcement, rate_limits) =
+            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
+        enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
+        envelope.update();
 
-        let envelope = if envelope.is_empty() {
+        let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above
-            envelope_context.reject(Outcome::RateLimited(None));
+            envelope.reject(Outcome::RateLimited(None));
             None
         } else {
-            Some((envelope, envelope_context))
+            Some(envelope)
         };
 
         Ok(CheckedEnvelope {
@@ -863,22 +799,36 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(&mut self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
+    pub fn flush_buckets(
+        &mut self,
+        services: Services,
+        partition_key: Option<u64>,
+        buckets: Vec<Bucket>,
+    ) {
+        let Services {
+            aggregator,
+            envelope_manager,
+            #[cfg(feature = "processing")]
+            envelope_processor,
+            outcome_aggregator,
+            project_cache,
+            ..
+        } = services;
         let config = self.config.clone();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        let Some(project_state) = self.get_cached_state(false) else {
+        let Some(project_state) = self.get_cached_state(project_cache, false) else {
             relay_log::trace!("project expired: merging back {} buckets", buckets.len());
             // If the state is outdated, we need to wait for an updated state. Put them back into
             // the aggregator.
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
 
@@ -893,12 +843,13 @@ impl Project {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
-                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
+                let was_rate_limited =
+                    bucket_limiter.enforce_limits(Ok(&cached_rate_limits), outcome_aggregator);
 
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
-                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                    envelope_processor.send(RateLimitFlushBuckets {
                         bucket_limiter,
                         partition_key,
                     });
@@ -912,23 +863,11 @@ impl Project {
         };
 
         if !buckets.is_empty() {
-            EnvelopeManager::from_registry().send(SendMetrics {
+            envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
             });
-        }
-    }
-}
-
-impl Drop for Project {
-    fn drop(&mut self) {
-        let count = self.pending_validations.len() + self.pending_sampling.len();
-        if count > 0 {
-            relay_log::with_scope(
-                |scope| scope.set_tag("project_key", self.project_key),
-                || relay_log::error!("dropped project with {} envelopes", count),
-            );
         }
     }
 }
@@ -939,6 +878,7 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
     use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_test::mock_service;
     use serde_json::json;
 
     use super::{Config, Project, ProjectState, StateChannel};
@@ -979,8 +919,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_stale_cache() {
+    #[tokio::test]
+    async fn test_stale_cache() {
+        let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -1008,7 +949,7 @@ mod tests {
         assert!(!project.state.as_ref().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
-        project.update_state(Arc::new(ProjectState::err()), false);
+        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
@@ -1024,8 +965,8 @@ mod tests {
         // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
-        project.update_state(Arc::new(ProjectState::err()), false);
-        project.fetch_state(false);
+        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
+        project.fetch_state(addr, false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
@@ -1049,16 +990,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_metrics_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_metrics_no_quota() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1069,7 +1012,7 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.is_empty());
     }
@@ -1084,16 +1027,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.len() == 1);
     }
 
-    #[test]
-    fn test_rate_limit_incoming_buckets_no_quota() {
+    #[tokio::test]
+    async fn test_rate_limit_incoming_buckets_no_quota() {
+        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1104,7 +1049,7 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.is_empty());
     }

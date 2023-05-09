@@ -1,24 +1,25 @@
-use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
-use std::fmt;
+use std::collections::hash_map::Entry;
+use std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
-use std::mem;
 use std::time::Duration;
+use std::{fmt, mem};
 
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use tokio::time::Instant;
-
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_log::LogError;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tokio::time::Instant;
 
-use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+use crate::statsd::{
+    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
+};
 use crate::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
     MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
@@ -1692,7 +1693,7 @@ impl AggregatorService {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
-                    metric_name = &entry.key().metric_name
+                    metric_name = metric_name_tag(&entry.key().metric_name),
                 );
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
@@ -1703,11 +1704,11 @@ impl AggregatorService {
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
-                    metric_name = &entry.key().metric_name
+                    metric_name = metric_name_tag(&entry.key().metric_name),
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
-                    metric_name = &entry.key().metric_name
+                    metric_name = metric_name_tag(&entry.key().metric_name),
                 );
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
@@ -1930,7 +1931,7 @@ impl AggregatorService {
         } = msg;
         for metric in metrics {
             if let Err(err) = self.insert(project_key, metric) {
-                relay_log::error!("failed to insert mertrics: {}", LogError(&err));
+                relay_log::error!("failed to insert metrics: {}", LogError(&err));
             }
         }
     }

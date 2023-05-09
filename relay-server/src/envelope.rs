@@ -34,17 +34,18 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::UnixTimestamp;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use smallvec::SmallVec;
-
+use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::ErrorBoundary;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::DynamicSamplingContext;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -100,12 +101,14 @@ pub enum ItemType {
     MetricBuckets,
     /// Client internal report (eg: outcomes).
     ClientReport,
-    /// Profile event payload encoded in JSON
+    /// Profile event payload encoded as JSON.
     Profile,
-    /// Replay metadata and breadcrumb payload
+    /// Replay metadata and breadcrumb payload.
     ReplayEvent,
-    /// Replay Recording data
+    /// Replay Recording data.
     ReplayRecording,
+    /// Monitor check-in encoded as JSON.
+    CheckIn,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -147,6 +150,7 @@ impl fmt::Display for ItemType {
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
+            Self::CheckIn => write!(f, "check_in"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -173,6 +177,7 @@ impl std::str::FromStr for ItemType {
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
+            "check_in" => Self::CheckIn,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -476,6 +481,13 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// Internal flag to signal that the profile has been counted toward `DataCategory::Profile`.
+    ///
+    /// If `true`, outcomes for this item should be reported as `DataCategory::ProfileIndexed`
+    /// instead.
+    #[serde(skip)]
+    profile_counted_as_processed: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -502,6 +514,7 @@ impl Item {
                 timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                profile_counted_as_processed: false,
             },
             payload: Bytes::new(),
         }
@@ -515,6 +528,48 @@ impl Item {
     /// Returns the length of this item's payload.
     pub fn len(&self) -> usize {
         self.payload.len()
+    }
+
+    /// Returns the number used for counting towards rate limits and producing outcomes.
+    ///
+    /// For attachments, we count the number of bytes. Other items are counted as 1.
+    pub fn quantity(&self) -> usize {
+        match self.ty() {
+            ItemType::Attachment => self.len().max(1),
+            _ => 1,
+        }
+    }
+
+    /// Returns the data category used for generating outcomes.
+    ///
+    /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
+    pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
+        match self.ty() {
+            ItemType::Event => Some(DataCategory::Error),
+            ItemType::Transaction => Some(if indexed {
+                DataCategory::TransactionIndexed
+            } else {
+                DataCategory::Transaction
+            }),
+            ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::UnrealReport => Some(DataCategory::Error),
+            ItemType::Attachment => Some(DataCategory::Attachment),
+            ItemType::Session | ItemType::Sessions => None,
+            ItemType::Metrics | ItemType::MetricBuckets => None,
+            ItemType::FormData => None,
+            ItemType::UserReport => None,
+            // For profiles, do not used the `indexed` flag, because it depends
+            // on whether metrics were extracted from the _event_.
+            ItemType::Profile => Some(if self.headers.profile_counted_as_processed {
+                DataCategory::ProfileIndexed
+            } else {
+                DataCategory::Profile
+            }),
+            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
+            ItemType::ClientReport => None,
+            ItemType::CheckIn => Some(DataCategory::Monitor),
+            ItemType::Unknown(_) => None,
+        }
     }
 
     /// Returns `true` if this item's payload is empty.
@@ -608,6 +663,21 @@ impl Item {
         self.headers.metrics_extracted
     }
 
+    /// Returns `true` if the profiles in the envelope have been counted towards `DataCategory::Profile`.
+    ///
+    /// If so, count them towards `DataCategory::ProfileIndexed` instead.
+    pub fn profile_counted_as_processed(&self) -> bool {
+        self.headers.profile_counted_as_processed
+    }
+
+    /// Mark the item as "counted towards `DataCategory::Profile`".
+    #[cfg(feature = "processing")]
+    pub fn set_profile_counted_as_processed(&mut self) {
+        if self.ty() == &ItemType::Profile {
+            self.headers.profile_counted_as_processed = true;
+        }
+    }
+
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
@@ -676,7 +746,8 @@ impl Item {
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
-            | ItemType::Profile => false,
+            | ItemType::Profile
+            | ItemType::CheckIn => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -705,6 +776,7 @@ impl Item {
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
+            ItemType::CheckIn => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -855,6 +927,15 @@ impl Envelope {
         Ok(Box::new(Envelope { headers, items }))
     }
 
+    /// Move the envelope's items into an envelope with the same headers.
+    pub fn take_items(&mut self) -> Envelope {
+        let Self { headers, items } = self;
+        Self {
+            headers: headers.clone(),
+            items: std::mem::take(items),
+        }
+    }
+
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -903,6 +984,11 @@ impl Envelope {
     /// Sets the timestamp at which an envelope is sent to the upstream.
     pub fn set_sent_at(&mut self, sent_at: DateTime<Utc>) {
         self.headers.sent_at = Some(sent_at);
+    }
+
+    /// Sets the start time to the provided `Instant`.
+    pub fn set_start_time(&mut self, start_time: Instant) {
+        self.headers.meta.set_start_time(start_time)
     }
 
     /// Sets the data retention in days for items in this envelope.
@@ -1078,7 +1164,7 @@ impl Envelope {
         let mut items = Items::new();
 
         while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            let (item, item_size) = Self::parse_item(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
         }
@@ -1121,7 +1207,7 @@ impl Envelope {
             },
         };
 
-        let payload = bytes.slice(payload_start, payload_end);
+        let payload = bytes.slice(payload_start..payload_end);
         let item = Item { headers, payload };
 
         Ok((item, payload_end + 1))
@@ -1146,9 +1232,9 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use relay_common::ProjectId;
+
+    use super::*;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

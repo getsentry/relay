@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 
 use chrono::{TimeZone, Utc};
 use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
-
 use relay_general::protocol::{
     Context, ContextInner, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };

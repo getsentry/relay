@@ -3,7 +3,7 @@ use regex::Regex;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
-use crate::protocol::OperationType;
+use crate::protocol::{OperationType, OriginType};
 use crate::types::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -102,6 +102,10 @@ pub struct TraceContext {
     /// should not ever send this value.
     pub client_sample_rate: Annotated<f64>,
 
+    /// The origin of the trace indicates what created the trace (see [OriginType] docs).
+    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    pub origin: Annotated<OriginType>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -190,9 +194,8 @@ impl TraceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Context;
-
     use super::*;
+    use crate::protocol::Context;
 
     #[test]
     pub(crate) fn test_trace_context_roundtrip() {
@@ -204,6 +207,7 @@ mod tests {
   "status": "ok",
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
+  "origin": "auto.http",
   "other": "value",
   "type": "trace"
 }"#;
@@ -215,6 +219,7 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
+            origin: Annotated::new("auto.http".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(

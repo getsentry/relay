@@ -121,17 +121,12 @@ mod test;
 pub use test::*;
 
 mod utils;
-pub use utils::*;
-
 // Expose the minimal log facade.
 #[doc(inline)]
 pub use log::{debug, error, info, log, trace, warn};
-
+#[cfg(feature = "sentry")]
+pub use sentry::integrations::tower;
 // Expose the minimal error reporting API.
 #[doc(inline)]
 pub use sentry_core::{capture_error, configure_scope, protocol, with_scope, Hub};
-
-// Required for the temporarily vendored actix integration.
-#[doc(hidden)]
-#[cfg(feature = "sentry")]
-pub use sentry as _sentry;
+pub use utils::*;

@@ -1,104 +1,97 @@
 //! Endpoints for security reports.
 
-use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
+use axum::extract::{DefaultBodyLimit, FromRequest, Query};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
+use bytes::Bytes;
+use relay_config::Config;
+use relay_general::protocol::EventId;
 use serde::Deserialize;
 
-use relay_general::protocol::EventId;
-
-use crate::body;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
+use crate::extractors::{Mime, RequestMeta};
+use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
-struct SecurityReportParams {
+struct SecurityReportQuery {
     sentry_release: Option<String>,
     sentry_environment: Option<String>,
 }
 
-async fn extract_envelope(
-    request: &HttpRequest<ServiceState>,
+#[derive(Debug, FromRequest)]
+#[from_request(state(ServiceState))]
+struct SecurityReportParams {
     meta: RequestMeta,
-    params: SecurityReportParams,
-) -> Result<Box<Envelope>, BadStoreRequest> {
-    let max_payload_size = request.state().config().max_event_size();
-    let data = body::store_body(request, max_payload_size).await?;
+    #[from_request(via(Query))]
+    query: SecurityReportQuery,
+    body: Bytes,
+}
 
-    if data.is_empty() {
-        return Err(BadStoreRequest::EmptyBody);
+impl SecurityReportParams {
+    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+        let Self { meta, query, body } = self;
+
+        if body.is_empty() {
+            return Err(BadStoreRequest::EmptyBody);
+        }
+
+        let mut report_item = Item::new(ItemType::RawSecurity);
+        report_item.set_payload(ContentType::Json, body);
+
+        if let Some(sentry_release) = query.sentry_release {
+            report_item.set_header("sentry_release", sentry_release);
+        }
+
+        if let Some(sentry_environment) = query.sentry_environment {
+            report_item.set_header("sentry_environment", sentry_environment);
+        }
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
+        envelope.add_item(report_item);
+
+        Ok(envelope)
     }
+}
 
-    let mut report_item = Item::new(ItemType::RawSecurity);
-    report_item.set_payload(ContentType::Json, data);
+fn is_security_mime(mime: Mime) -> bool {
+    let ty = mime.type_().as_str();
+    let subty = mime.subtype().as_str();
+    let suffix = mime.suffix().map(|suffix| suffix.as_str());
 
-    if let Some(sentry_release) = params.sentry_release {
-        report_item.set_header("sentry_release", sentry_release);
-    }
-
-    if let Some(sentry_environment) = params.sentry_environment {
-        report_item.set_header("sentry_environment", sentry_environment);
-    }
-
-    let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-    envelope.add_item(report_item);
-
-    Ok(envelope)
+    matches!(
+        (ty, subty, suffix),
+        ("application", "json", None)
+            | ("application", "csp-report", None)
+            | ("application", "expect-ct-report", None)
+            | ("application", "expect-ct-report", Some("json"))
+            | ("application", "expect-staple-report", None)
+    )
 }
 
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
-async fn store_security_report(
-    meta: RequestMeta,
-    request: HttpRequest<ServiceState>,
-    params: Query<SecurityReportParams>,
-) -> Result<HttpResponse, BadStoreRequest> {
-    let envelope = extract_envelope(&request, meta, params.into_inner()).await?;
-    common::handle_envelope(request.state(), envelope).await?;
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[derive(Debug)]
-struct SecurityReportFilter;
-
-impl pred::Predicate<ServiceState> for SecurityReportFilter {
-    fn check(&self, request: &Request, _: &ServiceState) -> bool {
-        let mime_type = match request.mime_type() {
-            Ok(Some(mime)) => mime,
-            _ => return false,
-        };
-
-        let ty = mime_type.type_().as_str();
-        let subty = mime_type.subtype().as_str();
-        let suffix = mime_type.suffix().map(|suffix| suffix.as_str());
-
-        matches!(
-            (ty, subty, suffix),
-            ("application", "json", None)
-                | ("application", "csp-report", None)
-                | ("application", "expect-ct-report", None)
-                | ("application", "expect-ct-report", Some("json"))
-                | ("application", "expect-staple-report", None)
-        )
+async fn handle(
+    state: ServiceState,
+    mime: Mime,
+    params: SecurityReportParams,
+) -> Result<impl IntoResponse, BadStoreRequest> {
+    if !is_security_mime(mime) {
+        return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
+
+    let envelope = params.extract_envelope()?;
+    common::handle_envelope(&state, envelope).await?;
+    Ok(().into_response())
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    common::cors(app)
-        // Default security endpoint
-        .resource(&common::normpath(r"/api/{project:\d+}/security/"), |r| {
-            r.name("store-security-report");
-            r.post()
-                .filter(SecurityReportFilter)
-                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-        })
-        // Legacy security endpoint
-        .resource(&common::normpath(r"/api/{project:\d+}/csp-report/"), |r| {
-            r.name("store-csp-report");
-            r.post()
-                .filter(SecurityReportFilter)
-                .with_async(|m, r, p| common::handler(store_security_report(m, r, p)));
-        })
-        .register()
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

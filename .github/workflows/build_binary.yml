@@ -19,10 +19,13 @@ jobs:
           submodules: recursive
 
       - name: Build in Docker
-        run: scripts/docker-build-linux.sh
+        run: |
+          # Get the latest stable rust toolchain version available
+          TOOLCHAIN=$(curl -s 'https://static.rust-lang.org/dist/channel-rust-stable.toml' | awk '/\[pkg.rust\]/ {getline;print;}' | sed -r 's/^version = "([0-9.]+) .*/\1/')
+          scripts/docker-build-linux.sh "$TOOLCHAIN"
         env:
           BUILD_ARCH: x86_64
-          RELAY_FEATURES: ssl
+          RELAY_FEATURES:
 
       - name: Bundle Debug File
         run: |
@@ -44,19 +47,13 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - name: Run Cargo Build
-        uses: actions-rs/cargo@v1
+        run: cargo build --manifest-path=relay/Cargo.toml --release
         env:
           CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: packed
-        with:
-          command: build
-          args: --manifest-path=relay/Cargo.toml --release --features ssl
 
       - name: Bundle dSYM
         run: |
@@ -78,17 +75,11 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
       - name: Run Cargo Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --manifest-path=relay/Cargo.toml --release --features ssl
+        run: cargo build --manifest-path=relay/Cargo.toml --release
 
       - name: Bundle PDB
         run: |

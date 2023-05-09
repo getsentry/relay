@@ -1,8 +1,6 @@
-use std::fmt;
-use std::fs;
+use std::{fmt, fs};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{process_value, SelectorSpec};
 use relay_general::protocol::{Event, IpAddr};
@@ -94,6 +92,7 @@ fn bench_store_processor(c: &mut Criterion) {
         breakdowns: None,
         span_attributes: Default::default(),
         client_sample_rate: None,
+        replay_id: None,
         client_hints: ClientHints::default(),
     };
 

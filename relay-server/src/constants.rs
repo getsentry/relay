@@ -25,3 +25,6 @@ pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 /// The default retention for events if the server does not specify a value in project
 /// configurations.
 pub const DEFAULT_EVENT_RETENTION: u16 = 90;
+
+/// Maximum size of JSON request bodies.
+pub const MAX_JSON_SIZE: usize = 262_144;

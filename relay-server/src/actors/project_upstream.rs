@@ -1,22 +1,22 @@
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-use tokio::time::Instant;
-
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_log::LogError;
 use relay_statsd::metric;
 use relay_system::{
-    BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchProjectState;
@@ -157,6 +157,7 @@ struct UpstreamResponse {
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
     state_channels: ProjectStateChannels,
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
     inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
@@ -165,13 +166,14 @@ pub struct UpstreamProjectSourceService {
 
 impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         let (inner_tx, inner_rx) = mpsc::unbounded_channel();
 
         Self {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
+            upstream_relay,
             config,
             inner_tx,
             inner_rx,
@@ -247,6 +249,7 @@ impl UpstreamProjectSourceService {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     async fn fetch_states(
         config: Arc<Config>,
+        upstream_relay: Addr<UpstreamRelay>,
         channels: ChannelsBatch,
     ) -> Vec<Option<UpstreamResponse>> {
         let request_start = Instant::now();
@@ -275,8 +278,9 @@ impl UpstreamProjectSourceService {
             // count number of http requests for project states
             metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
+            let upstream_relay = upstream_relay.clone();
             requests.push(async move {
-                match UpstreamRelay::from_registry().send(SendQuery(query)).await {
+                match upstream_relay.send(SendQuery(query)).await {
                     Ok(response) => Some(UpstreamResponse {
                         channels_batch,
                         response,
@@ -407,9 +411,10 @@ impl UpstreamProjectSourceService {
         let config = self.config.clone();
         let inner_tx = self.inner_tx.clone();
         let channels = self.prepare_batches();
+        let upstream_relay = self.upstream_relay.clone();
 
         tokio::spawn(async move {
-            let responses = Self::fetch_states(config, channels).await;
+            let responses = Self::fetch_states(config, upstream_relay, channels).await;
             // Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
             if let Err(err) = inner_tx.send(responses) {

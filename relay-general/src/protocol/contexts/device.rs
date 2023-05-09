@@ -1,7 +1,51 @@
+use std::collections::HashMap;
+
+use once_cell::sync::Lazy;
+
 use crate::protocol::FromUserAgentInfo;
 use crate::store::user_agent::is_known;
 use crate::types::{Annotated, Object, Value};
 use crate::user_agent::{parse_device, ClientHints};
+
+/// A hashmap that translates from the android model to the more human-friendly product-names.
+/// E.g. NE2211 -> OnePlus 10 Pro 5G
+pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    // Note that windows paths with backslashes '\' won't work on unix systems.
+    let android_str = include_str!("../../../files/android_models.csv");
+
+    let mut lines = android_str.lines();
+
+    let header = lines.next().expect("CSV file should have a header");
+
+    let header_fields: Vec<&str> = header.split(',').collect();
+    let model_index = header_fields.iter().position(|&s| s.trim() == "Model");
+    let product_name_index = header_fields
+        .iter()
+        .position(|&s| s.trim() == "Marketing Name");
+
+    let (model_index, product_name_index) = match (model_index, product_name_index) {
+        (Some(model_index), Some(product_name_index)) => (model_index, product_name_index),
+        (_, _) => {
+            relay_log::error!(
+                "Failed to find Model and/or Marketing Name headers for android-model map",
+            );
+
+            return HashMap::new();
+        }
+    };
+
+    for line in lines {
+        let fields: Vec<&str> = line.split(',').collect();
+        if fields.len() > std::cmp::max(model_index, product_name_index) {
+            map.insert(
+                fields[model_index].trim(),
+                fields[product_name_index].trim(),
+            );
+        }
+    }
+    map
+});
 
 /// Device information.
 ///
@@ -174,9 +218,9 @@ impl DeviceContext {
 
 impl FromUserAgentInfo for DeviceContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let device = client_hints.sec_ch_ua_model?.to_owned();
+        let device = client_hints.sec_ch_ua_model?.trim().replace('\"', "");
 
-        if device.trim().is_empty() {
+        if device.is_empty() {
             return None;
         }
 
@@ -204,8 +248,7 @@ impl FromUserAgentInfo for DeviceContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::{DeviceContext, FromUserAgentInfo};
-    use crate::protocol::{Headers, PairList};
+    use crate::protocol::{DeviceContext, FromUserAgentInfo, Headers, PairList};
     use crate::types::{Annotated, Object, Value};
     use crate::user_agent::RawUserAgentInfo;
 
@@ -241,6 +284,20 @@ mod tests {
                 Annotated::new("moto g31(w)".to_string().into()),
             )),
         ];
+            PairList(headers)
+        });
+
+        let device = DeviceContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers));
+        assert_eq!(device.unwrap().model.as_str().unwrap(), "moto g31(w)");
+    }
+
+    #[test]
+    fn test_strip_whitespace_and_quotes() {
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("SEC-CH-UA-MODEL".to_string().into()),
+                Annotated::new("   \"moto g31(w)\"".to_string().into()),
+            ))];
             PairList(headers)
         });
 

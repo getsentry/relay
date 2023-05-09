@@ -6,7 +6,6 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use chrono::Utc;
-
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;

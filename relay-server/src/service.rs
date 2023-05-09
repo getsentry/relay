@@ -1,72 +1,46 @@
+use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
-use actix::Recipient;
-use actix_web::server::StopServer;
-use actix_web::{server, App};
 use anyhow::{Context, Result};
-use futures01::Future;
-use listenfd::ListenFd;
-use once_cell::race::OnceBox;
-use tokio::runtime::Runtime;
-
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
-use relay_system::{Addr, Configure, Controller, Service};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-use crate::actors::project_cache::{ProjectCache, ProjectCacheService};
+use crate::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::middlewares::{
-    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
-};
 use crate::utils::BufferGuard;
-
-pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
-pub enum ServerError {
-    /// Binding failed.
-    #[error("bind to interface failed")]
-    BindFailed,
-
-    /// Listening on the HTTP socket failed.
-    #[error("listening failed")]
-    ListenFailed,
-
-    /// A TLS error ocurred.
-    #[error("could not initialize the TLS server")]
-    TlsInitFailed,
-
-    /// TLS support was not compiled in.
-    #[cfg(not(feature = "ssl"))]
-    #[error("compile with the `ssl` feature to enable SSL support")]
-    TlsNotSupported,
-
+pub enum ServiceError {
     /// GeoIp construction failed.
     #[cfg(feature = "processing")]
     #[error("could not load the Geoip Db")]
-    GeoIpError,
+    GeoIp,
 
     /// Initializing the Kafka producer failed.
     #[cfg(feature = "processing")]
     #[error("could not initialize kafka producer")]
-    KafkaError,
+    Kafka,
 
     /// Initializing the Redis cluster client failed.
     #[error("could not initialize redis cluster client")]
-    RedisError,
+    Redis,
 }
 
 #[derive(Clone)]
@@ -81,16 +55,6 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-}
-
-impl Registry {
-    /// Get the [`AggregatorService`] address from the registry.
-    ///
-    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
-    /// runtime and follow up refactoring of the dependencies.
-    pub fn aggregator() -> Addr<Aggregator> {
-        REGISTRY.get().unwrap().aggregator.clone()
-    }
 }
 
 impl fmt::Debug for Registry {
@@ -115,16 +79,22 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         .unwrap()
 }
 
-/// Server state.
-#[derive(Clone)]
-pub struct ServiceState {
+#[derive(Debug)]
+struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    registry: Registry,
     _aggregator_runtime: Arc<Runtime>,
     _outcome_runtime: Arc<Runtime>,
     _project_runtime: Arc<Runtime>,
     _upstream_runtime: Arc<Runtime>,
     _store_runtime: Option<Arc<Runtime>>,
+}
+
+/// Server state.
+#[derive(Clone, Debug)]
+pub struct ServiceState {
+    inner: Arc<StateInner>,
 }
 
 impl ServiceState {
@@ -137,46 +107,39 @@ impl ServiceState {
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
-
-        let outcome_producer =
-            OutcomeProducerService::create(config.clone())?.start_in(&outcome_runtime);
-        let outcome_aggregator =
-            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
+        let test_store = TestStoreService::new(config.clone()).start();
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServerError::RedisError)?)
+                Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
             }
             _ => None,
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
-        #[allow(unused_mut)]
-        let mut envelope_manager = EnvelopeManagerService::new(config.clone());
 
-        #[cfg(feature = "processing")]
-        if config.processing_enabled() {
-            let rt = create_runtime("store-rt", 1);
-            let store = StoreService::create(config.clone())?.start_in(&rt);
-            envelope_manager.set_store_forwarder(store);
-            _store_runtime = Some(rt);
-        }
+        // Create an address for the `EnvelopeManagerService`, which can be injected into the
+        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
+        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
+        let outcome_producer = OutcomeProducerService::create(
+            config.clone(),
+            upstream_relay.clone(),
+            envelope_manager.clone(),
+        )?
+        .start_in(&outcome_runtime);
+        let outcome_aggregator =
+            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
-        let envelope_manager = envelope_manager.start();
-        let test_store = TestStoreService::new(config.clone()).start();
-
-        let project_cache =
-            ProjectCacheService::new(config.clone(), redis_pool).start_in(&project_runtime);
-
-        let health_check = HealthCheckService::new(config.clone()).start();
-        let relay_cache = RelayCacheService::new(config.clone()).start();
-
-        if let Some(aws_api) = config.aws_runtime_api() {
-            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                aws_extension.start();
-            }
-        }
+        let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        let processor = EnvelopeProcessorService::new(
+            config.clone(),
+            redis_pool.clone(),
+            envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
+            upstream_relay.clone(),
+        )?
+        .start();
 
         let aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
@@ -184,35 +147,89 @@ impl ServiceState {
         )
         .start_in(&aggregator_runtime);
 
-        REGISTRY
-            .set(Box::new(Registry {
-                aggregator,
-                processor,
-                health_check,
-                outcome_producer,
-                outcome_aggregator,
-                envelope_manager,
-                test_store,
-                relay_cache,
-                project_cache,
-                upstream_relay,
-            }))
-            .unwrap();
+        #[allow(unused_mut)]
+        let mut envelope_manager_service = EnvelopeManagerService::new(
+            config.clone(),
+            aggregator.clone(),
+            processor.clone(),
+            project_cache.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
 
-        Ok(ServiceState {
+        #[cfg(feature = "processing")]
+        if config.processing_enabled() {
+            let rt = create_runtime("store-rt", 1);
+            let store = StoreService::create(config.clone())?.start_in(&rt);
+            envelope_manager_service.set_store_forwarder(store);
+            _store_runtime = Some(rt);
+        }
+
+        envelope_manager_service.spawn_handler(envelope_manager_rx);
+
+        // Keep all the services in one context.
+        let project_cache_services = Services::new(
+            aggregator.clone(),
+            processor.clone(),
+            envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
+            test_store.clone(),
+            upstream_relay.clone(),
+        );
+        let guard = project_runtime.enter();
+        ProjectCacheService::new(
+            config.clone(),
+            buffer.clone(),
+            project_cache_services,
+            redis_pool,
+        )
+        .spawn_handler(project_cache_rx);
+        drop(guard);
+
+        let health_check =
+            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
+                .start();
+        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
+
+        if let Some(aws_api) = config.aws_runtime_api() {
+            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
+                aws_extension.start();
+            }
+        }
+
+        let registry = Registry {
+            aggregator,
+            processor,
+            health_check,
+            outcome_producer,
+            outcome_aggregator,
+            envelope_manager,
+            test_store,
+            relay_cache,
+            project_cache,
+            upstream_relay,
+        };
+
+        let state = StateInner {
             buffer_guard: buffer,
             config,
+            registry,
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _project_runtime: Arc::new(project_runtime),
             _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
+        };
+
+        Ok(ServiceState {
+            inner: Arc::new(state),
         })
     }
 
     /// Returns a reference to the Relay configuration.
     pub fn config(&self) -> &Config {
-        &self.config
+        &self.inner.config
     }
 
     /// Returns a reference to the guard of the envelope buffer.
@@ -220,155 +237,55 @@ impl ServiceState {
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.buffer_guard
+        &self.inner.buffer_guard
+    }
+
+    /// Returns the address of the [`ProjectCache`] service.
+    pub fn project_cache(&self) -> &Addr<ProjectCache> {
+        &self.inner.registry.project_cache
+    }
+
+    /// Returns the address of the [`RelayCache`] service.
+    pub fn relay_cache(&self) -> &Addr<RelayCache> {
+        &self.inner.registry.relay_cache
+    }
+
+    /// Returns the address of the [`HealthCheck`] service.
+    pub fn health_check(&self) -> &Addr<HealthCheck> {
+        &self.inner.registry.health_check
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
+        &self.inner.registry.outcome_producer
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn test_store(&self) -> &Addr<TestStore> {
+        &self.inner.registry.test_store
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn upstream_relay(&self) -> &Addr<UpstreamRelay> {
+        &self.inner.registry.upstream_relay
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
+        &self.inner.registry.processor
+    }
+
+    /// Returns the address of the [`OutcomeProducer`] service.
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.inner.registry.outcome_aggregator
     }
 }
 
-/// The actix app type for the relay web service.
-pub type ServiceApp = App<ServiceState>;
+#[axum::async_trait]
+impl FromRequestParts<Self> for ServiceState {
+    type Rejection = Infallible;
 
-fn make_app(state: ServiceState) -> ServiceApp {
-    App::with_state(state)
-        .middleware(SentryMiddleware::new())
-        .middleware(Metrics)
-        .middleware(AddCommonHeaders)
-        .middleware(ErrorHandlers)
-        .middleware(ReadRequestMiddleware)
-        .configure(crate::endpoints::configure_app)
-}
-
-fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    relay_log::info!("spawning http server");
-    for (addr, scheme) in server.addrs_with_scheme() {
-        relay_log::info!("  listening on: {}://{}/", scheme, addr);
-    }
-}
-
-fn listen<H, F>(
-    server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    Ok(
-        match ListenFd::from_env()
-            .take_tcp_listener(0)
-            .context(ServerError::ListenFailed)?
-        {
-            Some(listener) => server.listen(listener),
-            None => server
-                .bind(config.listen_addr())
-                .context(ServerError::BindFailed)?,
-        },
-    )
-}
-
-#[cfg(feature = "ssl")]
-fn listen_ssl<H, F>(
-    mut server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    if let (Some(addr), Some(path), Some(password)) = (
-        config.tls_listen_addr(),
-        config.tls_identity_path(),
-        config.tls_identity_password(),
-    ) {
-        use native_tls::{Identity, TlsAcceptor};
-        use std::fs::File;
-        use std::io::Read;
-
-        let mut file = File::open(path).unwrap();
-        let mut data = vec![];
-        file.read_to_end(&mut data).unwrap();
-        let identity =
-            Identity::from_pkcs12(&data, password).context(ServerError::TlsInitFailed)?;
-
-        let acceptor = TlsAcceptor::builder(identity)
-            .build()
-            .context(ServerError::TlsInitFailed)?;
-
-        server = server
-            .bind_tls(addr, acceptor)
-            .context(ServerError::BindFailed)?;
-    }
-
-    Ok(server)
-}
-
-#[cfg(not(feature = "ssl"))]
-fn listen_ssl<H, F>(
-    server: server::HttpServer<H, F>,
-    config: &Config,
-) -> Result<server::HttpServer<H, F>, ServerError>
-where
-    H: server::IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-{
-    if config.tls_listen_addr().is_some()
-        || config.tls_identity_path().is_some()
-        || config.tls_identity_password().is_some()
-    {
-        Err(ServerError::TlsNotSupported.into())
-    } else {
-        Ok(server)
-    }
-}
-
-/// Keeps the address to the running http servers and helps with start/stop handling.
-pub struct HttpServer(Recipient<StopServer>);
-
-impl HttpServer {
-    /// Given a relay config spawns the server together with all actors and lets them run forever.
-    ///
-    /// Effectively this boots the server.
-    pub fn start(config: Config) -> Result<Self> {
-        let config = Arc::new(config);
-
-        Controller::from_registry().do_send(Configure {
-            shutdown_timeout: config.shutdown_timeout(),
-        });
-
-        let state = ServiceState::start(config.clone())?;
-        let mut server = server::new(move || make_app(state.clone()));
-        server = server
-            .workers(config.cpu_concurrency())
-            .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
-            .keep_alive(config.keepalive_timeout().as_secs() as usize)
-            .maxconn(config.max_connections())
-            .maxconnrate(config.max_connection_rate())
-            .backlog(config.max_pending_connections())
-            .disable_signals();
-
-        server = listen(server, &config)?;
-        server = listen_ssl(server, &config)?;
-
-        dump_listen_infos(&server);
-        let recipient = server.start().recipient();
-        Ok(Self(recipient))
-    }
-
-    /// Triggers the shutdown process by sending [`actix_web::server::StopServer`] to the running http server.
-    pub fn shutdown(&self, graceful: bool) {
-        let Self(recipient) = self;
-        relay_log::info!("Shutting down HTTP server");
-        recipient.send(StopServer { graceful }).wait().ok();
-    }
-}
-
-impl fmt::Debug for HttpServer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("HttpServer")
-            .field(&"actix::Recipient<actix_web::server::StopServer>")
-            .finish()
+    async fn from_request_parts(_: &mut Parts, state: &Self) -> Result<Self, Self::Rejection> {
+        Ok(state.clone())
     }
 }

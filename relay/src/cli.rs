@@ -1,22 +1,18 @@
-use std::env;
-use std::io;
 use std::path::{Path, PathBuf};
+use std::{env, io};
 
 use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
-use dialoguer::Confirm;
-use dialoguer::Select;
-
+use dialoguer::{Confirm, Select};
 use relay_common::Uuid;
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
 
 use crate::cliapp::make_app;
-use crate::setup;
-use crate::utils;
 use crate::utils::get_theme;
+use crate::{setup, utils};
 
 fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
     match Config::from_path(path) {

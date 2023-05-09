@@ -1,6 +1,6 @@
 //! Dynamic configuration for metrics extraction from sessions and transactions.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
@@ -64,39 +64,6 @@ impl SessionMetricsConfig {
     }
 }
 
-/// The metric to which the user satisfaction threshold is applied.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SatisfactionMetric {
-    /// Apply to transaction duration.
-    Duration,
-    /// Apply to LCP.
-    Lcp,
-    /// Catch-all variant for forward compatibility.
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration for a single threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SatisfactionThreshold {
-    /// What metric to apply the threshold to.
-    pub metric: SatisfactionMetric,
-    /// Value of the threshold.
-    pub threshold: f64,
-}
-
-/// Configuration for applying the user satisfaction threshold.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SatisfactionConfig {
-    /// The project-wide threshold to apply.
-    pub project_threshold: SatisfactionThreshold,
-    /// Transaction-specific overrides of the project-wide threshold.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
-}
-
 /// Configuration for extracting custom measurements from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -135,12 +102,8 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     pub version: u16,
-    /// Deprecated. Still here to be forwarded to external relays.
-    pub extract_metrics: BTreeSet<String>,
     /// Custom event tags that are transferred from the transaction to metrics.
     pub extract_custom_tags: BTreeSet<String>,
-    /// Config for determining user satisfaction (satisfied / tolerated / frustrated)
-    pub satisfaction_thresholds: Option<SatisfactionConfig>,
     /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     pub custom_measurements: CustomMeasurementConfig,
     /// Defines whether URL transactions should be considered low cardinality.

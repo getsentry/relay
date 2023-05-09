@@ -1,8 +1,4 @@
 use chrono::{TimeZone, Utc};
-use symbolic_unreal::{
-    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
-};
-
 use relay_config::Config;
 use relay_general::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
@@ -10,6 +6,9 @@ use relay_general::protocol::{
     User, UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
+use symbolic_unreal::{
+    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
+};
 
 use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
@@ -84,7 +83,8 @@ pub fn expand_unreal_envelope(
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
-        item.set_payload(content_type, file.data());
+        // TODO: This clones data. Update symbolic to allow moving the bytes out.
+        item.set_payload(content_type, file.data().to_owned());
         item.set_attachment_type(attachment_type);
         envelope.add_item(item);
     }

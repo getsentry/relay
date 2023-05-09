@@ -4,20 +4,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use tokio::sync::oneshot;
-
 use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::{Bucket, MergeBuckets};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
+use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
+#[cfg(feature = "processing")]
+use crate::actors::store::{Store, StoreEnvelope, StoreError};
 use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{
     Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -25,12 +26,8 @@ use crate::actors::upstream::{
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
-use crate::utils::EnvelopeContext;
-
-#[cfg(feature = "processing")]
-use crate::actors::store::{Store, StoreEnvelope, StoreError};
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -62,6 +59,7 @@ impl From<relay_system::SendError> for SendEnvelopeError {
 pub struct SendEnvelope {
     pub envelope_body: Vec<u8>,
     pub envelope_meta: RequestMeta,
+    pub project_cache: Addr<ProjectCache>,
     pub scoping: Scoping,
     pub http_encoding: HttpEncoding,
     pub response_sender: oneshot::Sender<Result<(), SendEnvelopeError>>,
@@ -82,7 +80,10 @@ impl UpstreamRequest for SendEnvelope {
         "envelope"
     }
 
-    fn build(&mut self, _: &Config, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
+        let envelope_body = &self.envelope_body;
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -90,15 +91,9 @@ impl UpstreamRequest for SendEnvelope {
             .header_opt("User-Agent", meta.user_agent())
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
-            .header("Content-Type", envelope::CONTENT_TYPE);
-
-        if let Some(partition_key) = &self.partition_key {
-            builder.header("X-Sentry-Relay-Shard", partition_key);
-        }
-
-        let envelope_body = self.envelope_body.clone();
-        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
-        builder.body(envelope_body)
+            .header("Content-Type", envelope::CONTENT_TYPE)
+            .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .body(envelope_body)
     }
 
     fn respond(
@@ -110,7 +105,7 @@ impl UpstreamRequest for SendEnvelope {
                 Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
                 Err(error) => {
                     if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        self.project_cache.send(UpdateRateLimits::new(
                             self.project_key,
                             upstream_limits.clone().scope(&self.scoping),
                         ));
@@ -130,8 +125,7 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Box<Envelope>,
-    pub envelope_context: EnvelopeContext,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Sends a client report to the upstream.
@@ -163,12 +157,6 @@ pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
     SendMetrics(SendMetrics),
-}
-
-impl EnvelopeManager {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().envelope_manager.clone()
-    }
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -208,15 +196,32 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
+    aggregator: Addr<Aggregator>,
+    enveloper_processor: Addr<EnvelopeProcessor>,
+    project_cache: Addr<ProjectCache>,
+    test_store: Addr<TestStore>,
+    upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<Store>>,
 }
 
 impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        aggregator: Addr<Aggregator>,
+        enveloper_processor: Addr<EnvelopeProcessor>,
+        project_cache: Addr<ProjectCache>,
+        test_store: Addr<TestStore>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
             config,
+            aggregator,
+            enveloper_processor,
+            project_cache,
+            test_store,
+            upstream_relay,
             #[cfg(feature = "processing")]
             store_forwarder: None,
         }
@@ -251,7 +256,7 @@ impl EnvelopeManagerService {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.config) {
-            TestStore::from_registry().send(Capture::accepted(envelope));
+            self.test_store.send(Capture::accepted(envelope));
             return Ok(());
         }
 
@@ -270,6 +275,7 @@ impl EnvelopeManagerService {
         let request = SendEnvelope {
             envelope_body,
             envelope_meta: envelope.meta().clone(),
+            project_cache: self.project_cache.clone(),
             scoping,
             http_encoding: self.config.http_encoding(),
             response_sender: tx,
@@ -278,9 +284,9 @@ impl EnvelopeManagerService {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().send(SendRequest(request));
+            self.upstream_relay.send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
+            self.enveloper_processor.send(EncodeEnvelope::new(request));
         }
 
         match rx.await {
@@ -291,18 +297,17 @@ impl EnvelopeManagerService {
     }
 
     async fn handle_submit(&self, message: SubmitEnvelope) {
-        let SubmitEnvelope {
-            envelope,
-            mut envelope_context,
-        } = message;
+        let SubmitEnvelope { mut envelope } = message;
 
-        let scoping = envelope_context.scoping();
-        match self.submit_envelope(envelope, scoping, None).await {
+        let scoping = envelope.scoping();
+
+        let inner_envelope = envelope.take_envelope();
+        match self.submit_envelope(inner_envelope, scoping, None).await {
             Ok(_) => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
-                envelope_context.accept();
+                envelope.accept();
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
@@ -311,7 +316,7 @@ impl EnvelopeManagerService {
                     |scope| scope.set_tag("project_key", scoping.project_key),
                     || relay_log::error!("error sending envelope: {}", LogError(&error)),
                 );
-                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }
@@ -343,9 +348,10 @@ impl EnvelopeManagerService {
         if let Err(err) = result {
             relay_log::trace!(
                 "failed to submit the envelope, merging buckets back: {}",
-                err
+                LogError(&err)
             );
-            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets));
+            self.aggregator
+                .send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 

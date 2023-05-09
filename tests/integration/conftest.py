@@ -27,6 +27,7 @@ from .fixtures.processing import (
     sessions_consumer,
     metrics_consumer,
     replay_events_consumer,
+    monitors_consumer,
 )  # noqa
 
 
@@ -198,7 +199,7 @@ class _JsonFixtureProvider(object):
 
     def load(self, file_name: str, ext: Optional[str] = None):
         """
-        Loads a fixture with the specified file name (with the path realtive to the current test)
+        Loads a fixture with the specified file name (with the path relative to the current test)
         :param file_name: the file name
         :param ext: an optional extension to be appended to the file name ( the ext should contain
             '.' i.e. it should be something like '.fixture'

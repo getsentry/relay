@@ -1,18 +1,24 @@
+#[cfg(debug_assertions)]
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
+use relay_statsd::metric;
 use thiserror::Error;
 
-use relay_statsd::metric;
-
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
+#[cfg(debug_assertions)]
+use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
 mod utils;
 use utils::{CaptureErrorContext, ThreadedProducer};
+
+#[cfg(debug_assertions)]
+mod schemas;
 
 /// Kafka producer errors.
 #[derive(Error, Debug)]
@@ -36,6 +42,11 @@ pub enum ClientError {
     /// Failed to serialize the json message using serde.
     #[error("failed to serialize json message")]
     InvalidJson(#[source] serde_json::Error),
+
+    /// Failed to run schema validation on message.
+    #[cfg(debug_assertions)]
+    #[error("failed to run schema validation on message")]
+    SchemaValidationFailed(#[source] schemas::SchemaError),
 
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
     #[error("invalid kafka shard")]
@@ -127,6 +138,8 @@ impl fmt::Debug for ShardedProducer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
+    #[cfg(debug_assertions)]
+    schema_validator: RefCell<schemas::Validator>,
 }
 
 impl KafkaClient {
@@ -143,6 +156,11 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
+        #[cfg(debug_assertions)]
+        self.schema_validator
+            .borrow_mut()
+            .validate_message_schema(topic, &serialized)
+            .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
         self.send(topic, organization_id, &key, message.variant(), &serialized)
     }
@@ -274,6 +292,8 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
+            #[cfg(debug_assertions)]
+            schema_validator: Validator::default().into(),
         }
     }
 }

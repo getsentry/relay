@@ -14,6 +14,10 @@ pub struct Geo {
     #[metastructure(pii = "true", max_chars = "summary")]
     pub city: Annotated<String>,
 
+    /// Human readable subdivision name.
+    #[metastructure(pii = "true", max_chars = "summary")]
+    pub subdivision: Annotated<String>,
+
     /// Human readable region name or code.
     #[metastructure(pii = "true", max_chars = "summary")]
     pub region: Annotated<String>,
@@ -82,21 +86,22 @@ pub struct User {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::types::{Error, Map};
-
     use super::*;
+    use crate::types::{Error, Map};
 
     #[test]
     fn test_geo_roundtrip() {
         let json = r#"{
   "country_code": "US",
   "city": "San Francisco",
+  "subdivision": "California",
   "region": "CA",
   "other": "value"
 }"#;
         let geo = Annotated::new(Geo {
             country_code: Annotated::new("US".to_string()),
             city: Annotated::new("San Francisco".to_string()),
+            subdivision: Annotated::new("California".to_string()),
             region: Annotated::new("CA".to_string()),
             other: {
                 let mut map = Map::new();
@@ -118,6 +123,7 @@ mod tests {
         let geo = Annotated::new(Geo {
             country_code: Annotated::empty(),
             city: Annotated::empty(),
+            subdivision: Annotated::empty(),
             region: Annotated::empty(),
             other: Object::default(),
         });

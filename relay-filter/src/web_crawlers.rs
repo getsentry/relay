@@ -2,7 +2,6 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-
 use relay_general::protocol::Event;
 use relay_general::user_agent;
 
@@ -71,7 +70,6 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterS
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::testutils;
 
     #[test]

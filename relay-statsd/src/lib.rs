@@ -66,7 +66,6 @@ use cadence::{
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
-
 use relay_log::LogError;
 
 /// Maximum number of metric events that can be queued before we start dropping them
@@ -163,7 +162,6 @@ pub fn set_client(client: MetricsClient) {
 }
 
 /// Set a test client for the period of the called function (only affects the current thread).
-#[cfg(feature = "test")]
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {

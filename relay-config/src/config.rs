@@ -1,20 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
-use std::env;
 use std::error::Error;
-use std::fmt;
-use std::fs;
-use std::io;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
+use std::{env, fmt, fs, io};
 
 use anyhow::Context;
-use serde::de::{Unexpected, Visitor};
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
-
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
 use relay_kafka::{
@@ -22,11 +16,18 @@ use relay_kafka::{
 };
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
+use serde::de::{DeserializeOwned, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
+
+static CONFIG_YAML_HEADER: &str = r###"# Please see the relevant documentation.
+# Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/
+# All config options: https://docs.sentry.io/product/relay/options/
+"###;
 
 /// Indicates config related errors.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -197,8 +198,11 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?;
 
         match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::to_writer(&mut f, self)
-                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
+            ConfigFormat::Yaml => {
+                f.write_all(CONFIG_YAML_HEADER.as_bytes())?;
+                serde_yaml::to_writer(&mut f, self)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?
+            }
             ConfigFormat::Json => serde_json::to_writer_pretty(&mut f, self)
                 .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
         }
@@ -524,6 +528,8 @@ struct Limits {
     max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     max_client_reports_size: ByteSize,
+    /// The maximum payload size for a monitor check-in.
+    max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
@@ -536,8 +542,13 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
-    /// The maximum payload size for a replay.
-    max_replay_size: ByteSize,
+    /// The maximum payload size for a compressed replay.
+    max_replay_compressed_size: ByteSize,
+    /// The maximum payload size for an uncompressed replay.
+    #[serde(alias = "max_replay_size")]
+    max_replay_uncompressed_size: ByteSize,
+    /// The maximum size for a replay recording Kafka message.
+    max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -546,13 +557,6 @@ struct Limits {
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     query_timeout: u64,
-    /// The maximum number of connections to Relay that can be created at once.
-    max_connection_rate: usize,
-    /// The maximum number of pending connects to Relay. This corresponds to the backlog param of
-    /// `listen(2)` in POSIX.
-    max_pending_connections: i32,
-    /// The maximum number of open connections to Relay.
-    max_connections: usize,
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
@@ -571,18 +575,18 @@ impl Default for Limits {
             max_attachment_size: ByteSize::mebibytes(100),
             max_attachments_size: ByteSize::mebibytes(100),
             max_client_reports_size: ByteSize::kibibytes(4),
+            max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
-            max_replay_size: ByteSize::mebibytes(100),
+            max_replay_compressed_size: ByteSize::mebibytes(10),
+            max_replay_uncompressed_size: ByteSize::mebibytes(100),
+            max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
-            max_connection_rate: 256,
-            max_pending_connections: 2048,
-            max_connections: 25_000,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
         }
@@ -727,6 +731,70 @@ impl Default for Http {
             encoding: HttpEncoding::Gzip,
         }
     }
+}
+
+/// Default for max memory size, 500 MB.
+fn spool_envelopes_max_memory_size() -> ByteSize {
+    ByteSize::mebibytes(500)
+}
+
+/// Default for max disk size, 500 MB.
+fn spool_envelopes_max_disk_size() -> ByteSize {
+    ByteSize::mebibytes(500)
+}
+
+/// Default for min connections to keep open in the pool.
+fn spool_envelopes_min_connections() -> u32 {
+    10
+}
+
+/// Default for max connections to keep open in the pool.
+fn spool_envelopes_max_connections() -> u32 {
+    20
+}
+
+/// Persistent buffering configuration for incoming envelopes.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnvelopeSpool {
+    /// The path to the persistent spool file.
+    ///
+    /// If set, this will enable the buffering for incoming envelopes.
+    path: Option<PathBuf>,
+    /// Maximum number of connections, which will be maintained by the pool.
+    #[serde(default = "spool_envelopes_max_connections")]
+    max_connections: u32,
+    /// Minimal number of connections, which will be maintained by the pool.
+    #[serde(default = "spool_envelopes_min_connections")]
+    min_connections: u32,
+    /// The maximum size of the buffer to keep, in bytes.
+    ///
+    /// If not set the befault is 524288000 bytes (500MB).
+    #[serde(default = "spool_envelopes_max_disk_size")]
+    max_disk_size: ByteSize,
+    /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
+    ///
+    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
+    #[serde(default = "spool_envelopes_max_memory_size")]
+    max_memory_size: ByteSize,
+}
+
+impl Default for EnvelopeSpool {
+    fn default() -> Self {
+        Self {
+            path: None,
+            max_connections: spool_envelopes_max_connections(),
+            min_connections: spool_envelopes_min_connections(),
+            max_disk_size: spool_envelopes_max_disk_size(),
+            max_memory_size: spool_envelopes_max_memory_size(),
+        }
+    }
+}
+
+/// Persistent buffering configuration.
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Spool {
+    #[serde(default)]
+    envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
@@ -1044,9 +1112,9 @@ impl ConfigObject for MinimalConfig {
 
 /// Alternative serialization of RelayInfo for config file using snake case.
 mod config_relay_info {
-    use super::*;
-
     use serde::ser::SerializeMap;
+
+    use super::*;
 
     // Uses snake_case as opposed to camelCase.
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1126,6 +1194,8 @@ struct ConfigValues {
     http: Http,
     #[serde(default)]
     cache: Cache,
+    #[serde(default)]
+    spool: Spool,
     #[serde(default)]
     limits: Limits,
     #[serde(default)]
@@ -1669,6 +1739,36 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
+    /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
+    pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
+        self.values
+            .spool
+            .envelopes
+            .path
+            .as_ref()
+            .map(|path| path.to_owned())
+    }
+
+    /// Maximum number of connections to create to buffer file.
+    pub fn spool_envelopes_max_connections(&self) -> u32 {
+        self.values.spool.envelopes.max_connections
+    }
+
+    /// Minimum number of connections to create to buffer file.
+    pub fn spool_envelopes_min_connections(&self) -> u32 {
+        self.values.spool.envelopes.min_connections
+    }
+
+    /// The maximum size of the buffer, in bytes.
+    pub fn spool_envelopes_max_disk_size(&self) -> usize {
+        self.values.spool.envelopes.max_disk_size.as_bytes()
+    }
+
+    /// The maximum size of the memory buffer, in bytes.
+    pub fn spool_envelopes_max_memory_size(&self) -> usize {
+        self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
         self.values.limits.max_event_size.as_bytes()
@@ -1688,6 +1788,11 @@ impl Config {
     /// Returns the maxmium combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
         self.values.limits.max_client_reports_size.as_bytes()
+    }
+
+    /// Returns the maxmium payload size of a monitor check-in in bytes.
+    pub fn max_check_in_size(&self) -> usize {
+        self.values.limits.max_check_in_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
@@ -1722,9 +1827,23 @@ impl Config {
         self.values.limits.max_profile_size.as_bytes()
     }
 
-    /// Returns the maximum payload size for a replay.
-    pub fn max_replay_size(&self) -> usize {
-        self.values.limits.max_replay_size.as_bytes()
+    /// Returns the maximum payload size for a compressed replay.
+    pub fn max_replay_compressed_size(&self) -> usize {
+        self.values.limits.max_replay_compressed_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size for an uncompressed replay.
+    pub fn max_replay_uncompressed_size(&self) -> usize {
+        self.values.limits.max_replay_uncompressed_size.as_bytes()
+    }
+
+    /// Returns the maximum message size for an uncompressed replay.
+    ///
+    /// This is greater than max_replay_compressed_size because
+    /// it can include additional metadata about the replay in
+    /// addition to the recording.
+    pub fn max_replay_message_size(&self) -> usize {
+        self.values.limits.max_replay_message_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
@@ -1740,21 +1859,6 @@ impl Config {
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.query_timeout)
-    }
-
-    /// The maximum number of open connections to Relay.
-    pub fn max_connections(&self) -> usize {
-        self.values.limits.max_connections
-    }
-
-    /// The maximum number of connections to Relay that can be created at once.
-    pub fn max_connection_rate(&self) -> usize {
-        self.values.limits.max_connection_rate
-    }
-
-    /// The maximum number of pending connects to Relay.
-    pub fn max_pending_connections(&self) -> i32 {
-        self.values.limits.max_pending_connections
     }
 
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown

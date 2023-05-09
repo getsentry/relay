@@ -21,9 +21,10 @@
 //!
 //! # Feature Flags
 //!
-//! - `ssl` _(default)_: Enables SSL support using `native-tls`.
 //! - `processing`: Includes event ingestion and processing functionality. This should only be
 //!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.
+//! - `crash-handler`: Allows native crash reporting for segfaults and out-of-memory situations when
+//!   internal error reporting to Sentry is enabled.
 //!
 //! # Workspace Crates
 //!
@@ -36,6 +37,7 @@
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
+//!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
@@ -71,6 +73,7 @@
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-crash`]: ../relay_crash/index.html
+//! [`relay-monitors`]: ../relay_monitors/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
@@ -107,6 +110,10 @@ mod utils;
 use std::process;
 
 use relay_log::Hub;
+
+#[cfg(target_os = "linux")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 pub fn main() {
     let exit_code = match cli::execute() {

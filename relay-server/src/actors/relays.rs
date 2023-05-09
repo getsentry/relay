@@ -3,18 +3,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-
 use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::service::REGISTRY;
 use crate::utils::{RetryBackoff, SleepHandle};
 
 /// Resolves [`RelayInfo`] by it's [identifier](RelayId).
@@ -37,12 +35,6 @@ pub type GetRelayResult = Option<RelayInfo>;
 /// Manages authentication information for downstream Relays.
 #[derive(Debug)]
 pub struct RelayCache(GetRelay, BroadcastSender<GetRelayResult>);
-
-impl RelayCache {
-    pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().relay_cache.clone()
-    }
-}
 
 impl Interface for RelayCache {}
 
@@ -195,11 +187,12 @@ pub struct RelayCacheService {
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc<Config>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl RelayCacheService {
     /// Creates a new [`RelayCache`] service.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         Self {
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
@@ -208,6 +201,7 @@ impl RelayCacheService {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
+            upstream_relay,
         }
     }
 
@@ -244,15 +238,13 @@ impl RelayCacheService {
         );
 
         let fetch_tx = self.fetch_tx();
+        let upstream_relay = self.upstream_relay.clone();
         tokio::spawn(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            let query_result = match UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .await
-            {
+            let query_result = match upstream_relay.send(SendQuery(request)).await {
                 Ok(inner) => inner,
                 // Drop the channels to propagate the `SendError` up.
                 Err(_send_error) => return,

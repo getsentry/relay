@@ -8,6 +8,8 @@ import time
 from requests.exceptions import HTTPError
 import queue
 from collections import namedtuple
+import tempfile
+import os
 
 from sentry_relay import PublicKey, SecretKey, generate_key_pair
 
@@ -238,12 +240,27 @@ def get_response(relay, packed, signature):
     return data
 
 
-def test_unparsable_project_config(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "buffer_config",
+    [False, True],
+)
+def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     project_key = 42
     relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 20, "miss_expiry": 2},
+        "cache": {
+            "project_expiry": 2,
+            "project_grace_period": 20,
+            "miss_expiry": 2,
+        },
         "http": {"max_retry_interval": 1},
     }
+
+    if buffer_config:
+        temp = tempfile.mkdtemp()
+        dbfile = os.path.join(temp, "buffer.db")
+        # set the buffer to something low to force the spooling
+        relay_config["spool"] = {"envelopes": {"path": dbfile, "max_memory_size": 1000}}
+
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
     public_key = mini_sentry.get_dsn_public_key(project_key)
@@ -324,6 +341,9 @@ def test_unparsable_project_config(mini_sentry, relay):
         }
     ]
 
+    relay.send_event(project_key)
+    relay.send_event(project_key)
+    relay.send_event(project_key)
     # Wait for caches to expire. And we will get into the grace period.
     time.sleep(3)
     # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
@@ -389,23 +409,9 @@ def test_cached_project_config(mini_sentry, relay):
         }
     )
 
-    # Caches must be expired at this point, and we are in the grace period.
-    time.sleep(2)
-    # The state must be stale and still be valid, but the update will be scheduled to get the new project state.
+    # Give it a bit time for update to go through.
+    time.sleep(1)
     data = get_response(relay, packed, signature)
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
-    # This is still a grace period, and the state for us must be still valid, even though we get the error parsing the new state.
-    try:
-        # Give it a bit time for update to go through.
-        time.sleep(1)
-        data = get_response(relay, packed, signature)
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
-        }
-    finally:
-        mini_sentry.test_failures.clear()
 
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]

@@ -148,3 +148,31 @@ impl GaugeMetric for MetricGauges {
         }
     }
 }
+
+/// Returns a low-cardinality metric name for use as a tag key on statsd metrics.
+///
+/// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
+/// names. The rest gets mapped to "other".
+pub fn metric_name_tag(value: &str) -> &str {
+    if [
+        "c:sessions/session@none",
+        "s:sessions/user@none",
+        "s:sessions/error@none",
+        "d:transactions/duration@millisecond",
+        "s:transactions/user@none",
+        "c:transactions/count_per_root_project@none",
+    ]
+    .contains(&value)
+    {
+        return value;
+    }
+
+    if value.starts_with("d:transactions/breakdowns.") {
+        return "d:transactions/breakdowns.*";
+    }
+    if value.starts_with("d:transactions/measurements.") {
+        return "d:transactions/measurements.*";
+    }
+
+    "other"
+}

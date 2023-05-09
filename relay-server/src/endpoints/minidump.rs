@@ -1,18 +1,21 @@
-use actix_web::multipart::{Multipart, MultipartItem};
-use actix_web::{HttpMessage, HttpRequest, HttpResponse};
-use bytes::Bytes;
-use futures::compat::Future01CompatExt;
-use futures01::{stream, Stream};
+use std::convert::Infallible;
 
+use axum::extract::{DefaultBodyLimit, Multipart};
+use axum::http::Request;
+use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
+use axum::RequestExt;
+use bytes::Bytes;
+use futures::{future, FutureExt};
+use relay_config::Config;
 use relay_general::protocol::EventId;
 
-use crate::body;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
+use crate::extractors::{RawContentType, RequestMeta};
+use crate::service::ServiceState;
+use crate::utils;
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -61,56 +64,38 @@ fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
 /// a '--' and manually extract the boundary (which is what follows '--' up to the end of line) and
 /// manually construct a multipart with the detected boundary. If we can extract a multipart with an
 /// embedded minidump, then use that field.
-async fn extract_embedded_minidump(
-    payload: Bytes,
-    max_size: usize,
-) -> Result<Option<Bytes>, BadStoreRequest> {
-    let boundary = match get_multipart_boundary(&payload) {
+async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadStoreRequest> {
+    let boundary = match utils::get_multipart_boundary(&payload) {
         Some(boundary) => boundary,
         None => return Ok(None),
     };
 
-    let future = Multipart::new(Ok(boundary.to_string()), stream::once(Ok(payload)))
-        .map_err(MultipartError::InvalidMultipart)
-        .filter_map(|item| {
-            if let MultipartItem::Field(field) = item {
-                if let Some(content_disposition) = field.content_disposition() {
-                    if content_disposition.get_name() == Some(MINIDUMP_FIELD_NAME) {
-                        return Some(field);
-                    }
-                }
-            }
-            None
-        })
-        .and_then(move |field| consume_field(field, max_size))
-        .into_future()
-        .compat();
+    let stream = future::ok::<_, Infallible>(payload.clone()).into_stream();
+    let mut multipart = multer::Multipart::new(stream, boundary);
 
-    let (data, _) = future
-        .await
-        .map_err(|(err, _)| BadStoreRequest::InvalidMultipart(err))?;
+    while let Some(field) = multipart.next_field().await? {
+        if field.name() == Some(MINIDUMP_FIELD_NAME) {
+            return Ok(Some(field.bytes().await?));
+        }
+    }
 
-    Ok(data.map(Bytes::from))
+    Ok(None)
 }
 
 async fn extract_multipart(
-    request: &HttpRequest<ServiceState>,
+    config: &Config,
+    multipart: Multipart,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let max_multipart_size = request.state().config().max_attachments_size();
-    let mut items = MultipartItems::new(max_multipart_size)
-        .infer_attachment_type(infer_attachment_type)
-        .handle_request(request)
-        .await
-        .map_err(BadStoreRequest::InvalidMultipart)?;
+    let max_size = config.max_attachment_size();
+    let mut items = utils::multipart_items(multipart, max_size, infer_attachment_type).await?;
 
     let minidump_item = items
         .iter_mut()
         .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
-    let max_single_size = request.state().config().max_attachment_size();
-    let embedded_opt = extract_embedded_minidump(minidump_item.payload(), max_single_size).await?;
+    let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
     if let Some(embedded) = embedded_opt {
         minidump_item.set_payload(ContentType::Minidump, embedded);
     }
@@ -127,13 +112,7 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-async fn extract_raw_minidump(
-    request: &HttpRequest<ServiceState>,
-    meta: RequestMeta,
-) -> Result<Box<Envelope>, BadStoreRequest> {
-    let max_single_size = request.state().config().max_attachment_size();
-    let data = body::request_body(request, max_single_size).await?;
-
+fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
     validate_minidump(&data)?;
 
     let mut item = Item::new(ItemType::Attachment);
@@ -147,57 +126,48 @@ async fn extract_raw_minidump(
     Ok(envelope)
 }
 
-/// Creates an evelope from a minidump request.
-///
-/// Minidump request payloads do not have the same structure as usual
-/// events from other SDKs.
-///
-/// The minidump can either be transmitted as the request body, or as
-/// `upload_file_minidump` in a multipart form-data/ request.
-///
-/// Optionally, an event payload can be sent in the `sentry` form
-/// field, either as JSON or as nested form data.
-async fn extract_envelope(
-    request: &HttpRequest<ServiceState>,
+async fn handle<B>(
+    state: ServiceState,
     meta: RequestMeta,
-) -> Result<Box<Envelope>, BadStoreRequest> {
+    content_type: RawContentType,
+    request: Request<B>,
+) -> axum::response::Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
+    // The minidump can either be transmitted as the request body, or as
+    // `upload_file_minidump` in a multipart form-data/ request.
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
-    if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
-        extract_raw_minidump(request, meta).await
+    let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
+        extract_raw_minidump(request.extract().await?, meta)?
     } else {
-        extract_multipart(request, meta).await
-    }
-}
+        extract_multipart(state.config(), request.extract().await?, meta).await?
+    };
 
-async fn store_minidump(
-    meta: RequestMeta,
-    request: HttpRequest<ServiceState>,
-) -> Result<HttpResponse, BadStoreRequest> {
-    let envelope = extract_envelope(&request, meta).await?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(request.state(), envelope).await {
+    match common::handle_envelope(&state, envelope).await {
         Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     };
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
-    Ok(common::create_text_event_id_response(id))
+    Ok(TextResponse(id))
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    common::cors(app)
-        // No mandatory trailing slash here because people already use it like this.
-        .resource(&common::normpath(r"/api/{project:\d+}/minidump"), |r| {
-            r.name("store-minidump");
-            r.post()
-                .with_async(|m, r| common::handler(store_minidump(m, r)));
-        })
-        .register()
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 
 #[cfg(test)]

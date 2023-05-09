@@ -1,0 +1,24 @@
+---
+source: relay-general/src/store/normalize.rs
+expression: event
+---
+{
+  "event_id": "7637af36578e4e4592692e28a1d6e2ca",
+  "level": "error",
+  "type": "default",
+  "logger": "*this-tests-the-smart-trimming-and-word-removal-around-dot.words",
+  "platform": "java",
+  "_meta": {
+    "": {
+      "rem": [
+        [
+          "@logger:replace",
+          "s",
+          0,
+          3
+        ]
+      ],
+      "len": 66
+    }
+  }
+}

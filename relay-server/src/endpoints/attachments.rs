@@ -1,54 +1,55 @@
-use actix_web::{http::Method, HttpRequest, HttpResponse};
-
+use axum::extract::{DefaultBodyLimit, Multipart, Path};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::routing::{post, MethodRouter};
+use bytes::Bytes;
+use relay_config::Config;
 use relay_general::protocol::EventId;
+use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::Envelope;
+use crate::envelope::{AttachmentType, Envelope};
 use crate::extractors::RequestMeta;
-use crate::service::{ServiceApp, ServiceState};
-use crate::utils::MultipartItems;
+use crate::service::ServiceState;
+use crate::utils;
+
+#[derive(Debug, Deserialize)]
+struct AttachmentPath {
+    event_id: EventId,
+}
 
 async fn extract_envelope(
-    request: &HttpRequest<ServiceState>,
+    config: &Config,
     meta: RequestMeta,
+    path: AttachmentPath,
+    multipart: Multipart,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let event_id = request
-        .match_info()
-        .get("event_id")
-        .unwrap_or_default()
-        .parse::<EventId>()
-        .map_err(|_| BadStoreRequest::InvalidEventId)?;
+    let max_size = config.max_attachment_size();
+    let items = utils::multipart_items(multipart, max_size, |_| AttachmentType::default()).await?;
 
-    let max_payload_size = request.state().config().max_attachments_size();
-    let items = MultipartItems::new(max_payload_size)
-        .handle_request(request)
-        .await
-        .map_err(BadStoreRequest::InvalidMultipart)?;
-
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
+    let mut envelope = Envelope::from_request(Some(path.event_id), meta);
     for item in items {
         envelope.add_item(item);
     }
     Ok(envelope)
 }
 
-async fn store_attachment(
+async fn handle(
+    state: ServiceState,
     meta: RequestMeta,
-    request: HttpRequest<ServiceState>,
-) -> Result<HttpResponse, BadStoreRequest> {
-    let envelope = extract_envelope(&request, meta).await?;
-    common::handle_envelope(request.state(), envelope).await?;
-    Ok(HttpResponse::Created().finish())
+    Path(path): Path<AttachmentPath>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, BadStoreRequest> {
+    let envelope = extract_envelope(state.config(), meta, path, multipart).await?;
+    common::handle_envelope(&state, envelope).await?;
+    Ok(StatusCode::CREATED)
 }
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    let url_pattern = common::normpath(r"/api/{project:\d+}/events/{event_id:[\w-]+}/attachments/");
-
-    common::cors(app)
-        .resource(&url_pattern, |r| {
-            r.name("store-attachment");
-            r.method(Method::POST)
-                .with_async(|r, m| common::handler(store_attachment(r, m)));
-        })
-        .register()
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }

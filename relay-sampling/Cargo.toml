@@ -4,13 +4,13 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic sampling functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.2.0"
+version = "23.4.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-chrono = "0.4.11"
+chrono = { version = "0.4.24", default-features = false, features = ["std"] }
 rand = "0.8.5"
 rand_pcg = "0.3.1"
 relay-common = { path = "../relay-common" }

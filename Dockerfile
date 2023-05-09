@@ -5,8 +5,8 @@
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM centos:7 AS relay-deps
 
-# Pin the Rust version for now
-ARG RUST_TOOLCHAIN_VERSION=1.67.1
+# Rust version must be provided by the caller.
+ARG RUST_TOOLCHAIN_VERSION
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
 RUN yum -y update \
@@ -25,7 +25,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
-    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config
+    && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
@@ -37,7 +37,7 @@ WORKDIR /work
 
 FROM relay-deps AS relay-builder
 
-ARG RELAY_FEATURES=ssl,processing,crash-handler
+ARG RELAY_FEATURES=processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY . .

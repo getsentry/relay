@@ -7,8 +7,6 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
-use serde::{ser::Error, Serialize};
-
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
@@ -18,9 +16,11 @@ use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifi
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
+use serde::ser::Error;
+use serde::Serialize;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServerError;
+use crate::service::ServiceError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -59,10 +59,10 @@ impl Producer {
         {
             let kafka_config = &config
                 .kafka_config(*topic)
-                .map_err(|_| ServerError::KafkaError)?;
+                .map_err(|_| ServiceError::Kafka)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServerError::KafkaError)?
+                .map_err(|_| ServiceError::Kafka)?
         }
 
         Ok(Self {
@@ -195,39 +195,47 @@ impl StoreService {
                     retention,
                     item,
                 )?,
+                ItemType::CheckIn => self.produce_check_in(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    retention,
+                    item,
+                )?,
                 _ => {}
             }
         }
 
-        if let Some(event_item) = event_item {
-            relay_log::trace!("Sending event item of envelope to kafka");
-            let event_message = KafkaMessage::Event(EventKafkaMessage {
-                payload: event_item.payload(),
-                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-                event_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
-                attachments,
-            });
+        if event_item.is_none() && attachments.is_empty() {
+            // No event-related content. All done.
+            return Ok(());
+        }
 
-            self.produce(topic, scoping.organization_id, event_message)?;
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = &event_item.ty().to_string()
-            );
-        } else if !attachments.is_empty() {
-            relay_log::trace!("Sending individual attachments of envelope to kafka");
-            for attachment in attachments {
-                let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                    event_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    attachment,
-                });
+        let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
-                self.produce(topic, scoping.organization_id, attachment_message)?;
+        let kafka_messages = Self::extract_kafka_messages_for_event(
+            event_item,
+            event_id.ok_or(StoreError::NoEventId)?,
+            scoping,
+            start_time,
+            remote_addr,
+            attachments,
+        );
+
+        for message in kafka_messages {
+            let is_attachment = matches!(&message, KafkaMessage::Attachment(_));
+
+            self.produce(topic, scoping.organization_id, message)?;
+
+            if is_attachment {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
+                );
+            } else if let Some(event_item) = event_item {
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = &event_item.ty().to_string()
                 );
             }
         }
@@ -235,12 +243,62 @@ impl StoreService {
         Ok(())
     }
 
+    fn extract_kafka_messages_for_event(
+        event_item: Option<&Item>,
+        event_id: EventId,
+        scoping: Scoping,
+        start_time: Instant,
+        remote_addr: Option<String>,
+        attachments: Vec<ChunkedAttachment>,
+    ) -> impl Iterator<Item = KafkaMessage> {
+        // There might be a better way to do this:
+        let (individual_attachments, inline_attachments) = match event_item {
+            Some(event_item) => {
+                if matches!(event_item.ty(), ItemType::Transaction) {
+                    // Sentry discards inline attachments for transactions, so send them as individual ones instead.
+                    (attachments, vec![])
+                } else {
+                    (vec![], attachments)
+                }
+            }
+            None => (attachments, vec![]),
+        };
+
+        let project_id = scoping.project_id;
+
+        let event_iterator = event_item
+            .map(|event_item| {
+                KafkaMessage::Event(EventKafkaMessage {
+                    payload: event_item.payload(),
+                    start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                    event_id,
+                    project_id,
+                    remote_addr,
+                    attachments: inline_attachments,
+                })
+            })
+            .into_iter();
+
+        let attachment_iterator = individual_attachments.into_iter().map(move |attachment| {
+            KafkaMessage::Attachment(AttachmentKafkaMessage {
+                event_id,
+                project_id,
+                attachment,
+            })
+        });
+
+        attachment_iterator.chain(event_iterator)
+    }
+
     fn produce(
         &self,
         topic: KafkaTopic,
         organization_id: u64,
+        // Takes message by value to ensure it is not being produced twice.
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
+        relay_log::trace!("Sending kafka message of type {}", message.variant());
+
         self.producer
             .client
             .send_message(topic, organization_id, &message)?;
@@ -268,7 +326,7 @@ impl StoreService {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
             let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                payload: payload.slice(offset, offset + chunk_size),
+                payload: payload.slice(offset..offset + chunk_size),
                 event_id,
                 project_id,
                 id: id.clone(),
@@ -473,6 +531,7 @@ impl StoreService {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
             Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
+            Ok(MetricNamespace::Spans) => KafkaTopic::MetricsTransactions,
             Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
@@ -487,7 +546,6 @@ impl StoreService {
             }
         };
 
-        relay_log::trace!("Sending metric message to kafka");
         self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -528,7 +586,6 @@ impl StoreService {
         organization_id: u64,
         message: SessionKafkaMessage,
     ) -> Result<(), StoreError> {
-        relay_log::trace!("Sending session item to kafka");
         self.produce(
             KafkaTopic::Sessions,
             organization_id,
@@ -556,7 +613,6 @@ impl StoreService {
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
-        relay_log::trace!("Sending profile to Kafka");
         self.produce(
             KafkaTopic::Profiles,
             organization_id,
@@ -585,7 +641,6 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
-        relay_log::trace!("Sending replay event to Kafka");
         self.produce(
             KafkaTopic::ReplayEvents,
             organization_id,
@@ -610,14 +665,11 @@ impl StoreService {
         // message because we can achieve better parallelism when dealing with a single
         // message.
 
-        // Max message size is 1MB.
-        let max_message_size = 1000 * 1000;
-
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
 
         // Remaining bytes can be filled by the payload.
-        let max_payload_size = max_message_size - max_message_metadata_size;
+        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
 
         if item.payload().len() < max_payload_size {
             let message =
@@ -699,7 +751,7 @@ impl StoreService {
 
             let replay_recording_chunk_message =
                 KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
-                    payload: payload.slice(offset, offset + chunk_size),
+                    payload: payload.slice(offset..offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),
@@ -724,6 +776,31 @@ impl StoreService {
             chunks: chunk_index,
             size: Some(size),
         })
+    }
+
+    fn produce_check_in(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+            project_id,
+            retention_days,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        });
+
+        self.produce(KafkaTopic::Monitors, organization_id, message)?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "check_in"
+        );
+
+        Ok(())
     }
 }
 
@@ -810,7 +887,7 @@ struct EventKafkaMessage {
     attachments: Vec<ChunkedAttachment>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct ReplayEventKafkaMessage {
     /// Raw event payload.
     payload: Bytes,
@@ -820,6 +897,7 @@ struct ReplayEventKafkaMessage {
     replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
+    // Number of days to retain.
     retention_days: u16,
 }
 
@@ -968,6 +1046,18 @@ struct ProfileKafkaMessage {
     payload: Bytes,
 }
 
+#[derive(Debug, Serialize)]
+struct CheckInKafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// Time at which the event was received by Relay.
+    start_time: u64,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    // Number of days to retain.
+    retention_days: u16,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -984,6 +1074,7 @@ enum KafkaMessage {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
+    CheckIn(CheckInKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -1000,6 +1091,7 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayRecording(_) => "replay_recording",
             KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
+            KafkaMessage::CheckIn(_) => "check_in",
         }
     }
 
@@ -1017,6 +1109,7 @@ impl Message for KafkaMessage {
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
+            Self::CheckIn(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -1048,4 +1141,141 @@ impl Message for KafkaMessage {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_common::ProjectKey;
+
+    use super::*;
+
+    /// Helper function to get the arguments for the `fn extract_kafka_messages(...)` method.
+    fn arguments_extract_kafka_msgs() -> (Instant, EventId, Scoping, Vec<ChunkedAttachment>) {
+        let start_time = Instant::now();
+        let event_id = EventId::new();
+        let scoping = Scoping {
+            organization_id: 42,
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(17),
+        };
+
+        let attachment_vec = {
+            let item = Item::new(ItemType::Attachment);
+
+            vec![ChunkedAttachment {
+                id: Uuid::new_v4().to_string(),
+                name: UNNAMED_ATTACHMENT.to_owned(),
+                content_type: item
+                    .content_type()
+                    .map(|content_type| content_type.as_str().to_owned()),
+                attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+                chunks: 0,
+                size: None,
+                rate_limited: Some(item.rate_limited()),
+            }]
+        };
+
+        (start_time, event_id, scoping, attachment_vec)
+    }
+
+    #[test]
+    fn test_return_attachments_when_missing_event_item() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            None,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        assert!(
+            kafka_messages
+                .filter(|msg| matches!(msg, KafkaMessage::Attachment(_)))
+                .count()
+                == number_of_attachments
+        );
+    }
+
+    /// If there is an event_item, and it is of type transaction, then the attachments should not
+    /// be sent together with the event but rather as standalones.
+    #[test]
+    fn test_send_standalone_attachments_when_transaction() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let item = Item::new(ItemType::Transaction);
+        let event_item = Some(&item);
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            event_item,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        let (event, standalone_attachments): (Vec<_>, Vec<_>) =
+            kafka_messages.partition(|item| match item {
+                KafkaMessage::Event(_) => true,
+                KafkaMessage::Attachment(_) => false,
+                _ => panic!("only expected events or attachment type"),
+            });
+
+        // Tests that the event does not contain any attachments.
+        let event = &event[0];
+        if let KafkaMessage::Event(event) = event {
+            assert!(event.attachments.is_empty());
+        } else {
+            panic!("No event found")
+        }
+
+        // Tests that the attachment we sent to `extract_kafka_messages_for_event` is in the
+        // standalone attachments.
+        assert!(standalone_attachments.len() == number_of_attachments);
+    }
+
+    /// If there is an event_item, and it is not a transaction. The attachments should be kept in
+    /// the event and not be returned as stand-alone attachments.
+    #[test]
+    fn test_store_attachment_in_event_when_not_a_transaction() {
+        let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+        let number_of_attachments = attachment_vec.len();
+
+        let item = Item::new(ItemType::Event);
+        let event_item = Some(&item);
+
+        let kafka_messages = StoreService::extract_kafka_messages_for_event(
+            event_item,
+            event_id,
+            scoping,
+            start_time,
+            None,
+            attachment_vec,
+        );
+
+        let (event, standalone_attachments): (Vec<_>, Vec<_>) =
+            kafka_messages.partition(|item| match item {
+                KafkaMessage::Event(_) => true,
+                KafkaMessage::Attachment(_) => false,
+                _ => panic!("only expected events or attachment type"),
+            });
+
+        // Because it's not a transaction event, the attachment should be part of the event,
+        // and therefore the standalone_attachments vec should be empty.
+        assert!(standalone_attachments.is_empty());
+
+        // Checks that the attachment is part of the event.
+        let event = &event[0];
+        if let KafkaMessage::Event(event) = event {
+            assert!(event.attachments.len() == number_of_attachments);
+        } else {
+            panic!("No event found")
+        }
+    }
 }

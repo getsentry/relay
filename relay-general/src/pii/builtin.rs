@@ -83,6 +83,10 @@ declare_builtin_rules! {
         ty: RuleType::Anything,
         redaction: Redaction::Mask,
     };
+    "@anything:filter" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Replace(ReplaceRedaction::default()),
+    };
 
     // ip rules
     "@ip" => rule_alias!("@ip:replace");
@@ -353,15 +357,15 @@ declare_builtin_rules! {
 // TODO: Move these tests to /tests
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
     use std::collections::BTreeMap;
 
+    use similar_asserts::assert_eq;
+
+    use super::*;
     use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
-
-    use super::*;
 
     #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, IntoValue)]
     struct FreeformRoot {

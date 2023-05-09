@@ -1,42 +1,30 @@
 //! Returns captured events.
 
-use actix_web::actix::MailboxError;
-use actix_web::{http::Method, HttpResponse, Path};
-use futures::TryFutureExt;
-
+use axum::extract::Path;
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
 use relay_general::protocol::EventId;
 
-use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
+use crate::actors::test_store::GetCapturedEnvelope;
+use crate::endpoints::common::ServiceUnavailable;
 use crate::envelope;
-use crate::service::ServiceApp;
+use crate::service::ServiceState;
 
-async fn get_captured_event(event_id: Path<EventId>) -> Result<HttpResponse, MailboxError> {
-    let request = GetCapturedEnvelope {
-        event_id: *event_id,
-    };
+pub async fn handle(
+    state: ServiceState,
+    Path(event_id): Path<EventId>,
+) -> Result<impl IntoResponse, ServiceUnavailable> {
+    let envelope_opt = state
+        .test_store()
+        .send(GetCapturedEnvelope { event_id })
+        .await?;
 
-    let envelope_opt = TestStore::from_registry()
-        .send(request)
-        .await
-        .map_err(|_| MailboxError::Closed)?;
-
-    let response = match envelope_opt {
-        Some(Ok(envelope)) => HttpResponse::Ok()
-            .content_type(envelope::CONTENT_TYPE)
-            .body(envelope.to_vec().unwrap()),
-        Some(Err(error)) => HttpResponse::BadRequest()
-            .content_type("text/plain")
-            .body(error),
-        None => HttpResponse::NotFound().finish(),
-    };
-
-    Ok(response)
-}
-
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/relay/events/{event_id}/", |r| {
-        r.name("internal-events");
-        r.method(Method::GET)
-            .with_async(|e| Box::pin(get_captured_event(e)).compat());
+    Ok(match envelope_opt {
+        Some(Ok(envelope)) => {
+            let headers = [(header::CONTENT_TYPE, envelope::CONTENT_TYPE)];
+            (StatusCode::OK, headers, envelope.to_vec().unwrap()).into_response()
+        }
+        Some(Err(error)) => (StatusCode::BAD_REQUEST, error).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     })
 }

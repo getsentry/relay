@@ -4,6 +4,7 @@
 set -euxo pipefail
 
 ARCH=${1:-$(uname -m)}
+TOOLCHAIN=$2
 
 # Set the correct build target and update the arch if required.
 case "$ARCH" in
@@ -31,6 +32,7 @@ fi
 
 docker buildx build \
     "${args[@]}" \
+    --build-arg RUST_TOOLCHAIN_VERSION="$TOOLCHAIN" \
     --build-arg UID="$(id -u)" \
     --build-arg GID="$(id -g)" \
     --cache-to type=inline \
@@ -47,7 +49,7 @@ docker run \
     --user "$(id -u):$(id -g)" \
     -e TARGET="$BUILD_TARGET" \
     "$IMG_DEPS" \
-    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="ssl,processing,crash-handler"
+    scl enable devtoolset-10 llvm-toolset-7.0 -- make build-release-with-bundles RELAY_FEATURES="processing,crash-handler"
 
 # Create a release image.
 docker buildx build \

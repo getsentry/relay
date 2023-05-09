@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Kafka related functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.2.0"
+version = "23.4.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -18,6 +18,8 @@ rmp-serde = { version = "1.1.1", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = { version = "1.0.55", optional = true }
 thiserror = "1.0.38"
+sentry-kafka-schemas = { version = "0.0.29", default_features = false }
+jsonschema = "0.17.0"
 
 [dev-dependencies]
 serde_yaml = "0.9.17"

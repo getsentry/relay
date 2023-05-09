@@ -6,6 +6,7 @@ use relay_quotas::{
     DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use relay_system::Addr;
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
@@ -106,6 +107,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
         ItemType::ClientReport => None,
+        ItemType::CheckIn => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -132,11 +134,22 @@ pub struct EnvelopeSummary {
     /// The number of replays.
     pub replay_quantity: usize,
 
+    /// The number of monitor check-ins.
+    pub checkin_quantity: usize,
+
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 
     /// Whether the envelope contains an event which already had the metrics extracted.
     pub event_metrics_extracted: bool,
+
+    /// Whether profiles in the envelope have been counted towards `DataCategory::Profile`.
+    ///
+    /// If `true`, count them towards `DataCategory::ProfileIndexed` instead.
+    pub profile_counted_as_processed: bool,
+
+    /// The payload size of this envelope.
+    pub payload_size: usize,
 }
 
 impl EnvelopeSummary {
@@ -161,23 +174,34 @@ impl EnvelopeSummary {
                 summary.event_metrics_extracted = true;
             }
 
+            if *item.ty() == ItemType::Profile && item.profile_counted_as_processed() {
+                summary.profile_counted_as_processed = true;
+            }
+
             // If the item has been rate limited before, the quota has been consumed and outcomes
             // emitted. We can skip it here.
             if item.rate_limited() {
                 continue;
             }
 
-            match item.ty() {
-                ItemType::Attachment => summary.attachment_quantity += item.len().max(1),
-                ItemType::Session => summary.session_quantity += 1,
-                ItemType::Profile => summary.profile_quantity += 1,
-                ItemType::ReplayEvent => summary.replay_quantity += 1,
-                ItemType::ReplayRecording => summary.replay_quantity += 1,
-                _ => (),
-            }
+            summary.payload_size += item.len();
+            summary.set_quantity(item);
         }
 
         summary
+    }
+
+    fn set_quantity(&mut self, item: &Item) {
+        let target_quantity = match item.ty() {
+            ItemType::Attachment => &mut self.attachment_quantity,
+            ItemType::Session => &mut self.session_quantity,
+            ItemType::Profile => &mut self.profile_quantity,
+            ItemType::ReplayEvent => &mut self.replay_quantity,
+            ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::CheckIn => &mut self.checkin_quantity,
+            _ => return,
+        };
+        *target_quantity += item.quantity();
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -255,6 +279,8 @@ pub struct Enforcement {
     profiles: CategoryLimit,
     /// The combined replay item rate limit.
     replays: CategoryLimit,
+    /// The combined check-in item rate limit.
+    check_ins: CategoryLimit,
     /// Metrics extraction from a transaction is rate limited.
     event_metrics: CategoryLimit,
 }
@@ -272,20 +298,31 @@ impl Enforcement {
         envelope: &Envelope,
         scoping: &Scoping,
     ) -> impl Iterator<Item = TrackOutcome> {
+        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let scoping = *scoping;
+        let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().remote_addr();
+
         let Self {
             event,
             attachments,
             sessions: _, // Do not report outcomes for sessions.
             profiles,
             replays,
+            check_ins,
             event_metrics,
         } = self;
-        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-        let scoping = *scoping;
-        let event_id = envelope.event_id();
-        let remote_addr = envelope.meta().remote_addr();
 
-        [event, attachments, profiles, replays, event_metrics]
+        let limits = [
+            event,
+            attachments,
+            profiles,
+            replays,
+            check_ins,
+            event_metrics,
+        ];
+
+        limits
             .into_iter()
             .filter(move |limit| limit.is_active())
             .map(move |limit| TrackOutcome {
@@ -304,9 +341,14 @@ impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
+    pub fn track_outcomes(
+        self,
+        envelope: &Envelope,
+        scoping: &Scoping,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         for outcome in self.get_outcomes(envelope, scoping) {
-            TrackOutcome::from_registry().send(outcome);
+            outcome_aggregator.send(outcome);
         }
     }
 }
@@ -477,8 +519,13 @@ where
 
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
+            let profile_category = if summary.profile_counted_as_processed {
+                DataCategory::ProfileIndexed
+            } else {
+                DataCategory::Profile
+            };
             enforcement.profiles =
-                CategoryLimit::new(DataCategory::Profile, summary.profile_quantity, longest);
+                CategoryLimit::new(profile_category, summary.profile_quantity, longest);
 
             rate_limits.merge(event_limits);
         }
@@ -515,7 +562,11 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                DataCategory::Profile,
+                if summary.profile_counted_as_processed {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
                 summary.profile_quantity,
                 profile_limits.longest(),
             );
@@ -531,6 +582,17 @@ where
                 replay_limits.longest(),
             );
             rate_limits.merge(replay_limits);
+        }
+
+        if summary.checkin_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::Monitor);
+            let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
+            enforcement.check_ins = CategoryLimit::new(
+                DataCategory::Monitor,
+                summary.checkin_quantity,
+                checkin_limits.longest(),
+            );
+            rate_limits.merge(checkin_limits);
         }
 
         Ok((enforcement, rate_limits))
@@ -562,6 +624,17 @@ where
             return false;
         }
 
+        // Remove replays independently of events.
+        if enforcement.replays.is_active()
+            && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
+        {
+            return false;
+        }
+
+        if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
+            return false;
+        }
+
         true
     }
 }
@@ -576,16 +649,14 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::collections::BTreeMap;
-
-    use smallvec::smallvec;
 
     use relay_common::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
+    use smallvec::smallvec;
 
+    use super::*;
     use crate::envelope::{AttachmentType, ContentType};
 
     #[test]
@@ -874,6 +945,53 @@ mod tests {
             .map(|outcome| (outcome.category, outcome.quantity))
             .collect::<Vec<_>>();
         assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
+    }
+
+    /// Limit replays.
+    #[test]
+    fn test_enforce_limit_replays() {
+        let mut envelope = envelope![ReplayEvent, ReplayRecording];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Replay);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
+    }
+
+    /// Limit monitor checkins.
+    #[test]
+    fn test_enforce_limit_monitor_checkins() {
+        let mut envelope = envelope![CheckIn];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Monitor, 1)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.outcome, outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Monitor, 1)]
+        )
     }
 
     #[test]
