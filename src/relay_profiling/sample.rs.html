@@ -901,6 +901,15 @@
 <a href="#901" id="901">901</a>
 <a href="#902" id="902">902</a>
 <a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -1053,8 +1062,12 @@
     <span class="attr">#[serde(alias = <span class="string">&quot;profile_id&quot;</span>)]
     </span>event_id: EventId,
     platform: String,
-    release: String,
     timestamp: DateTime&lt;Utc&gt;,
+
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span>release: String,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span>dist: String,
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span>transactions: Vec&lt;TransactionMetadata&gt;,
@@ -1250,6 +1263,10 @@
         profile.metadata.release = release.to_owned();
     }
 
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = transaction_metadata.get(<span class="string">&quot;dist&quot;</span>) {
+        profile.metadata.dist = dist.to_owned();
+    }
+
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">&quot;environment&quot;</span>) {
         profile.metadata.environment = environment.to_owned();
     }
@@ -1304,7 +1321,8 @@
                 event_id: EventId::new(),
                 transaction: Option::None,
                 transactions: Vec::new(),
-                release: <span class="string">&quot;1.0 (9999)&quot;</span>.to_string(),
+                release: <span class="string">&quot;1.0&quot;</span>.to_string(),
+                dist: <span class="string">&quot;9999&quot;</span>.to_string(),
                 measurements: <span class="prelude-val">None</span>,
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),

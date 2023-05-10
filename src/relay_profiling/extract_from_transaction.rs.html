@@ -98,6 +98,9 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>chrono::SecondsFormat;
@@ -111,6 +114,9 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
         tags.insert(<span class="string">&quot;release&quot;</span>.to_owned(), release.to_owned());
+    }
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.as_str() {
+        tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.to_owned());
     }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.value() {
         tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.clone());
