@@ -1,13 +1,14 @@
 use relay_general::protocol::{Addr, DebugId, NativeImagePath};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::deserialize_number_from_string;
+use crate::utils::{deserialize_number_from_string, is_zero};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 enum ImageType {
     MachO,
     Symbolic,
+    Sourcemap,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -16,16 +17,21 @@ pub struct NativeDebugImage {
     code_file: NativeImagePath,
     #[serde(alias = "id")]
     debug_id: DebugId,
-    image_addr: Addr,
-
-    #[serde(default)]
-    image_vmaddr: Addr,
-
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    image_size: u64,
-
     #[serde(rename = "type")]
     image_type: ImageType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_addr: Option<Addr>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_vmaddr: Option<Addr>,
+
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
+    image_size: u64,
 }
 
 #[cfg(test)]
