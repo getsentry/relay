@@ -1036,7 +1036,7 @@ mod tests {
         // There is one permit left, but we only dequeue if we gave >= 50% capacity:
         assert!(rx.try_recv().is_err());
 
-        // Freeing one permit gives us enough capacity
+        // Freeing one permit gives us enough capacity:
         assert_eq!(buffer_guard.available(), 1);
         drop(new_envelope);
         assert_eq!(buffer_guard.available(), 2);
