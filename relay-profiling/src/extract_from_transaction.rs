@@ -12,6 +12,9 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
+    if let Some(dist) = event.dist.as_str() {
+        tags.insert("dist".to_owned(), dist.to_owned());
+    }
     if let Some(dist) = event.dist.value() {
         tags.insert("dist".to_owned(), dist.clone());
     }
