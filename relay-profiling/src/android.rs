@@ -203,6 +203,10 @@ pub fn parse_android_profile(
         profile.metadata.release = release.to_owned();
     }
 
+    if let Some(dist) = transaction_metadata.get("dist") {
+        profile.metadata.dist = dist.to_owned();
+    }
+
     if let Some(environment) = transaction_metadata.get("environment") {
         profile.metadata.environment = environment.to_owned();
     }
