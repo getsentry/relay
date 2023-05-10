@@ -1,4 +1,8 @@
-//! Recursively finding
+//! This module takes the types and paths from 'item_collector' module, and will recursively find
+//! all the fields with the specified PII-value, and save those fields with the full path.
+//!
+//! E.g. `MyStruct.sub_struct.mystery_field.bitcoin_wallet_key`, meaning you can find the full path
+//! from the top-level type all the way down to wherever the field with the correct pii-value resides.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
