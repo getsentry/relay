@@ -33,6 +33,7 @@
 - Parse profiles' metadata to check if it should be marked as invalid. ([#2104](https://github.com/getsentry/relay/pull/2104))
 - Set release as optional by defaulting to an empty string for profiles. ([#2098](https://github.com/getsentry/relay/pull/2098))
 - Accept source map debug images in debug meta for Profiling. ([#2097](https://github.com/getsentry/relay/pull/2097))
+- Fix regression on release being optional and copy missing dist field from transactions.([#2107](https://github.com/getsentry/relay/pull/2107))
 
 ## 23.4.0
 
