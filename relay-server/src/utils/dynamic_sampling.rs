@@ -5,7 +5,9 @@ use std::net::IpAddr;
 use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
-use relay_sampling::{merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch, SamplingConfig};
+use relay_sampling::{
+    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingConfig, SamplingMatch,
+};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};

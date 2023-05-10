@@ -106,10 +106,10 @@ pub struct TraceContext {
     #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
-    /// Track whether an error has a full trace connected to it.
+    /// Track whether the trace connected to this event has been sampled entirely.
     ///
     /// This flag only applies to events with [`Error`] type.
-    pub has_full_trace: Annotated<bool>,
+    pub sampled: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]

@@ -11,7 +11,6 @@ use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use libc::stat;
 use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -2006,8 +2005,9 @@ impl EnvelopeProcessorService {
 
     /// Tries to apply trace rules and check if the sampling decision is positive.
     fn apply_trace_rules_if_error(&self, state: &mut ProcessEnvelopeState) {
-        // Only if the extracted event is an error we want to run this logic, otherwise we don't
-        // do anything.
+        println!("Called");
+        println!("{:?}", state.event);
+        // Only if the extracted event is an error we want to run this logic.
         if let Some(EventType::Error) = state.event_type() {
             let sampling_result = utils::should_keep_event_with_trace_rules(
                 self.config.processing_enabled(),
@@ -2030,14 +2030,13 @@ impl EnvelopeProcessorService {
                             contexts.get_context_mut(TraceContext::default_key())
                         });
 
-                    // We want to mutate the has_full_trace after the "fake" sampling has been performed.
+                    // We want to mutate the sampled after the "fake" sampling has been performed.
                     if let Some(protocol::Context::Trace(boxed_context)) = context {
                         if let TraceContext {
-                            ref mut has_full_trace,
-                            ..
+                            ref mut sampled, ..
                         } = **boxed_context
                         {
-                            *has_full_trace = Annotated::new(match sampling_result {
+                            *sampled = Annotated::new(match sampling_result {
                                 SamplingResult::Keep => true,
                                 SamplingResult::Drop(_) => false,
                             });
@@ -2382,9 +2381,6 @@ impl EnvelopeProcessorService {
                 self.create_placeholders(state);
             });
 
-            println!("PROCESSING");
-            println!("{:?}", state.event);
-
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
@@ -2708,6 +2704,7 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
 
+    use relay_common::Uuid;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
@@ -3104,7 +3101,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_has_full_trace_injection() {
+    async fn test_error_is_tagged_with_sampled() {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
         let event_id = protocol::EventId::new();
@@ -3117,13 +3114,37 @@ mod tests {
 
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        envelope.set_dsc(dsc);
+
         envelope.add_item({
             let mut item = Item::new(ItemType::Event);
             item.set_payload(
                 ContentType::Json,
                 r#"{
                   "type": "error",
-                  "event_id": "52df9022835246eeb317dbd739ccd059"
+                  "event_id": "52df9022835246eeb317dbd739ccd059",
+                  "exception": {
+                    "values": [
+                        {
+                          "type": "mytype",
+                          "value": "myvalue",
+                          "module": "mymodule",
+                          "thread_id": 42,
+                          "other": "value"
+                        }
+                    ]
+                  }
                 }"#,
             );
             item
