@@ -1,3 +1,5 @@
+//! Recursively finding
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use anyhow::anyhow;
@@ -26,22 +28,6 @@ pub struct PiiFinder<'a> {
     pub pii_values: &'a Vec<String>,
     pub current_path: &'a mut Vec<TypeAndField>,
     pub pii_types: &'a mut BTreeSet<Vec<TypeAndField>>, // output
-}
-
-/// Finds the full path to the given types by comparing them to the types in the scope.
-fn get_matching_use_paths<'a>(
-    field_types: &'a BTreeSet<String>,
-    local_paths: &'a BTreeSet<String>,
-) -> Vec<&'a String> {
-    local_paths
-        .iter()
-        .filter(|use_path| {
-            let last_use_path = use_path.split("::").last().unwrap().trim();
-            field_types
-                .iter()
-                .any(|field_type| field_type.trim() == last_use_path)
-        })
-        .collect()
 }
 
 impl<'a> PiiFinder<'a> {
@@ -81,16 +67,16 @@ impl<'a> PiiFinder<'a> {
                 .iter()
                 .for_each(|ty| self.visit_field_types(&ty.ty)),
             Type::Group(group) => self.visit_field_types(&group.elem),
-            Type::ImplTrait(_) => {}
-            Type::Infer(_) => {}
-            Type::Macro(_) => {}
-            Type::Never(_) => {}
             Type::Paren(paren) => self.visit_field_types(&paren.elem),
             Type::Ptr(ptr) => self.visit_field_types(&ptr.elem),
             Type::Slice(slice) => self.visit_field_types(&slice.elem),
-            Type::TraitObject(_) => {}
             Type::Tuple(tuple) => tuple.elems.iter().for_each(|ty| self.visit_field_types(ty)),
-            Type::Verbatim(_) => {}
+            Type::Verbatim(_)
+            | Type::TraitObject(_)
+            | Type::ImplTrait(_)
+            | Type::Infer(_)
+            | Type::Macro(_)
+            | Type::Never(_) => {}
             _ => {}
         }
     }
@@ -148,6 +134,22 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
 
         self.current_path.pop();
     }
+}
+
+/// Finds the full path to the given types by comparing them to the types in the scope.
+fn get_matching_use_paths<'a>(
+    field_types: &'a BTreeSet<String>,
+    local_paths: &'a BTreeSet<String>,
+) -> Vec<&'a String> {
+    local_paths
+        .iter()
+        .filter(|use_path| {
+            let last_use_path = use_path.split("::").last().unwrap().trim();
+            field_types
+                .iter()
+                .any(|field_type| field_type.trim() == last_use_path)
+        })
+        .collect()
 }
 
 /// This function extracts the type names from a complex type and stores them in a BTreeSet.

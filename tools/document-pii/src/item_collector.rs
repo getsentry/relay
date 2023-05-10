@@ -1,3 +1,9 @@
+//! Collecting full paths to items and AST-nodes of types
+//!
+//! This module will iterate over all the rust files given and collect all of the full path names
+//! and the actual AST-node for the types defined in those paths. This is later needed for finding
+//! PII fields recursively.
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::BufRead;
@@ -10,6 +16,14 @@ use syn::{ItemEnum, ItemStruct, UseTree};
 
 use crate::EnumOrStruct;
 
+pub struct TypesAndUseStatements {
+    // Maps the path name of an item to its actual AST node.
+    pub all_types: HashMap<String, EnumOrStruct>,
+    // Maps the use_statements to different modules. For use in constructing the full path
+    // of an item from its type name.
+    pub use_statements: BTreeMap<String, BTreeSet<String>>,
+}
+
 /// Iterates over the rust files to collect all the types and use_statements, which is later
 /// used for recursively looking for pii_fields afterwards.
 pub struct AstItemCollector {
@@ -18,14 +32,6 @@ pub struct AstItemCollector {
     all_types: HashMap<String, EnumOrStruct>,
     /// Maps from a module_path to all the use_statements and path of local items.
     use_statements: BTreeMap<String, BTreeSet<String>>,
-}
-
-pub struct TypesAndUseStatements {
-    // Maps the path name of an item to its actual AST node.
-    pub all_types: HashMap<String, EnumOrStruct>,
-    // Maps the use_statements to different modules. For use in constructing the full path
-    // of an item from its type name.
-    pub use_statements: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl AstItemCollector {
@@ -148,7 +154,8 @@ fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<Stri
             leading_path.segments.push(use_rename.rename.clone().into());
             vec![quote::quote!(#leading_path).to_string()]
         }
-        _ => vec![quote::quote!(#leading_path).to_string()],
+        // Currently this script can't handle glob imports, which, we shouldn't use anyway.
+        UseTree::Glob(_) => vec![quote::quote!(#leading_path).to_string()],
     }
 }
 
