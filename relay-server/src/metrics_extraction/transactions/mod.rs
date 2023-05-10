@@ -963,7 +963,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                mri: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -981,7 +981,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                mri: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
@@ -999,7 +999,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                mri: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1017,7 +1017,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                mri: "s:transactions/span.user@none",
                 value: Set(
                     933084975,
                 ),
