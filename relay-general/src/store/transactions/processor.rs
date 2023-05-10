@@ -2377,6 +2377,8 @@ mod tests {
         "GET /clients/*/project/*"
     );
 
+    // TODO(iker): Add span description test for URLs with paths
+
     span_description_test!(
         span_description_scrub_only_dblike_on_db_ops,
         "SELECT count() FROM table WHERE id IN (%s, %s)",
@@ -2419,5 +2421,38 @@ mod tests {
         "select count() from table where id in (*)"
     );
 
-    // TODO(iker): Add span description test for URLs with paths
+    span_description_test!(
+        span_description_scrub_savepoint_uppercase,
+        "SAVEPOINT unquoted_identifier",
+        "db.sql.query",
+        "SAVEPOINT *"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_uppercase_semicolon,
+        "SAVEPOINT unquoted_identifier;",
+        "db.sql.query",
+        "SAVEPOINT *;"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_lowercase,
+        "savepoint unquoted_identifier",
+        "db.sql.query",
+        "savepoint *"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_quoted,
+        "SAVEPOINT 'unquoted_identifier'",
+        "db.sql.query",
+        "SAVEPOINT *"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_quoted_backtick,
+        "SAVEPOINT `unquoted_identifier`",
+        "db.sql.query",
+        "SAVEPOINT *"
+    );
 }
