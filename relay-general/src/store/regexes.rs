@@ -54,7 +54,7 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
 /// Slightly modified from
-/// https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132
+/// <https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132>
 pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(IN \((?P<in>(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\))"#).unwrap()
 });
