@@ -5,7 +5,7 @@
 //! PII fields recursively.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fs;
+use std::fs::{self, DirEntry};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
@@ -19,13 +19,14 @@ use crate::EnumOrStruct;
 pub struct TypesAndUseStatements {
     // Maps the path name of an item to its actual AST node.
     pub all_types: HashMap<String, EnumOrStruct>,
-    // Maps the use_statements to different modules. For use in constructing the full path
+    // Maps the paths in scope to different modules. For use in constructing the full path
     // of an item from its type name.
-    pub use_statements: BTreeMap<String, BTreeSet<String>>,
+    pub paths_in_scope: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Iterates over the rust files to collect all the types and use_statements, which is later
 /// used for recursively looking for pii_fields afterwards.
+#[derive(Default)]
 pub struct AstItemCollector {
     module_path: String,
     /// Maps from the full path of a type to its AST node.
@@ -46,26 +47,30 @@ impl AstItemCollector {
     /// use_statements in its module, which is needed to fetch the types that it referes to in its
     /// fields.
     pub fn get_types_and_use_statements(
-        paths: &Vec<PathBuf>,
+        paths: &[PathBuf],
     ) -> anyhow::Result<TypesAndUseStatements> {
-        let mut visitor = Self {
-            module_path: String::new(),
-            use_statements: BTreeMap::new(),
-            all_types: HashMap::new(),
-        };
-        for path in paths {
-            visitor.module_path = rust_file_to_use_path(path)?;
-            let file_content = fs::read_to_string(path.as_path())?;
-            let syntax_tree: syn::File = match syn::parse_file(&file_content) {
-                Ok(syntax_tree) => syntax_tree,
-                Err(_) => continue,
-            };
-            visitor.visit_file(&syntax_tree);
-        }
+        let mut visitor = Self::default();
+
+        visitor.visit_files(paths)?;
+
         Ok(TypesAndUseStatements {
             all_types: visitor.all_types,
-            use_statements: visitor.use_statements,
+            paths_in_scope: visitor.use_statements,
         })
+    }
+
+    fn visit_files(&mut self, paths: &[PathBuf]) -> anyhow::Result<()> {
+        for path in paths {
+            self.module_path = module_name_from_file(path)?;
+
+            let syntax_tree: syn::File = {
+                let file_content = fs::read_to_string(path.as_path())?;
+                syn::parse_file(&file_content)?
+            };
+
+            self.visit_file(&syntax_tree);
+        }
+        Ok(())
     }
 }
 
@@ -98,6 +103,23 @@ impl<'ast> Visit<'ast> for AstItemCollector {
     }
 }
 
+fn normalize_type_path(mut path: String, crate_root: &str, module_path: &str) -> String {
+    path = path
+        .replace(' ', "")
+        .replace('-', "_")
+        .replace("crate::", &format!("{}::", crate_root));
+
+    if path.contains("super::") {
+        let parent_module = {
+            let mut parts = module_path.split("::").collect::<Vec<_>>();
+            parts.pop();
+            parts.join("::")
+        };
+        path = path.replace("super::", &parent_module);
+    }
+    path
+}
+
 /// First flattens the UseTree and then normalizing the paths.
 fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
     let crate_root = module_path.split_once("::").map_or(module_path, |s| s.0);
@@ -109,25 +131,10 @@ fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
         use_tree,
     );
 
-    let mut retvec = vec![];
-    for path in paths {
-        let mut path = path
-            .replace(' ', "")
-            .replace('-', "_")
-            .replace("crate::", &format!("{}::", crate_root));
-
-        if path.contains("super::") {
-            let parent_module = {
-                let mut parts = module_path.split("::").collect::<Vec<_>>();
-                parts.pop();
-                parts.join("::")
-            };
-            path = path.replace("super::", &parent_module);
-        }
-
-        retvec.push(path);
-    }
-    retvec
+    paths
+        .into_iter()
+        .map(|path| normalize_type_path(path, crate_root, module_path))
+        .collect()
 }
 
 /// Flattens a usetree. For example: use relay_general::protocol::{Foo, Bar,
@@ -159,7 +166,7 @@ fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<Stri
     }
 }
 
-fn get_crate_name_from_file_path(file_path: &Path) -> anyhow::Result<&str> {
+fn crate_name_from_file(file_path: &Path) -> anyhow::Result<&str> {
     let file_str = file_path
         .as_os_str()
         .to_str()
@@ -189,61 +196,108 @@ fn get_crate_name_from_file_path(file_path: &Path) -> anyhow::Result<&str> {
     Ok(file_str.split_at(src_index).0.split_at(back_index).1)
 }
 
-/// Takes in the path to a Rust file and returns the path as you'd refer to it in a use-statement.
-/// e.g. "/Users/tor/prog/rust/relay/relay-general/src/protocol/types.rs" -> "relay_general::protocol"
-fn rust_file_to_use_path(file_path: &Path) -> anyhow::Result<String> {
-    let crate_name = get_crate_name_from_file_path(file_path)?;
+fn add_file_stem_to_module_path(
+    file_path: &Path,
+    module_path: &mut Vec<String>,
+) -> anyhow::Result<()> {
+    let file_stem = file_path
+        .file_stem()
+        .ok_or_else(|| {
+            anyhow!(
+                "Invalid file path (unable to find file stem): {}",
+                file_path.display()
+            )
+        })?
+        .to_string_lossy()
+        .into_owned();
 
-    // Get the parent directory and file stem, which will be used to
-    // identify whether the file is a module.
-    let parent_dir = file_path.parent().ok_or_else(|| {
-        anyhow!(
-            "Invalid file path (unable to find parent directory): {}",
-            file_path.display()
-        )
-    })?;
+    module_path.push(file_stem);
+    Ok(())
+}
 
-    let is_module = is_file_module(file_path)?;
-
-    // Construct the module path, filtering out "src" and appending the
-    // file stem if the file is a module.
-    let mut module_path = parent_dir
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy().into_owned())
-        .filter(|part| part != "src")
-        .collect::<Vec<_>>();
-
-    if is_module {
-        let file_stem = file_path
-            .file_stem()
-            .ok_or_else(|| {
-                anyhow!(
-                    "Invalid file path (unable to find file stem): {}",
-                    file_path.display()
-                )
-            })?
-            .to_string_lossy()
-            .into_owned();
-
-        module_path.push(file_stem);
-    }
-
+fn split_path_at_crate_name(module_path: &[String], file_path: &Path) -> anyhow::Result<String> {
     // Build the final use-path by joining the module path components
     // with "::" and removing the '-' character if any, since Rust module
     // names replace '-' with '_'.
-    let use_path = {
-        let use_path = module_path.join("::");
-        let index = use_path.find(crate_name).ok_or_else(|| {
-            anyhow!(
-                "Failed to find crate name '{}' in use path '{}'",
-                crate_name,
-                use_path
-            )
-        })?;
-        use_path.split_at(index).1.replace('-', "_")
-    };
+    let use_path = module_path.join("::");
+    let crate_name = crate_name_from_file(file_path)?;
+
+    let index = use_path.find(crate_name).ok_or_else(|| {
+        anyhow!(
+            "Failed to find crate name '{}' in use path '{}'",
+            crate_name,
+            use_path
+        )
+    })?;
+    let use_path = use_path.split_at(index).1.to_string();
 
     Ok(use_path)
+}
+
+/// Takes in the path to a Rust file and returns the path as you'd refer to it in a use-statement.
+/// e.g. "/Users/tor/prog/rust/relay/relay-general/src/protocol/types.rs" -> "relay_general::protocol"
+fn module_name_from_file(file_path: &Path) -> anyhow::Result<String> {
+    let mut module_path = file_path
+        .parent()
+        .ok_or_else(|| {
+            anyhow!(
+                "Invalid file path (unable to find parent directory): {}",
+                file_path.display()
+            )
+        })?
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().replace('-', "_"))
+        .filter(|part| part != "src")
+        .collect::<Vec<String>>();
+
+    if is_file_module(file_path)? {
+        add_file_stem_to_module_path(file_path, &mut module_path)?;
+    }
+
+    let use_path = split_path_at_crate_name(&module_path, file_path)?;
+
+    Ok(use_path)
+}
+
+fn is_file_declared_from_mod_file(parent_dir: &Path, file_stem: &str) -> anyhow::Result<bool> {
+    let mod_rs_path = parent_dir.join("mod.rs");
+    if !mod_rs_path.exists() {
+        return Ok(false);
+    }
+    // If "mod.rs" exists, we need to check if it declares the file in question as a module.
+    // The declaration line would start with "pub mod" and contain the file stem.
+    let mod_rs_file = fs::File::open(mod_rs_path)?;
+    let reader = std::io::BufReader::new(mod_rs_file);
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().starts_with("pub mod") && line.contains(file_stem) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn is_file_declared_from_other_file(
+    entry: &DirEntry,
+    file_stem: &str,
+    file_path: &Path,
+) -> anyhow::Result<bool> {
+    let path = entry.path();
+
+    if path.is_file() && path.extension().map_or(false, |ext| ext == "rs") && path != *file_path {
+        // Read the file and search for the same declaration pattern: "pub mod" and file stem.
+        let file = fs::File::open(path)?;
+        let reader = std::io::BufReader::new(file);
+
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().starts_with("pub mod") && line.contains(file_stem) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(true)
 }
 
 // Checks if a file is a Rust module.
@@ -259,42 +313,13 @@ fn is_file_module(file_path: &Path) -> anyhow::Result<bool> {
         .to_string_lossy()
         .into_owned();
 
-    // Check if there is a "mod.rs" file in the parent directory.
-    // This is done because a "mod.rs" file is used to declare modules in the same directory.
-    let mod_rs_path = parent_dir.join("mod.rs");
-    if mod_rs_path.exists() {
-        // If "mod.rs" exists, we need to check if it declares the file in question as a module.
-        // The declaration line would start with "pub mod" and contain the file stem.
-        let mod_rs_file = fs::File::open(mod_rs_path)?;
-        let reader = std::io::BufReader::new(mod_rs_file);
-
-        for line in reader.lines() {
-            let line = line?;
-            if line.trim().starts_with("pub mod") && line.contains(&file_stem) {
-                // If the declaration is found, the file is a module.
-                return Ok(true);
-            }
-        }
+    if is_file_declared_from_mod_file(parent_dir, &file_stem)? {
+        return Ok(true);
     }
 
-    // If there is no "mod.rs", we need to check if any other ".rs" file in the parent directory
-    // declares the file in question as a module.
     for entry in fs::read_dir(parent_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_file() && path.extension().map_or(false, |ext| ext == "rs") && path != *file_path
-        {
-            // Read the file and search for the same declaration pattern: "pub mod" and file stem.
-            let file = fs::File::open(path)?;
-            let reader = std::io::BufReader::new(file);
-
-            for line in reader.lines() {
-                let line = line?;
-                if line.trim().starts_with("pub mod") && line.contains(&file_stem) {
-                    return Ok(true);
-                }
-            }
+        if is_file_declared_from_other_file(&entry?, &file_stem, file_path)? {
+            return Ok(true);
         }
     }
 

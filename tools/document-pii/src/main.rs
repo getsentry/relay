@@ -106,7 +106,7 @@ impl Cli {
         // paths to types and their AST node, and of all modules and the items in their scope.
         let TypesAndUseStatements {
             all_types,
-            use_statements,
+            paths_in_scope: use_statements,
         } = AstItemCollector::get_types_and_use_statements(&rust_file_paths)?;
 
         let pii_types = match self.item.as_deref() {
@@ -197,7 +197,7 @@ mod tests {
 
         let TypesAndUseStatements {
             all_types,
-            use_statements,
+            paths_in_scope: use_statements,
         } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields_of_type(
@@ -218,8 +218,10 @@ mod tests {
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements { use_statements, .. } =
-            AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+        let TypesAndUseStatements {
+            paths_in_scope: use_statements,
+            ..
+        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
         insta::assert_debug_snapshot!(use_statements);
     }
 
@@ -231,7 +233,7 @@ mod tests {
 
         let TypesAndUseStatements {
             all_types,
-            use_statements,
+            paths_in_scope: use_statements,
         } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types =
@@ -250,7 +252,7 @@ mod tests {
 
         let TypesAndUseStatements {
             all_types,
-            use_statements,
+            paths_in_scope: use_statements,
         } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types =
@@ -269,7 +271,7 @@ mod tests {
 
         let TypesAndUseStatements {
             all_types,
-            use_statements,
+            paths_in_scope: use_statements,
         } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields_of_all_types(
