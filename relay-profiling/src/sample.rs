@@ -152,10 +152,9 @@ pub struct ProfileMetadata {
     platform: String,
     timestamp: DateTime<Utc>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
-
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     dist: String,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
