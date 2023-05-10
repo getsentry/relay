@@ -82,10 +82,13 @@ fn extract_os_name(event: &Event) -> Option<String> {
 }
 
 /// Extract the OS name from the [`Context::Os`] context.
-fn extract_geo_country_code(user: &User) -> Option<String> {
-    if let Some(geo) = user.geo.value() {
-        return geo.country_code.value().cloned();
+fn extract_geo_country_code(event: &Event) -> Option<String> {
+    if let Some(user) = event.user.value() {
+        if let Some(geo) = user.geo.value() {
+            return geo.country_code.value().cloned();
+        }
     }
+
     None
 }
 
@@ -227,10 +230,8 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::OsName, os_name);
     }
 
-    if let Some(user) = event.user.value() {
-        if let Some(geo_country_code) = extract_geo_country_code(user) {
-            tags.insert(CommonTag::GeoCountryCode, geo_country_code);
-        }
+    if let Some(geo_country_code) = extract_geo_country_code(event) {
+        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
     }
 
     let custom_tags = &config.extract_custom_tags;
