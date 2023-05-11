@@ -2295,10 +2295,18 @@ mod tests {
                 )
                 .unwrap();
 
+                // The input description may contain escaped characters, and the
+                // default formatter (when taking the value from the span
+                // description) automatically escapes them. The goal is to
+                // compute raw values, so we want to get rid of character
+                // escaping, and the debug formatter does that. The debug
+                // formatter doesn't remove the leading and trailing `"`s, so we
+                // manually add them to the input literal.
                 assert_eq!(
-                    $description_in,
-                    span.value().unwrap().description.value().unwrap()
+                    format!("\"{}\"", $description_in),
+                    format!("{:?}", span.value().unwrap().description.value().unwrap())
                 );
+
                 if $output == "" {
                     assert!(span
                         .value()
@@ -2454,5 +2462,19 @@ mod tests {
         "SAVEPOINT `backtick_quoted_identifier`",
         "db.sql.query",
         "SAVEPOINT *"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string,
+        "SELECT * FROM table WHERE sku = 'foo'",
+        "db.sql.query",
+        "SELECT * FROM table WHERE sku = *"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string_unfinished,
+        r#"SELECT * FROM table WHERE quote = 'it\\'s a string"#,
+        "db.sql.query",
+        "SELECT * FROM table WHERE quote = *"
     );
 }
