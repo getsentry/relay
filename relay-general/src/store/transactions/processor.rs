@@ -487,7 +487,7 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
     }
 
     if did_scrub {
-        let Some(new_desc) = scrubbed.value() else {
+        let Some(new_desc) = scrubbed.into_value() else {
             return Ok(());
         };
         span.data
@@ -496,7 +496,7 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
             // that after scrubbing the value is sanitized.
             .insert(
                 "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(new_desc.to_owned())),
+                Annotated::new(Value::String(new_desc)),
             );
     }
 
