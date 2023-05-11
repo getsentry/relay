@@ -181,6 +181,10 @@ impl UpdateBufferIndex {
     }
 }
 
+/// Checks the status of underlying buffer spool.
+#[derive(Debug)]
+pub struct SpoolHealth;
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -210,6 +214,7 @@ pub enum ProjectCache {
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
+    SpoolHealth(Sender<bool>),
 }
 
 impl Interface for ProjectCache {}
@@ -297,6 +302,14 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 
     fn from_message(message: FlushBuckets, _: ()) -> Self {
         Self::FlushBuckets(message)
+    }
+}
+
+impl FromMessage<SpoolHealth> for ProjectCache {
+    type Response = relay_system::AsyncResponse<bool>;
+
+    fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
+        Self::SpoolHealth(sender)
     }
 }
 
@@ -769,6 +782,10 @@ impl ProjectCacheBroker {
         self.index.insert(message.project_key, message.keys);
     }
 
+    fn handle_spool_health(&mut self, sender: Sender<bool>) {
+        self.buffer.send(spooler::Health(sender))
+    }
+
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -785,6 +802,7 @@ impl ProjectCacheBroker {
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
+            ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
         }
     }
 }

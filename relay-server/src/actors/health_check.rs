@@ -6,6 +6,7 @@ use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
+use crate::actors::project_cache::{ProjectCache, SpoolHealth};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
 
@@ -41,6 +42,7 @@ pub struct HealthCheckService {
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
+    project_cache: Addr<ProjectCache>,
 }
 
 impl HealthCheckService {
@@ -51,12 +53,14 @@ impl HealthCheckService {
         config: Arc<Config>,
         aggregator: Addr<Aggregator>,
         upstream_relay: Addr<UpstreamRelay>,
+        project_cache: Addr<ProjectCache>,
     ) -> Self {
         HealthCheckService {
             is_shutting_down: AtomicBool::new(false),
             config,
             aggregator,
             upstream_relay,
+            project_cache,
         }
     }
 
@@ -85,8 +89,17 @@ impl HealthCheckService {
                     return false;
                 }
 
-                self.aggregator
+                if !self
+                    .aggregator
                     .send(AcceptsMetrics)
+                    .await
+                    .unwrap_or_default()
+                {
+                    return false;
+                }
+
+                self.project_cache
+                    .send(SpoolHealth)
                     .await
                     .unwrap_or_default()
             }
