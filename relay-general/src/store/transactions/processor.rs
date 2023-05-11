@@ -487,17 +487,16 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
     }
 
     if did_scrub {
-        let Some(new_desc) = scrubbed.into_value() else {
-            return Ok(());
+        if let Some(new_desc) = scrubbed.into_value() {
+            span.data
+                .get_or_insert_with(BTreeMap::new)
+                // We don't care what the cause of scrubbing was, since we assume
+                // that after scrubbing the value is sanitized.
+                .insert(
+                    "description.scrubbed".to_owned(),
+                    Annotated::new(Value::String(new_desc)),
+                );
         };
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(new_desc)),
-            );
     }
 
     Ok(())
