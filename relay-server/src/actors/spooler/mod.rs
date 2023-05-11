@@ -182,7 +182,7 @@ struct InMemory {
     buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
     max_memory_size: usize,
     used_memory: usize,
-    envelope_count: isize,
+    envelope_count: usize,
 }
 
 impl InMemory {
@@ -211,7 +211,7 @@ impl InMemory {
             count += current_count;
             self.used_memory -= current_size;
         }
-        self.envelope_count -= count as isize;
+        self.envelope_count = self.envelope_count.saturating_sub(count);
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
         );
@@ -227,7 +227,7 @@ impl InMemory {
         for key in keys {
             for envelope in self.buffer.remove(key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
-                self.envelope_count -= 1;
+                self.envelope_count = self.envelope_count.saturating_sub(1);
                 sender.send(envelope).ok();
             }
         }
