@@ -108,16 +108,32 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
         project_key = 42
         mini_sentry.add_full_project_config(project_key)
+        # Set the broken config, so we won't be able to dequeue the envelopes.
+        config = mini_sentry.project_configs[project_key]["config"]
+        ds = config.setdefault("dynamicSampling", {})
+        ds.setdefault("rules", [])
+        ds.setdefault("rulesV2", []).append(
+            {
+                "condition": {
+                    "op": "and",
+                    "inner": [
+                        {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
+                    ],
+                },
+                "samplingValue": {"strategy": "sampleRate", "value": 0.7},
+                "type": "trace",
+                "id": 1,
+                "timeRange": {
+                    "start": "2022-10-10T00:00:00.000000Z",
+                    "end": "2022-10-20T00:00:00.000000Z",
+                },
+                "decayingFn": {"function": "linear", "decayedSampleRate": 0.9},
+            }
+        )
 
         relay_config = {
-            "cache": {
-                "project_expiry": 2,
-                "project_grace_period": 20,
-                "miss_expiry": 2,
-            },
-            "http": {"max_retry_interval": 1},
             "spool": {
-                "envelopes": {"path": dbfile, "max_memory_size": 1, "max_disk_size": 1}
+                "envelopes": {"path": dbfile, "max_memory_size": 0, "max_disk_size": 0}
             },
         }
 
@@ -127,7 +143,8 @@ def test_readiness_disk_spool(mini_sentry, relay):
             wait_health_check=True,
         )
 
-        # This event will consume all the disk sapce and we will report not ready.
+        # These events will consume all the disk sapce and we will report not ready.
+        relay.send_event(project_key)
         relay.send_event(project_key)
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
