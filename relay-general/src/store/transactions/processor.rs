@@ -2477,4 +2477,18 @@ mod tests {
         "db.sql.query",
         "SELECT * FROM table WHERE quote = *"
     );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_postgres,
+        r#"SELECT * from \"table\" WHERE sku = *"#,
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_mysql,
+        r#"SELECT * from table WHERE sku = \"foo\""#,
+        "db.sql.query",
+        ""
+    );
 }
