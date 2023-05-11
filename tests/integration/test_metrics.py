@@ -375,7 +375,7 @@ def test_session_metrics_non_processing(
         assert metrics_item.type == "metric_buckets"
 
         session_metrics = json.loads(metrics_item.get_bytes().decode())
-        session_metrics = sorted(session_metrics, key=lambda x: x["name"])
+        session_metrics = sorted(session_metrics, key=lambda x: x["mri"])
 
         ts = int(started.timestamp())
         assert session_metrics == [
