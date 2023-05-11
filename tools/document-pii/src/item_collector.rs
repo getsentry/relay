@@ -74,9 +74,7 @@ impl AstItemCollector {
     }
 }
 
-/// Iterates through all the rust files in order to make the `full-type-path -> AST node' map
-/// and the 'module-module_pathath -> use-statements' map. These are needed for the 'find_pii_fields' function.
-
+/// The types and use statements items collected from the rust files
 impl<'ast> Visit<'ast> for AstItemCollector {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         let struct_name = format!("{}::{}", self.module_path, node.ident);
@@ -166,7 +164,7 @@ fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<Stri
     }
 }
 
-fn crate_name_from_file(file_path: &Path) -> anyhow::Result<&str> {
+fn crate_name_from_file(file_path: &Path) -> anyhow::Result<String> {
     let file_str = file_path
         .as_os_str()
         .to_str()
@@ -193,7 +191,12 @@ fn crate_name_from_file(file_path: &Path) -> anyhow::Result<&str> {
         })?
         + 1;
 
-    Ok(file_str.split_at(src_index).0.split_at(back_index).1)
+    Ok(file_str
+        .split_at(src_index)
+        .0
+        .split_at(back_index)
+        .1
+        .replace('-', "_"))
 }
 
 fn add_file_stem_to_module_path(
@@ -222,7 +225,7 @@ fn split_path_at_crate_name(module_path: &[String], file_path: &Path) -> anyhow:
     let use_path = module_path.join("::");
     let crate_name = crate_name_from_file(file_path)?;
 
-    let index = use_path.find(crate_name).ok_or_else(|| {
+    let index = use_path.find(&crate_name).ok_or_else(|| {
         anyhow!(
             "Failed to find crate name '{}' in use path '{}'",
             crate_name,
@@ -297,13 +300,11 @@ fn is_file_declared_from_other_file(
             }
         }
     }
-    Ok(true)
+    Ok(false)
 }
 
 // Checks if a file is a Rust module.
 fn is_file_module(file_path: &Path) -> anyhow::Result<bool> {
-    // Determine the parent directory and file stem of the provided file path.
-    // This information is used later to find other Rust files within the same directory.
     let parent_dir = file_path
         .parent()
         .ok_or_else(|| anyhow!("Invalid file path: {}", file_path.display()))?;
@@ -318,7 +319,8 @@ fn is_file_module(file_path: &Path) -> anyhow::Result<bool> {
     }
 
     for entry in fs::read_dir(parent_dir)? {
-        if is_file_declared_from_other_file(&entry?, &file_stem, file_path)? {
+        let entry = entry?;
+        if is_file_declared_from_other_file(&entry, &file_stem, file_path)? {
             return Ok(true);
         }
     }

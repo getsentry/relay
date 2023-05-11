@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.66"
-syn = { version = "2.0.11", features = ["visit", "full"] }
+syn = { version = "2.0.11", features = ["visit", "full", "extra-traits"] }
 quote = "1.0.26"
 walkdir = "2.3.2"
 proc-macro2 = "1.0.54"

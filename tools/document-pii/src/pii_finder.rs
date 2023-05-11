@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use anyhow::anyhow;
 use proc_macro2::TokenTree;
 use syn::visit::Visit;
-use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type};
+use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
 
 use crate::EnumOrStruct;
 
@@ -21,6 +21,33 @@ pub struct TypeAndField {
     pub field_ident: String,
 }
 
+fn get_type_paths_from_type(ty: &Type, type_paths: &mut Vec<TypePath>) {
+    match ty {
+        Type::Path(path) => type_paths.push(path.clone()),
+        Type::Reference(reference) => get_type_paths_from_type(&reference.elem, type_paths),
+        Type::Array(arr) => get_type_paths_from_type(&arr.elem, type_paths),
+        Type::BareFn(bare_fn) => bare_fn
+            .inputs
+            .iter()
+            .for_each(|ty| get_type_paths_from_type(&ty.ty, type_paths)),
+        Type::Group(group) => get_type_paths_from_type(&group.elem, type_paths),
+        Type::Paren(paren) => get_type_paths_from_type(&paren.elem, type_paths),
+        Type::Ptr(ptr) => get_type_paths_from_type(&ptr.elem, type_paths),
+        Type::Slice(slice) => get_type_paths_from_type(&slice.elem, type_paths),
+        Type::Tuple(tuple) => tuple
+            .elems
+            .iter()
+            .for_each(|ty| get_type_paths_from_type(ty, type_paths)),
+        Type::Verbatim(_)
+        | Type::TraitObject(_)
+        | Type::ImplTrait(_)
+        | Type::Infer(_)
+        | Type::Macro(_)
+        | Type::Never(_) => {}
+        _ => {}
+    }
+}
+
 /// This is the visitor that actually generates the pii_types, it has a lot of associated data
 /// because it using the Visit trait from syn-crate means I cannot add data as arguments.
 /// The 'pii_types' field can be regarded as the output.
@@ -30,58 +57,70 @@ pub struct PiiFinder<'a> {
     pub all_types: &'a HashMap<String, EnumOrStruct>,
     pub use_statements: &'a BTreeMap<String, BTreeSet<String>>,
     pub pii_values: &'a Vec<String>,
-    pub current_path: &'a mut Vec<TypeAndField>,
-    pub pii_types: &'a mut BTreeSet<Vec<TypeAndField>>, // output
+    pub current_path: Vec<TypeAndField>,
+    pub pii_types: BTreeSet<Vec<TypeAndField>>, // output
 }
 
 impl<'a> PiiFinder<'a> {
+    fn new(
+        path: &str,
+        all_types: &'a HashMap<String, EnumOrStruct>,
+        use_statements: &'a BTreeMap<String, BTreeSet<String>>,
+        pii_values: &'a Vec<String>,
+    ) -> anyhow::Result<Self> {
+        // Module path of a type is the full path up to the type itself.
+        // E.g. relay_general::protocol::Event -> relay_general::protocol
+        let module_path = path
+            .rsplit_once("::")
+            .ok_or_else(|| anyhow!("invalid module path: {}", path))?
+            .0
+            .to_owned();
+
+        Ok(Self {
+            module_path,
+            current_type: String::new(),
+            all_types,
+            use_statements,
+            pii_values,
+            current_path: vec![],
+            pii_types: BTreeSet::new(),
+        })
+    }
+
+    fn visit_type_path(&mut self, path: &TypePath) {
+        let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
+
+        let mut field_types = BTreeSet::new();
+        get_field_types(&path.path, &mut field_types);
+
+        let use_paths = get_matching_use_paths(&field_types, &local_paths);
+        for use_path in use_paths {
+            if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
+                // Theses values will be changed when recursing, so we save them here so when we
+                // return to this function after the match statement, we can set them back.
+                let current_type = self.current_type.clone();
+                let module_path = self.module_path.clone();
+                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
+
+                match enum_or_struct {
+                    EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),
+                    EnumOrStruct::Enum(itemenum) => self.visit_item_enum(&itemenum),
+                }
+
+                self.module_path = module_path;
+                self.current_type = current_type;
+            }
+        }
+    }
+
     /// Takes a Field and visit the types that it consist of if we have
     /// the full path to it in self.use_statements.
     fn visit_field_types(&mut self, ty: &Type) {
-        match ty {
-            Type::Path(path) => {
-                let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
+        let mut type_paths = vec![];
+        get_type_paths_from_type(ty, &mut type_paths);
 
-                let mut field_types = BTreeSet::new();
-                get_field_types(&path.path, &mut field_types);
-
-                let use_paths = get_matching_use_paths(&field_types, &local_paths);
-                for use_path in use_paths {
-                    if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
-                        // Theses values will be changed when recursing, so we save them here so when we
-                        // return to this function after the match statement, we can set them back.
-                        let current_type = self.current_type.clone();
-                        let module_path = self.module_path.clone();
-                        self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
-
-                        match enum_or_struct {
-                            EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),
-                            EnumOrStruct::Enum(itemenum) => self.visit_item_enum(&itemenum),
-                        }
-
-                        self.module_path = module_path;
-                        self.current_type = current_type;
-                    }
-                }
-            }
-            Type::Reference(reference) => self.visit_field_types(&reference.elem),
-            Type::Array(arr) => self.visit_field_types(&arr.elem),
-            Type::BareFn(bare_fn) => bare_fn
-                .inputs
-                .iter()
-                .for_each(|ty| self.visit_field_types(&ty.ty)),
-            Type::Group(group) => self.visit_field_types(&group.elem),
-            Type::Paren(paren) => self.visit_field_types(&paren.elem),
-            Type::Ptr(ptr) => self.visit_field_types(&ptr.elem),
-            Type::Slice(slice) => self.visit_field_types(&slice.elem),
-            Type::Tuple(tuple) => tuple.elems.iter().for_each(|ty| self.visit_field_types(ty)),
-            Type::Verbatim(_)
-            | Type::TraitObject(_)
-            | Type::ImplTrait(_)
-            | Type::Infer(_)
-            | Type::Macro(_)
-            | Type::Never(_) => {}
-            _ => {}
+        for path in type_paths {
+            self.visit_type_path(&path);
         }
     }
 
@@ -228,42 +267,17 @@ pub fn find_pii_fields_of_type(
     use_statements: &BTreeMap<String, BTreeSet<String>>,
     pii_values: &Vec<String>,
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+    let mut visitor = PiiFinder::new(path, all_types, use_statements, pii_values)?;
+
     let value = all_types
         .get(path)
         .ok_or_else(|| anyhow!("Unable to find item with following path: {}", path))?;
-
-    // This is where we collect all the pii-fields.
-    let mut pii_types: BTreeSet<Vec<TypeAndField>> = BTreeSet::new();
-
-    // When we recursively dive into the fields of an item, we have to keep track of where we are
-    // at a given time.
-    let mut current_path: Vec<TypeAndField> = vec![];
-
-    // Module path of a type is the full path up to the type itself.
-    // E.g. relay_general::protocol::Event -> relay_general::protocol
-    let module_path = path
-        .rsplit_once("::")
-        .ok_or_else(|| anyhow!("invalid module path: {}", path))?
-        .0
-        .to_owned();
-
-    // Keeps track of all states during recursion, and implements the 'visitor'-trait responsible
-    // for recursion.
-    let mut visitor = PiiFinder {
-        module_path,
-        current_type: String::new(),
-        all_types,
-        use_statements,
-        pii_values,
-        pii_types: &mut pii_types,
-        current_path: &mut current_path,
-    };
 
     match value {
         EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
         EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
     };
-    Ok(pii_types)
+    Ok(visitor.pii_types)
 }
 
 /// Finds all the pii fields recursively of all the types in the rust crate/workspace.
