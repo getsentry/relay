@@ -1,6 +1,6 @@
 ---
 source: tools/document-pii/src/main.rs
-expression: use_statements
+expression: scoped_paths
 ---
 {
     "test_pii_docs": {

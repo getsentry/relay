@@ -16,28 +16,27 @@ use syn::{ItemEnum, ItemStruct, UseTree};
 
 use crate::EnumOrStruct;
 
-pub struct TypesAndUseStatements {
+pub struct TypesAndScopedPaths {
     // Maps the path name of an item to its actual AST node.
     pub all_types: HashMap<String, EnumOrStruct>,
     // Maps the paths in scope to different modules. For use in constructing the full path
     // of an item from its type name.
-    pub paths_in_scope: BTreeMap<String, BTreeSet<String>>,
+    pub scoped_paths: BTreeMap<String, BTreeSet<String>>,
 }
 
-/// Iterates over the rust files to collect all the types and use_statements, which is later
-/// used for recursively looking for pii_fields afterwards.
+/// The types and use statements items collected from the rust files.
 #[derive(Default)]
 pub struct AstItemCollector {
     module_path: String,
     /// Maps from the full path of a type to its AST node.
     all_types: HashMap<String, EnumOrStruct>,
-    /// Maps from a module_path to all the use_statements and path of local items.
-    use_statements: BTreeMap<String, BTreeSet<String>>,
+    /// Maps from a module_path to all the types that are in the module's scope.
+    scoped_paths: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl AstItemCollector {
-    fn insert_use_statements(&mut self, use_statements: Vec<String>) {
-        self.use_statements
+    fn insert_scoped_paths(&mut self, use_statements: Vec<String>) {
+        self.scoped_paths
             .entry(self.module_path.clone())
             .or_default()
             .extend(use_statements);
@@ -46,16 +45,14 @@ impl AstItemCollector {
     /// Gets both a mapping of the full type to a type and its actual AST node, and also the
     /// use_statements in its module, which is needed to fetch the types that it referes to in its
     /// fields.
-    pub fn get_types_and_use_statements(
-        paths: &[PathBuf],
-    ) -> anyhow::Result<TypesAndUseStatements> {
+    pub fn get_types_and_scoped_paths(paths: &[PathBuf]) -> anyhow::Result<TypesAndScopedPaths> {
         let mut visitor = Self::default();
 
         visitor.visit_files(paths)?;
 
-        Ok(TypesAndUseStatements {
+        Ok(TypesAndScopedPaths {
             all_types: visitor.all_types,
-            paths_in_scope: visitor.use_statements,
+            scoped_paths: visitor.scoped_paths,
         })
     }
 
@@ -74,18 +71,17 @@ impl AstItemCollector {
     }
 }
 
-/// The types and use statements items collected from the rust files
 impl<'ast> Visit<'ast> for AstItemCollector {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         let struct_name = format!("{}::{}", self.module_path, node.ident);
-        self.insert_use_statements(vec![struct_name.clone()]);
+        self.insert_scoped_paths(vec![struct_name.clone()]);
         self.all_types
             .insert(struct_name, EnumOrStruct::Struct(node.clone()));
     }
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
         let enum_name = format!("{}::{}", self.module_path, node.ident);
-        self.insert_use_statements(vec![enum_name.clone()]);
+        self.insert_scoped_paths(vec![enum_name.clone()]);
         self.all_types
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
@@ -97,7 +93,7 @@ impl<'ast> Visit<'ast> for AstItemCollector {
             .cloned()
             .collect();
 
-        self.insert_use_statements(use_statements);
+        self.insert_scoped_paths(use_statements);
     }
 }
 
@@ -269,7 +265,7 @@ fn is_file_declared_from_mod_file(parent_dir: &Path, file_stem: &str) -> anyhow:
     }
     // If "mod.rs" exists, we need to check if it declares the file in question as a module.
     // The declaration line would start with "pub mod" and contain the file stem.
-    let mod_rs_file = fs::File::open(mod_rs_path)?;
+    let mod_rs_file: fs::File = fs::File::open(mod_rs_path)?;
     let reader = std::io::BufReader::new(mod_rs_file);
 
     for line in reader.lines() {

@@ -15,7 +15,7 @@ use syn::ItemStruct;
 use walkdir::WalkDir;
 
 use crate::item_collector::AstItemCollector;
-use crate::item_collector::TypesAndUseStatements;
+use crate::item_collector::TypesAndScopedPaths;
 use crate::pii_finder::find_pii_fields_of_all_types;
 use crate::pii_finder::find_pii_fields_of_type;
 use crate::pii_finder::TypeAndField;
@@ -104,10 +104,10 @@ impl Cli {
 
         // Before we can iterate over the pii fields properly, we make a mapping between all
         // paths to types and their AST node, and of all modules and the items in their scope.
-        let TypesAndUseStatements {
+        let TypesAndScopedPaths {
             all_types,
-            paths_in_scope: use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths)?;
+            scoped_paths: use_statements,
+        } = AstItemCollector::get_types_and_scoped_paths(&rust_file_paths)?;
 
         let pii_types = match self.item.as_deref() {
             // If user provides path to an item, find pii_fields under this item in particular.
@@ -195,15 +195,15 @@ mod tests {
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements {
+        let TypesAndScopedPaths {
             all_types,
-            paths_in_scope: use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+            scoped_paths,
+        } = AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields_of_type(
             "test_pii_docs::SubStruct",
             &all_types,
-            &use_statements,
+            &scoped_paths,
             &vec!["true".to_string()],
         )
         .unwrap();
@@ -213,16 +213,14 @@ mod tests {
     }
 
     #[test]
-    fn test_use_statements() {
+    fn test_scoped_paths() {
         let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements {
-            paths_in_scope: use_statements,
-            ..
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
-        insta::assert_debug_snapshot!(use_statements);
+        let TypesAndScopedPaths { scoped_paths, .. } =
+            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap();
+        insta::assert_debug_snapshot!(scoped_paths);
     }
 
     #[test]
@@ -231,10 +229,10 @@ mod tests {
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements {
+        let TypesAndScopedPaths {
             all_types,
-            paths_in_scope: use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+            scoped_paths: use_statements,
+        } = AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap();
 
         let pii_types =
             find_pii_fields_of_all_types(&all_types, &use_statements, &vec!["true".to_string()])
@@ -250,13 +248,13 @@ mod tests {
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements {
+        let TypesAndScopedPaths {
             all_types,
-            paths_in_scope: use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+            scoped_paths,
+        } = AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap();
 
         let pii_types =
-            find_pii_fields_of_all_types(&all_types, &use_statements, &vec!["false".to_string()])
+            find_pii_fields_of_all_types(&all_types, &scoped_paths, &vec!["false".to_string()])
                 .unwrap();
 
         let output = get_pii_fields_output(pii_types, "".into());
@@ -269,14 +267,14 @@ mod tests {
 
         let rust_file_paths = find_rs_files(&rust_crate);
 
-        let TypesAndUseStatements {
+        let TypesAndScopedPaths {
             all_types,
-            paths_in_scope: use_statements,
-        } = AstItemCollector::get_types_and_use_statements(&rust_file_paths).unwrap();
+            scoped_paths,
+        } = AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap();
 
         let pii_types = find_pii_fields_of_all_types(
             &all_types,
-            &use_statements,
+            &scoped_paths,
             &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
         )
         .unwrap();

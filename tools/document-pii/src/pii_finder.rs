@@ -52,10 +52,14 @@ fn get_type_paths_from_type(ty: &Type, type_paths: &mut Vec<TypePath>) {
 /// because it using the Visit trait from syn-crate means I cannot add data as arguments.
 /// The 'pii_types' field can be regarded as the output.
 pub struct PiiFinder<'a> {
+    // Module path of a type is the full path up to the type itself.
+    // E.g. relay_general::protocol::Event -> relay_general::protocol
     pub module_path: String,
     pub current_type: String,
     pub all_types: &'a HashMap<String, EnumOrStruct>,
-    pub use_statements: &'a BTreeMap<String, BTreeSet<String>>,
+    // The full paths of rust types either defined in the module or brought in to scope with a use-statement.
+    pub scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
+    // The pii-values of the types that the user wants to collect.
     pub pii_values: &'a Vec<String>,
     pub current_path: Vec<TypeAndField>,
     pub pii_types: BTreeSet<Vec<TypeAndField>>, // output
@@ -65,11 +69,9 @@ impl<'a> PiiFinder<'a> {
     fn new(
         path: &str,
         all_types: &'a HashMap<String, EnumOrStruct>,
-        use_statements: &'a BTreeMap<String, BTreeSet<String>>,
+        scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
         pii_values: &'a Vec<String>,
     ) -> anyhow::Result<Self> {
-        // Module path of a type is the full path up to the type itself.
-        // E.g. relay_general::protocol::Event -> relay_general::protocol
         let module_path = path
             .rsplit_once("::")
             .ok_or_else(|| anyhow!("invalid module path: {}", path))?
@@ -80,7 +82,7 @@ impl<'a> PiiFinder<'a> {
             module_path,
             current_type: String::new(),
             all_types,
-            use_statements,
+            scoped_paths,
             pii_values,
             current_path: vec![],
             pii_types: BTreeSet::new(),
@@ -88,12 +90,12 @@ impl<'a> PiiFinder<'a> {
     }
 
     fn visit_type_path(&mut self, path: &TypePath) {
-        let local_paths = self.use_statements.get(&self.module_path).unwrap().clone();
+        let scoped_paths = self.scoped_paths.get(&self.module_path).unwrap().clone();
 
         let mut field_types = BTreeSet::new();
         get_field_types(&path.path, &mut field_types);
 
-        let use_paths = get_matching_use_paths(&field_types, &local_paths);
+        let use_paths = get_matching_scoped_paths(&field_types, &scoped_paths);
         for use_path in use_paths {
             if let Some(enum_or_struct) = self.all_types.get(use_path).cloned() {
                 // Theses values will be changed when recursing, so we save them here so when we
@@ -113,8 +115,6 @@ impl<'a> PiiFinder<'a> {
         }
     }
 
-    /// Takes a Field and visit the types that it consist of if we have
-    /// the full path to it in self.use_statements.
     fn visit_field_types(&mut self, ty: &Type) {
         let mut type_paths = vec![];
         get_type_paths_from_type(ty, &mut type_paths);
@@ -180,11 +180,11 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
 }
 
 /// Finds the full path to the given types by comparing them to the types in the scope.
-fn get_matching_use_paths<'a>(
+fn get_matching_scoped_paths<'a>(
     field_types: &'a BTreeSet<String>,
-    local_paths: &'a BTreeSet<String>,
+    scoped_paths: &'a BTreeSet<String>,
 ) -> Vec<&'a String> {
-    local_paths
+    scoped_paths
         .iter()
         .filter(|use_path| {
             let last_use_path = use_path.split("::").last().unwrap().trim();
@@ -262,16 +262,16 @@ fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
 
 /// Finds all the pii fields recursively of a given type.
 pub fn find_pii_fields_of_type(
-    path: &str,
+    type_path: &str,
     all_types: &HashMap<String, EnumOrStruct>,
-    use_statements: &BTreeMap<String, BTreeSet<String>>,
+    scoped_paths: &BTreeMap<String, BTreeSet<String>>,
     pii_values: &Vec<String>,
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
-    let mut visitor = PiiFinder::new(path, all_types, use_statements, pii_values)?;
+    let mut visitor = PiiFinder::new(type_path, all_types, scoped_paths, pii_values)?;
 
     let value = all_types
-        .get(path)
-        .ok_or_else(|| anyhow!("Unable to find item with following path: {}", path))?;
+        .get(type_path)
+        .ok_or_else(|| anyhow!("Unable to find item with following path: {}", type_path))?;
 
     match value {
         EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
@@ -283,16 +283,16 @@ pub fn find_pii_fields_of_type(
 /// Finds all the pii fields recursively of all the types in the rust crate/workspace.
 pub fn find_pii_fields_of_all_types(
     all_types: &HashMap<String, EnumOrStruct>,
-    use_statements: &BTreeMap<String, BTreeSet<String>>,
+    scoped_paths: &BTreeMap<String, BTreeSet<String>>,
     pii_values: &Vec<String>,
 ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
     let mut pii_types = BTreeSet::new();
 
-    for path in all_types.keys() {
+    for type_path in all_types.keys() {
         pii_types.extend(find_pii_fields_of_type(
-            path,
+            type_path,
             all_types,
-            use_statements,
+            scoped_paths,
             pii_values,
         )?);
     }
