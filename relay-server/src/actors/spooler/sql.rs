@@ -95,10 +95,12 @@ fn build_insert<'a>(
 ///
 /// This function internally will split the provided stream into chunks and will prepare the
 /// insert statement for each chunk.
+///
+/// Returns the number of inserted rows on success.
 pub async fn do_insert(
     stream: impl Stream<Item = ChunkItem> + std::marker::Unpin,
     db: &Pool<Sqlite>,
-) -> Result<(), sqlx::Error> {
+) -> Result<u64, sqlx::Error> {
     // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
     // here to prepare the chunks which will be preparing the batch inserts.
     let mut envelopes = stream.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
@@ -109,8 +111,10 @@ pub async fn do_insert(
     let mut query_builder: QueryBuilder<Sqlite> =
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
 
+    let mut count = 0;
     while let Some(chunk) = envelopes.next().await {
-        build_insert(&mut query_builder, chunk).execute(db).await?;
+        let result = build_insert(&mut query_builder, chunk).execute(db).await?;
+        count += result.rows_affected();
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
 
         // Reset the builder to initial state set by `QueryBuilder::new` function,
@@ -118,5 +122,5 @@ pub async fn do_insert(
         query_builder.reset();
     }
 
-    Ok(())
+    Ok(count)
 }
