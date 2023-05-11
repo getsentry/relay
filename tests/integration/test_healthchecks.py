@@ -3,6 +3,8 @@ Test the health check endpoints
 """
 
 import time
+import tempfile
+import os
 
 
 def failing_check_challenge(*args, **kwargs):
@@ -91,6 +93,42 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
             {"aggregator": {"max_total_bucket_bytes": 0}},
             wait_health_check=False,
         )
+
+        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        assert response.status_code == 503
+    finally:
+        # Authentication failures would fail the test
+        mini_sentry.test_failures.clear()
+
+
+def test_readiness_disk_spool(mini_sentry, relay):
+    try:
+        temp = tempfile.mkdtemp()
+        dbfile = os.path.join(temp, "buffer.db")
+
+        project_key = 42
+        mini_sentry.add_full_project_config(project_key)
+
+        relay_config = {
+            "cache": {
+                "project_expiry": 2,
+                "project_grace_period": 20,
+                "miss_expiry": 2,
+            },
+            "http": {"max_retry_interval": 1},
+            "spool": {
+                "envelopes": {"path": dbfile, "max_memory_size": 1, "max_disk_size": 1}
+            },
+        }
+
+        relay = relay(
+            mini_sentry,
+            relay_config,
+            wait_health_check=True,
+        )
+
+        # This event will consume all the disk sapce and we will report not ready.
+        relay.send_event(project_key)
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503

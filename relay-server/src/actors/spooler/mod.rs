@@ -738,7 +738,7 @@ impl BufferService {
             // memory usage and the number of the envelopes in the memory.
             // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
             BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
-            BufferState::Disk(ref disk) => health.0.send(disk.is_full().await.unwrap_or_default()),
+            BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
         }
 
         Ok(())
