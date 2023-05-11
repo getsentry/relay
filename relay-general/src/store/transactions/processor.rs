@@ -2444,14 +2444,14 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_savepoint_quoted,
-        "SAVEPOINT 'unquoted_identifier'",
+        "SAVEPOINT 'single_quoted_identifier'",
         "db.sql.query",
         "SAVEPOINT *"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_quoted_backtick,
-        "SAVEPOINT `unquoted_identifier`",
+        "SAVEPOINT `backtick_quoted_identifier`",
         "db.sql.query",
         "SAVEPOINT *"
     );
