@@ -502,7 +502,6 @@ impl OnDisk {
         };
         relay_statsd::metric!(counter(metric) += increment);
 
-        // If used, also track the total envelope count:
         if let Some(count) = &mut self.count {
             *count = count.saturating_add_signed(increment);
             relay_statsd::metric!(gauge(RelayGauges::BufferEnvelopesDiskCount) = *count);
