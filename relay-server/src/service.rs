@@ -187,9 +187,13 @@ impl ServiceState {
         .spawn_handler(project_cache_rx);
         drop(guard);
 
-        let health_check =
-            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
-                .start();
+        let health_check = HealthCheckService::new(
+            config.clone(),
+            aggregator.clone(),
+            upstream_relay.clone(),
+            project_cache.clone(),
+        )
+        .start();
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         if let Some(aws_api) = config.aws_runtime_api() {

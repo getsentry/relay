@@ -7,7 +7,7 @@ use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
-use relay_system::{Addr, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -131,6 +131,10 @@ impl RemoveMany {
     }
 }
 
+/// Checks the health of the spooler.
+#[derive(Debug)]
+pub struct Health(pub Sender<bool>);
+
 /// The interface for [`BufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumulating
@@ -151,6 +155,7 @@ pub enum Buffer {
     Enqueue(Enqueue),
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
+    Health(Health),
 }
 
 impl Interface for Buffer {}
@@ -176,6 +181,14 @@ impl FromMessage<RemoveMany> for Buffer {
 
     fn from_message(message: RemoveMany, _: ()) -> Self {
         Self::RemoveMany(message)
+    }
+}
+
+impl FromMessage<Health> for Buffer {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Health, _: ()) -> Self {
+        Self::Health(message)
     }
 }
 
@@ -719,12 +732,25 @@ impl BufferService {
         Ok(())
     }
 
+    async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
+        match self.state {
+            // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
+            // memory usage and the number of the envelopes in the memory.
+            // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
+            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
+            BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
+        }
+
+        Ok(())
+    }
+
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
         match message {
             Buffer::Enqueue(message) => self.handle_enqueue(message).await,
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
+            Buffer::Health(message) => self.handle_health(message).await,
         }
     }
 
