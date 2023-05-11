@@ -56,6 +56,7 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Slightly modified from
 /// <https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132>
 /// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
+/// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
 pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
