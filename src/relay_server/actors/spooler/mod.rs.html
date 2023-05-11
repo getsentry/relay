@@ -1025,6 +1025,73 @@
 <a href="#1024" id="1024">1024</a>
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
@@ -1048,7 +1115,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, EnvelopeError};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
 <span class="kw">mod </span>sql;
@@ -1209,6 +1276,7 @@
     buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
     max_memory_size: usize,
     used_memory: usize,
+    envelope_count: usize,
 }
 
 <span class="kw">impl </span>InMemory {
@@ -1218,6 +1286,7 @@
             max_memory_size,
             buffer: BTreeMap::new(),
             used_memory: <span class="number">0</span>,
+            envelope_count: <span class="number">0</span>,
         }
     }
 
@@ -1236,8 +1305,12 @@
             count += current_count;
             <span class="self">self</span>.used_memory -= current_size;
         }
+        <span class="self">self</span>.envelope_count = <span class="self">self</span>.envelope_count.saturating_sub(count);
         <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+        );
+        <span class="macro">relay_statsd::metric!</span>(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = <span class="self">self</span>.envelope_count <span class="kw">as </span>u64
         );
 
         count
@@ -1248,20 +1321,28 @@
         <span class="kw">for </span>key <span class="kw">in </span>keys {
             <span class="kw">for </span>envelope <span class="kw">in </span><span class="self">self</span>.buffer.remove(key).unwrap_or_default() {
                 <span class="self">self</span>.used_memory -= envelope.estimated_size();
+                <span class="self">self</span>.envelope_count = <span class="self">self</span>.envelope_count.saturating_sub(<span class="number">1</span>);
                 sender.send(envelope).ok();
             }
         }
         <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+        );
+        <span class="macro">relay_statsd::metric!</span>(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = <span class="self">self</span>.envelope_count <span class="kw">as </span>u64
         );
     }
 
     <span class="doccomment">/// Enqueues the envelope into the in-memory buffer.
     </span><span class="kw">fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, managed_envelope: ManagedEnvelope) {
+        <span class="self">self</span>.envelope_count += <span class="number">1</span>;
         <span class="self">self</span>.used_memory += managed_envelope.estimated_size();
         <span class="self">self</span>.buffer.entry(key).or_default().push(managed_envelope);
         <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = <span class="self">self</span>.used_memory <span class="kw">as </span>f64
+        );
+        <span class="macro">relay_statsd::metric!</span>(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = <span class="self">self</span>.envelope_count <span class="kw">as </span>u64
         );
     }
 
@@ -1277,6 +1358,11 @@
     db: Pool&lt;Sqlite&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
     max_disk_size: usize,
+    <span class="doccomment">/// The number of items currently on disk.
+    ///
+    /// We do not track the count when we encounter envelopes in the database on startup,
+    /// because counting those envelopes would risk locking the db for multiple seconds.
+    </span>count: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
 <span class="kw">impl </span>OnDisk {
@@ -1284,10 +1370,10 @@
     ///
     /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
     </span><span class="kw">async fn </span>spool(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         buffer: BTreeMap&lt;QueueKey, Vec&lt;ManagedEnvelope&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
-        <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BufferEnvelopesMemory) = <span class="number">0</span>);
+        <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = <span class="number">0</span>);
         <span class="kw">let </span>envelopes = buffer
             .into_iter()
             .flat_map(|(key, values)| {
@@ -1305,24 +1391,31 @@
                 },
             );
 
-        sql::do_insert(stream::iter(envelopes), <span class="kw-2">&amp;</span><span class="self">self</span>.db)
+        <span class="kw">let </span>inserted = sql::do_insert(stream::iter(envelopes), <span class="kw-2">&amp;</span><span class="self">self</span>.db)
             .<span class="kw">await
-            </span>.map_err(BufferError::InsertFailed)
+            </span>.map_err(BufferError::InsertFailed)<span class="question-mark">?</span>;
+
+        <span class="self">self</span>.track_count(inserted <span class="kw">as </span>i64);
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Removes the envelopes from the on-disk spool.
     ///
     /// Returns the count of removed envelopes.
-    </span><span class="kw">async fn </span>remove(<span class="kw-2">&amp;</span><span class="self">self</span>, keys: <span class="kw-2">&amp;</span>BTreeSet&lt;QueueKey&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;usize, BufferError&gt; {
+    </span><span class="kw">async fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, keys: <span class="kw-2">&amp;</span>BTreeSet&lt;QueueKey&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;usize, BufferError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
         <span class="kw">for </span>key <span class="kw">in </span>keys {
             <span class="kw">let </span>result = sql::delete(<span class="kw-2">*</span>key)
                 .execute(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
                 .<span class="kw">await
                 </span>.map_err(BufferError::DeleteFailed)<span class="question-mark">?</span>;
-            count += result.rows_affected() <span class="kw">as </span>usize;
+            count += result.rows_affected();
         }
-        <span class="prelude-val">Ok</span>(count)
+
+        <span class="self">self</span>.track_count(-(count <span class="kw">as </span>i64));
+
+        <span class="prelude-val">Ok</span>(count <span class="kw">as </span>usize)
     }
 
     <span class="doccomment">/// Extracts the envelope from the `SqliteRow`.
@@ -1359,7 +1452,7 @@
     ///
     /// Returns the amount of envelopes deleted from disk.
     </span><span class="kw">async fn </span>delete_and_fetch(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         key: QueueKey,
         sender: <span class="kw-2">&amp;</span>mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
         services: <span class="kw-2">&amp;</span>Services,
@@ -1380,7 +1473,9 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
 
+            <span class="kw">let </span><span class="kw-2">mut </span>count: i64 = <span class="number">0</span>;
             <span class="kw">while let </span><span class="prelude-val">Some</span>(envelope) = envelopes.next().<span class="kw">await </span>{
+                count += <span class="number">1</span>;
                 <span class="kw">let </span>envelope = <span class="kw">match </span>envelope {
                     <span class="prelude-val">Ok</span>(envelope) =&gt; envelope,
 
@@ -1390,6 +1485,7 @@
                             <span class="string">&quot;failed to read the buffer stream from the disk: {}&quot;</span>,
                             LogError(<span class="kw-2">&amp;</span>err)
                         );
+                        <span class="self">self</span>.track_count(-count);
                         <span class="kw">return </span><span class="prelude-val">Err</span>(key);
                     }
                 };
@@ -1404,6 +1500,8 @@
                     ),
                 }
             }
+
+            <span class="self">self</span>.track_count(-count);
         }
     }
 
@@ -1412,7 +1510,7 @@
     /// The keys for which the envelopes could not be fetched, send back to `ProjectCache` to merge
     /// back into index.
     </span><span class="kw">async fn </span>dequeue(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         project_key: ProjectKey,
         keys: <span class="kw-2">&amp;mut </span>Vec&lt;QueueKey&gt;,
         sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
@@ -1470,7 +1568,7 @@
 
     <span class="doccomment">/// Enqueues data into on-disk spool.
     </span><span class="kw">async fn </span>enqueue(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         key: QueueKey,
         managed_envelope: ManagedEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
@@ -1484,8 +1582,24 @@
         .<span class="kw">await
         </span>.map_err(BufferError::InsertFailed)<span class="question-mark">?</span>;
 
+        <span class="self">self</span>.track_count(<span class="number">1</span>);
         <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWrites) += <span class="number">1</span>);
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>track_count(<span class="kw-2">&amp;mut </span><span class="self">self</span>, increment: i64) {
+        <span class="comment">// Track the number of envelopes read/written:
+        </span><span class="kw">let </span>metric = <span class="kw">if </span>increment &lt; <span class="number">0 </span>{
+            RelayCounters::BufferEnvelopesRead
+        } <span class="kw">else </span>{
+            RelayCounters::BufferEnvelopesWritten
+        };
+        <span class="macro">relay_statsd::metric!</span>(counter(metric) += increment);
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.count {
+            <span class="kw-2">*</span>count = count.saturating_add_signed(increment);
+            <span class="macro">relay_statsd::metric!</span>(gauge(RelayGauges::BufferEnvelopesDiskCount) = <span class="kw-2">*</span>count);
+        }
     }
 }
 
@@ -1519,6 +1633,7 @@
             buffer: BTreeMap::new(),
             max_memory_size,
             used_memory: <span class="number">0</span>,
+            envelope_count: <span class="number">0</span>,
         };
         <span class="kw">match </span>disk {
             <span class="prelude-val">Some</span>(disk) =&gt; {
@@ -1538,7 +1653,7 @@
     /// underlying spool.
     </span><span class="kw">async fn </span>transition(<span class="self">self</span>, config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::MemoryFileStandby { ram, disk } <span class="kw">if </span>ram.is_full() =&gt; {
+            <span class="self">Self</span>::MemoryFileStandby { ram, <span class="kw-2">mut </span>disk } <span class="kw">if </span>ram.is_full() =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
                     <span class="macro">relay_log::error!</span>(
                         <span class="string">&quot;failed to spool the in-memory buffer to disk: {}&quot;</span>,
@@ -1560,7 +1675,7 @@
             <span class="self">Self</span>::MemoryFileRead { ram, disk } <span class="kw">if </span>disk.is_empty().<span class="kw">await</span>.unwrap_or_default() =&gt; {
                 <span class="self">Self</span>::MemoryFileStandby { ram, disk }
             }
-            <span class="self">Self</span>::MemoryFileRead { ram, disk } <span class="kw">if </span>disk.can_fit(ram.used_memory).<span class="kw">await </span>=&gt; {
+            <span class="self">Self</span>::MemoryFileRead { ram, <span class="kw-2">mut </span>disk } <span class="kw">if </span>disk.can_fit(ram.used_memory).<span class="kw">await </span>=&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
                     <span class="macro">relay_log::error!</span>(
                         <span class="string">&quot;failed to spool the in-memory buffer to disk: {}&quot;</span>,
@@ -1669,11 +1784,19 @@
             .<span class="kw">await
             </span>.map_err(BufferError::SetupFailed)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(OnDisk {
+        <span class="kw">let </span><span class="kw-2">mut </span>on_disk = OnDisk {
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
-        }))
+            count: <span class="prelude-val">None</span>,
+        };
+
+        <span class="kw">if </span>on_disk.is_empty().<span class="kw">await</span><span class="question-mark">? </span>{
+            <span class="comment">// Only start live-tracking the count if there&#39;s nothing in the db yet.
+            </span>on_disk.count = <span class="prelude-val">Some</span>(<span class="number">0</span>);
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(on_disk))
     }
 
     <span class="doccomment">/// Creates a new [`BufferService`] from the provided path to the SQLite database file.
@@ -1707,7 +1830,7 @@
             </span>| BufferState::MemoryFileRead { <span class="kw-2">ref mut </span>ram, .. } =&gt; {
                 ram.enqueue(key, managed_envelope);
             }
-            BufferState::Disk(<span class="kw-2">ref </span>disk) =&gt;{
+            BufferState::Disk(<span class="kw-2">ref mut </span>disk) =&gt;{
                 disk.enqueue(key, managed_envelope).<span class="kw">await</span><span class="question-mark">?</span>;
             }
         }
@@ -1732,13 +1855,13 @@
             | BufferState::MemoryFileStandby { <span class="kw-2">ref mut </span>ram, .. } =&gt; {
                 ram.dequeue(<span class="kw-2">&amp;</span>keys, sender);
             }
-            BufferState::Disk(<span class="kw-2">ref </span>disk) =&gt; {
+            BufferState::Disk(<span class="kw-2">ref mut </span>disk) =&gt; {
                 disk.dequeue(project_key, <span class="kw-2">&amp;mut </span>keys, sender, <span class="kw-2">&amp;</span><span class="self">self</span>.services)
                     .<span class="kw">await</span>;
             }
             BufferState::MemoryFileRead {
                 <span class="kw-2">ref mut </span>ram,
-                <span class="kw-2">ref </span>disk,
+                <span class="kw-2">ref mut </span>disk,
             } =&gt; {
                 ram.dequeue(<span class="kw-2">&amp;</span>keys, sender.clone());
                 disk.dequeue(project_key, <span class="kw-2">&amp;mut </span>keys, sender, <span class="kw-2">&amp;</span><span class="self">self</span>.services)
@@ -1765,12 +1888,12 @@
             | BufferState::MemoryFileStandby { <span class="kw-2">ref mut </span>ram, .. } =&gt; {
                 count += ram.remove(<span class="kw-2">&amp;</span>keys);
             }
-            BufferState::Disk(<span class="kw-2">ref </span>disk) =&gt; {
+            BufferState::Disk(<span class="kw-2">ref mut </span>disk) =&gt; {
                 count += disk.remove(<span class="kw-2">&amp;</span>keys).<span class="kw">await</span><span class="question-mark">?</span>;
             }
             BufferState::MemoryFileRead {
                 <span class="kw-2">ref mut </span>ram,
-                <span class="kw-2">ref </span>disk,
+                <span class="kw-2">ref mut </span>disk,
             } =&gt; {
                 count += ram.remove(<span class="kw-2">&amp;</span>keys);
                 count += disk.remove(<span class="kw-2">&amp;</span>keys).<span class="kw">await</span><span class="question-mark">?</span>;
@@ -1804,7 +1927,7 @@
     /// Tries to spool to disk if the current buffer state is `BufferState::MemoryDiskStandby`,
     /// which means we use the in-memory buffer active and disk still free or not used before.
     </span><span class="kw">async fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
-        <span class="kw">let </span>BufferState::MemoryFileStandby{<span class="kw-2">ref mut </span>ram, <span class="kw-2">ref </span>disk} = <span class="self">self</span>.state <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
+        <span class="kw">let </span>BufferState::MemoryFileStandby{<span class="kw-2">ref mut </span>ram, <span class="kw-2">ref mut </span>disk} = <span class="self">self</span>.state <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
 
         <span class="kw">let </span>count: usize = ram.count();
         <span class="kw">if </span>count == <span class="number">0 </span>{
@@ -2036,16 +2159,27 @@
         <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
             &quot;buffer.envelopes_mem:2000|h&quot;,
+            &quot;buffer.envelopes_mem_count:1|g&quot;,
             &quot;buffer.envelopes_mem:4000|h&quot;,
+            &quot;buffer.envelopes_mem_count:2|g&quot;,
             &quot;buffer.envelopes_mem:6000|h&quot;,
+            &quot;buffer.envelopes_mem_count:3|g&quot;,
             &quot;buffer.envelopes_mem:0|h&quot;,
             &quot;buffer.writes:1|c&quot;,
+            &quot;buffer.envelopes_written:3|c&quot;,
+            &quot;buffer.envelopes_disk_count:3|g&quot;,
+            &quot;buffer.envelopes_written:1|c&quot;,
+            &quot;buffer.envelopes_disk_count:4|g&quot;,
             &quot;buffer.writes:1|c&quot;,
             &quot;buffer.disk_size:24576|h&quot;,
             &quot;buffer.envelopes_mem:2000|h&quot;,
+            &quot;buffer.envelopes_mem_count:1|g&quot;,
             &quot;buffer.disk_size:24576|h&quot;,
             &quot;buffer.envelopes_mem:0|h&quot;,
+            &quot;buffer.envelopes_mem_count:0|g&quot;,
             &quot;buffer.reads:1|c&quot;,
+            &quot;buffer.envelopes_read:-4|c&quot;,
+            &quot;buffer.envelopes_disk_count:0|g&quot;,
             &quot;buffer.reads:1|c&quot;,
         ]
         &quot;###</span>);

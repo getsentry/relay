@@ -121,6 +121,10 @@
 <a href="#120" id="120">120</a>
 <a href="#121" id="121">121</a>
 <a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
 </pre><pre class="rust"><code><span class="kw">use </span>futures::stream::{Stream, StreamExt};
 <span class="kw">use </span>sqlx::query::Query;
 <span class="kw">use </span>sqlx::sqlite::SqliteArguments;
@@ -218,10 +222,12 @@
 ///
 /// This function internally will split the provided stream into chunks and will prepare the
 /// insert statement for each chunk.
+///
+/// Returns the number of inserted rows on success.
 </span><span class="kw">pub async fn </span>do_insert(
     stream: <span class="kw">impl </span>Stream&lt;Item = ChunkItem&gt; + std::marker::Unpin,
     db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), sqlx::Error&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;u64, sqlx::Error&gt; {
     <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
     // here to prepare the chunks which will be preparing the batch inserts.
     </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = stream.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / <span class="number">3</span>);
@@ -232,8 +238,10 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; =
         QueryBuilder::new(<span class="string">&quot;INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) &quot;</span>);
 
+    <span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
     <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = envelopes.next().<span class="kw">await </span>{
-        build_insert(<span class="kw-2">&amp;mut </span>query_builder, chunk).execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>result = build_insert(<span class="kw-2">&amp;mut </span>query_builder, chunk).execute(db).<span class="kw">await</span><span class="question-mark">?</span>;
+        count += result.rows_affected();
         <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWrites) += <span class="number">1</span>);
 
         <span class="comment">// Reset the builder to initial state set by `QueryBuilder::new` function,
@@ -241,7 +249,7 @@
         </span>query_builder.reset();
     }
 
-    <span class="prelude-val">Ok</span>(())
+    <span class="prelude-val">Ok</span>(count)
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

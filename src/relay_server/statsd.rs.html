@@ -555,6 +555,24 @@
 <a href="#554" id="554">554</a>
 <a href="#555" id="555">555</a>
 <a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -562,9 +580,21 @@
     <span class="doccomment">/// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     </span>NetworkOutage,
-
     <span class="doccomment">/// The number of items currently in the garbage disposal queue.
     </span>ProjectCacheGarbageQueueSize,
+    <span class="doccomment">/// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always &lt;= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    </span>BufferEnvelopesMemoryCount,
+    <span class="doccomment">/// The number of envelopes waiting for project states on disk.
+    ///
+    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
+    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
+    ///
+    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
+    </span>BufferEnvelopesDiskCount,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -572,6 +602,8 @@
         <span class="kw">match </span><span class="self">self </span>{
             RelayGauges::NetworkOutage =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
+            RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">&quot;buffer.envelopes_mem_count&quot;</span>,
+            RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">&quot;buffer.envelopes_disk_count&quot;</span>,
         }
     }
 }
@@ -599,12 +631,10 @@
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     </span>EnvelopeQueueSize,
-    <span class="doccomment">/// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always &lt;= `EnvelopeQueueSize`.
+    <span class="doccomment">/// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    </span>BufferEnvelopesMemory,
+    </span>BufferEnvelopesMemoryBytes,
     <span class="doccomment">/// The file size of the buffer db on disk, in bytes.
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
@@ -697,7 +727,7 @@
             RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
             RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
             RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
-            RelayHistograms::BufferEnvelopesMemory =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
+            RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
             RelayHistograms::BufferDiskSize =&gt; <span class="string">&quot;buffer.disk_size&quot;</span>,
             RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
@@ -924,6 +954,10 @@
     </span>BufferWrites,
     <span class="doccomment">/// Number times the envelope buffer reads back from disk.
     </span>BufferReads,
+    <span class="doccomment">/// Number of _envelopes_ the envelope buffer spools to disk.
+    </span>BufferEnvelopesWritten,
+    <span class="doccomment">/// Number of _envelopes_ the envelope buffer reads back from disk.
+    </span>BufferEnvelopesRead,
     <span class="doccomment">///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -1087,6 +1121,8 @@
             RelayCounters::EnvelopeRejected =&gt; <span class="string">&quot;event.rejected&quot;</span>,
             RelayCounters::BufferWrites =&gt; <span class="string">&quot;buffer.writes&quot;</span>,
             RelayCounters::BufferReads =&gt; <span class="string">&quot;buffer.reads&quot;</span>,
+            RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">&quot;buffer.envelopes_written&quot;</span>,
+            RelayCounters::BufferEnvelopesRead =&gt; <span class="string">&quot;buffer.envelopes_read&quot;</span>,
             RelayCounters::Outcomes =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
