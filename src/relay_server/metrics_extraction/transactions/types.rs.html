@@ -185,6 +185,12 @@
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
@@ -337,6 +343,9 @@
     TransactionStatus,
     TransactionOp,
     HttpMethod,
+    BrowserName,
+    OsName,
+    GeoCountryCode,
     Custom(String),
 }
 
@@ -351,6 +360,9 @@
             CommonTag::TransactionStatus =&gt; <span class="string">&quot;transaction.status&quot;</span>,
             CommonTag::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
             CommonTag::HttpMethod =&gt; <span class="string">&quot;http.method&quot;</span>,
+            CommonTag::BrowserName =&gt; <span class="string">&quot;browser.name&quot;</span>,
+            CommonTag::OsName =&gt; <span class="string">&quot;os.name&quot;</span>,
+            CommonTag::GeoCountryCode =&gt; <span class="string">&quot;geo.country_code&quot;</span>,
             CommonTag::Custom(s) =&gt; s,
         };
         <span class="macro">write!</span>(f, <span class="string">&quot;{name}&quot;</span>)
