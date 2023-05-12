@@ -7,7 +7,7 @@ use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
-use relay_system::{Addr, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -55,6 +55,9 @@ pub enum BufferError {
 
     #[error("failed to run migrations")]
     MigrationFailed(#[from] MigrateError),
+
+    #[error("on-disk spool is full")]
+    SpoolIsFull,
 }
 
 /// This key represents the index element in the queue.
@@ -128,6 +131,10 @@ impl RemoveMany {
     }
 }
 
+/// Checks the health of the spooler.
+#[derive(Debug)]
+pub struct Health(pub Sender<bool>);
+
 /// The interface for [`BufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumulating
@@ -148,6 +155,7 @@ pub enum Buffer {
     Enqueue(Enqueue),
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
+    Health(Health),
 }
 
 impl Interface for Buffer {}
@@ -173,6 +181,14 @@ impl FromMessage<RemoveMany> for Buffer {
 
     fn from_message(message: RemoveMany, _: ()) -> Self {
         Self::RemoveMany(message)
+    }
+}
+
+impl FromMessage<Health> for Buffer {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Health, _: ()) -> Self {
+        Self::Health(message)
     }
 }
 
@@ -434,15 +450,6 @@ impl OnDisk {
             .send(UpdateBufferIndex::new(project_key, unused_keys))
     }
 
-    /// Returns `true` if the provided used memory can fit on the disk.
-    async fn can_fit(&self, used_memory: usize) -> bool {
-        self.estimate_spool_size()
-            .await
-            .ok()
-            .and_then(|spool_size| self.max_disk_size.checked_sub(spool_size as usize))
-            .map_or(false, |s| s > used_memory)
-    }
-
     /// Estimates the db size by multiplying `page_count * page_size`.
     async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
         let size: i64 = sql::current_size()
@@ -520,10 +527,6 @@ enum BufferState {
     /// The disk will be used when the memory limit will be hit.
     MemoryFileStandby { ram: InMemory, disk: OnDisk },
 
-    /// THe disk is full and we use the memory to save incoming envelopes as much as we can. But
-    /// the disk still used to read from.
-    MemoryFileRead { ram: InMemory, disk: OnDisk },
-
     /// Only disk used for read/write operations.
     Disk(OnDisk),
 }
@@ -548,7 +551,7 @@ impl BufferState {
                 if disk.is_empty().await.unwrap_or_default() {
                     Self::MemoryFileStandby { ram, disk }
                 } else {
-                    BufferState::MemoryFileRead { ram, disk }
+                    BufferState::Disk(disk)
                 }
             }
             None => Self::Memory(ram),
@@ -574,26 +577,7 @@ impl BufferState {
                     disk,
                 }
             }
-            Self::Disk(disk) if disk.is_full().await.unwrap_or_default() => Self::MemoryFileRead {
-                ram: InMemory::new(config.spool_envelopes_max_memory_size()),
-                disk,
-            },
-            Self::MemoryFileRead { ram, disk } if disk.is_empty().await.unwrap_or_default() => {
-                Self::MemoryFileStandby { ram, disk }
-            }
-            Self::MemoryFileRead { ram, mut disk } if disk.can_fit(ram.used_memory).await => {
-                if let Err(err) = disk.spool(ram.buffer).await {
-                    relay_log::error!(
-                        "failed to spool the in-memory buffer to disk: {}",
-                        LogError(&err)
-                    );
-                }
-                Self::Disk(disk)
-            }
-            Self::Memory(_)
-            | Self::MemoryFileStandby { .. }
-            | Self::Disk(_)
-            | Self::MemoryFileRead { .. } => self,
+            Self::Memory(_) | Self::MemoryFileStandby { .. } | Self::Disk(_) => self,
         }
     }
 }
@@ -729,14 +713,14 @@ impl BufferService {
 
         match self.state {
             BufferState::Memory(ref mut ram)
-            | BufferState::MemoryFileStandby { ref mut ram, .. }
-            // In this state we had full disk, and if we continue spooling without removing
-            // anything from the on-disk spool, we will eventually hit the
-            // `cache.envelope_buffer_size` limit or OOM, whatever comes first.
-            | BufferState::MemoryFileRead { ref mut ram, .. } => {
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
                 ram.enqueue(key, managed_envelope);
             }
-            BufferState::Disk(ref mut disk) =>{
+            BufferState::Disk(ref mut disk) => {
+                // The disk is full, drop the incoming envelopes.
+                if disk.is_full().await? {
+                    return Err(BufferError::SpoolIsFull);
+                }
                 disk.enqueue(key, managed_envelope).await?;
             }
         }
@@ -765,14 +749,6 @@ impl BufferService {
                 disk.dequeue(project_key, &mut keys, sender, &self.services)
                     .await;
             }
-            BufferState::MemoryFileRead {
-                ref mut ram,
-                ref mut disk,
-            } => {
-                ram.dequeue(&keys, sender.clone());
-                disk.dequeue(project_key, &mut keys, sender, &self.services)
-                    .await;
-            }
         }
         let state = std::mem::take(&mut self.state);
         self.state = state.transition(&self.config).await;
@@ -797,13 +773,6 @@ impl BufferService {
             BufferState::Disk(ref mut disk) => {
                 count += disk.remove(&keys).await?;
             }
-            BufferState::MemoryFileRead {
-                ref mut ram,
-                ref mut disk,
-            } => {
-                count += ram.remove(&keys);
-                count += disk.remove(&keys).await?;
-            }
         }
 
         let state = std::mem::take(&mut self.state);
@@ -819,12 +788,25 @@ impl BufferService {
         Ok(())
     }
 
+    async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
+        match self.state {
+            // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
+            // memory usage and the number of the envelopes in the memory.
+            // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
+            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
+            BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
+        }
+
+        Ok(())
+    }
+
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
         match message {
             Buffer::Enqueue(message) => self.handle_enqueue(message).await,
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
+            Buffer::Health(message) => self.handle_health(message).await,
         }
     }
 
@@ -883,9 +865,7 @@ impl Drop for BufferService {
     fn drop(&mut self) {
         // Count only envelopes from in-memory buffer.
         match &self.state {
-            BufferState::Memory(ram)
-            | BufferState::MemoryFileStandby { ram, .. }
-            | BufferState::MemoryFileRead { ram, .. } => {
+            BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } => {
                 let count = ram.count();
                 if count > 0 {
                     relay_log::error!("dropped {} envelopes", count);
@@ -1000,7 +980,7 @@ mod tests {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": "4KB",
-                    "max_disk_size": "3KB",
+                    "max_disk_size": "20KB",
                 }
             }
         }))
@@ -1025,14 +1005,18 @@ mod tests {
                     .unwrap();
 
                 // Send 5 envelopes
-                for _ in 0..5 {
-                    service
+                for i in 0..5 {
+                    let res = service
                         .handle_enqueue(Enqueue {
                             key,
                             value: empty_envelope(),
                         })
-                        .await
-                        .unwrap();
+                        .await;
+                    if i > 2 {
+                        assert!(res.is_err());
+                    } else {
+                        assert!(res.is_ok());
+                    }
                 }
 
                 // Dequeue everything
@@ -1052,7 +1036,7 @@ mod tests {
                 while rx.recv().await.is_some() {
                     count += 1;
                 }
-                assert_eq!(count, 5);
+                assert_eq!(count, 3);
             })
         });
 
@@ -1074,17 +1058,10 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
-            "buffer.envelopes_written:1|c",
-            "buffer.envelopes_disk_count:4|g",
-            "buffer.writes:1|c",
             "buffer.disk_size:24576|h",
-            "buffer.envelopes_mem:2000|h",
-            "buffer.envelopes_mem_count:1|g",
             "buffer.disk_size:24576|h",
-            "buffer.envelopes_mem:0|h",
-            "buffer.envelopes_mem_count:0|g",
             "buffer.reads:1|c",
-            "buffer.envelopes_read:-4|c",
+            "buffer.envelopes_read:-3|c",
             "buffer.envelopes_disk_count:0|g",
             "buffer.reads:1|c",
         ]
