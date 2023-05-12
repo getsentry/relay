@@ -21,6 +21,7 @@ pub mod browser_extensions;
 pub mod client_ips;
 pub mod csp;
 pub mod error_messages;
+pub mod health_check;
 pub mod legacy_browsers;
 pub mod localhost;
 pub mod web_crawlers;
