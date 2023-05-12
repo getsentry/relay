@@ -290,6 +290,10 @@
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -479,9 +483,13 @@
         .spawn_handler(project_cache_rx);
         drop(guard);
 
-        <span class="kw">let </span>health_check =
-            HealthCheckService::new(config.clone(), aggregator.clone(), upstream_relay.clone())
-                .start();
+        <span class="kw">let </span>health_check = HealthCheckService::new(
+            config.clone(),
+            aggregator.clone(),
+            upstream_relay.clone(),
+            project_cache.clone(),
+        )
+        .start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_api) = config.aws_runtime_api() {
