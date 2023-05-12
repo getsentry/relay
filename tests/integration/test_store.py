@@ -220,7 +220,7 @@ def test_store_buffer_size(mini_sentry, relay):
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-        for _, error in mini_sentry.test_failures:
+        for (_, error) in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
             assert "buffer capacity exceeded" in str(error)
     finally:
@@ -542,7 +542,7 @@ def test_rate_limit_metrics_buckets(
             "org_id": 1,
             "project_id": project_id,
             "timestamp": next(tick),
-            "mri": name,
+            "name": name,
             "type": type_,
             "value": values,
             "width": bucket_interval,
@@ -598,16 +598,15 @@ def test_rate_limit_metrics_buckets(
     )
 
     produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
-    print(produced_buckets)
 
     # Sort buckets to prevent ordering flakiness:
-    produced_buckets.sort(key=lambda b: (b["mri"], b["value"]))
+    produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
     for bucket in produced_buckets:
         del bucket["timestamp"]
 
     assert produced_buckets == [
         {
-            "mri": "d:sessions/duration@second",
+            "name": "d:sessions/duration@second",
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -616,7 +615,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "mri": "d:sessions/session@none",
+            "name": "d:sessions/session@none",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -625,7 +624,7 @@ def test_rate_limit_metrics_buckets(
             "value": 1.0,
         },
         {
-            "mri": "d:sessions/session@user",
+            "name": "d:sessions/session@user",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -634,7 +633,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1254],
         },
         {
-            "mri": "d:transactions/duration@millisecond",
+            "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -643,7 +642,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 2.0, 3.0],
         },
         {
-            "mri": "d:transactions/duration@millisecond",
+            "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -652,7 +651,7 @@ def test_rate_limit_metrics_buckets(
             "value": violating_bucket,
         },
         {
-            "mri": "d:transactions/measurements.lcp@millisecond",
+            "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
@@ -661,7 +660,7 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "mri": "d:transactions/measurements.lcp@millisecond",
+            "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
             "project_id": 42,
