@@ -36,6 +36,7 @@ declare_builtin_rules! {
     "@common" => RuleSpec {
         ty: RuleType::Multiple(MultipleRule {
             rules: vec![
+                "@iban".into(),
                 "@ip".into(),
                 "@email".into(),
                 "@creditcard".into(),
@@ -191,6 +192,33 @@ declare_builtin_rules! {
     "@email:remove" => RuleSpec {
         ty: RuleType::Email,
         redaction: Redaction::Remove,
+    };
+
+    // iban rules
+    "@iban" => rule_alias!("@iban:replace");
+    "@iban:hash" => RuleSpec {
+        ty: RuleType::Iban,
+        redaction: Redaction::Hash,
+    };
+    "@iban:replace" => RuleSpec {
+        ty: RuleType::Iban,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[iban]".into(),
+        }),
+    };
+    "@iban:mask" => RuleSpec {
+        ty: RuleType::Iban,
+        redaction: Redaction::Mask,
+    };
+    "@iban:filter" => RuleSpec {
+        ty: RuleType::Iban,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+    };
+    "@iban:remove" => RuleSpec {
+        ty: RuleType::Iban,
+        redaction: Redaction::Remove
     };
 
     // creditcard rules
@@ -422,6 +450,7 @@ mod tests {
                                 "creditcard" => RuleType::Creditcard,
                                 "mac" => RuleType::Mac,
                                 "uuid" => RuleType::Uuid,
+                                "iban" => RuleType::Iban,
                                 "imei" => RuleType::Imei,
                                 _ => panic!("Unknown RuleType"),
                             },
@@ -777,6 +806,77 @@ mod tests {
                 Remark::with_range(RemarkType::Pseudonymized, "0", (16, 56)),
             ];
         );
+    }
+
+    #[test]
+    fn test_iban() {
+        assert_text_rule!(
+            rule = "@iban";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: [iban]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@iban", (11, 17)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@iban";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: [iban]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@iban", (11, 17)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@iban:mask";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: **********************!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@iban:mask", (11, 33)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@iban:mask";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: **********************!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "0", (11, 33)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@iban:replace";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: [iban]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@iban:replace", (11, 17)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@iban:replace";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: [Filtered]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (11, 21)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@iban:hash";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: 8A1248B6F40D38FBC59ADE6AD0DF69C7BB9C936A!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@iban:hash", (11, 51)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@iban:hash";
+            input = "some iban: DE89370400440532013000!";
+            output = "some iban: 8A1248B6F40D38FBC59ADE6AD0DF69C7BB9C936A!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (11, 51)),
+            ];
+        );
+
+        /*
+         */
     }
 
     #[test]

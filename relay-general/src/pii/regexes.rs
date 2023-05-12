@@ -81,6 +81,7 @@ pub fn get_regex_for_rule_type(
         RuleType::Mac => smallvec![(v, &*MAC_REGEX, ReplaceBehavior::replace_match())],
         RuleType::Uuid => smallvec![(v, &*UUID_REGEX, ReplaceBehavior::replace_match())],
         RuleType::Email => smallvec![(v, &*EMAIL_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Iban => smallvec![(v, &*IBAN_REGEX, ReplaceBehavior::replace_match())],
         RuleType::Ip => smallvec![
             (v, &*IPV4_REGEX, ReplaceBehavior::replace_match()),
             (v, &*IPV6_REGEX, ReplaceBehavior::replace_group(1)),
@@ -152,6 +153,17 @@ static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
                 [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
                 @
                 [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
+            \b
+        "#,
+    )
+    .unwrap()
+});
+
+static IBAN_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?x)
+            \b
+            [A-Z]{2}\d{2}[A-Z\d]{1,30}
             \b
         "#,
     )
