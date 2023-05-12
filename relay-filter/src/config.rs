@@ -210,6 +210,10 @@ pub struct FiltersConfig {
     /// Configuration for the releases filter.
     #[serde(default, skip_serializing_if = "ReleasesFilterConfig::is_empty")]
     pub releases: ReleasesFilterConfig,
+
+    /// Configuration for the healthcheck filter.
+    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
+    pub health_check: FilterConfig,
 }
 
 impl FiltersConfig {
@@ -223,6 +227,7 @@ impl FiltersConfig {
             && self.legacy_browsers.is_empty()
             && self.localhost.is_empty()
             && self.releases.is_empty()
+            && self.health_check.is_empty()
     }
 }
 
