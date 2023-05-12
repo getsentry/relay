@@ -143,9 +143,16 @@ def test_readiness_disk_spool(mini_sentry, relay):
             wait_health_check=True,
         )
 
-        # These events will consume all the disk sapce and we will report not ready.
-        relay.send_event(project_key)
-        relay.send_event(project_key)
+        # Second sent event can trigger error on the relay size, since the spool is full now.
+        # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
+        try:
+            # These events will consume all the disk sapce and we will report not ready.
+            relay.send_event(project_key)
+            relay.send_event(project_key)
+            relay.send_event(project_key)
+        finally:
+            # Authentication failures would fail the test
+            mini_sentry.test_failures.clear()
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503
