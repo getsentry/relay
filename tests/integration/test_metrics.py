@@ -34,7 +34,7 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric = metrics_consumer.get_metric(timeout)
-        metrics[metric["mri"]] = metric
+        metrics[metric["name"]] = metric
 
     metrics_consumer.assert_empty()
     return metrics
@@ -49,7 +49,7 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
     while True:
         try:
             metric = metrics_consumer.get_metric(timeout)
-            metrics_by_project[metric["project_id"]][metric["mri"]] = metric
+            metrics_by_project[metric["project_id"]][metric["name"]] = metric
         except AssertionError:
             metrics_consumer.assert_empty()
             return metrics_by_project
@@ -72,19 +72,19 @@ def test_metrics(mini_sentry, relay):
     assert metrics_item.type == "metric_buckets"
 
     received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["mri"])
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
         {
             "timestamp": timestamp,
             "width": 1,
-            "mri": "c:transactions/bar@none",
+            "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": timestamp,
             "width": 1,
-            "mri": "c:transactions/foo@none",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -112,7 +112,7 @@ def test_metrics_backdated(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "mri": "c:transactions/foo@none",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -179,7 +179,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "mri": "c:transactions/foo@none",
+        "name": "c:transactions/foo@none",
         "tags": {},
         "value": 42.0,
         "type": "c",
@@ -190,7 +190,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "mri": "c:transactions/bar@second",
+        "name": "c:transactions/bar@second",
         "tags": {},
         "value": 17.0,
         "type": "c",
@@ -248,7 +248,7 @@ def test_metrics_with_sharded_kafka(
         "org_id": 5,
         "project_id": project_id,
         "retention_days": 90,
-        "mri": "c:transactions/foo@none",
+        "name": "c:transactions/foo@none",
         "tags": {},
         "value": 42.0,
         "type": "c",
@@ -259,7 +259,7 @@ def test_metrics_with_sharded_kafka(
         "org_id": 5,
         "project_id": project_id,
         "retention_days": 90,
-        "mri": "c:transactions/bar@second",
+        "name": "c:transactions/bar@second",
         "tags": {},
         "value": 17.0,
         "type": "c",
@@ -298,7 +298,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "mri": "c:transactions/foo@none",
+        "name": "c:transactions/foo@none",
         "tags": {},
         "value": 15.0,
         "type": "c",
@@ -375,12 +375,12 @@ def test_session_metrics_non_processing(
         assert metrics_item.type == "metric_buckets"
 
         session_metrics = json.loads(metrics_item.get_bytes().decode())
-        session_metrics = sorted(session_metrics, key=lambda x: x["mri"])
+        session_metrics = sorted(session_metrics, key=lambda x: x["name"])
 
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "mri": "c:sessions/session@none",
+                "name": "c:sessions/session@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
                     "environment": "production",
@@ -393,7 +393,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "mri": "s:sessions/user@none",
+                "name": "s:sessions/user@none",
                 "tags": {
                     "sdk": "raven-node/2.6.3",
                     "environment": "production",
@@ -499,7 +499,7 @@ def test_session_metrics_processing(
         "project_id": 42,
         "retention_days": 90,
         "timestamp": expected_timestamp,
-        "mri": "c:sessions/session@none",
+        "name": "c:sessions/session@none",
         "type": "c",
         "value": 1.0,
         "tags": {
@@ -515,7 +515,7 @@ def test_session_metrics_processing(
         "project_id": 42,
         "retention_days": 90,
         "timestamp": expected_timestamp,
-        "mri": "s:sessions/user@none",
+        "name": "s:sessions/user@none",
         "type": "s",
         "value": [1617781333],
         "tags": {
@@ -658,14 +658,14 @@ def test_transaction_metrics(
 
     assert metrics["d:transactions/measurements.foo@none"] == {
         **common,
-        "mri": "d:transactions/measurements.foo@none",
+        "name": "d:transactions/measurements.foo@none",
         "type": "d",
         "value": [1.2, 2.2],
     }
 
     assert metrics["d:transactions/measurements.bar@none"] == {
         **common,
-        "mri": "d:transactions/measurements.bar@none",
+        "name": "d:transactions/measurements.bar@none",
         "type": "d",
         "value": [1.3],
     }
@@ -674,7 +674,7 @@ def test_transaction_metrics(
         "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
     ] == {
         **common,
-        "mri": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
         "value": [9.910106, 9.910106],
     }
@@ -687,7 +687,7 @@ def test_transaction_metrics(
             "decision": "drop" if discard_data else "keep",
             "transaction": "transaction_which_starts_trace",
         },
-        "mri": "c:transactions/count_per_root_project@none",
+        "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
     }
@@ -752,7 +752,7 @@ def test_transaction_metrics_count_per_root_project(
         "project_id": 41,
         "retention_days": 90,
         "tags": {"decision": "keep", "transaction": "test"},
-        "mri": "c:transactions/count_per_root_project@none",
+        "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
     }
@@ -762,7 +762,7 @@ def test_transaction_metrics_count_per_root_project(
         "project_id": 42,
         "retention_days": 90,
         "tags": {"decision": "keep"},
-        "mri": "c:transactions/count_per_root_project@none",
+        "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
     }
@@ -825,14 +825,15 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
         assert len(m_item_body) == 2
-        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["mri"])
-        assert m_item_body_sorted[1]["mri"] == "d:transactions/duration@millisecond"
+        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
         assert (
             m_item_body_sorted[1]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         assert (
-            m_item_body_sorted[0]["mri"] == "c:transactions/count_per_root_project@none"
+            m_item_body_sorted[0]["name"]
+            == "c:transactions/count_per_root_project@none"
         )
         assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
         assert m_item_body_sorted[0]["value"] == 1.0
@@ -882,14 +883,14 @@ def test_transaction_metrics_extraction_processing_relays(
     if expect_metrics_extraction:
         metrics = metrics_by_name(metrics_consumer, 2, timeout=3)
         metric_duration = metrics["d:transactions/duration@millisecond"]
-        assert metric_duration["mri"] == "d:transactions/duration@millisecond"
+        assert metric_duration["name"] == "d:transactions/duration@millisecond"
         assert (
             metric_duration["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
         assert (
-            metric_count_per_project["mri"]
+            metric_count_per_project["name"]
             == "c:transactions/count_per_root_project@none"
         )
         assert metric_count_per_project["value"] == 1.0
@@ -999,19 +1000,19 @@ def test_graceful_shutdown(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
     received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["mri"])
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "mri": "c:transactions/bar@none",
+            "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "mri": "c:transactions/foo@none",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
