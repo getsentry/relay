@@ -265,6 +265,9 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: [],
             },
+            health_check: FilterConfig {
+                is_enabled: false,
+            },
         }
         "###);
         Ok(())
@@ -298,7 +301,7 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
             },
-            health_check: FilterConfig { is_enabled: false },
+            health_check: FilterConfig { is_enabled: true },
         };
 
         insta::assert_json_snapshot!(filters_config, @r###"
@@ -337,6 +340,9 @@ mod tests {
             "releases": [
               "1.2.3"
             ]
+          },
+          "healthCheck": {
+            "isEnabled": true
           }
         }
         "###);
