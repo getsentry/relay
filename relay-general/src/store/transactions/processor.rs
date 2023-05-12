@@ -2491,4 +2491,39 @@ mod tests {
         "db.sql.query",
         ""
     );
+
+    span_description_test!(
+        span_description_scrub_num_where,
+        "SELECT * FROM table WHERE id = 1",
+        "db.sql.query",
+        "SELECT * FROM table WHERE id = *"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_limit,
+        "SELECT * FROM table LIMIT 1",
+        "db.sql.query",
+        "SELECT * FROM table LIMIT *"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_negative_where,
+        "SELECT * FROM table WHERE temperature > -100",
+        "db.sql.query",
+        "SELECT * FROM table WHERE temperature > *"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_e_where,
+        "SELECT * FROM table WHERE salary > 1e7",
+        "db.sql.query",
+        "SELECT * FROM table WHERE salary > *"
+    );
+
+    span_description_test!(
+        span_description_already_scrubbed,
+        "SELECT * FROM table123 WHERE id = *",
+        "db.sql.query",
+        ""
+    );
 }
