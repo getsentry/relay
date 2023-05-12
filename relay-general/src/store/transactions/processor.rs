@@ -2339,8 +2339,8 @@ mod tests {
     span_description_test!(
         span_description_scrub_only_urllike_on_http_ops,
         "GET https://www.service.io/resources/01234",
-        "db.sql.query",
-        ""
+        "http.client",
+        "GET https://www.service.io/resources/*"
     );
 
     span_description_test!(
