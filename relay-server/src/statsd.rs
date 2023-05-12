@@ -5,9 +5,21 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
+    /// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    BufferEnvelopesMemoryCount,
+    /// The number of envelopes waiting for project states on disk.
+    ///
+    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
+    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
+    ///
+    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
+    BufferEnvelopesDiskCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -15,6 +27,8 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
+            RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
+            RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
         }
     }
 }
@@ -42,12 +56,10 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
-    /// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always <= `EnvelopeQueueSize`.
+    /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemory,
+    BufferEnvelopesMemoryBytes,
     /// The file size of the buffer db on disk, in bytes.
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
@@ -140,7 +152,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
+            RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
@@ -367,6 +379,10 @@ pub enum RelayCounters {
     BufferWrites,
     /// Number times the envelope buffer reads back from disk.
     BufferReads,
+    /// Number of _envelopes_ the envelope buffer spools to disk.
+    BufferEnvelopesWritten,
+    /// Number of _envelopes_ the envelope buffer reads back from disk.
+    BufferEnvelopesRead,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -530,6 +546,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::BufferWrites => "buffer.writes",
             RelayCounters::BufferReads => "buffer.reads",
+            RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
+            RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
