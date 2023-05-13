@@ -902,32 +902,44 @@ mod tests {
 
     #[test]
     fn test_invalid_iban_codes() {
+        let mut valid_norwegian_iban = "NO9386011117945".to_string();
+
         assert_text_rule!(
             rule = "@iban";
-            input = "some iban: NO9386011117945!";
+            input = &format!("some iban: {}!", valid_norwegian_iban);
             output = "some iban: [iban]!";
             remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
         );
 
-        // Norway has the shortest iban, here I removed the final number, which means it should not
-        // be scrubbed.
+        let invalid_norwegian_iban = {
+            valid_norwegian_iban.pop();
+            valid_norwegian_iban
+        };
+
+        // Since norway has the shortest iban, it won't recognize an iban shorter than that.
         assert_rule_not_applied!(
             rule = "@iban";
-            input = "some iban: NO938601111794!";
+            input = &format!("some iban: {}!", invalid_norwegian_iban);
         );
+
+        let mut valid_russian_iban = "RU0204452560040702810412345678901".to_string();
 
         assert_text_rule!(
             rule = "@iban";
-            input = "some iban: RU0204452560040702810412345678901!";
+            input = &format!("some iban: {}!", valid_russian_iban);
             output = "some iban: [iban]!";
             remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
         );
 
-        // Russia has the longest iban. Here I add a final number, which means the rule won't be
-        // applied as it exceeds the maximum iban length.
+        let invalid_russian_iban = {
+            valid_russian_iban.push('0');
+            valid_russian_iban
+        };
+
+        // Since russia has the longest iban, it won't recognize an iban longer than that.
         assert_rule_not_applied!(
             rule = "@iban";
-            input = "some iban: RU02044525600407028104123456789018!";
+            input = &format!("some iban: {}!", invalid_russian_iban);
         );
 
         // Don't apply if it doesnt start with two uppercase letters.
