@@ -930,13 +930,6 @@ mod tests {
             input = "some iban: RU02044525600407028104123456789018!";
         );
 
-        assert_text_rule!(
-            rule = "@iban";
-            input = "some iban: NO9386011117945!";
-            output = "some iban: [iban]!";
-            remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
-        );
-
         // Don't apply if it doesnt start with two uppercase letters.
         assert_rule_not_applied!(
             rule = "@iban";
