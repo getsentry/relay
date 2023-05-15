@@ -150,8 +150,12 @@ pub struct ProfileMetadata {
     #[serde(alias = "profile_id")]
     event_id: EventId,
     platform: String,
-    release: String,
     timestamp: DateTime<Utc>,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    release: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    dist: String,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
@@ -347,6 +351,10 @@ pub fn parse_sample_profile(
         profile.metadata.release = release.to_owned();
     }
 
+    if let Some(dist) = transaction_metadata.get("dist") {
+        profile.metadata.dist = dist.to_owned();
+    }
+
     if let Some(environment) = transaction_metadata.get("environment") {
         profile.metadata.environment = environment.to_owned();
     }
@@ -401,7 +409,8 @@ mod tests {
                 event_id: EventId::new(),
                 transaction: Option::None,
                 transactions: Vec::new(),
-                release: "1.0 (9999)".to_string(),
+                release: "1.0".to_string(),
+                dist: "9999".to_string(),
                 measurements: None,
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
