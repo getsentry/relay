@@ -2576,6 +2576,13 @@
 <a href="#2575" id="2575">2575</a>
 <a href="#2576" id="2576">2576</a>
 <a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
+<a href="#2579" id="2579">2579</a>
+<a href="#2580" id="2580">2580</a>
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -5149,6 +5156,13 @@
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_not_in_mid_tablename_false,
         <span class="string">&quot;SELECT * FROM tafalseble WHERE deleted = *&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_dont_scrub_nulls,
+        <span class="string">&quot;SELECT * FROM table WHERE deleted_at IS NULL&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
