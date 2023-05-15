@@ -160,7 +160,7 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
 
 fn slugify(input: &str) -> String {
     static SLUG_CLEANER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[^a-zA-Z0-9\s_-]").unwrap());
-    static SLUGIFIER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\s_\-]+").unwrap());
+    static SLUGIFIER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\s\-]+").unwrap());
 
     let cleaned = SLUG_CLEANER.replace_all(input, "");
     let mut slug = SLUGIFIER
@@ -317,8 +317,7 @@ mod tests {
     #[test]
     fn slugify_unicode() {
         let input = "🚀🚀🚀\tmyComplicated_slug\u{200A}name is here...";
-
-        let expected = "mycomplicated-slug-name-is-here";
+        let expected = "mycomplicated_slug-name-is-here";
         assert_eq!(expected, slugify(input));
     }
 }
