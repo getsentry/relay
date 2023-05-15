@@ -906,7 +906,6 @@ mod tests {
     fn test_iban_scrubbing_word_boundaries() {
         let valid_norwegian_iban = "NO9386011117945".to_string();
 
-        // First verify that it's valid.
         assert_text_rule!(
             rule = "@iban";
             input = &format!("some iban: {}!", valid_norwegian_iban);
