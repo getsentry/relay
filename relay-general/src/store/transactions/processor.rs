@@ -2568,4 +2568,11 @@ mod tests {
         "db.sql.query",
         ""
     );
+
+    span_description_test!(
+        span_description_dont_scrub_nulls,
+        "SELECT * FROM table WHERE deleted_at IS NULL",
+        "db.sql.query",
+        ""
+    );
 }
