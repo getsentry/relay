@@ -1146,7 +1146,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (*)",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1164,7 +1164,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (*)",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1182,7 +1182,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SAVEPOINT *",
+                    "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1200,7 +1200,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SAVEPOINT *",
+                    "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
