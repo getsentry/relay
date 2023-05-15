@@ -38,16 +38,13 @@ where
             .map(|ConnectInfo(peer)| peer.ip().to_string())
             .unwrap_or_default();
 
+        // todo: document why this priority
+        // `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
         let forwarded = parts
             .headers
-            .get("X-Forwarded-For")
+            .get("X-Vercel-Forwarded-For")
+            .or_else(|| parts.headers.get("X-Forwarded-For"))
             .and_then(|v| v.to_str().ok())
-            .or_else(|| {
-                parts
-                    .headers
-                    .get("X-Vercel-Forwarded-For")
-                    .and_then(|v| v.to_str().ok())
-            })
             .unwrap_or("");
 
         Ok(ForwardedFor(if forwarded.is_empty() {
