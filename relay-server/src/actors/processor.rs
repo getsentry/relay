@@ -12,6 +12,9 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
+use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
+
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -19,13 +22,15 @@ use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetrics
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
+use relay_general::protocol::Context::Trace;
+use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
-use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
@@ -35,8 +40,6 @@ use relay_replays::recording::RecordingScrubber;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
-use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::actors::envelopes::SendMetrics,
@@ -44,7 +47,7 @@ use {
     crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
-    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
+    relay_general::protocol::{Context as SentryContext, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -2003,51 +2006,6 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Tries to apply trace rules and check if the sampling decision is positive.
-    fn apply_trace_rules_if_error(&self, state: &mut ProcessEnvelopeState) {
-        println!("Called");
-        println!("{:?}", state.event);
-        // Only if the extracted event is an error we want to run this logic.
-        if let Some(EventType::Error) = state.event_type() {
-            let sampling_result = utils::should_keep_event_with_trace_rules(
-                self.config.processing_enabled(),
-                state.sampling_project_state.as_deref(),
-                state.envelope().dsc(),
-                state.envelope().meta().client_addr(),
-            );
-            println!("{:?}", sampling_result);
-
-            // In case the sampling result is positive, we assume that all the transactions
-            // that have this DSC will be sampled and thus we mark the error as "having
-            // a full trace".
-            match state.event.value_mut() {
-                Some(event) => {
-                    let context = event
-                        .contexts
-                        .value_mut()
-                        .as_mut()
-                        .map_or(None, |mut contexts| {
-                            contexts.get_context_mut(TraceContext::default_key())
-                        });
-
-                    // We want to mutate the sampled after the "fake" sampling has been performed.
-                    if let Some(protocol::Context::Trace(boxed_context)) = context {
-                        if let TraceContext {
-                            ref mut sampled, ..
-                        } = **boxed_context
-                        {
-                            *sampled = Annotated::new(match sampling_result {
-                                SamplingResult::Keep => true,
-                                SamplingResult::Drop(_) => false,
-                            });
-                        }
-                    }
-                }
-                None => {}
-            }
-        }
-    }
-
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match state.event.value_mut() {
             Some(event) => event,
@@ -2280,8 +2238,17 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Run dynamic sampling rules to see if we keep the envelope or remove it.
+    /// Computes the sampling decision on the incoming event
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
+        match state.event_type().unwrap_or_default() {
+            EventType::Default | EventType::Error => self.run_dynamic_sampling_on_error(state),
+            _ => self.run_dynamic_sampling_on_event(state),
+        }
+    }
+
+    /// Run dynamic sampling on an incoming event and stores the sampling result in the shared
+    /// state.
+    fn run_dynamic_sampling_on_event(&self, state: &mut ProcessEnvelopeState) {
         state.sampling_result = utils::should_keep_event(
             self.config.processing_enabled(),
             &state.project_state,
@@ -2290,6 +2257,53 @@ impl EnvelopeProcessorService {
             state.event.value(),
             state.envelope().meta().client_addr(),
         );
+    }
+
+    /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
+    /// decision.
+    ///
+    /// This execution of dynamic sampling is technically a "simulation" since we will use the result
+    /// only for tagging errors and not for actually sampling incoming events.
+    fn run_dynamic_sampling_on_error(&self, state: &mut ProcessEnvelopeState) {
+        // We run a variant of dynamic sampling that doesn't need an event, thus it will result in
+        // us matching only trace rules.
+        let sampling_result = utils::should_keep_event_with_trace_rules(
+            self.config.processing_enabled(),
+            state.sampling_project_state.as_deref(),
+            state.envelope().dsc(),
+            state.envelope().meta().client_addr(),
+        );
+
+        // In case the sampling result is positive, we assume that all the transactions
+        // that have this DSC will be sampled and thus we mark the error as "having
+        // a full trace".
+        match state.event.value_mut() {
+            Some(event) => {
+                // In case we have no contexts object, we have to create it.
+                if event.contexts.value().is_empty() {
+                    event.contexts = Annotated::new(Contexts::new());
+                }
+
+                let context = event.contexts.value_mut().as_mut().map(|context| {
+                    context
+                        .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()))
+                });
+
+                // We want to mutate the sampled after the "fake" sampling has been performed.
+                if let Some(Trace(boxed_context)) = context {
+                    if let TraceContext {
+                        ref mut sampled, ..
+                    } = **boxed_context
+                    {
+                        *sampled = Annotated::new(match sampling_result {
+                            SamplingResult::Keep => true,
+                            SamplingResult::Drop(_) => false,
+                        });
+                    }
+                }
+            }
+            None => {}
+        }
     }
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -2385,7 +2399,6 @@ impl EnvelopeProcessorService {
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
-            self.apply_trace_rules_if_error(state);
             self.compute_sampling_decision(state);
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
@@ -2703,6 +2716,8 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use similar_asserts::assert_eq;
+    use tracing::event;
 
     use relay_common::Uuid;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -2710,13 +2725,13 @@ mod tests {
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
-    use similar_asserts::assert_eq;
 
-    use super::*;
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
+
+    use super::*;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
@@ -3101,7 +3116,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_error_is_tagged_with_sampled() {
+    async fn test_error_is_tagged_correctly() {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
         let event_id = protocol::EventId::new();
@@ -3109,11 +3124,9 @@ mod tests {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
-
         let request_meta = RequestMeta::new(dsn);
 
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -3126,13 +3139,11 @@ mod tests {
             other: BTreeMap::new(),
         };
         envelope.set_dsc(dsc);
-
         envelope.add_item({
             let mut item = Item::new(ItemType::Event);
             item.set_payload(
                 ContentType::Json,
                 r#"{
-                  "type": "error",
                   "event_id": "52df9022835246eeb317dbd739ccd059",
                   "exception": {
                     "values": [
@@ -3161,7 +3172,20 @@ mod tests {
         let new_envelope = ctx.envelope();
 
         assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+        let item = new_envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(context.sampled.value().unwrap())
+        }
     }
 
     #[tokio::test]
