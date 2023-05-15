@@ -68,7 +68,9 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     ((?-x)(?P<single_quoted_strs>('(?:[^']|'')*?(?:\\'.*|[^']')))) |
     # Don't capture double-quoted strings (eg used for identifiers in PostgreSQL).
     # Capture numbers.
-    ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)))
+    ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
+    # Capture booleans (as full tokens, not as substrings of other tokens).
+    ((?-x)(?P<bool>(\b(?:true|false)\b)))
     "#,
     )
     .unwrap()

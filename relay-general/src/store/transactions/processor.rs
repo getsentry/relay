@@ -2526,4 +2526,46 @@ mod tests {
         "db.sql.query",
         ""
     );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_true,
+        "SELECT * FROM table WHERE deleted = true",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = *"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_false,
+        "SELECT * FROM table WHERE deleted = false",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = *"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_true,
+        "SELECT * FROM table_true WHERE deleted = *",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_false,
+        "SELECT * FROM table_false WHERE deleted = *",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_true,
+        "SELECT * FROM tatrueble WHERE deleted = *",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_false,
+        "SELECT * FROM tafalseble WHERE deleted = *",
+        "db.sql.query",
+        ""
+    );
 }
