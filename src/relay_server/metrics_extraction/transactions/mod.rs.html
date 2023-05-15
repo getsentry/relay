@@ -2295,6 +2295,56 @@
 <a href="#2294" id="2294">2294</a>
 <a href="#2295" id="2295">2295</a>
 <a href="#2296" id="2296">2296</a>
+<a href="#2297" id="2297">2297</a>
+<a href="#2298" id="2298">2298</a>
+<a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
+<a href="#2303" id="2303">2303</a>
+<a href="#2304" id="2304">2304</a>
+<a href="#2305" id="2305">2305</a>
+<a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
+<a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
+<a href="#2333" id="2333">2333</a>
+<a href="#2334" id="2334">2334</a>
+<a href="#2335" id="2335">2335</a>
+<a href="#2336" id="2336">2336</a>
+<a href="#2337" id="2337">2337</a>
+<a href="#2338" id="2338">2338</a>
+<a href="#2339" id="2339">2339</a>
+<a href="#2340" id="2340">2340</a>
+<a href="#2341" id="2341">2341</a>
+<a href="#2342" id="2342">2342</a>
+<a href="#2343" id="2343">2343</a>
+<a href="#2344" id="2344">2344</a>
+<a href="#2345" id="2345">2345</a>
+<a href="#2346" id="2346">2346</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -3116,6 +3166,20 @@
                         &quot;db.system&quot;: &quot;MyDatabase&quot;,
                         &quot;db.operation&quot;: &quot;SELECT&quot;
                     }
+                },
+                {
+                    &quot;description&quot;: &quot;SAVEPOINT save_this_one&quot;,
+                    &quot;op&quot;: &quot;db&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
+                    &quot;start_timestamp&quot;: 1597976393.4619668,
+                    &quot;timestamp&quot;: 1597976393.4718769,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;db.system&quot;: &quot;MyDatabase&quot;,
+                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    }
                 }
             ],
             &quot;request&quot;: {
@@ -3448,6 +3512,42 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (*)&quot;,
+                    &quot;span.module&quot;: &quot;db&quot;,
+                    &quot;span.op&quot;: &quot;db&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
+                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;s:transactions/span.user@none&quot;,
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;SELECT&quot;,
+                    &quot;span.description&quot;: &quot;SAVEPOINT *&quot;,
+                    &quot;span.module&quot;: &quot;db&quot;,
+                    &quot;span.op&quot;: &quot;db&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
+                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:transactions/span.duration@millisecond&quot;,
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;SELECT&quot;,
+                    &quot;span.description&quot;: &quot;SAVEPOINT *&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,

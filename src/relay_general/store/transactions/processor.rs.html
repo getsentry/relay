@@ -2421,6 +2421,41 @@
 <a href="#2420" id="2420">2420</a>
 <a href="#2421" id="2421">2421</a>
 <a href="#2422" id="2422">2422</a>
+<a href="#2423" id="2423">2423</a>
+<a href="#2424" id="2424">2424</a>
+<a href="#2425" id="2425">2425</a>
+<a href="#2426" id="2426">2426</a>
+<a href="#2427" id="2427">2427</a>
+<a href="#2428" id="2428">2428</a>
+<a href="#2429" id="2429">2429</a>
+<a href="#2430" id="2430">2430</a>
+<a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -4799,7 +4834,9 @@
         <span class="string">&quot;GET /clients/*/project/*&quot;
     </span>);
 
-    <span class="macro">span_description_test!</span>(
+    <span class="comment">// TODO(iker): Add span description test for URLs with paths
+
+    </span><span class="macro">span_description_test!</span>(
         span_description_scrub_only_dblike_on_db_ops,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s)&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
@@ -4841,7 +4878,40 @@
         <span class="string">&quot;select count() from table where id in (*)&quot;
     </span>);
 
-    <span class="comment">// TODO(iker): Add span description test for URLs with paths
-</span>}
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_savepoint_uppercase,
+        <span class="string">&quot;SAVEPOINT unquoted_identifier&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SAVEPOINT *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_savepoint_uppercase_semicolon,
+        <span class="string">&quot;SAVEPOINT unquoted_identifier;&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SAVEPOINT *;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_savepoint_lowercase,
+        <span class="string">&quot;savepoint unquoted_identifier&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;savepoint *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_savepoint_quoted,
+        <span class="string">&quot;SAVEPOINT &#39;single_quoted_identifier&#39;&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SAVEPOINT *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_savepoint_quoted_backtick,
+        <span class="string">&quot;SAVEPOINT `backtick_quoted_identifier`&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SAVEPOINT *&quot;
+    </span>);
+}
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
