@@ -163,7 +163,7 @@ static IBAN_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?x)
             \b
-            [A-Z]{2}\d{2}[A-Z0-9]{11,29}
+            [a-zA-Z]{2}\d{2}[a-zA-Z0-9]{11,29}
             \b
         "#,
     )

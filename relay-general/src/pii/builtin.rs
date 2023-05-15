@@ -55,6 +55,7 @@ declare_builtin_rules! {
         ty: RuleType::Multiple(MultipleRule {
             rules: vec![
                 "@creditcard:filter".into(),
+                "@iban:filter".into(),
                 "@pemkey:filter".into(),
                 "@urlauth:legacy".into(),
                 "@userpath:filter".into(),
@@ -897,6 +898,26 @@ mod tests {
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "0", (11, 51)),
             ];
+        );
+    }
+
+    /// To prevent too aggressive scrubbing, we don't scrub valid ibans found inside of a word.
+    #[test]
+    fn test_iban_scrubbing_word_boundaries() {
+        let valid_norwegian_iban = "NO9386011117945".to_string();
+
+        // First verify that it's valid.
+        assert_text_rule!(
+            rule = "@iban";
+            input = &format!("some iban: {}!", valid_norwegian_iban);
+            output = "some iban: [iban]!";
+            remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
+        );
+
+        let valid_iban_within_word = format!("foo{}bar", valid_norwegian_iban);
+        assert_rule_not_applied!(
+            rule = "@iban";
+            input = &valid_iban_within_word;
         );
     }
 
