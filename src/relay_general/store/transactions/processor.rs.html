@@ -2492,6 +2492,41 @@
 <a href="#2491" id="2491">2491</a>
 <a href="#2492" id="2492">2492</a>
 <a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
+<a href="#2513" id="2513">2513</a>
+<a href="#2514" id="2514">2514</a>
+<a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -4832,8 +4867,8 @@
     <span class="macro">span_description_test!</span>(
         span_description_scrub_only_urllike_on_http_ops,
         <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
-        <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;http.client&quot;</span>,
+        <span class="string">&quot;GET https://www.service.io/resources/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -4981,6 +5016,41 @@
     <span class="macro">span_description_test!</span>(
         span_description_dont_scrub_double_quoted_strings_format_mysql,
         <span class="string">r#&quot;SELECT * from table WHERE sku = \&quot;foo\&quot;&quot;#</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_num_where,
+        <span class="string">&quot;SELECT * FROM table WHERE id = 1&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table WHERE id = *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_num_limit,
+        <span class="string">&quot;SELECT * FROM table LIMIT 1&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table LIMIT *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_num_negative_where,
+        <span class="string">&quot;SELECT * FROM table WHERE temperature &gt; -100&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table WHERE temperature &gt; *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_num_e_where,
+        <span class="string">&quot;SELECT * FROM table WHERE salary &gt; 1e7&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table WHERE salary &gt; *&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_already_scrubbed,
+        <span class="string">&quot;SELECT * FROM table123 WHERE id = *&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);

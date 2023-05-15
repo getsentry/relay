@@ -72,6 +72,8 @@
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -139,8 +141,10 @@
     # Capture `SAVEPOINT` savepoints.
     ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
     # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
-    ((?-x)(?P&lt;single_quoted_strs&gt;(&#39;(?:[^&#39;]|&#39;&#39;)*?(?:\\&#39;.*|[^&#39;]&#39;))))
+    ((?-x)(?P&lt;single_quoted_strs&gt;(&#39;(?:[^&#39;]|&#39;&#39;)*?(?:\\&#39;.*|[^&#39;]&#39;)))) |
     # Don&#39;t capture double-quoted strings (eg used for identifiers in PostgreSQL).
+    # Capture numbers.
+    ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)))
     &quot;#</span>,
     )
     .unwrap()
