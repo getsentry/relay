@@ -68,6 +68,10 @@
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -126,13 +130,17 @@
 /// Slightly modified from
 /// &lt;https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132&gt;
 /// &lt;https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170&gt;
+/// &lt;https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163&gt;
 </span><span class="kw">pub static </span>SQL_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
         <span class="string">r#&quot;(?xi)
     # Capture parameters in `IN` statements.
     ((?-x)IN \((?P&lt;in&gt;(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\)) |
-    # Capture `SAVEPOINT` savepoints
-    ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+))))
+    # Capture `SAVEPOINT` savepoints.
+    ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+    # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
+    ((?-x)(?P&lt;single_quoted_strs&gt;(&#39;(?:[^&#39;]|&#39;&#39;)*?(?:\\&#39;.*|[^&#39;]&#39;))))
+    # Don&#39;t capture double-quoted strings (eg used for identifiers in PostgreSQL).
     &quot;#</span>,
     )
     .unwrap()
