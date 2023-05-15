@@ -42,6 +42,12 @@ where
             .headers
             .get("X-Forwarded-For")
             .and_then(|v| v.to_str().ok())
+            .or_else(|| {
+                parts
+                    .headers
+                    .get("X-Vercel-Forwarded-For")
+                    .and_then(|v| v.to_str().ok())
+            })
             .unwrap_or("");
 
         Ok(ForwardedFor(if forwarded.is_empty() {
