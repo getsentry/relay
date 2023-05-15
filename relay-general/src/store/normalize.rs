@@ -3061,9 +3061,9 @@ mod tests {
             value: Annotated::new(420.69),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
-        let should_keep = true;
 
-        test_invalid_measurement(name, measurement, should_keep);
+        let is_dropped = test_is_measurement_dropped(name, measurement);
+        assert_eq!(is_dropped, false);
     }
 
     #[test]
@@ -3073,9 +3073,9 @@ mod tests {
             value: Annotated::new(420.69),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
-        let should_keep = false;
 
-        test_invalid_measurement(name, measurement, should_keep);
+        let is_dropped = test_is_measurement_dropped(name, measurement);
+        assert_eq!(is_dropped, true);
     }
 
     #[test]
@@ -3085,12 +3085,12 @@ mod tests {
             value: Annotated::new(420.69),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
-        let should_keep = false;
 
-        test_invalid_measurement(name, measurement, should_keep);
+        let is_dropped = test_is_measurement_dropped(name, measurement);
+        assert_eq!(is_dropped, true);
     }
 
-    fn test_invalid_measurement(name: &str, measurement: Measurement, should_keep: bool) {
+    fn test_is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
         let max_name_and_unit_len = Some(30);
 
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
@@ -3103,6 +3103,7 @@ mod tests {
             ..Default::default()
         };
 
+        // Just for clarity.
         // Checks that there is 1 measurement before processing.
         assert_eq!(measurements.len(), 1);
 
@@ -3113,7 +3114,7 @@ mod tests {
             max_name_and_unit_len,
         );
 
-        // Verifies that this measurement has not been dropped after processing.
-        assert_eq!(measurements.len(), usize::from(should_keep));
+        // Checks whether the measurement is dropped.
+        measurements.len() == 0
     }
 }
