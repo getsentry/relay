@@ -288,15 +288,15 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
 fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
-    regex: &Lazy<Regex>,
+    pattern: &Lazy<Regex>,
 ) -> Result<bool, ProcessingAction> {
-    let capture_names = regex.capture_names().flatten().collect::<Vec<_>>();
+    let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
     let mut did_change = false;
     string.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
-        for captures in regex.captures_iter(trans) {
+        for captures in pattern.captures_iter(trans) {
             for name in &capture_names {
                 if let Some(capture) = captures.name(name) {
                     let remark = Remark::with_range(
@@ -487,17 +487,16 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
     }
 
     if did_scrub {
-        let Some(new_desc) = scrubbed.value() else {
-            return Ok(());
+        if let Some(new_desc) = scrubbed.into_value() {
+            span.data
+                .get_or_insert_with(BTreeMap::new)
+                // We don't care what the cause of scrubbing was, since we assume
+                // that after scrubbing the value is sanitized.
+                .insert(
+                    "description.scrubbed".to_owned(),
+                    Annotated::new(Value::String(new_desc)),
+                );
         };
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(new_desc.to_owned())),
-            );
     }
 
     Ok(())
