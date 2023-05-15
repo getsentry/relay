@@ -51,6 +51,14 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -102,6 +110,14 @@
     [^/\\]*)&quot;#</span>,
     )
     .unwrap()
+});
+
+<span class="doccomment">/// Regex with multiple capture groups for SQL tokens we should scrub.
+///
+/// Slightly modified from
+/// &lt;https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132&gt;
+</span><span class="kw">pub static </span>SQL_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;(?i)(IN \((?P&lt;in&gt;(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\))&quot;#</span>).unwrap()
 });
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_general" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

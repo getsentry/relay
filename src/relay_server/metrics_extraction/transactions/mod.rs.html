@@ -2293,6 +2293,8 @@
 <a href="#2292" id="2292">2292</a>
 <a href="#2293" id="2293">2293</a>
 <a href="#2294" id="2294">2294</a>
+<a href="#2295" id="2295">2295</a>
+<a href="#2296" id="2296">2296</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -3102,7 +3104,7 @@
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT column FROM table WHERE id = %s&quot;,
+                    &quot;description&quot;: &quot;SELECT column FROM table WHERE id IN (1, 2, 3)&quot;,
                     &quot;op&quot;: &quot;db&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
                     &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
@@ -3427,6 +3429,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
+                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (*)&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -3444,6 +3447,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
+                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (*)&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
