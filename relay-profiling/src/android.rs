@@ -37,6 +37,8 @@ pub struct ProfileMetadata {
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    dist: String,
 
     version_code: String,
     version_name: String,
@@ -201,6 +203,10 @@ pub fn parse_android_profile(
 
     if let Some(release) = transaction_metadata.get("release") {
         profile.metadata.release = release.to_owned();
+    }
+
+    if let Some(dist) = transaction_metadata.get("dist") {
+        profile.metadata.dist = dist.to_owned();
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
