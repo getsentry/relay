@@ -2541,6 +2541,13 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_boolean_where_bool_insensitive,
+        "SELECT * FROM table WHERE deleted = FaLsE",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = *"
+    );
+
+    span_description_test!(
         span_description_scrub_boolean_not_in_tablename_true,
         "SELECT * FROM table_true WHERE deleted = *",
         "db.sql.query",
