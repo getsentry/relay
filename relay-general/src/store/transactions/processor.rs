@@ -11,7 +11,8 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::{
-    CACHE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
+    TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
@@ -292,6 +293,10 @@ fn scrub_cache_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAc
     scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
 }
 
+fn scrub_resource_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    scrub_identifiers_with_regex(string, &RESOURCE_NORMALIZER_REGEX, "*")
+}
+
 fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
@@ -479,25 +484,14 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
     }
 
     let mut scrubbed = span.description.clone();
-    let mut did_scrub = false;
 
-    if let Some(is_url_like) = span.op.value().map(|op| op.starts_with("http")) {
-        if is_url_like && scrub_identifiers(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
-
-    if let Some(is_db_like) = span.op.value().map(|op| op.starts_with("db")) {
-        if is_db_like && scrub_sql_queries(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
-
-    if let Some(is_cache_like) = span.op.value().map(|op| op.starts_with("cache")) {
-        if is_cache_like && scrub_cache_keys(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
+    let did_scrub = match span.op.value() {
+        Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
+        Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
+        Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
+        Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
+        _ => false,
+    };
 
     if did_scrub {
         if let Some(new_desc) = scrubbed.into_value() {
@@ -2606,6 +2600,34 @@ mod tests {
         span_description_scrub_nothing_cache,
         "abc-dontscrubme-meneither:stillno:ohplsstop",
         "cache.get_item",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_script,
+        "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
+        "resource.script",
+        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.js-*.map"
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_script_numeric_filename,
+        "https://example.com/static/chunks/09876543211234567890",
+        "resource.script",
+        "https://example.com/static/chunks/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_css,
+        "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
+        "resource.css",
+        "https://example.com/assets/dark_high_contrast-*.css"
+    );
+
+    span_description_test!(
+        span_description_scrub_nothing_in_resource,
+        "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
+        "resource.css",
         ""
     );
 }

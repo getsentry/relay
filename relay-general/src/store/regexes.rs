@@ -93,3 +93,31 @@ pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+/// Regex with multiple capture groups for resource tokens we should scrub.
+///
+/// Resource tokens are the tokens that exist in resource spans that generate
+/// high cardinality or are noise for the product. For example, the hash of the
+/// file next to its name.
+///
+/// Slightly modified Regex from
+/// <https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306>
+pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # UUIDs.
+        (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Chunks and chunk numbers.
+        (?P<chunk>(?:[0-9]+\.)?[a-f0-9]{8}\.chunk) |
+        # Trailing hashes before final extension.
+        ([-.](?P<trailing_hash>(?:[a-f0-9]{8,64}\.?)+)\.([a-z0-9]{2,6})$) |
+        # Versions in the path or filename.
+        (?P<version>(v[0-9]+(?:\.[0-9]+)*)) |
+        # Larger hex-like hashes (avoid false negatives from above).
+        (?P<large_hash>[a-f0-9]{16,64}) |
+        # Only numbers (for file names that are just numbers).
+        (?P<only_numbers>/[0-9]+(\.[a-z0-9]{2,6})$)
+        "#,
+    )
+    .unwrap()
+});
