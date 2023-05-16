@@ -278,7 +278,7 @@ impl InMemory {
 /// The configuration which describes the on-disk [`BufferState`].
 #[derive(Debug)]
 struct OnDisk {
-    attempts: usize,
+    dequeue_attempts: usize,
     db: Pool<Sqlite>,
     buffer_guard: Arc<BufferGuard>,
     max_disk_size: usize,
@@ -383,14 +383,14 @@ impl OnDisk {
     ) -> Result<(), QueueKey> {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
-            self.attempts += 1;
+            self.dequeue_attempts += 1;
             if self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
                 return Err(key);
             }
             relay_statsd::metric!(
-                histogram(RelayHistograms::BufferDequeueAttempts) = self.attempts as u64
+                histogram(RelayHistograms::BufferDequeueAttempts) = self.dequeue_attempts as u64
             );
-            self.attempts = 0;
+            self.dequeue_attempts = 0;
 
             // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
@@ -696,7 +696,7 @@ impl BufferService {
             .map_err(BufferError::SetupFailed)?;
 
         let mut on_disk = OnDisk {
-            attempts: 0,
+            dequeue_attempts: 0,
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
