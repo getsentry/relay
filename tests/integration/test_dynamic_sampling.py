@@ -205,7 +205,7 @@ def _create_transaction_envelope(
     return envelope, trace_id, event_id
 
 
-def _create_error_envelope():
+def _create_error_envelope(public_key):
     envelope = Envelope()
     event_id = "abbcea72-abc7-4ac6-93d2-2b8f366e58d7"
     trace_id = "f26fdb98-68f7-4e10-b9bc-2d2dd9256e53"
@@ -221,8 +221,8 @@ def _create_error_envelope():
     _add_trace_info(
         envelope,
         trace_id=trace_id,
-        public_key="abd0f232775f45feab79864e580d160b",
-        client_sample_rate=0.5,
+        public_key=public_key,
+        client_sample_rate=1.0,
         transaction="/transaction",
         release="1.0",
     )
@@ -276,7 +276,7 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope, event_id = _create_error_envelope()
+    envelope, event_id = _create_error_envelope(public_key)
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
