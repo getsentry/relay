@@ -88,3 +88,23 @@ pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # UUIDs.
+        (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Chunks and chunk numbers.
+        (?P<chunk>(?:[0-9]+\.)?[a-f0-9]{8}\.chunk) |
+        # Trailing hashes before final extension.
+        ([-.](?P<trailing_hash>(?:[a-f0-9]{8,64}\.?)+)\.([a-z0-9]{2,6})$) |
+        # Versions in the path or filename.
+        (?P<version>(v[0-9]+(?:\.[0-9]+)*)) |
+        # Larger hex-like hashes (avoid false negatives from above).
+        (?P<large_hash>[a-f0-9]{16,64}) |
+        # Only numbers (for file names that are just numbers).
+        (?P<only_numbers>/[0-9]+(\.[a-z0-9]{2,6})$)
+        "#,
+    )
+    .unwrap()
+});
