@@ -2614,6 +2614,13 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_nothing_cache,
+        "abc-dontscrubme-meneither:stillno:ohplsstop",
+        "cache.get_item",
+        ""
+    );
+
+    span_description_test!(
         span_description_scrub_resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
