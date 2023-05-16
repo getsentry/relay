@@ -2240,15 +2240,20 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming event
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        match state.event_type().unwrap_or_default() {
-            EventType::Default | EventType::Error => self.run_dynamic_sampling_on_error(state),
-            _ => self.run_dynamic_sampling_on_event(state),
+        // In case we have an incoming error, we want to tag whether or not its connected trace
+        // is fully sampled.
+        if let EventType::Default | EventType::Error = state.event_type().unwrap_or_default() {
+            self.tag_error_with_sampling_decision(state);
         }
+
+        // Now we run the actual dynamic sampling on the incoming event. The type of the event will
+        // be checked by the sampling algorithm.
+        self.run_dynamic_sampling(state);
     }
 
     /// Run dynamic sampling on an incoming event and stores the sampling result in the shared
     /// state.
-    fn run_dynamic_sampling_on_event(&self, state: &mut ProcessEnvelopeState) {
+    fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
         state.sampling_result = utils::should_keep_event(
             self.config.processing_enabled(),
             &state.project_state,
@@ -2264,7 +2269,7 @@ impl EnvelopeProcessorService {
     ///
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
-    fn run_dynamic_sampling_on_error(&self, state: &mut ProcessEnvelopeState) {
+    fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         // We run a variant of dynamic sampling that doesn't need an event, thus it will result in
         // us matching only trace rules.
         let sampling_result = utils::should_keep_event_with_trace_rules(
