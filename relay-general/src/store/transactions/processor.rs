@@ -278,17 +278,18 @@ fn set_default_transaction_source(event: &mut Event) {
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
 fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX)
+    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")
 }
 
 /// Normalize the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX)
+    scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
 }
 
 fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
+    replacer: &str,
 ) -> Result<bool, ProcessingAction> {
     let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
@@ -317,11 +318,11 @@ fn scrub_identifiers_with_regex(
 
         // Sort by the capture end position.
         caps.sort_by_key(|(capture, _)| capture.end());
-        let mut changed = String::with_capacity(trans.len());
+        let mut changed = String::with_capacity(trans.len() + caps.len() * replacer.len());
         let mut last_end = 0usize;
         for (capture, remark) in caps {
             changed.push_str(&trans[last_end..capture.start()]);
-            changed.push('*');
+            changed.push_str(replacer);
             last_end = capture.end();
             meta.add_remark(remark);
         }
@@ -2294,10 +2295,18 @@ mod tests {
                 )
                 .unwrap();
 
+                // The input description may contain escaped characters, and the
+                // default formatter (when taking the value from the span
+                // description) automatically escapes them. The goal is to
+                // compute raw values, so we want to get rid of character
+                // escaping, and the debug formatter does that. The debug
+                // formatter doesn't remove the leading and trailing `"`s, so we
+                // manually add them to the input literal.
                 assert_eq!(
-                    $description_in,
-                    span.value().unwrap().description.value().unwrap()
+                    format!("\"{}\"", $description_in),
+                    format!("{:?}", span.value().unwrap().description.value().unwrap())
                 );
+
                 if $output == "" {
                     assert!(span
                         .value()
@@ -2330,8 +2339,8 @@ mod tests {
     span_description_test!(
         span_description_scrub_only_urllike_on_http_ops,
         "GET https://www.service.io/resources/01234",
-        "db.sql.query",
-        ""
+        "http.client",
+        "GET https://www.service.io/resources/*"
     );
 
     span_description_test!(
@@ -2389,69 +2398,188 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (*) AND id IN (*)"
+        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_dollar,
         "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (*)"
+        "SELECT count() FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_questionmarks,
         "SELECT count() FROM table WHERE id IN (?, ?, ?)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (*)"
+        "SELECT count() FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_unparameterized_ins_uppercase,
         "SELECT count() FROM table WHERE id IN (100, 101, 102)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (*)"
+        "SELECT count() FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_lowercase,
         "select count() from table where id in (100, 101, 102)",
         "db.sql.query",
-        "select count() from table where id in (*)"
+        "select count() from table where id in (%s)"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_uppercase,
         "SAVEPOINT unquoted_identifier",
         "db.sql.query",
-        "SAVEPOINT *"
+        "SAVEPOINT %s"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_uppercase_semicolon,
         "SAVEPOINT unquoted_identifier;",
         "db.sql.query",
-        "SAVEPOINT *;"
+        "SAVEPOINT %s;"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_lowercase,
         "savepoint unquoted_identifier",
         "db.sql.query",
-        "savepoint *"
+        "savepoint %s"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_quoted,
         "SAVEPOINT 'single_quoted_identifier'",
         "db.sql.query",
-        "SAVEPOINT *"
+        "SAVEPOINT %s"
     );
 
     span_description_test!(
         span_description_scrub_savepoint_quoted_backtick,
         "SAVEPOINT `backtick_quoted_identifier`",
         "db.sql.query",
-        "SAVEPOINT *"
+        "SAVEPOINT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string,
+        "SELECT * FROM table WHERE sku = 'foo'",
+        "db.sql.query",
+        "SELECT * FROM table WHERE sku = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string_unfinished,
+        r#"SELECT * FROM table WHERE quote = 'it\\'s a string"#,
+        "db.sql.query",
+        "SELECT * FROM table WHERE quote = %s"
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_postgres,
+        r#"SELECT * from \"table\" WHERE sku = %s"#,
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_mysql,
+        r#"SELECT * from table WHERE sku = \"foo\""#,
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_num_where,
+        "SELECT * FROM table WHERE id = 1",
+        "db.sql.query",
+        "SELECT * FROM table WHERE id = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_limit,
+        "SELECT * FROM table LIMIT 1",
+        "db.sql.query",
+        "SELECT * FROM table LIMIT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_negative_where,
+        "SELECT * FROM table WHERE temperature > -100",
+        "db.sql.query",
+        "SELECT * FROM table WHERE temperature > %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_e_where,
+        "SELECT * FROM table WHERE salary > 1e7",
+        "db.sql.query",
+        "SELECT * FROM table WHERE salary > %s"
+    );
+
+    span_description_test!(
+        span_description_already_scrubbed,
+        "SELECT * FROM table123 WHERE id = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_true,
+        "SELECT * FROM table WHERE deleted = true",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_false,
+        "SELECT * FROM table WHERE deleted = false",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_bool_insensitive,
+        "SELECT * FROM table WHERE deleted = FaLsE",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_true,
+        "SELECT * FROM table_true WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_false,
+        "SELECT * FROM table_false WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_true,
+        "SELECT * FROM tatrueble WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_false,
+        "SELECT * FROM tafalseble WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_nulls,
+        "SELECT * FROM table WHERE deleted_at IS NULL",
+        "db.sql.query",
+        ""
     );
 }
