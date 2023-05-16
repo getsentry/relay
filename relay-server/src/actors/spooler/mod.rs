@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -277,6 +278,7 @@ impl InMemory {
 /// The configuration which describes the on-disk [`BufferState`].
 #[derive(Debug)]
 struct OnDisk {
+    dequeue_attempts: usize,
     db: Pool<Sqlite>,
     buffer_guard: Arc<BufferGuard>,
     max_disk_size: usize,
@@ -380,6 +382,16 @@ impl OnDisk {
         services: &Services,
     ) -> Result<(), QueueKey> {
         loop {
+            // Before querying the db, make sure that the buffer guard has enough availability:
+            self.dequeue_attempts += 1;
+            if self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
+                return Err(key);
+            }
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferDequeueAttempts) = self.dequeue_attempts as u64
+            );
+            self.dequeue_attempts = 0;
+
             // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
@@ -387,7 +399,10 @@ impl OnDisk {
             // to pick up.
             //
             // Right now we use 100 for batch size.
-            let mut envelopes = sql::delete_and_fetch(key, 100).fetch(&self.db).peekable();
+            let batch_size = 100;
+            let mut envelopes = sql::delete_and_fetch(key, batch_size)
+                .fetch(&self.db)
+                .peekable();
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
@@ -445,9 +460,15 @@ impl OnDisk {
                 unused_keys.insert(key);
             };
         }
-        services
-            .project_cache
-            .send(UpdateBufferIndex::new(project_key, unused_keys))
+        if !unused_keys.is_empty() {
+            let project_cache = services.project_cache.clone();
+            tokio::spawn(async move {
+                // Send the message back to `ProjectCache` with a bit of delay, to prevent the DDOS
+                // of our own services.
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                project_cache.send(UpdateBufferIndex::new(project_key, unused_keys))
+            });
+        }
     }
 
     /// Estimates the db size by multiplying `page_count * page_size`.
@@ -590,7 +611,7 @@ impl Default for BufferState {
 }
 
 /// The services, which rely on the state of the envelopes in this buffer.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Services {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
@@ -675,6 +696,7 @@ impl BufferService {
             .map_err(BufferError::SetupFailed)?;
 
         let mut on_disk = OnDisk {
+            dequeue_attempts: 0,
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
@@ -901,12 +923,16 @@ mod tests {
         }
     }
 
-    fn empty_envelope() -> ManagedEnvelope {
+    fn empty_envelope() -> Box<Envelope> {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
-        let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+        Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
+    }
+
+    fn empty_managed_envelope() -> ManagedEnvelope {
+        let envelope = empty_envelope();
         let Services {
             outcome_aggregator,
             test_store,
@@ -951,7 +977,7 @@ mod tests {
 
             addr.send(Enqueue {
                 key,
-                value: empty_envelope(),
+                value: empty_managed_envelope(),
             });
 
             // How long to wait to dequeue the message from the spool.
@@ -970,6 +996,101 @@ mod tests {
 
             assert_eq!((Instant::now() - start_time).as_secs(), result);
         }
+    }
+
+    #[tokio::test]
+    async fn dequeue_waits_for_permits() {
+        relay_test::setup();
+        let num_permits = 3;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let services = services();
+
+        let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
+            .await
+            .unwrap();
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+
+        // Enqueue an envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+
+        // Nothing dequeued yet:
+        assert!(rx.try_recv().is_err());
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // There are enough permits, so get an envelope:
+        let res = rx.try_recv();
+        assert!(res.is_ok(), "{:?}", res);
+        assert_eq!(buffer_guard.available(), 2);
+
+        // Simulate a new envelope coming in via a web request:
+        let new_envelope = buffer_guard
+            .enter(
+                empty_envelope(),
+                services.outcome_aggregator,
+                services.test_store,
+            )
+            .unwrap();
+
+        assert_eq!(buffer_guard.available(), 1);
+
+        // Enqueue & dequeue another envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+        // Request to dequeue:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
+        assert!(rx.try_recv().is_err());
+
+        // Freeing one permit gives us enough capacity:
+        assert_eq!(buffer_guard.available(), 1);
+        drop(new_envelope);
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        assert_eq!(buffer_guard.available(), 2);
+        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
+        assert!(rx.try_recv().is_ok());
     }
 
     #[test]
@@ -1009,7 +1130,7 @@ mod tests {
                     let res = service
                         .handle_enqueue(Enqueue {
                             key,
-                            value: empty_envelope(),
+                            value: empty_managed_envelope(),
                         })
                         .await;
                     if i > 2 {
@@ -1060,9 +1181,11 @@ mod tests {
             "buffer.envelopes_disk_count:3|g",
             "buffer.disk_size:24576|h",
             "buffer.disk_size:24576|h",
+            "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
             "buffer.envelopes_read:-3|c",
             "buffer.envelopes_disk_count:0|g",
+            "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
         ]
         "###);
