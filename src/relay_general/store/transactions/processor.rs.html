@@ -2583,6 +2583,7 @@
 <a href="#2582" id="2582">2582</a>
 <a href="#2583" id="2583">2583</a>
 <a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -2863,17 +2864,18 @@
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
 </span><span class="kw">fn </span>scrub_identifiers(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX)
+    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
 }
 
 <span class="doccomment">/// Normalize the given SQL-query-like string.
 </span><span class="kw">fn </span>scrub_sql_queries(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX)
+    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)
 }
 
 <span class="kw">fn </span>scrub_identifiers_with_regex(
     string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
     pattern: <span class="kw-2">&amp;</span>Lazy&lt;Regex&gt;,
+    replacer: <span class="kw-2">&amp;</span>str,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
     <span class="kw">let </span>capture_names = pattern.capture_names().flatten().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
@@ -2902,11 +2904,11 @@
 
         <span class="comment">// Sort by the capture end position.
         </span>caps.sort_by_key(|(capture, <span class="kw">_</span>)| capture.end());
-        <span class="kw">let </span><span class="kw-2">mut </span>changed = String::with_capacity(trans.len());
+        <span class="kw">let </span><span class="kw-2">mut </span>changed = String::with_capacity(trans.len() + caps.len() * replacer.len());
         <span class="kw">let </span><span class="kw-2">mut </span>last_end = <span class="number">0usize</span>;
         <span class="kw">for </span>(capture, remark) <span class="kw">in </span>caps {
             changed.push_str(<span class="kw-2">&amp;</span>trans[last_end..capture.start()]);
-            changed.push(<span class="string">&#39;*&#39;</span>);
+            changed.push_str(replacer);
             last_end = capture.end();
             meta.add_remark(remark);
         }
@@ -4982,89 +4984,89 @@
         span_description_scrub_various_parameterized_ins_percentage,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (*) AND id IN (*)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_various_parameterized_ins_dollar,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN ($1, $2, $3)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (*)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_various_parameterized_questionmarks,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (?, ?, ?)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (*)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_unparameterized_ins_uppercase,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (100, 101, 102)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (*)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_various_parameterized_ins_lowercase,
         <span class="string">&quot;select count() from table where id in (100, 101, 102)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;select count() from table where id in (*)&quot;
+        <span class="string">&quot;select count() from table where id in (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_savepoint_uppercase,
         <span class="string">&quot;SAVEPOINT unquoted_identifier&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SAVEPOINT *&quot;
+        <span class="string">&quot;SAVEPOINT %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_savepoint_uppercase_semicolon,
         <span class="string">&quot;SAVEPOINT unquoted_identifier;&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SAVEPOINT *;&quot;
+        <span class="string">&quot;SAVEPOINT %s;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_savepoint_lowercase,
         <span class="string">&quot;savepoint unquoted_identifier&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;savepoint *&quot;
+        <span class="string">&quot;savepoint %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_savepoint_quoted,
         <span class="string">&quot;SAVEPOINT &#39;single_quoted_identifier&#39;&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SAVEPOINT *&quot;
+        <span class="string">&quot;SAVEPOINT %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_savepoint_quoted_backtick,
         <span class="string">&quot;SAVEPOINT `backtick_quoted_identifier`&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SAVEPOINT *&quot;
+        <span class="string">&quot;SAVEPOINT %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_single_quoted_string,
         <span class="string">&quot;SELECT * FROM table WHERE sku = &#39;foo&#39;&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE sku = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE sku = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_single_quoted_string_unfinished,
         <span class="string">r#&quot;SELECT * FROM table WHERE quote = &#39;it\\&#39;s a string&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE quote = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE quote = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_dont_scrub_double_quoted_strings_format_postgres,
-        <span class="string">r#&quot;SELECT * from \&quot;table\&quot; WHERE sku = *&quot;#</span>,
+        <span class="string">r#&quot;SELECT * from \&quot;table\&quot; WHERE sku = %s&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
@@ -5080,33 +5082,33 @@
         span_description_scrub_num_where,
         <span class="string">&quot;SELECT * FROM table WHERE id = 1&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE id = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE id = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_num_limit,
         <span class="string">&quot;SELECT * FROM table LIMIT 1&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table LIMIT *&quot;
+        <span class="string">&quot;SELECT * FROM table LIMIT %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_num_negative_where,
         <span class="string">&quot;SELECT * FROM table WHERE temperature &gt; -100&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE temperature &gt; *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE temperature &gt; %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_num_e_where,
         <span class="string">&quot;SELECT * FROM table WHERE salary &gt; 1e7&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE salary &gt; *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE salary &gt; %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_already_scrubbed,
-        <span class="string">&quot;SELECT * FROM table123 WHERE id = *&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table123 WHERE id = %s&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
@@ -5115,47 +5117,47 @@
         span_description_scrub_boolean_where_true,
         <span class="string">&quot;SELECT * FROM table WHERE deleted = true&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE deleted = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE deleted = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_where_false,
         <span class="string">&quot;SELECT * FROM table WHERE deleted = false&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE deleted = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE deleted = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_where_bool_insensitive,
         <span class="string">&quot;SELECT * FROM table WHERE deleted = FaLsE&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table WHERE deleted = *&quot;
+        <span class="string">&quot;SELECT * FROM table WHERE deleted = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_not_in_tablename_true,
-        <span class="string">&quot;SELECT * FROM table_true WHERE deleted = *&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table_true WHERE deleted = %s&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_not_in_tablename_false,
-        <span class="string">&quot;SELECT * FROM table_false WHERE deleted = *&quot;</span>,
+        <span class="string">&quot;SELECT * FROM table_false WHERE deleted = %s&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_not_in_mid_tablename_true,
-        <span class="string">&quot;SELECT * FROM tatrueble WHERE deleted = *&quot;</span>,
+        <span class="string">&quot;SELECT * FROM tatrueble WHERE deleted = %s&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_boolean_not_in_mid_tablename_false,
-        <span class="string">&quot;SELECT * FROM tafalseble WHERE deleted = *&quot;</span>,
+        <span class="string">&quot;SELECT * FROM tafalseble WHERE deleted = %s&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
