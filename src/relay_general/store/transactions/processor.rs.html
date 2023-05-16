@@ -2584,6 +2584,32 @@
 <a href="#2583" id="2583">2583</a>
 <a href="#2584" id="2584">2584</a>
 <a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
+<a href="#2588" id="2588">2588</a>
+<a href="#2589" id="2589">2589</a>
+<a href="#2590" id="2590">2590</a>
+<a href="#2591" id="2591">2591</a>
+<a href="#2592" id="2592">2592</a>
+<a href="#2593" id="2593">2593</a>
+<a href="#2594" id="2594">2594</a>
+<a href="#2595" id="2595">2595</a>
+<a href="#2596" id="2596">2596</a>
+<a href="#2597" id="2597">2597</a>
+<a href="#2598" id="2598">2598</a>
+<a href="#2599" id="2599">2599</a>
+<a href="#2600" id="2600">2600</a>
+<a href="#2601" id="2601">2601</a>
+<a href="#2602" id="2602">2602</a>
+<a href="#2603" id="2603">2603</a>
+<a href="#2604" id="2604">2604</a>
+<a href="#2605" id="2605">2605</a>
+<a href="#2606" id="2606">2606</a>
+<a href="#2607" id="2607">2607</a>
+<a href="#2608" id="2608">2608</a>
+<a href="#2609" id="2609">2609</a>
+<a href="#2610" id="2610">2610</a>
+<a href="#2611" id="2611">2611</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -2596,7 +2622,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
-<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX};
+<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{
+    CACHE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -2872,6 +2900,10 @@
     scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)
 }
 
+<span class="kw">fn </span>scrub_cache_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
+    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>CACHE_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
+}
+
 <span class="kw">fn </span>scrub_identifiers_with_regex(
     string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
     pattern: <span class="kw-2">&amp;</span>Lazy&lt;Regex&gt;,
@@ -3069,6 +3101,12 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(is_db_like) = span.op.value().map(|op| op.starts_with(<span class="string">&quot;db&quot;</span>)) {
         <span class="kw">if </span>is_db_like &amp;&amp; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">? </span>{
+            did_scrub = <span class="bool-val">true</span>;
+        }
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(is_cache_like) = span.op.value().map(|op| op.starts_with(<span class="string">&quot;cache&quot;</span>)) {
+        <span class="kw">if </span>is_cache_like &amp;&amp; scrub_cache_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">? </span>{
             did_scrub = <span class="bool-val">true</span>;
         }
     }
@@ -5166,6 +5204,20 @@
         span_description_dont_scrub_nulls,
         <span class="string">&quot;SELECT * FROM table WHERE deleted_at IS NULL&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_cache,
+        <span class="string">&quot;abc:12:{def}:{34}:{fg56}:EAB38:zookeeper&quot;</span>,
+        <span class="string">&quot;cache.get_item&quot;</span>,
+        <span class="string">&quot;abc:*:*:*:*:*:zookeeper&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_nothing_cache,
+        <span class="string">&quot;abc-dontscrubme-meneither:stillno:ohplsstop&quot;</span>,
+        <span class="string">&quot;cache.get_item&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 }
