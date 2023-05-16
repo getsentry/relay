@@ -2284,6 +2284,8 @@ impl EnvelopeProcessorService {
                     event.contexts = Annotated::new(Contexts::new());
                 }
 
+                // We want to get the specific trace context, or we want to create it in case
+                // it is not there.
                 let context = event.contexts.value_mut().as_mut().map(|context| {
                     context
                         .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()))

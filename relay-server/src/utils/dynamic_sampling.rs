@@ -27,7 +27,7 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    fn from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
+    fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
         match sampling_match {
             Some(SamplingMatch {
                 sample_rate,
@@ -77,16 +77,15 @@ fn check_unsupported_rules(
 /// the sampling configuration.
 fn get_sampling_match_result(
     processing_enabled: bool,
-    project_state: &ProjectState,
+    project_state: Option<&ProjectState>,
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
-    let event = event?;
     // We want to extract the SamplingConfig from each project state.
-    let sampling_config = project_state.config.dynamic_sampling.as_ref()?;
+    let sampling_config = project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
@@ -101,13 +100,29 @@ fn get_sampling_match_result(
     )
 }
 
+/// Checks whether an incoming event should be kept or dropped based only on trace rules, thus
+/// without requiring the configuration of the non-root project.
+///
+/// This method has been duplicated from the `should_keep_event` since it should be used independently
+/// and a clear separation is needed.
 pub fn should_keep_event_with_trace_rules(
     processing_enabled: bool,
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
-    SamplingResult::Keep
+    let sampling_result = get_sampling_match_result(
+        processing_enabled,
+        None,
+        root_project_state,
+        dsc,
+        None,
+        ip_addr,
+        // For consistency reasons we take a snapshot in time and use that time across all code that
+        // requires it.
+        Utc::now(),
+    );
+    SamplingResult::determine_from_sampling_match(sampling_result)
 }
 
 /// Checks whether an incoming event should be kept or dropped based on the result of the sampling
@@ -120,9 +135,9 @@ pub fn should_keep_event(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
-    SamplingResult::from_sampling_match(get_sampling_match_result(
+    let sampling_result = get_sampling_match_result(
         processing_enabled,
-        project_state,
+        Some(project_state),
         root_project_state,
         dsc,
         event,
@@ -130,7 +145,8 @@ pub fn should_keep_event(
         // For consistency reasons we take a snapshot in time and use that time across all code that
         // requires it.
         Utc::now(),
-    ))
+    );
+    SamplingResult::determine_from_sampling_match(sampling_result)
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
