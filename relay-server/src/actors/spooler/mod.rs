@@ -278,6 +278,7 @@ impl InMemory {
 /// The configuration which describes the on-disk [`BufferState`].
 #[derive(Debug)]
 struct OnDisk {
+    attempts: usize,
     db: Pool<Sqlite>,
     buffer_guard: Arc<BufferGuard>,
     max_disk_size: usize,
@@ -384,6 +385,16 @@ impl OnDisk {
         services: &Services,
     ) -> Result<(), QueueKey> {
         loop {
+            // Before querying the db, make sure that the buffer guard has enough availability:
+            self.attempts += 1;
+            if self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
+                return Err(key);
+            }
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferDequeueAttempts) = self.attempts as u64
+            );
+            self.attempts = 0;
+
             // Removing envelopes from the on-disk buffer in batches has following implications:
             // 1. It is faster to delete from the DB in batches.
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
@@ -392,15 +403,6 @@ impl OnDisk {
             //
             // Right now we use 100 for batch size.
             let batch_size = 100;
-
-            // Before querying the db, make sure that the buffer guard has enough availability:
-            let mut attempts = 1;
-            while self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                attempts += 1;
-            }
-            relay_statsd::metric!(histogram(RelayHistograms::BufferDequeueAttempts) = attempts);
-
             let mut envelopes = sql::delete_and_fetch(key, batch_size)
                 .fetch(&self.db)
                 .peekable();
@@ -461,9 +463,15 @@ impl OnDisk {
                 unused_keys.insert(key);
             };
         }
-        services
-            .project_cache
-            .send(UpdateBufferIndex::new(project_key, unused_keys))
+        if !unused_keys.is_empty() {
+            let project_cache = services.project_cache.clone();
+            tokio::spawn(async move {
+                // Send the message back to `ProjectCache` with a bit of delay, to prevent the DDOS
+                // of our own services.
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                project_cache.send(UpdateBufferIndex::new(project_key, unused_keys))
+            });
+        }
     }
 
     /// Estimates the db size by multiplying `page_count * page_size`.
@@ -691,6 +699,7 @@ impl BufferService {
             .map_err(BufferError::SetupFailed)?;
 
         let mut on_disk = OnDisk {
+            attempts: 0,
             db,
             buffer_guard,
             max_disk_size: config.spool_envelopes_max_disk_size(),
@@ -1075,6 +1084,13 @@ mod tests {
         // Freeing one permit gives us enough capacity:
         assert_eq!(buffer_guard.available(), 1);
         drop(new_envelope);
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
         assert_eq!(buffer_guard.available(), 2);
         tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
         assert!(rx.try_recv().is_ok());
