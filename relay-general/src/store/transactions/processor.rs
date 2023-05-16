@@ -2601,4 +2601,11 @@ mod tests {
         "cache.get_item",
         "abc:*:*:*:*:*:zookeeper"
     );
+
+    span_description_test!(
+        span_description_scrub_nothing_cache,
+        "abc-dontscrubme-meneither:stillno:ohplsstop",
+        "cache.get_item",
+        ""
+    );
 }
