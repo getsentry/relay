@@ -208,6 +208,7 @@ def _create_transaction_envelope(
 def _create_error_envelope():
     envelope = Envelope()
     event_id = "abbcea72-abc7-4ac6-93d2-2b8f366e58d7"
+    trace_id = "f26fdb98-68f7-4e10-b9bc-2d2dd9256e53"
     error_event = {
         "event_id": event_id,
         "message": "This is an error.",
@@ -217,6 +218,14 @@ def _create_error_envelope():
         "release": "foo@1.2.3",
     }
     envelope.add_event(error_event)
+    _add_trace_info(
+        envelope,
+        trace_id=trace_id,
+        public_key="abd0f232775f45feab79864e580d160b",
+        client_sample_rate=0.5,
+        transaction="/transaction",
+        release=["1.0"],
+    )
     return envelope, event_id
 
 
@@ -261,8 +270,10 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
 
-    # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    rules = _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    # add a sampling rule to project config that removes all traces of release "1.0"
+    rules = _add_sampling_config(
+        config, sample_rate=0, rule_type="trace", releases=["1.0"]
+    )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, event_id = _create_error_envelope()
