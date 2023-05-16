@@ -2610,6 +2610,28 @@
 <a href="#2609" id="2609">2609</a>
 <a href="#2610" id="2610">2610</a>
 <a href="#2611" id="2611">2611</a>
+<a href="#2612" id="2612">2612</a>
+<a href="#2613" id="2613">2613</a>
+<a href="#2614" id="2614">2614</a>
+<a href="#2615" id="2615">2615</a>
+<a href="#2616" id="2616">2616</a>
+<a href="#2617" id="2617">2617</a>
+<a href="#2618" id="2618">2618</a>
+<a href="#2619" id="2619">2619</a>
+<a href="#2620" id="2620">2620</a>
+<a href="#2621" id="2621">2621</a>
+<a href="#2622" id="2622">2622</a>
+<a href="#2623" id="2623">2623</a>
+<a href="#2624" id="2624">2624</a>
+<a href="#2625" id="2625">2625</a>
+<a href="#2626" id="2626">2626</a>
+<a href="#2627" id="2627">2627</a>
+<a href="#2628" id="2628">2628</a>
+<a href="#2629" id="2629">2629</a>
+<a href="#2630" id="2630">2630</a>
+<a href="#2631" id="2631">2631</a>
+<a href="#2632" id="2632">2632</a>
+<a href="#2633" id="2633">2633</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -2623,7 +2645,8 @@
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::{
-    CACHE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
+    TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
@@ -2904,6 +2927,10 @@
     scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>CACHE_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
 }
 
+<span class="kw">fn </span>scrub_resource_identifiers(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
+    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>RESOURCE_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
+}
+
 <span class="kw">fn </span>scrub_identifiers_with_regex(
     string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
     pattern: <span class="kw-2">&amp;</span>Lazy&lt;Regex&gt;,
@@ -3091,25 +3118,14 @@
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>scrubbed = span.description.clone();
-    <span class="kw">let </span><span class="kw-2">mut </span>did_scrub = <span class="bool-val">false</span>;
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(is_url_like) = span.op.value().map(|op| op.starts_with(<span class="string">&quot;http&quot;</span>)) {
-        <span class="kw">if </span>is_url_like &amp;&amp; scrub_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">? </span>{
-            did_scrub = <span class="bool-val">true</span>;
-        }
-    }
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(is_db_like) = span.op.value().map(|op| op.starts_with(<span class="string">&quot;db&quot;</span>)) {
-        <span class="kw">if </span>is_db_like &amp;&amp; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">? </span>{
-            did_scrub = <span class="bool-val">true</span>;
-        }
-    }
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(is_cache_like) = span.op.value().map(|op| op.starts_with(<span class="string">&quot;cache&quot;</span>)) {
-        <span class="kw">if </span>is_cache_like &amp;&amp; scrub_cache_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">? </span>{
-            did_scrub = <span class="bool-val">true</span>;
-        }
-    }
+    <span class="kw">let </span>did_scrub = <span class="kw">match </span>span.op.value() {
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; scrub_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) =&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) =&gt; scrub_cache_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;resource&quot;</span>) =&gt; scrub_resource_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+    };
 
     <span class="kw">if </span>did_scrub {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(new_desc) = scrubbed.into_value() {
@@ -5218,6 +5234,34 @@
         span_description_scrub_nothing_cache,
         <span class="string">&quot;abc-dontscrubme-meneither:stillno:ohplsstop&quot;</span>,
         <span class="string">&quot;cache.get_item&quot;</span>,
+        <span class="string">&quot;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_resource_script,
+        <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.js-*.map&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_resource_script_numeric_filename,
+        <span class="string">&quot;https://example.com/static/chunks/09876543211234567890&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;https://example.com/static/chunks/*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_resource_css,
+        <span class="string">&quot;https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css&quot;</span>,
+        <span class="string">&quot;resource.css&quot;</span>,
+        <span class="string">&quot;https://example.com/assets/dark_high_contrast-*.css&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_nothing_in_resource,
+        <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js&quot;</span>,
+        <span class="string">&quot;resource.css&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 }
