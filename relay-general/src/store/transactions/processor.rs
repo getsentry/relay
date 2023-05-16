@@ -10,7 +10,9 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
-use crate::store::regexes::{SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX};
+use crate::store::regexes::{
+    CACHE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+};
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -286,6 +288,10 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
     scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
 }
 
+fn scrub_cache_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
+}
+
 fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
@@ -483,6 +489,12 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
     if let Some(is_db_like) = span.op.value().map(|op| op.starts_with("db")) {
         if is_db_like && scrub_sql_queries(&mut scrubbed)? {
+            did_scrub = true;
+        }
+    }
+
+    if let Some(is_cache_like) = span.op.value().map(|op| op.starts_with("cache")) {
+        if is_cache_like && scrub_cache_keys(&mut scrubbed)? {
             did_scrub = true;
         }
     }

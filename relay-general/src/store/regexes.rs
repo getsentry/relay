@@ -75,3 +75,16 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # Don't scrub the first segment.
+        # Capture hex.
+        (([\s.+:/\-])+(?P<hex>[a-fA-F0-9]+\b)+) |
+        # Capture segments, in form of`:{hi}:`
+        (([\s.+:/\-])+(?P<segment>\{[^\}]*\})+)
+    "#,
+    )
+    .unwrap()
+});
