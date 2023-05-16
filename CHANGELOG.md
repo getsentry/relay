@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
 ## 23.5.0
 
 **Bug Fixes**:
@@ -33,7 +39,6 @@
 - Parse profiles' metadata to check if it should be marked as invalid. ([#2104](https://github.com/getsentry/relay/pull/2104))
 - Set release as optional by defaulting to an empty string and add a dist field for profiles. ([#2098](https://github.com/getsentry/relay/pull/2098), [#2107](https://github.com/getsentry/relay/pull/2107))
 - Accept source map debug images in debug meta for Profiling. ([#2097](https://github.com/getsentry/relay/pull/2097))
-- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
 
 ## 23.4.0
 
