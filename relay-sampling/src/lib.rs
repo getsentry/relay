@@ -1112,23 +1112,15 @@ impl SamplingMatch {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
                     _ => false,
                 },
-                RuleType::Transaction => match event_ty {
-                    Some(EventType::Transaction) => match event {
-                        Some(event) => rule.condition.matches(event, ip_addr),
-                        _ => false,
-                    },
+                RuleType::Transaction => event.map_or(false, |event| match event_ty {
+                    Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
-                },
-                RuleType::Error => {
-                    if let Some(EventType::Transaction) = event_ty {
-                        false
-                    } else {
-                        match event {
-                            Some(event) => rule.condition.matches(event, ip_addr),
-                            _ => false,
-                        }
-                    }
-                }
+                }),
+                RuleType::Error => event.map_or(false, |event| match event_ty {
+                    // An error rule matches on all event types that are different from transaction.
+                    Some(EventType::Transaction) => false,
+                    _ => rule.condition.matches(event, ip_addr),
+                }),
                 _ => false,
             };
 

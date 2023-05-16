@@ -233,6 +233,7 @@ mod tests {
                 );
                 map
             },
+            sampled: Annotated::new(false),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
