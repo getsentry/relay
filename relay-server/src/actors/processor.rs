@@ -2670,6 +2670,7 @@ mod tests {
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
+    use crate::utils::Semaphore as TestSemaphore;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
@@ -2861,7 +2862,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     new_envelope(false, "foo"),
-                    Arc::new(Semaphore::new(42)).try_acquire_owned().unwrap(),
+                    TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
                 ),

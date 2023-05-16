@@ -7,14 +7,13 @@ use chrono::{DateTime, Utc};
 use relay_common::DataCategory;
 use relay_quotas::Scoping;
 use relay_system::Addr;
-use tokio::sync::OwnedSemaphorePermit;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::EnvelopeSummary;
+use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
 /// Denotes the success of handling an envelope.
 #[derive(Clone, Copy, Debug)]
@@ -60,7 +59,7 @@ pub enum ItemAction {
 struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
-    slot: Option<OwnedSemaphorePermit>,
+    slot: Option<SemaphorePermit>,
     done: bool,
 }
 
@@ -91,7 +90,7 @@ impl ManagedEnvelope {
     /// Computes a managed envelope from the given envelope.
     fn new_internal(
         envelope: Box<Envelope>,
-        slot: Option<OwnedSemaphorePermit>,
+        slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
@@ -140,7 +139,7 @@ impl ManagedEnvelope {
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(
         envelope: Box<Envelope>,
-        slot: OwnedSemaphorePermit,
+        slot: SemaphorePermit,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
