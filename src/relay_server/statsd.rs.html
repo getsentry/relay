@@ -573,6 +573,12 @@
 <a href="#572" id="572">572</a>
 <a href="#573" id="573">573</a>
 <a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -639,6 +645,11 @@
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
     </span>BufferDiskSize,
+    <span class="doccomment">/// Number of attempts needed to dequeue spooled envelopes from disk.
+    ///
+    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
+    /// always be one.
+    </span>BufferDequeueAttempts,
     <span class="doccomment">/// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -729,6 +740,7 @@
             RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
             RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
             RelayHistograms::BufferDiskSize =&gt; <span class="string">&quot;buffer.disk_size&quot;</span>,
+            RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">&quot;buffer.dequeue_attempts&quot;</span>,
             RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
             RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
