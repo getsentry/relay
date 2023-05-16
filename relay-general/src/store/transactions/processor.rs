@@ -2640,4 +2640,11 @@ mod tests {
         "resource.css",
         "https://example.com/assets/dark_high_contrast-*.css"
     );
+
+    span_description_test!(
+        span_description_scrub_nothing_in_resource,
+        "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
+        "resource.css",
+        ""
+    );
 }
