@@ -65,6 +65,9 @@ pub struct ProjectConfig {
     /// Transaction renaming rules.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
+    /// Whether or not a project is ready to mark all URL transactions as "sanitized".
+    #[serde(skip_serializing_if = "is_false")]
+    pub tx_name_ready: bool,
 }
 
 impl Default for ProjectConfig {
@@ -87,6 +90,7 @@ impl Default for ProjectConfig {
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
             tx_name_rules: Vec::new(),
+            tx_name_ready: false,
         }
     }
 }
@@ -123,4 +127,11 @@ pub struct LimitedProjectConfig {
     pub features: BTreeSet<Feature>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
+    /// Whether or not a project is ready to mark all URL transactions as "sanitized".
+    #[serde(skip_serializing_if = "is_false")]
+    pub tx_name_ready: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
