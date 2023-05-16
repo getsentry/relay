@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
 ## 0.8.22
 
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
