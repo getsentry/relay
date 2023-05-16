@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
 ## 23.5.0
 
 **Bug Fixes**:
