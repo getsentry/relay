@@ -94,10 +94,8 @@ pub enum RuleType {
     Trace,
     /// A transaction rule applies to transactions and it is applied  on the transaction event
     Transaction,
-    /// A non transaction rule applies to Errors, Security events...every type of event that
-    /// is not a Transaction
-    Error,
-
+    // If you add a new `RuleType` that is not supposed to sample transactions, you need to edit the
+    // `sample_envelope` function in `EnvelopeProcessorService`.
     /// If the sampling config contains new rule types, do not sample at all.
     #[serde(other)]
     Unsupported,
@@ -598,8 +596,6 @@ impl SamplingRule {
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
-    /// what type of rule can be applied to this provider
-    fn get_rule_type(&self) -> RuleType;
     /// returns a filtering function for custom operators.
     /// The function returned takes the provider and a condition definition and
     /// returns a match result
@@ -741,15 +737,6 @@ impl FieldValueProvider for Event {
         }
     }
 
-    fn get_rule_type(&self) -> RuleType {
-        if let Some(ty) = self.ty.value() {
-            if *ty == EventType::Transaction {
-                return RuleType::Transaction;
-            }
-        }
-        RuleType::Error
-    }
-
     fn get_custom_operator(
         name: &str,
     ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
@@ -864,10 +851,6 @@ impl FieldValueProvider for DynamicSamplingContext {
         }
     }
 
-    fn get_rule_type(&self) -> RuleType {
-        RuleType::Trace
-    }
-
     fn get_custom_operator(
         _name: &str,
     ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
@@ -977,7 +960,7 @@ pub fn merge_rules_from_configs<'a>(
     let event_rules = sampling_config
         .rules_v2
         .iter()
-        .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+        .filter(|&rule| rule.ty == RuleType::Transaction);
 
     let parent_rules = root_sampling_config
         .into_iter()
@@ -1102,13 +1085,6 @@ impl SamplingMatch {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 },
-                RuleType::Error => {
-                    if let Some(EventType::Transaction) = event.ty.0 {
-                        false
-                    } else {
-                        rule.condition.matches(event, ip_addr)
-                    }
-                }
                 _ => false,
             };
 

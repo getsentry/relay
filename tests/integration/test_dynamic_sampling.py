@@ -8,7 +8,7 @@ import queue
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
     """
-    Creates an transaction item that can be added to an envelope
+    Creates a transaction item that can be added to an envelope
 
     :return: a tuple (transaction_item, trace_id)
     """
@@ -205,11 +205,7 @@ def _create_transaction_envelope(
     return envelope, trace_id, event_id
 
 
-@pytest.mark.parametrize(
-    "rule_type, event_factory",
-    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
-)
-def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
+def test_it_removes_events(mini_sentry, relay):
     """
     Tests that when sampling is set to 0% for the trace context project the events are removed
     """
@@ -221,10 +217,10 @@ def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
+    rules = _add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope, trace_id, event_id = event_factory(public_key)
+    envelope, trace_id, event_id = _create_transaction_envelope(public_key)
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
@@ -239,11 +235,7 @@ def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
 
 
-@pytest.mark.parametrize(
-    "rule_type, event_factory",
-    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
-)
-def test_it_keeps_events(mini_sentry, relay, rule_type, event_factory):
+def test_it_keeps_events(mini_sentry, relay):
     """
     Tests that when sampling is set to 100% for the trace context project the events are kept
     """
@@ -255,10 +247,10 @@ def test_it_keeps_events(mini_sentry, relay, rule_type, event_factory):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that keeps all events (sample_rate=1)
-    _add_sampling_config(config, sample_rate=1, rule_type=rule_type)
+    _add_sampling_config(config, sample_rate=1, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope, trace_id, event_id = event_factory(public_key)
+    envelope, trace_id, event_id = _create_transaction_envelope(public_key)
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
@@ -350,7 +342,6 @@ def test_uses_trace_public_key(mini_sentry, relay):
 @pytest.mark.parametrize(
     "rule_type, event_factory",
     [
-        ("error", _create_event_envelope),
         ("transaction", _create_transaction_envelope),
         ("trace", _create_transaction_envelope),
     ],
@@ -404,7 +395,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 @pytest.mark.parametrize(
     "rule_type, event_factory",
     [
-        ("error", _create_event_envelope),
         ("transaction", _create_transaction_envelope),
         ("trace", _create_transaction_envelope),
     ],
@@ -434,10 +424,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     relay.send_envelope(project_id, envelope)
 
     received_envelope = mini_sentry.captured_events.get(timeout=1)
-    if rule_type == "error":
-        event = received_envelope.get_event()
-    else:
-        event = received_envelope.get_transaction_event()
+    received_envelope.get_transaction_event()
 
     envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
 
@@ -455,7 +442,6 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
 @pytest.mark.parametrize(
     "rule_type, event_factory",
     [
-        ("error", _create_event_envelope),
         ("transaction", _create_transaction_envelope),
         ("trace", _create_transaction_envelope),
     ],
@@ -490,8 +476,4 @@ def test_relay_chain(
     relay.send_envelope(project_id, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
-
-    if rule_type == "error":
-        envelope.get_event()
-    else:
-        envelope.get_transaction_event()
+    envelope.get_transaction_event()
