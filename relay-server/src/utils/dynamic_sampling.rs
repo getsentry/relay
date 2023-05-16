@@ -165,7 +165,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::EventType;
+    use relay_common::{EventType, Uuid};
     use relay_general::protocol::{EventId, LenientString};
     use relay_general::types::Annotated;
     use relay_sampling::{
@@ -192,6 +192,25 @@ mod tests {
             transaction: Annotated::new(transaction.to_string()),
             release: Annotated::new(LenientString(release.to_string())),
             ..Event::default()
+        }
+    }
+
+    fn mocked_simple_dynamic_sampling_context(
+        sample_rate: Option<f64>,
+        release: Option<&str>,
+        transaction: Option<&str>,
+        environment: Option<&str>,
+    ) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            release: release.map(|value| value.to_string()),
+            environment: environment.map(|value| value.to_string()),
+            transaction: transaction.map(|value| value.to_string()),
+            sample_rate,
+            user: Default::default(),
+            other: Default::default(),
+            replay_id: None,
         }
     }
 
@@ -279,5 +298,20 @@ mod tests {
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
         )
+    }
+
+    #[test]
+    /// Tests that an event is kept when there is a trace match and we have 100% sample rate.
+    fn test_should_keep_event_with_traces_rules_return_keep_when_match() {
+        let root_project_state = project_state_with_config(SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
+            mode: SamplingMode::Received,
+        });
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
+
+        let result =
+            should_keep_event_with_trace_rules(true, Some(&root_project_state), None, None);
+        assert_eq!(result, SamplingResult::Keep)
     }
 }

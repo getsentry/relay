@@ -4074,4 +4074,30 @@ mod tests {
             assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
         }
     }
+
+    #[test]
+    /// Tests that match is returned when there are only dsc and root sampling config.
+    fn test_get_sampling_match_result_with_no_event_and_with_dsc() {
+        let now = Utc::now();
+
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
+        let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
+        let result = merge_configs_and_match(
+            true,
+            None,
+            Some(&root_sampling_config),
+            Some(&dsc),
+            None,
+            None,
+            now,
+        );
+        assert_trace_match!(result, 1.0, dsc, 6);
+    }
+
+    #[test]
+    /// Tests that no match is returned when no event and no dsc are passed.
+    fn test_get_sampling_match_result_with_no_event_and_no_dsc() {
+        let result = merge_configs_and_match(true, None, None, None, None, None, Utc::now());
+        assert_no_match!(result);
+    }
 }
