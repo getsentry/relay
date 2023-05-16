@@ -2594,4 +2594,11 @@ mod tests {
         "db.sql.query",
         ""
     );
+
+    span_description_test!(
+        span_description_scrub_cache,
+        "abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
+        "cache.get_item",
+        "abc:*:*:*:*:*:zookeeper"
+    );
 }

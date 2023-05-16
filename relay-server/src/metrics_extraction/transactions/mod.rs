@@ -833,6 +833,16 @@ mod tests {
                         "db.system": "MyDatabase",
                         "db.operation": "SELECT"
                     }
+                },
+                {
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 }
             ],
             "request": {
@@ -1205,6 +1215,38 @@ mod tests {
                     "span.op": "db",
                     "span.status": "ok",
                     "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
