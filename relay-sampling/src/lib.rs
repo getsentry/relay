@@ -913,7 +913,7 @@ impl Default for SamplingMode {
 }
 
 /// Represents a list of rule ids which is used for outcomes.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct MatchedRuleIds(pub Vec<RuleId>);
 
 impl MatchedRuleIds {
@@ -970,7 +970,7 @@ fn check_unsupported_rules(
 ///
 /// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
 /// rules from the root project and concatenate them.
-fn merge_rules_from_configs<'a>(
+pub fn merge_rules_from_configs<'a>(
     sampling_config: &'a SamplingConfig,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> impl Iterator<Item = &'a SamplingRule> {
@@ -1032,7 +1032,7 @@ pub fn merge_configs_and_match(
 }
 
 /// Represents the specification for sampling an incoming event.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SamplingMatch {
     /// The sample rate to use for the incoming event.
     pub sample_rate: f64,

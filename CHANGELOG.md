@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.5.0
 
 **Bug Fixes**:
 
@@ -14,9 +14,11 @@
 - Add support for old 'violated-directive' CSP format. ([#2048](https://github.com/getsentry/relay/pull/2048))
 - Add document_uri to csp filter. ([#2059](https://github.com/getsentry/relay/pull/2059))
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+- Scrub URLs in span descriptions. ([#2095](https://github.com/getsentry/relay/pull/2095))
 
 **Internal**:
 
+- Remove transaction metrics allowlist. ([#2092](https://github.com/getsentry/relay/pull/2092))
 - Include unknown feature flags in project config when serializing it. ([#2040](https://github.com/getsentry/relay/pull/2040))
 - Copy transaction tags to the profile. ([#1982](https://github.com/getsentry/relay/pull/1982))
 - Lower default max compressed replay recording segment size to 10 MiB. ([#2031](https://github.com/getsentry/relay/pull/2031))
@@ -27,6 +29,10 @@
 - Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
 - Adds support for `replay_id` field for the `DynamicSamplingContext`'s `FieldValueProvider`. ([#2070](https://github.com/getsentry/relay/pull/2070))
 - On Linux, switch to `jemalloc` instead of the system memory allocator to reduce Relay's memory footprint. ([#2084](https://github.com/getsentry/relay/pull/2084))
+- Scrub sensitive cookies `__session`. ([#2105](https://github.com/getsentry/relay/pull/2105)))
+- Parse profiles' metadata to check if it should be marked as invalid. ([#2104](https://github.com/getsentry/relay/pull/2104))
+- Set release as optional by defaulting to an empty string and add a dist field for profiles. ([#2098](https://github.com/getsentry/relay/pull/2098), [#2107](https://github.com/getsentry/relay/pull/2107))
+- Accept source map debug images in debug meta for Profiling. ([#2097](https://github.com/getsentry/relay/pull/2097))
 
 ## 23.4.0
 

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_filter::csp::SchemeDomainPort;
@@ -56,6 +57,39 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
     Some(method.clone())
+}
+
+/// Extract the browser name from the [`Context::Browser`] context.
+fn extract_browser_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let browser = contexts.get("browser").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
+        return browser_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the OS name from the [`Context::Os`] context.
+fn extract_os_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let os = contexts.get("os").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Os(os_context))) = os {
+        return os_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the GEO country code from the [`User`] context.
+fn extract_geo_country_code(event: &Event) -> Option<String> {
+    if let Some(user) = event.user.value() {
+        if let Some(geo) = user.geo.value() {
+            return geo.country_code.value().cloned();
+        }
+    }
+
+    None
 }
 
 fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
@@ -186,6 +220,18 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(http_method) = extract_http_method(event) {
         tags.insert(CommonTag::HttpMethod, http_method);
+    }
+
+    if let Some(browser_name) = extract_browser_name(event) {
+        tags.insert(CommonTag::BrowserName, browser_name);
+    }
+
+    if let Some(os_name) = extract_os_name(event) {
+        tags.insert(CommonTag::OsName, os_name);
+    }
+
+    if let Some(geo_country_code) = extract_geo_country_code(event) {
+        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -435,6 +481,18 @@ fn extract_span_metrics(
         if let Some(span) = annotated_span.value() {
             let mut span_tags = shared_tags.clone();
 
+            if let Some(scrubbed_description) = span
+                .data
+                .value()
+                .and_then(|data| data.get("description.scrubbed"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    "span.description".to_owned(),
+                    scrubbed_description.to_owned(),
+                );
+            }
+
             if let Some(span_op) = span.op.value() {
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
@@ -479,8 +537,7 @@ fn extract_span_metrics(
                         Some((_method, url)) => {
                             let url = SchemeDomainPort::from(url);
                             match (url.domain, url.port) {
-                                (Some(domain), Some(port)) => Some(format!("{}:{}", domain, port)),
-                                (Some(domain), None) => Some(domain),
+                                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
                                 _ => None,
                             }
                         }
@@ -541,6 +598,24 @@ fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+    let mut tokens = domain.rsplitn(3, '.');
+    let tld = tokens.next();
+    let domain = tokens.next();
+    let prefix = tokens.next().map(|_| "*");
+
+    let mut replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(".");
+
+    if let Some(port) = port {
+        replaced = format!("{}:{}", replaced, port);
+    }
+    Some(replaced)
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -652,7 +727,10 @@ mod tests {
             "transaction": "mytransaction",
             "transaction_info": {"source": "custom"},
             "user": {
-                "id": "user123"
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
+                }
             },
             "tags": {
                 "fOO": "bar",
@@ -668,6 +746,12 @@ mod tests {
                     "span_id": "bd429c44b67a3eb4",
                     "op": "myop",
                     "status": "ok"
+                },
+                "browser": {
+                    "name": "Chrome"
+                },
+                "os": {
+                    "name": "Windows"
                 }
             },
             "spans": [
@@ -681,7 +765,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    "description": "POST http://targetdomain:targetport/api/hi",
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -695,7 +779,49 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id = %s",
+                    "description": "POST http://targetdomain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SAVEPOINT save_this_one",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -746,6 +872,7 @@ mod tests {
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
+                scrub_span_descriptions: true,
                 ..Default::default()
             },
         );
@@ -775,10 +902,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -793,11 +923,14 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
                     "measurement_rating": "meh",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -812,10 +945,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -830,10 +966,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -848,10 +987,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -894,6 +1036,79 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -912,6 +1127,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -930,6 +1146,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -947,6 +1164,43 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
