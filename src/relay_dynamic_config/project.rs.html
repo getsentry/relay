@@ -125,6 +125,17 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -192,6 +203,9 @@
     <span class="doccomment">/// Transaction renaming rules.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
+    <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    </span><span class="kw">pub </span>tx_name_ready: bool,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>ProjectConfig {
@@ -214,6 +228,7 @@
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
             tx_name_rules: Vec::new(),
+            tx_name_ready: <span class="bool-val">false</span>,
         }
     }
 }
@@ -250,6 +265,13 @@
     </span><span class="kw">pub </span>features: BTreeSet&lt;Feature&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
+    <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    </span><span class="kw">pub </span>tx_name_ready: bool,
+}
+
+<span class="kw">fn </span>is_false(value: <span class="kw-2">&amp;</span>bool) -&gt; bool {
+    !<span class="kw-2">*</span>value
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_dynamic_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
