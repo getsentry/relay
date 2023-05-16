@@ -252,7 +252,7 @@ def test_it_removes_events(mini_sentry, relay):
 
 def test_it_does_not_sample_error(mini_sentry, relay):
     """
-    Tests that when sampling is set to 0% for the trace context project the events are removed
+    Tests that we keep an event if it is of type error.
     """
     project_id = 42
     relay = relay(mini_sentry, _outcomes_enabled_config())
@@ -281,9 +281,9 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     assert evt_id == event_id
 
 
-def test_it_keeps_error_event(mini_sentry, relay):
+def test_it_keeps_events(mini_sentry, relay):
     """
-    Tests that we keep an event if it is of type error.
+    Tests that when sampling is set to 100% for the trace context project the events are kept
     """
     project_id = 42
     relay = relay(mini_sentry, _outcomes_enabled_config())
