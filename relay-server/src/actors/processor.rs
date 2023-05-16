@@ -2293,15 +2293,10 @@ impl EnvelopeProcessorService {
 
                 // We want to mutate the sampled after the "fake" sampling has been performed.
                 if let Some(Trace(boxed_context)) = context {
-                    if let TraceContext {
-                        ref mut sampled, ..
-                    } = **boxed_context
-                    {
-                        *sampled = Annotated::new(match sampling_result {
-                            SamplingResult::Keep => true,
-                            SamplingResult::Drop(_) => false,
-                        });
-                    }
+                    boxed_context.sampled = Annotated::new(match sampling_result {
+                        SamplingResult::Keep => true,
+                        SamplingResult::Drop(_) => false,
+                    });
                 }
             }
             None => {}
@@ -2719,7 +2714,6 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
     use similar_asserts::assert_eq;
-    use tracing::event;
 
     use relay_common::Uuid;
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};

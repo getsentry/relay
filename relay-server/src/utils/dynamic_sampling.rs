@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
 use relay_sampling::{
-    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingConfig, SamplingMatch,
+    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
 };
 
 use crate::actors::project::ProjectState;
@@ -50,27 +50,6 @@ impl SamplingResult {
             }
         }
     }
-}
-
-/// Checks whether unsupported rules result in a direct keep of the event or depending on the
-/// type of Relay an ignore of unsupported rules.
-fn check_unsupported_rules(
-    processing_enabled: bool,
-    sampling_config: &SamplingConfig,
-    root_sampling_config: Option<&SamplingConfig>,
-) -> Option<()> {
-    // When we have unsupported rules disable sampling for non processing relays.
-    if sampling_config.has_unsupported_rules()
-        || root_sampling_config.map_or(false, |config| config.has_unsupported_rules())
-    {
-        if !processing_enabled {
-            return None;
-        } else {
-            relay_log::error!("found unsupported rules even as processing relay");
-        }
-    }
-
-    Some(())
 }
 
 /// Gets the sampling match result by creating the merged configuration and matching it against
@@ -311,7 +290,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
 
         let result =
-            should_keep_event_with_trace_rules(true, Some(&root_project_state), None, None);
+            should_keep_event_with_trace_rules(true, Some(&root_project_state), Some(&dsc), None);
         assert_eq!(result, SamplingResult::Keep)
     }
 }

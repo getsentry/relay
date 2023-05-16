@@ -358,14 +358,14 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     let rules: Vec<SamplingRule> =
-        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+        merge_rules_from_configs(Some(&sampling_config), Some(&root_sampling_config))
             .cloned()
             .collect();
 
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
     let match_result = if let Ok(dsc) = dsc {
-        SamplingMatch::match_against_rules(rules.iter(), event, Some(&dsc), None, Utc::now())
+        SamplingMatch::match_against_rules(rules.iter(), Some(event), Some(&dsc), None, Utc::now())
     } else {
         None
     };
