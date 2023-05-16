@@ -224,7 +224,7 @@ def _create_error_envelope():
         public_key="abd0f232775f45feab79864e580d160b",
         client_sample_rate=0.5,
         transaction="/transaction",
-        release=["1.0"],
+        release="1.0",
     )
     return envelope, event_id
 
