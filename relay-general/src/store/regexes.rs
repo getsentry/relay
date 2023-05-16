@@ -101,7 +101,7 @@ pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// file next to its name.
 ///
 /// Slightly modified Regex from
-/// https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306
+/// <https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306>
 pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
