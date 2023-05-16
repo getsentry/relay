@@ -484,31 +484,14 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
     }
 
     let mut scrubbed = span.description.clone();
-    let mut did_scrub = false;
 
-    if let Some(is_url_like) = span.op.value().map(|op| op.starts_with("http")) {
-        if is_url_like && scrub_identifiers(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
-
-    if let Some(is_db_like) = span.op.value().map(|op| op.starts_with("db")) {
-        if is_db_like && scrub_sql_queries(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
-
-    if let Some(is_cache_like) = span.op.value().map(|op| op.starts_with("cache")) {
-        if is_cache_like && scrub_cache_keys(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
-
-    if let Some(is_resource_like) = span.op.value().map(|op| op.starts_with("resource")) {
-        if is_resource_like && scrub_resource_identifiers(&mut scrubbed)? {
-            did_scrub = true;
-        }
-    }
+    let did_scrub = match span.op.value() {
+        Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
+        Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
+        Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
+        Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
+        _ => false,
+    };
 
     if did_scrub {
         if let Some(new_desc) = scrubbed.into_value() {
