@@ -102,6 +102,10 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
 
 
 def test_readiness_disk_spool(mini_sentry, relay):
+    @mini_sentry.app.endpoint("store_internal_error_event")
+    def store_internal_error_event():
+        return {}
+
     try:
         temp = tempfile.mkdtemp()
         dbfile = os.path.join(temp, "buffer.db")
