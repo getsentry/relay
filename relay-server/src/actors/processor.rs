@@ -2719,7 +2719,9 @@ mod tests {
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    use relay_sampling::{
+        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     use relay_test::mock_service;
 
     use crate::actors::test_store::TestStore;
@@ -3157,10 +3159,29 @@ mod tests {
             item
         });
 
+        // We test the tagging when the incoming dsc matches a 100% rule.
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::standalone(
+                envelope.clone(),
+                outcome_aggregator.clone(),
+                test_store.clone(),
+            ),
             project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
+            sampling_project_state: Some(Arc::new(sampling_project_state)),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3181,6 +3202,47 @@ mod tests {
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
             assert!(context.sampled.value().unwrap())
+        }
+
+        // We test the tagging when the incoming dsc matches a 0% rule.
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 0.0 },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: Some(Arc::new(sampling_project_state)),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        let item = new_envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(!context.sampled.value().unwrap())
         }
     }
 
