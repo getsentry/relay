@@ -842,7 +842,10 @@ mod tests {
                     "start_timestamp": 1597976393.4619668,
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok"
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
+                    }
                 }
             ],
             "request": {
