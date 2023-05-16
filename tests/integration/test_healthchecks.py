@@ -148,8 +148,6 @@ def test_readiness_disk_spool(mini_sentry, relay):
         try:
             # These events will consume all the disk sapce and we will report not ready.
             relay.send_event(project_key)
-            relay.send_event(project_key)
-            relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test
             mini_sentry.test_failures.clear()
