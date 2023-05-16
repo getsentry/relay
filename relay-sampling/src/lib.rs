@@ -3429,17 +3429,15 @@ mod tests {
     /// Tests the merged config of the two configs with rules.
     fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
         assert_rule_ids_eq!(
-            [1, 2, 7],
+            [1, 7],
             merge_root_and_non_root_configs_with(
                 vec![
                     mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(2, RuleType::Error, 0.2),
                     mocked_sampling_rule(3, RuleType::Trace, 0.3),
                     mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
                 ],
                 vec![
                     mocked_sampling_rule(5, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(6, RuleType::Error, 0.5),
                     mocked_sampling_rule(7, RuleType::Trace, 0.6),
                     mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
                 ],
@@ -3458,11 +3456,10 @@ mod tests {
     /// without rules.
     fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
         assert_rule_ids_eq!(
-            [1, 2],
+            [1],
             merge_root_and_non_root_configs_with(
                 vec![
                     mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(2, RuleType::Error, 0.2),
                     mocked_sampling_rule(3, RuleType::Trace, 0.3),
                     mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
                 ],
@@ -3482,7 +3479,6 @@ mod tests {
                 vec![],
                 vec![
                     mocked_sampling_rule(4, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(5, RuleType::Error, 0.5),
                     mocked_sampling_rule(6, RuleType::Trace, 0.6),
                     mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
                 ]
@@ -3725,72 +3721,6 @@ mod tests {
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
-    }
-
-    #[test]
-    /// Tests that a match of a rule of type error with a transaction event results in no match.
-    fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
-
-        let result =
-            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
-        assert_no_match!(result);
-    }
-
-    #[test]
-    /// Tests that a match of a rule of type error with an error event results in a match.
-    fn test_get_sampling_match_result_with_error_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(10),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Error, "transaction", "2.0", "");
-
-        let result =
-            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
-        assert_transaction_match!(result, 0.5, event, 10);
-    }
-
-    #[test]
-    /// Tests that a match of a rule of type default with an error event results in a match.
-    fn test_get_sampling_match_result_with_default_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(10),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Default, "transaction", "2.0", "");
-
-        let result =
-            merge_configs_and_match(true, &sampling_config, None, None, &event, None, Utc::now());
-        assert_transaction_match!(result, 0.5, event, 10);
     }
 
     #[test]

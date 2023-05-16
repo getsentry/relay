@@ -205,6 +205,21 @@ def _create_transaction_envelope(
     return envelope, trace_id, event_id
 
 
+def _create_error_envelope():
+    envelope = Envelope()
+    event_id = "abbcea72-abc7-4ac6-93d2-2b8f366e58d7"
+    error_event = {
+        "event_id": event_id,
+        "message": "This is an error.",
+        "extra": {"msg_text": "This is an error", "id": event_id},
+        "type": "error",
+        "environment": "production",
+        "release": "foo@1.2.3",
+    }
+    envelope.add_event(error_event)
+    return envelope, event_id
+
+
 def test_it_removes_events(mini_sentry, relay):
     """
     Tests that when sampling is set to 0% for the trace context project the events are removed
@@ -235,9 +250,40 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
 
 
-def test_it_keeps_events(mini_sentry, relay):
+def test_it_does_not_sample_error(mini_sentry, relay):
     """
-    Tests that when sampling is set to 100% for the trace context project the events are kept
+    Tests that when sampling is set to 0% for the trace context project the events are removed
+    """
+    project_id = 42
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    # create a basic project config
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # add a sampling rule to project config that removes all transactions (sample_rate=0)
+    rules = _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+
+    # create an envelope with a trace context that is initiated by this project (for simplicity)
+    envelope, event_id = _create_error_envelope()
+
+    # send the event, the transaction should be removed.
+    relay.send_envelope(project_id, envelope)
+    # test that error is kept by Relay
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope is not None
+    # double check that we get back our object
+    # we put the id in extra since Relay overrides the initial event_id
+    items = [item for item in envelope]
+    assert len(items) == 1
+    evt = items[0].payload.json
+    evt_id = evt.setdefault("extra", {}).get("id")
+    assert evt_id == event_id
+
+
+def test_it_keeps_error_event(mini_sentry, relay):
+    """
+    Tests that we keep an event if it is of type error.
     """
     project_id = 42
     relay = relay(mini_sentry, _outcomes_enabled_config())
@@ -371,7 +417,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         envelope = Envelope()
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope, trace_id, event_id = event_factory(public_key)
-        print(envelope)
         envelope.add_item(
             Item(payload=PayloadRef(json={"x": "some attachment"}), type="attachment")
         )
