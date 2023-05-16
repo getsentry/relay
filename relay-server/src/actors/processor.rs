@@ -76,7 +76,9 @@ use crate::utils::{
 /// In 'fn process_measurements' we want to check if a measurement name is too long, to do that we
 /// check with a maximum length provided by the config, but that length represents the entire MRI name,
 /// and in process_measurements we only have access to the name part, and the unit part, so here
-/// we calculate the length of the remainder part. which isn't changing so we only need to do it once.
+/// we calculate the length of the remainder part. which isn't changing so we only need to do it once:
+///
+///     len("d:transactions/measurements.foobar@none") - len("foobar") - len("none") == len("d:transactions/measurements.@")
 static FIXED_MEASUREMENT_LEN: Lazy<isize> = Lazy::new(|| {
     let name = "foobar".to_string();
     let value = 5.0; // Arbitrary value.
