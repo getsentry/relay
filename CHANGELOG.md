@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+
 **Internal**:
 
 - Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
