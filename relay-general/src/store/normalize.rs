@@ -325,7 +325,7 @@ fn remove_invalid_measurements(
             return true;
         }
 
-        meta.add_error(Error::invalid(format!("too many measurements: {}", name)));
+        meta.add_error(Error::invalid(format!("Too many measurements: {}", name)));
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false

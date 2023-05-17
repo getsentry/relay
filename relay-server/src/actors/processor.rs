@@ -3587,7 +3587,9 @@ mod tests {
 
             metric.name.len() - unit.to_string().len() - name.len()
         };
-
-        assert_eq!(hardcoded_value, derived_value);
+        assert_eq!(
+            hardcoded_value, derived_value,
+            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
+        );
     }
 }
