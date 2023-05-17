@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.8.23
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
+## 0.8.22
 
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
 - Scrub URLs in span descriptions. ([#2095](https://github.com/getsentry/relay/pull/2095))
