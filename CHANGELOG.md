@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add filter for healthcheck endpoints. ([#2128](https://github.com/getsentry/relay/pull/2762))
+- Add filter for healthcheck endpoints. ([#2118](https://github.com/getsentry/relay/pull/2118))
 
 **Bug Fixes**:
 
