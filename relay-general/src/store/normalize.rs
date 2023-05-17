@@ -2552,7 +2552,7 @@ mod tests {
                   [
                     "invalid_data",
                     {
-                      "reason": "too many measurements: my_custom_measurement_3",
+                      "reason": "Too many measurements: my_custom_measurement_3",
                     },
                   ],
                 ],
