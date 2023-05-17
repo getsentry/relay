@@ -111,7 +111,7 @@ pub struct TransactionNameRule {
 
 impl TransactionNameRule {
     /// Checks is the current rule matches and tries to apply it.
-    pub fn match_and_apply(
+    pub fn transaction_match_and_apply(
         &self,
         mut transaction: Cow<String>,
         transaction_info: &TransactionInfo,
@@ -120,7 +120,7 @@ impl TransactionNameRule {
         if !slash_is_present {
             transaction.to_mut().push('/');
         }
-        let is_matched = self.matches(&transaction, transaction_info);
+        let is_matched = self.matches_transaction(&transaction, transaction_info);
 
         if is_matched {
             let mut result = self.apply(&transaction);
@@ -133,10 +133,28 @@ impl TransactionNameRule {
         }
     }
 
+    pub fn match_and_apply(&self, mut string: Cow<String>) -> Option<String> {
+        let slash_is_present = string.ends_with('/');
+        if !slash_is_present {
+            string.to_mut().push('/');
+        }
+        let is_matched = self.matches(&string);
+
+        if is_matched {
+            let mut result = self.apply(&string);
+            if !slash_is_present {
+                result.pop();
+            }
+            Some(result)
+        } else {
+            None
+        }
+    }
+
     /// Applies the rule to the provided value.
     ///
     /// Note: currently only `url` source for rules supported.
-    pub fn apply(&self, value: &str) -> String {
+    fn apply(&self, value: &str) -> String {
         match &self.redaction {
             RedactionRule::Replace { substitution } => self
                 .pattern
@@ -149,16 +167,21 @@ impl TransactionNameRule {
         }
     }
 
-    /// Returns `true` if the current rule pattern matches transaction, expected transaction
-    /// source, and not expired yet.
-    pub fn matches(&self, transaction: &str, info: &TransactionInfo) -> bool {
-        let now = Utc::now();
+    /// Returns `true` if the transaction info has a matching transaction source and
+    /// the transaction name matches the rule (see
+    /// [`TransactionNameRule::matches`]).
+    fn matches_transaction(&self, transaction: &str, info: &TransactionInfo) -> bool {
         info.source
             .value()
             .map(|s| s == &self.scope.source)
             .unwrap_or_default()
-            && self.expiry > now
-            && self.pattern.compiled().is_match(transaction)
+            && self.matches(transaction)
+    }
+
+    /// Returns `true` if the rule isn't expired yet and its pattern matches the given string.
+    fn matches(&self, string: &str) -> bool {
+        let now = Utc::now();
+        self.expiry > now && self.pattern.compiled().is_match(string)
     }
 }
 
