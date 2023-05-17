@@ -24,6 +24,8 @@
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common functionality for the sentry relay.
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -36,6 +38,7 @@
 
 <span class="kw">mod </span>constants;
 <span class="kw">mod </span>glob;
+<span class="kw">mod </span>metrics;
 <span class="kw">mod </span>project;
 <span class="kw">mod </span>time;
 
@@ -47,6 +50,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::constants::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::glob::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::macros::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::metrics::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::project::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::time::<span class="kw-2">*</span>;
 </code></pre></div>

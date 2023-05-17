@@ -3546,6 +3546,54 @@
 <a href="#3545" id="3545">3545</a>
 <a href="#3546" id="3546">3546</a>
 <a href="#3547" id="3547">3547</a>
+<a href="#3548" id="3548">3548</a>
+<a href="#3549" id="3549">3549</a>
+<a href="#3550" id="3550">3550</a>
+<a href="#3551" id="3551">3551</a>
+<a href="#3552" id="3552">3552</a>
+<a href="#3553" id="3553">3553</a>
+<a href="#3554" id="3554">3554</a>
+<a href="#3555" id="3555">3555</a>
+<a href="#3556" id="3556">3556</a>
+<a href="#3557" id="3557">3557</a>
+<a href="#3558" id="3558">3558</a>
+<a href="#3559" id="3559">3559</a>
+<a href="#3560" id="3560">3560</a>
+<a href="#3561" id="3561">3561</a>
+<a href="#3562" id="3562">3562</a>
+<a href="#3563" id="3563">3563</a>
+<a href="#3564" id="3564">3564</a>
+<a href="#3565" id="3565">3565</a>
+<a href="#3566" id="3566">3566</a>
+<a href="#3567" id="3567">3567</a>
+<a href="#3568" id="3568">3568</a>
+<a href="#3569" id="3569">3569</a>
+<a href="#3570" id="3570">3570</a>
+<a href="#3571" id="3571">3571</a>
+<a href="#3572" id="3572">3572</a>
+<a href="#3573" id="3573">3573</a>
+<a href="#3574" id="3574">3574</a>
+<a href="#3575" id="3575">3575</a>
+<a href="#3576" id="3576">3576</a>
+<a href="#3577" id="3577">3577</a>
+<a href="#3578" id="3578">3578</a>
+<a href="#3579" id="3579">3579</a>
+<a href="#3580" id="3580">3580</a>
+<a href="#3581" id="3581">3581</a>
+<a href="#3582" id="3582">3582</a>
+<a href="#3583" id="3583">3583</a>
+<a href="#3584" id="3584">3584</a>
+<a href="#3585" id="3585">3585</a>
+<a href="#3586" id="3586">3586</a>
+<a href="#3587" id="3587">3587</a>
+<a href="#3588" id="3588">3588</a>
+<a href="#3589" id="3589">3589</a>
+<a href="#3590" id="3590">3590</a>
+<a href="#3591" id="3591">3591</a>
+<a href="#3592" id="3592">3592</a>
+<a href="#3593" id="3593">3593</a>
+<a href="#3594" id="3594">3594</a>
+<a href="#3595" id="3595">3595</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3572,7 +3620,9 @@
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
-<span class="kw">use </span>relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
+<span class="kw">use </span>relay_general::store::{
+    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+};
 <span class="kw">use </span>relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
 <span class="kw">use </span>relay_log::LogError;
@@ -5829,6 +5879,12 @@
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.config.max_secs_in_future()),
+                max_name_and_unit_len: <span class="prelude-val">Some</span>(
+                    <span class="self">self</span>.config
+                        .aggregator_config()
+                        .max_name_length
+                        .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+                ),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
@@ -6210,9 +6266,12 @@
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
 
+    <span class="kw">use </span>relay_common::{DurationUnit, MetricUnit};
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::{EventId, TransactionSource};
-    <span class="kw">use </span>relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
+    <span class="kw">use </span>relay_general::store::{
+        LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
+    };
     <span class="kw">use </span>relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>similar_asserts::assert_eq;
@@ -6220,6 +6279,10 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{new_envelope, state_with_rule_and_condition};
     <span class="kw">use </span><span class="kw">crate</span>::utils::Semaphore <span class="kw">as </span>TestSemaphore;
 
@@ -7091,6 +7154,39 @@
             .build()
             .unwrap()
             .block_on(future);
+    }
+
+    <span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
+    /// cannot be called from relay-general.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_mri_overhead_constant() {
+        <span class="kw">let </span>hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
+
+        <span class="kw">let </span>derived_value = {
+            <span class="kw">let </span>name = <span class="string">&quot;foobar&quot;</span>.to_string();
+            <span class="kw">let </span>value = <span class="number">5.0</span>; <span class="comment">// Arbitrary value.
+            </span><span class="kw">let </span>unit = MetricUnit::Duration(DurationUnit::default());
+            <span class="kw">let </span>tags = TransactionMeasurementTags {
+                measurement_rating: <span class="prelude-val">None</span>,
+                universal_tags: CommonTags(BTreeMap::new()),
+            };
+
+            <span class="kw">let </span>measurement = TransactionMetric::Measurement {
+                name: name.clone(),
+                value,
+                unit,
+                tags,
+            };
+
+            <span class="kw">let </span>metric: Metric = measurement.into_metric(UnixTimestamp::now());
+
+            metric.name.len() - unit.to_string().len() - name.len()
+        };
+        <span class="macro">assert_eq!</span>(
+            hardcoded_value, derived_value,
+            <span class="string">&quot;Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed.&quot;
+        </span>);
     }
 }
 </code></pre></div>

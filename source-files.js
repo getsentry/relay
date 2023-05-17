@@ -6,7 +6,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_auth":["",[],["lib.rs"]],\
 "relay_aws_extension":["",[],["aws_extension.rs","lib.rs"]],\
 "relay_cabi":["",[],["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]],\
-"relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","time.rs"]],\
+"relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","metrics.rs","project.rs","time.rs"]],\
 "relay_config":["",[],["byte_size.rs","config.rs","lib.rs","upstream.rs"]],\
 "relay_crash":["",[],["lib.rs"]],\
 "relay_dynamic_config":["",[],["error_boundary.rs","feature.rs","lib.rs","metrics.rs","project.rs","utils.rs"]],\
