@@ -55,6 +55,69 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Slightly modified from
 /// <https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132>
+/// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
+/// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
 pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)(IN \((?P<in>(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\))"#).unwrap()
+    Regex::new(
+        r#"(?xi)
+    # Capture parameters in `IN` statements.
+    ((?-x)IN \((?P<in>(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\)) |
+    # Capture `SAVEPOINT` savepoints.
+    ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+    # Capture single-quoted strings, including the remaining substring if `\'` is found.
+    ((?-x)(?P<single_quoted_strs>('(?:[^']|'')*?(?:\\'.*|[^']')))) |
+    # Don't capture double-quoted strings (eg used for identifiers in PostgreSQL).
+    # Capture numbers.
+    ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
+    # Capture booleans (as full tokens, not as substrings of other tokens).
+    ((?-x)(?P<bool>(\b(?:true|false)\b)))
+    "#,
+    )
+    .unwrap()
+});
+
+/// Regex with multiple capture groups for cache tokens we should scrub.
+///
+/// The regex attempts to identify all tokens based on hex chars and segments,
+/// excluding the first token. A segment is a string inside curly braces after a
+/// separator, for example `notsegment:{segment}:notsegment`.
+pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # Don't scrub the first segment.
+        # Capture hex.
+        (([\s.+:/\-])+(?P<hex>[a-fA-F0-9]+\b)+) |
+        # Capture segments, in form of`:{hi}:`
+        (([\s.+:/\-])+(?P<segment>\{[^\}]*\})+)
+    "#,
+    )
+    .unwrap()
+});
+
+/// Regex with multiple capture groups for resource tokens we should scrub.
+///
+/// Resource tokens are the tokens that exist in resource spans that generate
+/// high cardinality or are noise for the product. For example, the hash of the
+/// file next to its name.
+///
+/// Slightly modified Regex from
+/// <https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306>
+pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # UUIDs.
+        (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Chunks and chunk numbers.
+        (?P<chunk>(?:[0-9]+\.)?[a-f0-9]{8}\.chunk) |
+        # Trailing hashes before final extension.
+        ([-.](?P<trailing_hash>(?:[a-f0-9]{8,64}\.?)+)\.([a-z0-9]{2,6})$) |
+        # Versions in the path or filename.
+        (?P<version>(v[0-9]+(?:\.[0-9]+)*)) |
+        # Larger hex-like hashes (avoid false negatives from above).
+        (?P<large_hash>[a-f0-9]{16,64}) |
+        # Only numbers (for file names that are just numbers).
+        (?P<only_numbers>/[0-9]+(\.[a-z0-9]{2,6})$)
+        "#,
+    )
+    .unwrap()
 });

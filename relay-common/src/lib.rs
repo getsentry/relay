@@ -10,6 +10,7 @@ mod macros;
 
 mod constants;
 mod glob;
+mod metrics;
 mod project;
 mod time;
 
@@ -21,5 +22,6 @@ pub use uuid::Uuid;
 pub use crate::constants::*;
 pub use crate::glob::*;
 pub use crate::macros::*;
+pub use crate::metrics::*;
 pub use crate::project::*;
 pub use crate::time::*;
