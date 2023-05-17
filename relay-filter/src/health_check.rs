@@ -1,6 +1,6 @@
 //! Implements event filtering based on whether the endpoint called is a healthcheck endpoint.
 //!
-//! If this filter is enabled messages to healthcheck endpoints will be filtered out.
+//! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -24,12 +24,12 @@ static HEALTH_CHECK_ENDPOINTS: Lazy<Regex> = Lazy::new(|| {
 });
 
 fn matches(event: &Event) -> bool {
-    _event.transaction.value().map_or(false, |transaction| {
+    event.transaction.value().map_or(false, |transaction| {
         HEALTH_CHECK_ENDPOINTS.is_match(transaction)
     })
 }
 
-/// Filters events for calls to healthcheck endpoints
+/// Filters transaction events for calls to healthcheck endpoints
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
