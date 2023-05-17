@@ -128,7 +128,7 @@ pub enum FilterStatKey {
     /// Filtered due to invalid CSP policy.
     InvalidCsp,
 
-    /// Filtered due to the fact that is was a call to a health-check endpoint
+    /// Filtered due to the fact that it was a call to a health-check endpoint
     HealthCheck,
 }
 
