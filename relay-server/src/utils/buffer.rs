@@ -46,17 +46,23 @@ impl BufferGuard {
         }
     }
 
+    /// Returns the current usage of `BufferGuard` permits.
+    #[inline]
+    fn usage(&self) -> f64 {
+        self.used() as f64 / self.capacity() as f64
+    }
+
     /// Returns `true` if the `BufferGuard` exhausted more permits then defined in
     /// `high_watermark`.
     #[inline]
     pub fn is_over_high_watermark(&self) -> bool {
-        self.used() as f64 / self.capacity() as f64 >= self.high_watermark
+        self.usage() >= self.high_watermark
     }
 
     /// Returns `true` if the `BufferGuard` number of permits is still under the `low_watermark`.
     #[inline]
     pub fn is_below_low_watermark(&self) -> bool {
-        self.used() as f64 / self.capacity() as f64 <= self.low_watermark
+        self.usage() <= self.low_watermark
     }
 
     /// Returns the total capacity of the pipeline.

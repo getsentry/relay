@@ -742,20 +742,16 @@ impl ProjectCacheBroker {
                 .filter(|st| !st.invalid())
         });
 
-        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
-
-        // If the more than 80% of capacity is exhausted, we immediately spool.
-        if self.buffer_guard.is_over_high_watermark() {
-            self.enqueue(key, context);
-            return;
-        }
-
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
-        if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
+        if project_state.is_some()
+            && (sampling_state.is_some() || sampling_key.is_none())
+            && !self.buffer_guard.is_over_high_watermark()
+        {
             return self.handle_processing(context);
         }
 
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.enqueue(key, context);
     }
 
