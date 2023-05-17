@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -384,7 +383,7 @@ impl OnDisk {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
-            if self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
+            if !self.buffer_guard.is_below_low_watermark() {
                 return Err(key);
             }
             relay_statsd::metric!(
@@ -461,13 +460,9 @@ impl OnDisk {
             };
         }
         if !unused_keys.is_empty() {
-            let project_cache = services.project_cache.clone();
-            tokio::spawn(async move {
-                // Send the message back to `ProjectCache` with a bit of delay, to prevent the DDOS
-                // of our own services.
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                project_cache.send(UpdateBufferIndex::new(project_key, unused_keys))
-            });
+            services
+                .project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
     }
 
@@ -583,7 +578,9 @@ impl BufferState {
     /// underlying spool.
     async fn transition(self, config: &Arc<Config>) -> Self {
         match self {
-            Self::MemoryFileStandby { ram, mut disk } if ram.is_full() => {
+            Self::MemoryFileStandby { ram, mut disk }
+                if ram.is_full() || disk.buffer_guard.is_over_high_watermark() =>
+            {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",
@@ -904,10 +901,9 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
-    use relay_general::protocol::EventId;
     use relay_test::mock_service;
 
-    use crate::extractors::RequestMeta;
+    use crate::testutils::empty_envelope;
 
     use super::*;
 
@@ -921,14 +917,6 @@ mod tests {
             outcome_aggregator,
             test_store,
         }
-    }
-
-    fn empty_envelope() -> Box<Envelope> {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
     }
 
     fn empty_managed_envelope() -> ManagedEnvelope {

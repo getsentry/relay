@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
 - Add filter for healthcheck endpoints. ([#2128](https://github.com/getsentry/relay/pull/2762))
+
+**Bug Fixes**:
+
+- Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
 
 **Internal**:
 
