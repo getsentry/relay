@@ -383,7 +383,7 @@ impl OnDisk {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
-            if self.buffer_guard.used() > self.buffer_guard.capacity() / 2 {
+            if !self.buffer_guard.is_below_low_watermark() {
                 return Err(key);
             }
             relay_statsd::metric!(
@@ -578,7 +578,9 @@ impl BufferState {
     /// underlying spool.
     async fn transition(self, config: &Arc<Config>) -> Self {
         match self {
-            Self::MemoryFileStandby { ram, mut disk } if ram.is_full() => {
+            Self::MemoryFileStandby { ram, mut disk }
+                if ram.is_full() || disk.buffer_guard.is_over_high_watermark() =>
+            {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
                         "failed to spool the in-memory buffer to disk: {}",

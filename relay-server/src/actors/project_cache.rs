@@ -745,7 +745,7 @@ impl ProjectCacheBroker {
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
 
         // If the more than 80% of capacity is exhausted, we immediately spool.
-        if self.buffer_guard.used() as f64 / self.buffer_guard.capacity() as f64 >= 0.8 {
+        if self.buffer_guard.is_over_high_watermark() {
             self.enqueue(key, context);
             return;
         }
