@@ -3864,100 +3864,6 @@
 <a href="#3863" id="3863">3863</a>
 <a href="#3864" id="3864">3864</a>
 <a href="#3865" id="3865">3865</a>
-<a href="#3866" id="3866">3866</a>
-<a href="#3867" id="3867">3867</a>
-<a href="#3868" id="3868">3868</a>
-<a href="#3869" id="3869">3869</a>
-<a href="#3870" id="3870">3870</a>
-<a href="#3871" id="3871">3871</a>
-<a href="#3872" id="3872">3872</a>
-<a href="#3873" id="3873">3873</a>
-<a href="#3874" id="3874">3874</a>
-<a href="#3875" id="3875">3875</a>
-<a href="#3876" id="3876">3876</a>
-<a href="#3877" id="3877">3877</a>
-<a href="#3878" id="3878">3878</a>
-<a href="#3879" id="3879">3879</a>
-<a href="#3880" id="3880">3880</a>
-<a href="#3881" id="3881">3881</a>
-<a href="#3882" id="3882">3882</a>
-<a href="#3883" id="3883">3883</a>
-<a href="#3884" id="3884">3884</a>
-<a href="#3885" id="3885">3885</a>
-<a href="#3886" id="3886">3886</a>
-<a href="#3887" id="3887">3887</a>
-<a href="#3888" id="3888">3888</a>
-<a href="#3889" id="3889">3889</a>
-<a href="#3890" id="3890">3890</a>
-<a href="#3891" id="3891">3891</a>
-<a href="#3892" id="3892">3892</a>
-<a href="#3893" id="3893">3893</a>
-<a href="#3894" id="3894">3894</a>
-<a href="#3895" id="3895">3895</a>
-<a href="#3896" id="3896">3896</a>
-<a href="#3897" id="3897">3897</a>
-<a href="#3898" id="3898">3898</a>
-<a href="#3899" id="3899">3899</a>
-<a href="#3900" id="3900">3900</a>
-<a href="#3901" id="3901">3901</a>
-<a href="#3902" id="3902">3902</a>
-<a href="#3903" id="3903">3903</a>
-<a href="#3904" id="3904">3904</a>
-<a href="#3905" id="3905">3905</a>
-<a href="#3906" id="3906">3906</a>
-<a href="#3907" id="3907">3907</a>
-<a href="#3908" id="3908">3908</a>
-<a href="#3909" id="3909">3909</a>
-<a href="#3910" id="3910">3910</a>
-<a href="#3911" id="3911">3911</a>
-<a href="#3912" id="3912">3912</a>
-<a href="#3913" id="3913">3913</a>
-<a href="#3914" id="3914">3914</a>
-<a href="#3915" id="3915">3915</a>
-<a href="#3916" id="3916">3916</a>
-<a href="#3917" id="3917">3917</a>
-<a href="#3918" id="3918">3918</a>
-<a href="#3919" id="3919">3919</a>
-<a href="#3920" id="3920">3920</a>
-<a href="#3921" id="3921">3921</a>
-<a href="#3922" id="3922">3922</a>
-<a href="#3923" id="3923">3923</a>
-<a href="#3924" id="3924">3924</a>
-<a href="#3925" id="3925">3925</a>
-<a href="#3926" id="3926">3926</a>
-<a href="#3927" id="3927">3927</a>
-<a href="#3928" id="3928">3928</a>
-<a href="#3929" id="3929">3929</a>
-<a href="#3930" id="3930">3930</a>
-<a href="#3931" id="3931">3931</a>
-<a href="#3932" id="3932">3932</a>
-<a href="#3933" id="3933">3933</a>
-<a href="#3934" id="3934">3934</a>
-<a href="#3935" id="3935">3935</a>
-<a href="#3936" id="3936">3936</a>
-<a href="#3937" id="3937">3937</a>
-<a href="#3938" id="3938">3938</a>
-<a href="#3939" id="3939">3939</a>
-<a href="#3940" id="3940">3940</a>
-<a href="#3941" id="3941">3941</a>
-<a href="#3942" id="3942">3942</a>
-<a href="#3943" id="3943">3943</a>
-<a href="#3944" id="3944">3944</a>
-<a href="#3945" id="3945">3945</a>
-<a href="#3946" id="3946">3946</a>
-<a href="#3947" id="3947">3947</a>
-<a href="#3948" id="3948">3948</a>
-<a href="#3949" id="3949">3949</a>
-<a href="#3950" id="3950">3950</a>
-<a href="#3951" id="3951">3951</a>
-<a href="#3952" id="3952">3952</a>
-<a href="#3953" id="3953">3953</a>
-<a href="#3954" id="3954">3954</a>
-<a href="#3955" id="3955">3955</a>
-<a href="#3956" id="3956">3956</a>
-<a href="#3957" id="3957">3957</a>
-<a href="#3958" id="3958">3958</a>
-<a href="#3959" id="3959">3959</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -4054,11 +3960,9 @@
     </span>Trace,
     <span class="doccomment">/// A transaction rule applies to transactions and it is applied  on the transaction event
     </span>Transaction,
-    <span class="doccomment">/// A non transaction rule applies to Errors, Security events...every type of event that
-    /// is not a Transaction
-    </span>Error,
-
-    <span class="doccomment">/// If the sampling config contains new rule types, do not sample at all.
+    <span class="comment">// If you add a new `RuleType` that is not supposed to sample transactions, you need to edit the
+    // `sample_envelope` function in `EnvelopeProcessorService`.
+    </span><span class="doccomment">/// If the sampling config contains new rule types, do not sample at all.
     </span><span class="attr">#[serde(other)]
     </span>Unsupported,
 }
@@ -4558,8 +4462,6 @@
 </span><span class="kw">pub trait </span>FieldValueProvider {
     <span class="doccomment">/// gets the value of a field
     </span><span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; Value;
-    <span class="doccomment">/// what type of rule can be applied to this provider
-    </span><span class="kw">fn </span>get_rule_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RuleType;
     <span class="doccomment">/// returns a filtering function for custom operators.
     /// The function returned takes the provider and a condition definition and
     /// returns a match result
@@ -4701,15 +4603,6 @@
         }
     }
 
-    <span class="kw">fn </span>get_rule_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RuleType {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = <span class="self">self</span>.ty.value() {
-            <span class="kw">if </span><span class="kw-2">*</span>ty == EventType::Transaction {
-                <span class="kw">return </span>RuleType::Transaction;
-            }
-        }
-        RuleType::Error
-    }
-
     <span class="kw">fn </span>get_custom_operator(
         name: <span class="kw-2">&amp;</span>str,
     ) -&gt; <span class="kw">fn</span>(condition: <span class="kw-2">&amp;</span>CustomCondition, slf: <span class="kw-2">&amp;</span><span class="self">Self</span>, ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;) -&gt; bool {
@@ -4824,10 +4717,6 @@
         }
     }
 
-    <span class="kw">fn </span>get_rule_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RuleType {
-        RuleType::Trace
-    }
-
     <span class="kw">fn </span>get_custom_operator(
         _name: <span class="kw-2">&amp;</span>str,
     ) -&gt; <span class="kw">fn</span>(condition: <span class="kw-2">&amp;</span>CustomCondition, slf: <span class="kw-2">&amp;</span><span class="self">Self</span>, ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;) -&gt; bool {
@@ -4937,7 +4826,7 @@
     <span class="kw">let </span>event_rules = sampling_config
         .rules_v2
         .iter()
-        .filter(|<span class="kw-2">&amp;</span>rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+        .filter(|<span class="kw-2">&amp;</span>rule| rule.ty == RuleType::Transaction);
 
     <span class="kw">let </span>parent_rules = root_sampling_config
         .into_iter()
@@ -5062,13 +4951,6 @@
                     <span class="prelude-val">Some</span>(EventType::Transaction) =&gt; rule.condition.matches(event, ip_addr),
                     <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
                 },
-                RuleType::Error =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(EventType::Transaction) = event.ty.<span class="number">0 </span>{
-                        <span class="bool-val">false
-                    </span>} <span class="kw">else </span>{
-                        rule.condition.matches(event, ip_addr)
-                    }
-                }
                 <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
             };
 
@@ -7413,17 +7295,15 @@
     </span><span class="doccomment">/// Tests the merged config of the two configs with rules.
     </span><span class="kw">fn </span>test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
         <span class="macro">assert_rule_ids_eq!</span>(
-            [<span class="number">1</span>, <span class="number">2</span>, <span class="number">7</span>],
+            [<span class="number">1</span>, <span class="number">7</span>],
             merge_root_and_non_root_configs_with(
                 <span class="macro">vec!</span>[
                     mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.1</span>),
-                    mocked_sampling_rule(<span class="number">2</span>, RuleType::Error, <span class="number">0.2</span>),
                     mocked_sampling_rule(<span class="number">3</span>, RuleType::Trace, <span class="number">0.3</span>),
                     mocked_sampling_rule(<span class="number">4</span>, RuleType::Unsupported, <span class="number">0.1</span>),
                 ],
                 <span class="macro">vec!</span>[
                     mocked_sampling_rule(<span class="number">5</span>, RuleType::Transaction, <span class="number">0.4</span>),
-                    mocked_sampling_rule(<span class="number">6</span>, RuleType::Error, <span class="number">0.5</span>),
                     mocked_sampling_rule(<span class="number">7</span>, RuleType::Trace, <span class="number">0.6</span>),
                     mocked_sampling_rule(<span class="number">8</span>, RuleType::Unsupported, <span class="number">0.1</span>),
                 ],
@@ -7442,11 +7322,10 @@
     /// without rules.
     </span><span class="kw">fn </span>test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
         <span class="macro">assert_rule_ids_eq!</span>(
-            [<span class="number">1</span>, <span class="number">2</span>],
+            [<span class="number">1</span>],
             merge_root_and_non_root_configs_with(
                 <span class="macro">vec!</span>[
                     mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.1</span>),
-                    mocked_sampling_rule(<span class="number">2</span>, RuleType::Error, <span class="number">0.2</span>),
                     mocked_sampling_rule(<span class="number">3</span>, RuleType::Trace, <span class="number">0.3</span>),
                     mocked_sampling_rule(<span class="number">4</span>, RuleType::Unsupported, <span class="number">0.1</span>),
                 ],
@@ -7466,7 +7345,6 @@
                 <span class="macro">vec!</span>[],
                 <span class="macro">vec!</span>[
                     mocked_sampling_rule(<span class="number">4</span>, RuleType::Transaction, <span class="number">0.4</span>),
-                    mocked_sampling_rule(<span class="number">5</span>, RuleType::Error, <span class="number">0.5</span>),
                     mocked_sampling_rule(<span class="number">6</span>, RuleType::Trace, <span class="number">0.6</span>),
                     mocked_sampling_rule(<span class="number">7</span>, RuleType::Unsupported, <span class="number">0.1</span>),
                 ]
@@ -7709,72 +7587,6 @@
             Utc::now(),
         );
         <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.1</span>, event, <span class="number">1</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests that a match of a rule of type error with a transaction event results in no match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_transaction_event_and_error_rule() {
-        <span class="kw">let </span><span class="kw-2">mut </span>sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            <span class="kw-2">&amp;mut </span>sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
-                ty: RuleType::Error,
-                id: RuleId(<span class="number">1</span>),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>, <span class="string">&quot;&quot;</span>);
-
-        <span class="kw">let </span>result =
-            merge_configs_and_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>sampling_config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>event, <span class="prelude-val">None</span>, Utc::now());
-        <span class="macro">assert_no_match!</span>(result);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests that a match of a rule of type error with an error event results in a match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_error_event_and_error_rule() {
-        <span class="kw">let </span><span class="kw-2">mut </span>sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            <span class="kw-2">&amp;mut </span>sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
-                ty: RuleType::Error,
-                id: RuleId(<span class="number">10</span>),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        <span class="kw">let </span>event = mocked_event(EventType::Error, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>, <span class="string">&quot;&quot;</span>);
-
-        <span class="kw">let </span>result =
-            merge_configs_and_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>sampling_config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>event, <span class="prelude-val">None</span>, Utc::now());
-        <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.5</span>, event, <span class="number">10</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests that a match of a rule of type default with an error event results in a match.
-    </span><span class="kw">fn </span>test_get_sampling_match_result_with_default_event_and_error_rule() {
-        <span class="kw">let </span><span class="kw-2">mut </span>sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            <span class="kw-2">&amp;mut </span>sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
-                ty: RuleType::Error,
-                id: RuleId(<span class="number">10</span>),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        <span class="kw">let </span>event = mocked_event(EventType::Default, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>, <span class="string">&quot;&quot;</span>);
-
-        <span class="kw">let </span>result =
-            merge_configs_and_match(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>sampling_config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>event, <span class="prelude-val">None</span>, Utc::now());
-        <span class="macro">assert_transaction_match!</span>(result, <span class="number">0.5</span>, event, <span class="number">10</span>);
     }
 
     <span class="attr">#[test]

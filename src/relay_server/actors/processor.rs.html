@@ -3543,6 +3543,9 @@
 <a href="#3542" id="3542">3542</a>
 <a href="#3543" id="3543">3543</a>
 <a href="#3544" id="3544">3544</a>
+<a href="#3545" id="3545">3545</a>
+<a href="#3546" id="3546">3546</a>
+<a href="#3547" id="3547">3547</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -5795,14 +5798,17 @@
     <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
     </span><span class="kw">fn </span>sample_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">match </span>std::mem::take(<span class="kw-2">&amp;mut </span>state.sampling_result) {
-            SamplingResult::Drop(rule_ids) =&gt; {
+            <span class="comment">// We assume that sampling is only supposed to work on transactions.
+            </span>SamplingResult::Drop(rule_ids)
+                <span class="kw">if </span>state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction) =&gt;
+            {
                 state
                     .managed_envelope
                     .reject(Outcome::FilteredSampling(rule_ids.clone()));
 
                 <span class="prelude-val">Err</span>(ProcessingError::Sampled(rule_ids))
             }
-            SamplingResult::Keep =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
