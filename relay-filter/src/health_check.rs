@@ -103,12 +103,9 @@ mod tests {
             transaction: Annotated::new("/health".into()),
             ..Event::default()
         };
-
         let config = HealthCheckEndpointsFilterConfig {
             patterns: _get_patterns(),
         };
-        let is_empty = config.is_empty();
-        print!("Config is empty={is_empty}\n");
 
         let filter_result = should_filter(&event, &config);
         assert_eq!(
