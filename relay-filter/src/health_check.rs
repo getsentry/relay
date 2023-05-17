@@ -23,7 +23,7 @@ static HEALTH_CHECK_ENDPOINTS: Lazy<Regex> = Lazy::new(|| {
     .expect("Invalid healthcheck filter Regex")
 });
 
-fn matches(_event: &Event) -> bool {
+fn matches(event: &Event) -> bool {
     if let Some(transaction) = _event.transaction.value() {
         HEALTH_CHECK_ENDPOINTS.is_match(transaction)
     } else {
