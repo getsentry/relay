@@ -56,6 +56,12 @@ pub struct MeasurementsConfig {
     max_custom_measurements: usize,
 }
 
+impl MeasurementsConfig {
+    /// The length of a full measurement MRI, minus the name and the unit. This length is the same
+    /// for every measurement-mri.
+    pub const MEASUREMENT_MRI_OVERHEAD: isize = 29;
+}
+
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
     if value < 2_147_483_647 {
@@ -264,7 +270,7 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
-    max_name_and_unit_len: Option<isize>,
+    max_mri_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -287,7 +293,9 @@ fn remove_invalid_measurements(
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
-        if let Some(max_name_and_unit_len) = max_name_and_unit_len {
+        if let Some(max_mri_len) = max_mri_len {
+            let max_name_and_unit_len =
+                max_mri_len as isize - MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
             let max_name_len = max_name_and_unit_len - unit.to_string().len() as isize;
 
             if name.len() as isize > max_name_len {
@@ -391,7 +399,7 @@ fn normalize_units(measurements: &mut Measurements) {
 fn normalize_measurements(
     event: &mut Event,
     measurements_config: Option<&MeasurementsConfig>,
-    max_name_and_unit_len: Option<isize>,
+    max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
@@ -399,12 +407,7 @@ fn normalize_measurements(
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(
-                measurements,
-                meta,
-                measurements_config,
-                max_name_and_unit_len,
-            );
+            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -730,7 +733,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
-    pub max_metric_name_and_unit_len: Option<isize>,
+    pub max_mri_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
@@ -810,11 +813,7 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(
-            event,
-            config.measurements_config,
-            config.max_metric_name_and_unit_len,
-        ); // Measurements are part of the metric extraction
+        normalize_measurements(event, config.measurements_config, config.max_mri_len); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())

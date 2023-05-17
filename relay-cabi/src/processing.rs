@@ -123,7 +123,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
             user_agent: config.user_agent.as_deref(),
             client_hints: config.client_hints.as_deref(),
         },
-        max_metric_name_and_unit_len: None,
+        max_mri_len: None,
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,

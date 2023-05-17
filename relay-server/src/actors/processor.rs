@@ -11,9 +11,9 @@ use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
-use relay_common::{DurationUnit, MetricUnit, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
@@ -59,44 +59,12 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::metrics_extraction::transactions::types::CommonTags;
-use crate::metrics_extraction::transactions::types::{
-    ExtractMetricsError, TransactionMeasurementTags, TransactionMetric,
-};
-use crate::metrics_extraction::IntoMetric;
+use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
 };
-
-/// The length of a full measurement MRI, minus the name and the unit. This length is the same
-/// for every measurement-mri.
-///
-/// In 'fn process_measurements' we want to check if a measurement name is too long, to do that we
-/// check with a maximum length provided by the config, but that length represents the entire MRI name,
-/// and in process_measurements we only have access to the name part, and the unit part, so here
-/// we calculate the length of the remainder part. which isn't changing so we only need to do it once.
-static FIXED_MEASUREMENT_LEN: Lazy<isize> = Lazy::new(|| {
-    let name = "foobar".to_string();
-    let value = 5.0; // Arbitrary value.
-    let unit = MetricUnit::Duration(DurationUnit::default());
-    let tags = TransactionMeasurementTags {
-        measurement_rating: None,
-        universal_tags: CommonTags(BTreeMap::new()),
-    };
-
-    let measurement = TransactionMetric::Measurement {
-        name: name.clone(),
-        value,
-        unit,
-        tags,
-    };
-
-    let metric: Metric = measurement.into_metric(UnixTimestamp::now());
-
-    (metric.name.len() - unit.to_string().len() - name.len()) as isize
-});
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -2291,10 +2259,6 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
-        let max_metric_name_and_unit_len = {
-            let max_mri_len = self.config.aggregator_config().max_name_length as isize;
-            Some(max_mri_len - *FIXED_MEASUREMENT_LEN)
-        };
 
         log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
@@ -2306,7 +2270,7 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
-                max_metric_name_and_unit_len,
+                max_mri_len: Some(self.config.aggregator_config().max_name_length),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
@@ -2688,9 +2652,12 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
 
+    use relay_common::{DurationUnit, MetricUnit};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
+    use relay_general::store::{
+        LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
+    };
     use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
@@ -2698,6 +2665,10 @@ mod tests {
     use super::*;
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -3569,5 +3540,36 @@ mod tests {
             .build()
             .unwrap()
             .block_on(future);
+    }
+
+    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
+    /// cannot be called from relay-general.
+    #[test]
+    fn test_mri_overhead_constant() {
+        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
+
+        let derived_value = {
+            let name = "foobar".to_string();
+            let value = 5.0; // Arbitrary value.
+            let unit = MetricUnit::Duration(DurationUnit::default());
+            let tags = TransactionMeasurementTags {
+                measurement_rating: None,
+                universal_tags: CommonTags(BTreeMap::new()),
+            };
+
+            let measurement = TransactionMetric::Measurement {
+                name: name.clone(),
+                value,
+                unit,
+                tags,
+            };
+
+            let metric: Metric = measurement.into_metric(UnixTimestamp::now());
+
+            (metric.name.len() - unit.to_string().len() - name.len()) as isize
+        };
+
+        assert_eq!(hardcoded_value, derived_value);
     }
 }
