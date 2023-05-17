@@ -24,11 +24,9 @@ static HEALTH_CHECK_ENDPOINTS: Lazy<Regex> = Lazy::new(|| {
 });
 
 fn matches(event: &Event) -> bool {
-    if let Some(transaction) = _event.transaction.value() {
+    _event.transaction.value().map_or(false, |transaction| {
         HEALTH_CHECK_ENDPOINTS.is_match(transaction)
-    } else {
-        false
-    }
+    })
 }
 
 /// Filters events for calls to healthcheck endpoints
