@@ -2242,10 +2242,10 @@ impl EnvelopeProcessorService {
     fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
         match state.event_type().unwrap_or_default() {
             EventType::Default | EventType::Error => {
-               self.tag_error_with_sampling_decision(state);
-            },
+                self.tag_error_with_sampling_decision(state);
+            }
             EventType::Transaction => {
-               self.compute_sampling_decision(state);
+                self.compute_sampling_decision(state);
             }
             _ => {}
         }
