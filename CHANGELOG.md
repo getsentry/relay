@@ -9,7 +9,7 @@
 **Internal**:
 
 - Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
-- Tag incoming errors with the new `sampled` context in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
+- Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
 
 ## 23.5.0
 
