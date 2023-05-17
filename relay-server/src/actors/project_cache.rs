@@ -459,8 +459,9 @@ struct ProjectCacheBroker {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    /// Index of the buffered project keys.
     buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+    buffer_guard: Arc<BufferGuard>,
+    /// Index of the buffered project keys.
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
     buffer: Addr<Buffer>,
 }
@@ -743,7 +744,10 @@ impl ProjectCacheBroker {
 
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
-        if project_state.is_some() && (sampling_state.is_some() || sampling_key.is_none()) {
+        if project_state.is_some()
+            && (sampling_state.is_some() || sampling_key.is_none())
+            && !self.buffer_guard.is_over_high_watermark()
+        {
             return self.handle_processing(context);
         }
 
@@ -862,7 +866,9 @@ impl Service for ProjectCacheService {
                 test_store,
             };
             let buffer =
-                match BufferService::create(buffer_guard, buffer_services, config.clone()).await {
+                match BufferService::create(buffer_guard.clone(), buffer_services, config.clone())
+                    .await
+                {
                     Ok(buffer) => buffer.start(),
                     Err(err) => {
                         relay_log::error!("failed to start buffer service: {}", LogError(&err));
@@ -882,6 +888,7 @@ impl Service for ProjectCacheService {
                 services,
                 state_tx,
                 buffer_tx,
+                buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
             };
@@ -891,6 +898,8 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = state_rx.recv() => broker.merge_state(message),
+                    // Buffer will not dequeue the envelopes from the spool if there is not enough
+                    // permits in `BufferGuard` available. Currently this is 50%.
                     Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
@@ -920,5 +929,178 @@ pub struct FetchOptionalProjectState {
 impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use relay_common::Uuid;
+    use relay_test::mock_service;
+
+    use crate::testutils::empty_envelope;
+
+    use super::*;
+
+    fn mocked_services() -> Services {
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
+        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+
+        Services {
+            aggregator,
+            envelope_processor,
+            envelope_manager,
+            project_cache,
+            outcome_aggregator,
+            test_store,
+            upstream_relay,
+        }
+    }
+
+    async fn project_cache_broker_setup(
+        services: Services,
+        buffer_guard: Arc<BufferGuard>,
+        state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+        buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+    ) -> (ProjectCacheBroker, Addr<Buffer>) {
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        let buffer_services = spooler::Services {
+            outcome_aggregator: services.outcome_aggregator.clone(),
+            project_cache: services.project_cache.clone(),
+            test_store: services.test_store.clone(),
+        };
+        let buffer = match BufferService::create(
+            buffer_guard.clone(),
+            buffer_services,
+            config.clone(),
+        )
+        .await
+        {
+            Ok(buffer) => buffer.start(),
+            Err(err) => {
+                relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                // NOTE: The process will exit with error if the buffer file could not be
+                // opened or the migrations could not be run.
+                std::process::exit(1);
+            }
+        };
+
+        (
+            ProjectCacheBroker {
+                config: config.clone(),
+                projects: hashbrown::HashMap::new(),
+                garbage_disposal: GarbageDisposal::new(),
+                source: ProjectSource::start(config, services.upstream_relay.clone(), None),
+                services,
+                state_tx,
+                buffer_tx,
+                buffer_guard,
+                index: BTreeMap::new(),
+                buffer: buffer.clone(),
+            },
+            buffer,
+        )
+    }
+
+    #[tokio::test]
+    async fn always_spools() {
+        let num_permits = 5;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, buffer_svc) =
+            project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
+                .await;
+
+        for _ in 0..8 {
+            let envelope = buffer_guard
+                .enter(
+                    empty_envelope(),
+                    services.outcome_aggregator.clone(),
+                    services.test_store.clone(),
+                )
+                .unwrap();
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
+
+        // All the messages should have been spooled to disk.
+        assert_eq!(buffer_guard.available(), 5);
+        assert_eq!(broker.index.keys().len(), 1);
+        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+
+        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // Check if we can also dequeue from the buffer directly.
+        buffer_svc.send(spooler::DequeueMany::new(
+            project_key,
+            [key].into(),
+            tx.clone(),
+        ));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // We should be able to unspool once since we have 1 permit.
+        let mut envelopes = vec![];
+        while let Ok(envelope) = rx.try_recv() {
+            envelopes.push(envelope)
+        }
+
+        // We can unspool only 5 envelopes.
+        assert_eq!(envelopes.len(), 5);
+
+        // Drop one, and get one permit back.
+        envelopes.pop().unwrap();
+        assert_eq!(buffer_guard.available(), 1);
+
+        // Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
+        // still populated with same keys and values.
+        assert_eq!(broker.index.keys().len(), 1);
+        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+
+        // Check if we can also dequeue from the buffer directly.
+        buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Cannot dequeue anymore, no more available permits.
+        assert!(rx.try_recv().is_err());
+
+        // The rest envelopes will be immediately spooled, since we at 80% buffer gueard usage.
+        for _ in 0..10 {
+            let envelope = ManagedEnvelope::untracked(
+                empty_envelope(),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+            );
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
     }
 }
