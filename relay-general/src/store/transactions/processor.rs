@@ -14,6 +14,7 @@ use crate::store::regexes::{
     CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
     TRANSACTION_NAME_NORMALIZER_REGEX,
 };
+use crate::store::LazyGlob;
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -84,6 +85,60 @@ impl<'r> TransactionsProcessor<'r> {
         }
         Ok(())
     }
+
+    /// Applies rules to the span description.
+    ///
+    /// For now, rules are only generated from transaction names, and the
+    /// scrubbed value is stored in `span.data[description.scrubbed]` instead of
+    /// `span.description` (which remains intact).
+    fn apply_span_rename_rules(&self, span: &mut Span) -> ProcessingResult {
+        if let Some(op) = span.op.value() {
+            if !op.starts_with("http") {
+                return Ok(());
+            }
+        }
+
+        // TODO: only grab from span.data if exists. if not, take it from the span description.
+        if let Some(data) = span.data.value_mut() {
+            if let Some(description) = data.get_mut("description.scrubbed") {
+                description.apply(|name, meta| {
+                    if let Value::String(s) = name {
+                        let result = self.name_config.rules.iter().find_map(|rule| {
+                            apply_tx_rule_to_string(Cow::Borrowed(s), rule.clone())
+                                .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
+                        });
+
+                        if let Some((applied_rule, new_name)) = result {
+                            if *s != new_name {
+                                meta.add_remark(Remark::new(
+                                    RemarkType::Substituted,
+                                    // Setting a different format to not get
+                                    // confused by the actual `span.description`.
+                                    format!("description.scrubbed:{}", applied_rule),
+                                ));
+                                *name = Value::String(new_name);
+                            }
+                        }
+                    }
+
+                    Ok(())
+                })?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Applies the transaction rule to the string, no matter what the string format is.
+///
+/// Transaction rules are generated on the assumption that they are only
+/// applied to transactions, which have a specific format. Span
+/// descriptions, however, have a different format, including the start of
+/// the string. As a workaround, we add a leading `**` to omit that first
+/// part of the string.
+fn apply_tx_rule_to_string(string: Cow<String>, mut rule: TransactionNameRule) -> Option<String> {
+    rule.pattern = LazyGlob::new(format!("**{}", rule.pattern.raw));
+    rule.match_and_apply(string)
 }
 
 /// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
@@ -470,6 +525,7 @@ impl Processor for TransactionsProcessor<'_> {
 
         if self.scrub_span_descriptions {
             scrub_span_description(span)?;
+            self.apply_span_rename_rules(span)?;
         }
 
         span.process_child_values(self, state)?;
@@ -485,7 +541,7 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
     let mut scrubbed = span.description.clone();
 
-    let did_scrub = match span.op.value() {
+    match span.op.value() {
         Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
         Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
         Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
@@ -493,18 +549,17 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
         _ => false,
     };
 
-    if did_scrub {
-        if let Some(new_desc) = scrubbed.into_value() {
-            span.data
-                .get_or_insert_with(BTreeMap::new)
-                // We don't care what the cause of scrubbing was, since we assume
-                // that after scrubbing the value is sanitized.
-                .insert(
-                    "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(new_desc)),
-                );
-        };
-    }
+    // FIXME: undo this change. only add the item to the description if it was scrubbed
+    if let Some(new_desc) = scrubbed.into_value() {
+        span.data
+            .get_or_insert_with(BTreeMap::new)
+            // We don't care what the cause of scrubbing was, since we assume
+            // that after scrubbing the value is sanitized.
+            .insert(
+                "description.scrubbed".to_owned(),
+                Annotated::new(Value::String(new_desc)),
+            );
+    };
 
     Ok(())
 }

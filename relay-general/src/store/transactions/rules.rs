@@ -12,7 +12,7 @@ use crate::utils::Glob;
 /// This allows to compile the Glob with internal regexes only then whent they are used.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct LazyGlob {
-    raw: String,
+    pub raw: String,
     glob: OnceCell<Glob>,
 }
 
