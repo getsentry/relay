@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
@@ -461,13 +460,9 @@ impl OnDisk {
             };
         }
         if !unused_keys.is_empty() {
-            let project_cache = services.project_cache.clone();
-            tokio::spawn(async move {
-                // Send the message back to `ProjectCache` with a bit of delay, to prevent the DDOS
-                // of our own services.
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                project_cache.send(UpdateBufferIndex::new(project_key, unused_keys))
-            });
+            services
+                .project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
     }
 
@@ -904,10 +899,9 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
-    use relay_general::protocol::EventId;
     use relay_test::mock_service;
 
-    use crate::extractors::RequestMeta;
+    use crate::testutils::empty_envelope;
 
     use super::*;
 
@@ -921,14 +915,6 @@ mod tests {
             outcome_aggregator,
             test_store,
         }
-    }
-
-    fn empty_envelope() -> Box<Envelope> {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
     }
 
     fn empty_managed_envelope() -> ManagedEnvelope {
