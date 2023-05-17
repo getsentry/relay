@@ -274,6 +274,7 @@ fn remove_invalid_measurements(
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
+    let mut too_many_measurements = false;
 
     measurements.retain(|name, value| {
         let measurement = match value.value_mut() {
@@ -327,13 +328,15 @@ fn remove_invalid_measurements(
             return true;
         }
 
+        too_many_measurements = true;
+
         // Retain payloads in _meta just for excessive custom measurements.
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
     });
 
-    if custom_measurements_count >= measurements_config.max_custom_measurements {
+    if too_many_measurements {
         meta.add_error(Error::invalid("too many measurements"));
     }
 
@@ -3061,8 +3064,7 @@ mod tests {
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
-        let is_dropped = test_is_measurement_dropped(name, measurement);
-        assert_eq!(is_dropped, false);
+        assert!(!is_measurement_dropped(name, measurement));
     }
 
     #[test]
@@ -3073,8 +3075,7 @@ mod tests {
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
-        let is_dropped = test_is_measurement_dropped(name, measurement);
-        assert_eq!(is_dropped, true);
+        assert!(is_measurement_dropped(name, measurement));
     }
 
     #[test]
@@ -3085,12 +3086,11 @@ mod tests {
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
-        let is_dropped = test_is_measurement_dropped(name, measurement);
-        assert_eq!(is_dropped, true);
+        assert!(is_measurement_dropped(name, measurement));
     }
 
-    fn test_is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
-        let max_name_and_unit_len = Some(30);
+    fn is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
+        let max_mri_len = Some(60);
 
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
         measurements.insert(name.to_string(), Annotated::new(measurement));
@@ -3110,7 +3110,7 @@ mod tests {
             &mut measurements,
             &mut meta,
             &measurements_config,
-            max_name_and_unit_len,
+            max_mri_len,
         );
 
         // Checks whether the measurement is dropped.
