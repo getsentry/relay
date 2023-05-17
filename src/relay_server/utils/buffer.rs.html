@@ -87,6 +87,32 @@
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
 <a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_system::Addr;
@@ -119,13 +145,39 @@
 </span><span class="kw">pub struct </span>BufferGuard {
     inner: Semaphore,
     capacity: usize,
+    high_watermark: f64,
+    low_watermark: f64,
 }
 
 <span class="kw">impl </span>BufferGuard {
     <span class="doccomment">/// Creates a new `BufferGuard` based on config values.
     </span><span class="kw">pub fn </span>new(capacity: usize) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>inner = Semaphore::new(capacity);
-        <span class="self">Self </span>{ inner, capacity }
+        <span class="self">Self </span>{
+            inner,
+            capacity,
+            high_watermark: <span class="number">0.8</span>,
+            low_watermark: <span class="number">0.5</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the current usage of `BufferGuard` permits.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">fn </span>usage(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
+        <span class="self">self</span>.used() <span class="kw">as </span>f64 / <span class="self">self</span>.capacity() <span class="kw">as </span>f64
+    }
+
+    <span class="doccomment">/// Returns `true` if the `BufferGuard` exhausted more permits then defined in
+    /// `high_watermark`.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>is_over_high_watermark(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.usage() &gt;= <span class="self">self</span>.high_watermark
+    }
+
+    <span class="doccomment">/// Returns `true` if the `BufferGuard` number of permits is still under the `low_watermark`.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>is_below_low_watermark(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.usage() &lt;= <span class="self">self</span>.low_watermark
     }
 
     <span class="doccomment">/// Returns the total capacity of the pipeline.

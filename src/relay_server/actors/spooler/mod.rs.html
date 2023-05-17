@@ -1180,23 +1180,10 @@
 <a href="#1179" id="1179">1179</a>
 <a href="#1180" id="1180">1180</a>
 <a href="#1181" id="1181">1181</a>
-<a href="#1182" id="1182">1182</a>
-<a href="#1183" id="1183">1183</a>
-<a href="#1184" id="1184">1184</a>
-<a href="#1185" id="1185">1185</a>
-<a href="#1186" id="1186">1186</a>
-<a href="#1187" id="1187">1187</a>
-<a href="#1188" id="1188">1188</a>
-<a href="#1189" id="1189">1189</a>
-<a href="#1190" id="1190">1190</a>
-<a href="#1191" id="1191">1191</a>
-<a href="#1192" id="1192">1192</a>
-<a href="#1193" id="1193">1193</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
 <span class="kw">use </span>relay_common::ProjectKey;
@@ -1578,7 +1565,7 @@
         <span class="kw">loop </span>{
             <span class="comment">// Before querying the db, make sure that the buffer guard has enough availability:
             </span><span class="self">self</span>.dequeue_attempts += <span class="number">1</span>;
-            <span class="kw">if </span><span class="self">self</span>.buffer_guard.used() &gt; <span class="self">self</span>.buffer_guard.capacity() / <span class="number">2 </span>{
+            <span class="kw">if </span>!<span class="self">self</span>.buffer_guard.is_below_low_watermark() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(key);
             }
             <span class="macro">relay_statsd::metric!</span>(
@@ -1655,13 +1642,9 @@
             };
         }
         <span class="kw">if </span>!unused_keys.is_empty() {
-            <span class="kw">let </span>project_cache = services.project_cache.clone();
-            tokio::spawn(<span class="kw">async move </span>{
-                <span class="comment">// Send the message back to `ProjectCache` with a bit of delay, to prevent the DDOS
-                // of our own services.
-                </span>tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-                project_cache.send(UpdateBufferIndex::new(project_key, unused_keys))
-            });
+            services
+                .project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
         }
     }
 
@@ -1777,7 +1760,9 @@
     /// underlying spool.
     </span><span class="kw">async fn </span>transition(<span class="self">self</span>, config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::MemoryFileStandby { ram, <span class="kw-2">mut </span>disk } <span class="kw">if </span>ram.is_full() =&gt; {
+            <span class="self">Self</span>::MemoryFileStandby { ram, <span class="kw-2">mut </span>disk }
+                <span class="kw">if </span>ram.is_full() || disk.buffer_guard.is_over_high_watermark() =&gt;
+            {
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
                     <span class="macro">relay_log::error!</span>(
                         <span class="string">&quot;failed to spool the in-memory buffer to disk: {}&quot;</span>,
@@ -2098,10 +2083,9 @@
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>relay_common::Uuid;
-    <span class="kw">use </span>relay_general::protocol::EventId;
     <span class="kw">use </span>relay_test::mock_service;
 
-    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::empty_envelope;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -2115,14 +2099,6 @@
             outcome_aggregator,
             test_store,
         }
-    }
-
-    <span class="kw">fn </span>empty_envelope() -&gt; Box&lt;Envelope&gt; {
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
-            </span>.parse()
-            .unwrap();
-
-        Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), RequestMeta::new(dsn))
     }
 
     <span class="kw">fn </span>empty_managed_envelope() -&gt; ManagedEnvelope {
