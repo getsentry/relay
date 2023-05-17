@@ -1,14 +1,8 @@
-use log::LevelFilter;
-
 #[doc(hidden)]
 pub fn __init_test(module_path: &'static str) {
     let crate_name = module_path.split("::").next().unwrap();
 
-    env_logger::builder()
-        .filter(Some(crate_name), LevelFilter::Trace)
-        .is_test(true)
-        .try_init()
-        .ok();
+    // TODO(ja): Fix this somehow.
 }
 
 /// Initialize the logger for testing.

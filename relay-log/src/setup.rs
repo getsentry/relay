@@ -1,14 +1,15 @@
 use std::borrow::Cow;
 use std::env;
-use std::io::{self, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-use chrono::{DateTime, Utc};
-use log::{Level, LevelFilter};
-use sentry::integrations::log::SentryLogger;
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
+use tracing::level_filters::LevelFilter;
+use tracing::Level;
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::fmt::time::UtcTime;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::Layer;
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -47,12 +48,54 @@ pub enum LogFormat {
     Json,
 }
 
+mod level {
+    use std::fmt;
+
+    use serde::de::{Error, Unexpected, Visitor};
+    use serde::{Deserializer, Serializer};
+    use tracing::Level;
+
+    pub fn serialize<S>(filter: &Level, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(filter)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Level, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = Level;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a log level")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Level, E>
+            where
+                E: Error,
+            {
+                value
+                    .parse()
+                    .map_err(|_| Error::invalid_value(Unexpected::Str(value), &self))
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
 /// Controls the logging system.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct LogConfig {
     /// The log level for Relay.
-    pub level: log::LevelFilter,
+    #[serde(with = "level")]
+    pub level: Level,
 
     /// Controls the log output format.
     ///
@@ -68,7 +111,7 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            level: log::LevelFilter::Info,
+            level: Level::INFO,
             format: LogFormat::Auto,
             enable_backtraces: false,
         }
@@ -127,20 +170,19 @@ fn capture_native_envelope(data: &[u8]) {
 }
 
 /// Configures the given log level for all of Relay's crates.
-fn set_default_filters(builder: &mut env_logger::Builder) {
-    builder
+fn get_default_filters() -> EnvFilter {
+    let mut env_filter = EnvFilter::builder()
         // Configure INFO as default for all third-party crates.
-        .filter_level(LevelFilter::Info)
-        // Actix-web has useful information on the debug stream, so allow this.
-        .filter_module("actix_web::pipeline", LevelFilter::Debug)
-        // Logs from sqlx are very spammy on INFO level, so configure a higher WARN level.
-        .filter_module("sqlx", LevelFilter::Warn)
-        .filter_module("trust_dns_proto", LevelFilter::Warn);
+        .with_default_directive(LevelFilter::INFO.into())
+        // Logs from some dependencies are very spammy on INFO level, so configure a higher level.
+        .parse_lossy("sqlx=warn,trust_dns_proto=warn");
 
     // Add all internal modules with maximum log-level.
     for name in CRATE_NAMES {
-        builder.filter_module(name, LevelFilter::Trace);
+        env_filter = env_filter.add_directive(format!("{name}=trace").parse().unwrap());
     }
+
+    env_filter
 }
 
 /// Initialize the logging system and reporting to Sentry.
@@ -162,19 +204,33 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         env::set_var("RUST_BACKTRACE", "full");
     }
 
-    let mut log_builder = env_logger::Builder::from_env(env_logger::DEFAULT_FILTER_ENV);
-    if env::var(env_logger::DEFAULT_FILTER_ENV).is_err() {
-        set_default_filters(&mut log_builder);
-    }
+    let subscriber = tracing_subscriber::fmt::layer()
+        .with_timer(UtcTime::rfc_3339())
+        .with_target(true);
 
-    match (config.format, console::user_attended()) {
-        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => log_builder.format(format_pretty),
-        (LogFormat::Auto, false) | (LogFormat::Simplified, _) => log_builder.format(format_plain),
-        (LogFormat::Json, _) => log_builder.format(format_json),
+    let format = match (config.format, console::user_attended()) {
+        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => subscriber.pretty().boxed(),
+        (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
+            subscriber.compact().with_ansi(false).boxed()
+        }
+        (LogFormat::Json, _) => subscriber
+            .json()
+            .flatten_event(true)
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_file(true)
+            .with_line_number(true)
+            .boxed(),
     };
 
-    log::set_max_level(config.level);
-    log::set_boxed_logger(Box::new(SentryLogger::with_dest(log_builder.build()))).ok();
+    tracing_subscriber::registry()
+        .with(format.with_filter(LevelFilter::from(config.level)))
+        .with(sentry::integrations::tracing::layer())
+        .with(match env::var(EnvFilter::DEFAULT_ENV) {
+            Ok(value) => EnvFilter::new(value),
+            Err(_) => get_default_filters(),
+        })
+        .init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
         let guard = sentry::init(sentry::ClientOptions {
@@ -205,74 +261,74 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     }
 }
 
-static MAX_MODULE_WIDTH: AtomicUsize = AtomicUsize::new(0);
+// static MAX_MODULE_WIDTH: AtomicUsize = AtomicUsize::new(0);
 
-fn max_target_width(target: &str) -> usize {
-    let len = target.len();
-    MAX_MODULE_WIDTH.fetch_max(len, Ordering::Relaxed).max(len)
-}
+// fn max_target_width(target: &str) -> usize {
+//     let len = target.len();
+//     MAX_MODULE_WIDTH.fetch_max(len, Ordering::Relaxed).max(len)
+// }
 
-fn format_pretty(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
-    let color = match record.level() {
-        Level::Trace => env_logger::fmt::Color::Magenta,
-        Level::Debug => env_logger::fmt::Color::Blue,
-        Level::Info => env_logger::fmt::Color::Green,
-        Level::Warn => env_logger::fmt::Color::Yellow,
-        Level::Error => env_logger::fmt::Color::Red,
-    };
+// fn format_pretty(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+//     let color = match record.level() {
+//         Level::Trace => env_logger::fmt::Color::Magenta,
+//         Level::Debug => env_logger::fmt::Color::Blue,
+//         Level::Info => env_logger::fmt::Color::Green,
+//         Level::Warn => env_logger::fmt::Color::Yellow,
+//         Level::Error => env_logger::fmt::Color::Red,
+//     };
 
-    let mut style = f.style();
-    let styled_level = style.set_color(color).value(record.level());
+//     let mut style = f.style();
+//     let styled_level = style.set_color(color).value(record.level());
 
-    let mut style = f.style();
-    let target = record.target();
-    let styled_target = style.set_bold(true).value(target);
+//     let mut style = f.style();
+//     let target = record.target();
+//     let styled_target = style.set_bold(true).value(target);
 
-    writeln!(
-        f,
-        " {styled_level:5} {styled_target:width$} > {}",
-        record.args(),
-        width = max_target_width(target),
-    )
-}
+//     writeln!(
+//         f,
+//         " {styled_level:5} {styled_target:width$} > {}",
+//         record.args(),
+//         width = max_target_width(target),
+//     )
+// }
 
-fn format_plain(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
-    let ts = f.timestamp();
+// fn format_plain(f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+//     let ts = f.timestamp();
 
-    writeln!(
-        f,
-        "{} [{}] {}: {}",
-        ts,
-        record.module_path().unwrap_or("<unknown>"),
-        record.level(),
-        record.args()
-    )
-}
+//     writeln!(
+//         f,
+//         "{} [{}] {}: {}",
+//         ts,
+//         record.module_path().unwrap_or("<unknown>"),
+//         record.level(),
+//         record.args()
+//     )
+// }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct LogRecord<'a> {
-    timestamp: DateTime<Utc>,
-    level: Level,
-    logger: &'a str,
-    message: String,
-    module_path: Option<&'a str>,
-    filename: Option<&'a str>,
-    lineno: Option<u32>,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// struct LogRecord<'a> {
+//     timestamp: DateTime<Utc>,
+//     level: Level,
+//     logger: &'a str,
+//     message: String,
+//     module_path: Option<&'a str>,
+//     filename: Option<&'a str>,
+//     lineno: Option<u32>,
+// }
 
-fn format_json(mut f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
-    let record = LogRecord {
-        timestamp: Utc::now(),
-        level: record.level(),
-        logger: record.target(),
-        message: record.args().to_string(),
-        module_path: record.module_path(),
-        filename: record.file(),
-        lineno: record.line(),
-    };
+// fn format_json(mut f: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
+//     let record = LogRecord {
+//         timestamp: Utc::now(),
+//         level: record.level(),
+//         logger: record.target(),
+//         message: record.args().to_string(),
+//         module_path: record.module_path(),
+//         filename: record.file(),
+//         lineno: record.line(),
+//     };
 
-    serde_json::to_writer(&mut f, &record)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+//     serde_json::to_writer(&mut f, &record)
+//         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-    f.write_all(b"\n")
-}
+//     f.write_all(b"\n")
+// }
