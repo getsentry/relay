@@ -24,7 +24,9 @@ use relay_general::protocol::{
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
+use relay_general::store::{
+    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
@@ -2270,7 +2272,12 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
-                max_mri_len: Some(self.config.aggregator_config().max_name_length),
+                max_name_and_unit_len: Some(
+                    self.config
+                        .aggregator_config()
+                        .max_name_length
+                        .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+                ),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
@@ -3567,7 +3574,7 @@ mod tests {
 
             let metric: Metric = measurement.into_metric(UnixTimestamp::now());
 
-            (metric.name.len() - unit.to_string().len() - name.len()) as isize
+            metric.name.len() - unit.to_string().len() - name.len()
         };
 
         assert_eq!(hardcoded_value, derived_value);

@@ -59,7 +59,7 @@ pub struct MeasurementsConfig {
 impl MeasurementsConfig {
     /// The length of a full measurement MRI, minus the name and the unit. This length is the same
     /// for every measurement-mri.
-    pub const MEASUREMENT_MRI_OVERHEAD: isize = 29;
+    pub const MEASUREMENT_MRI_OVERHEAD: usize = 29;
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -270,11 +270,10 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
-    max_mri_len: Option<usize>,
+    max_name_and_unit_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
-    let mut too_many_measurements = false;
 
     measurements.retain(|name, value| {
         let measurement = match value.value_mut() {
@@ -294,12 +293,10 @@ fn remove_invalid_measurements(
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
-        if let Some(max_mri_len) = max_mri_len {
-            let max_name_and_unit_len =
-                max_mri_len as isize - MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
-            let max_name_len = max_name_and_unit_len - unit.to_string().len() as isize;
+        if let Some(max_name_and_unit_len) = max_name_and_unit_len {
+            let max_name_len = max_name_and_unit_len - unit.to_string().len();
 
-            if name.len() as isize > max_name_len {
+            if name.len() > max_name_len {
                 meta.add_error(Error::invalid(format!(
                     "Metric name too long {}/{}: \"{}\"",
                     name.len(),
@@ -328,17 +325,13 @@ fn remove_invalid_measurements(
             return true;
         }
 
-        too_many_measurements = true;
+        meta.add_error(Error::invalid(format!("too many measurements: {}", name)));
 
         // Retain payloads in _meta just for excessive custom measurements.
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
     });
-
-    if too_many_measurements {
-        meta.add_error(Error::invalid("too many measurements"));
-    }
 
     if !removed_measurements.is_empty() {
         meta.set_original_value(Some(removed_measurements));
@@ -736,7 +729,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
-    pub max_mri_len: Option<usize>,
+    pub max_name_and_unit_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
@@ -816,7 +809,11 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(event, config.measurements_config, config.max_mri_len); // Measurements are part of the metric extraction
+        normalize_measurements(
+            event,
+            config.measurements_config,
+            config.max_name_and_unit_len,
+        ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())
@@ -2557,7 +2554,7 @@ mod tests {
                   [
                     "invalid_data",
                     {
-                      "reason": "too many measurements",
+                      "reason": "too many measurements: my_custom_measurement_3",
                     },
                   ],
                 ],
@@ -3090,7 +3087,7 @@ mod tests {
     }
 
     fn is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
-        let max_mri_len = Some(60);
+        let max_name_and_unit_len = Some(30);
 
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
         measurements.insert(name.to_string(), Annotated::new(measurement));
@@ -3110,7 +3107,7 @@ mod tests {
             &mut measurements,
             &mut meta,
             &measurements_config,
-            max_mri_len,
+            max_name_and_unit_len,
         );
 
         // Checks whether the measurement is dropped.

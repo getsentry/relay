@@ -220,7 +220,7 @@ def test_store_buffer_size(mini_sentry, relay):
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-        for _, error in mini_sentry.test_failures:
+        for (_, error) in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
             assert "buffer capacity exceeded" in str(error)
     finally:
