@@ -962,7 +962,7 @@ pub fn merge_rules_from_configs<'a>(
     let event_rules = sampling_config
         .into_iter()
         .flat_map(|config| config.rules_v2.iter())
-        .filter(|&rule| rule.ty == RuleType::Transaction || rule.ty == RuleType::Error);
+        .filter(|&rule| rule.ty == RuleType::Transaction);
 
     let parent_rules = root_sampling_config
         .into_iter()
@@ -3757,7 +3757,7 @@ mod tests {
         );
         assert_transaction_match!(result, 0.1, event, 1);
     }
-    
+
     #[test]
     /// Tests that match is returned with sample rate value interpolated with linear decaying function.
     fn test_get_sampling_match_result_with_linear_decaying_function() {
