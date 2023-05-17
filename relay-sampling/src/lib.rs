@@ -959,17 +959,17 @@ pub fn merge_rules_from_configs<'a>(
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> impl Iterator<Item = &'a SamplingRule> {
-    let event_rules = sampling_config
+    let transaction_rules = sampling_config
         .into_iter()
         .flat_map(|config| config.rules_v2.iter())
         .filter(|&rule| rule.ty == RuleType::Transaction);
 
-    let parent_rules = root_sampling_config
+    let trace_rules = root_sampling_config
         .into_iter()
         .flat_map(|config| config.rules_v2.iter())
         .filter(|&rule| rule.ty == RuleType::Trace);
 
-    event_rules.chain(parent_rules)
+    transaction_rules.chain(trace_rules)
 }
 
 /// Gets the sampling match result by creating the merged configuration and matching it against
