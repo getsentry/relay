@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
+## 23.5.0
+
 **Bug Fixes**:
 
 - Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
@@ -10,6 +16,7 @@
 
 **Features**:
 
+- Scrub IBAN as pii. ([#2117](https://github.com/getsentry/relay/pull/2117))
 - Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
 - Add support for old 'violated-directive' CSP format. ([#2048](https://github.com/getsentry/relay/pull/2048))
 - Add document_uri to csp filter. ([#2059](https://github.com/getsentry/relay/pull/2059))
@@ -29,6 +36,10 @@
 - Refactor dynamic sampling implementation across `relay-server` and `relay-sampling`. ([#2066](https://github.com/getsentry/relay/pull/2066))
 - Adds support for `replay_id` field for the `DynamicSamplingContext`'s `FieldValueProvider`. ([#2070](https://github.com/getsentry/relay/pull/2070))
 - On Linux, switch to `jemalloc` instead of the system memory allocator to reduce Relay's memory footprint. ([#2084](https://github.com/getsentry/relay/pull/2084))
+- Scrub sensitive cookies `__session`. ([#2105](https://github.com/getsentry/relay/pull/2105)))
+- Parse profiles' metadata to check if it should be marked as invalid. ([#2104](https://github.com/getsentry/relay/pull/2104))
+- Set release as optional by defaulting to an empty string and add a dist field for profiles. ([#2098](https://github.com/getsentry/relay/pull/2098), [#2107](https://github.com/getsentry/relay/pull/2107))
+- Accept source map debug images in debug meta for Profiling. ([#2097](https://github.com/getsentry/relay/pull/2097))
 
 ## 23.4.0
 
