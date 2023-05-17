@@ -96,10 +96,8 @@ pub enum RuleType {
     Trace,
     /// A transaction rule applies to transactions and it is applied  on the transaction event
     Transaction,
-    /// A non transaction rule applies to Errors, Security events...every type of event that
-    /// is not a Transaction
-    Error,
-
+    // If you add a new `RuleType` that is not supposed to sample transactions, you need to edit the
+    // `sample_envelope` function in `EnvelopeProcessorService`.
     /// If the sampling config contains new rule types, do not sample at all.
     #[serde(other)]
     Unsupported,
@@ -600,8 +598,6 @@ impl SamplingRule {
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
-    /// what type of rule can be applied to this provider
-    fn get_rule_type(&self) -> RuleType;
     /// returns a filtering function for custom operators.
     /// The function returned takes the provider and a condition definition and
     /// returns a match result
@@ -743,15 +739,6 @@ impl FieldValueProvider for Event {
         }
     }
 
-    fn get_rule_type(&self) -> RuleType {
-        if let Some(ty) = self.ty.value() {
-            if *ty == EventType::Transaction {
-                return RuleType::Transaction;
-            }
-        }
-        RuleType::Error
-    }
-
     fn get_custom_operator(
         name: &str,
     ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
@@ -864,10 +851,6 @@ impl FieldValueProvider for DynamicSamplingContext {
             },
             _ => Value::Null,
         }
-    }
-
-    fn get_rule_type(&self) -> RuleType {
-        RuleType::Trace
     }
 
     fn get_custom_operator(
@@ -1115,11 +1098,6 @@ impl SamplingMatch {
                 RuleType::Transaction => event.map_or(false, |event| match event_ty {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
-                }),
-                RuleType::Error => event.map_or(false, |event| match event_ty {
-                    // An error rule matches on all event types that are different from transaction.
-                    Some(EventType::Transaction) => false,
-                    _ => rule.condition.matches(event, ip_addr),
                 }),
                 _ => false,
             };
@@ -3472,17 +3450,15 @@ mod tests {
     /// Tests the merged config of the two configs with rules.
     fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
         assert_rule_ids_eq!(
-            [1, 2, 7],
+            [1, 7],
             merge_root_and_non_root_configs_with(
                 vec![
                     mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(2, RuleType::Error, 0.2),
                     mocked_sampling_rule(3, RuleType::Trace, 0.3),
                     mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
                 ],
                 vec![
                     mocked_sampling_rule(5, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(6, RuleType::Error, 0.5),
                     mocked_sampling_rule(7, RuleType::Trace, 0.6),
                     mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
                 ],
@@ -3501,11 +3477,10 @@ mod tests {
     /// without rules.
     fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
         assert_rule_ids_eq!(
-            [1, 2],
+            [1],
             merge_root_and_non_root_configs_with(
                 vec![
                     mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(2, RuleType::Error, 0.2),
                     mocked_sampling_rule(3, RuleType::Trace, 0.3),
                     mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
                 ],
@@ -3525,7 +3500,6 @@ mod tests {
                 vec![],
                 vec![
                     mocked_sampling_rule(4, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(5, RuleType::Error, 0.5),
                     mocked_sampling_rule(6, RuleType::Trace, 0.6),
                     mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
                 ]
@@ -3783,94 +3757,7 @@ mod tests {
         );
         assert_transaction_match!(result, 0.1, event, 1);
     }
-
-    #[test]
-    /// Tests that a match of a rule of type error with a transaction event results in no match.
-    fn test_get_sampling_match_result_with_transaction_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
-
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            Utc::now(),
-        );
-        assert_no_match!(result);
-    }
-
-    #[test]
-    /// Tests that a match of a rule of type error with an error event results in a match.
-    fn test_get_sampling_match_result_with_error_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(10),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Error, "transaction", "2.0", "");
-
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            Utc::now(),
-        );
-        assert_transaction_match!(result, 0.5, event, 10);
-    }
-
-    #[test]
-    /// Tests that a match of a rule of type default with an error event results in a match.
-    fn test_get_sampling_match_result_with_default_event_and_error_rule() {
-        let mut sampling_config = mocked_sampling_config(SamplingMode::Received);
-        add_sampling_rule_to_config(
-            &mut sampling_config,
-            SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Error,
-                id: RuleId(10),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        );
-        let event = mocked_event(EventType::Default, "transaction", "2.0", "");
-
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            Utc::now(),
-        );
-        assert_transaction_match!(result, 0.5, event, 10);
-    }
-
+    
     #[test]
     /// Tests that match is returned with sample rate value interpolated with linear decaying function.
     fn test_get_sampling_match_result_with_linear_decaying_function() {

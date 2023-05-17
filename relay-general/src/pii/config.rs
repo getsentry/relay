@@ -169,6 +169,8 @@ pub enum RuleType {
     Ip,
     /// Matches a creditcard number
     Creditcard,
+    /// Matches an IBAN
+    Iban,
     /// Sanitizes a path from user data
     Userpath,
     /// A PEM encoded key
