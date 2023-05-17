@@ -2,39 +2,23 @@
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
-use once_cell::sync::Lazy;
-use regex::Regex;
 use relay_general::protocol::Event;
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterStatKey, GlobPatterns, HealthCheckEndpointsFilterConfig};
 
-static HEALTH_CHECK_ENDPOINTS: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r#"(?ix)
-        healthcheck|
-        healthy|
-        live|
-        ready|
-        heartbeat|
-        /health$|
-        /healthz$
-        "#,
-    )
-    .expect("Invalid healthcheck filter Regex")
-});
-
-fn matches(event: &Event) -> bool {
-    event.transaction.value().map_or(false, |transaction| {
-        HEALTH_CHECK_ENDPOINTS.is_match(transaction)
-    })
+fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
+    event
+        .transaction
+        .value()
+        .map_or(false, |transaction| patterns.is_match(transaction))
 }
 
 /// Filters transaction events for calls to healthcheck endpoints
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
-    if !config.is_enabled {
-        return Ok(());
-    }
-    if matches(event) {
+pub fn should_filter(
+    event: &Event,
+    config: &HealthCheckEndpointsFilterConfig,
+) -> Result<(), FilterStatKey> {
+    if matches(event, &config.patterns) {
         return Err(FilterStatKey::HealthCheck);
     }
     Ok(())
@@ -46,29 +30,24 @@ mod tests {
     use relay_general::protocol::Event;
     use relay_general::types::Annotated;
 
+    fn _get_patterns() -> GlobPatterns {
+        let patterns_raw = vec!["*healthcheck*".into(), "*/health".into()];
+        GlobPatterns::new(patterns_raw)
+    }
+
     /// tests matching for various transactions
     #[test]
     fn test_matches() {
+        let patterns = _get_patterns();
+
         let transaction_names = [
             "a/b/healthcheck/c",
             "a_HEALTHCHECK_b",
             "healthcheck",
-            "a/healthy/b",
-            "a_healthy_b",
-            "HEALTHY",
-            "a/live/b",
-            "a_live_b",
-            "live",
-            "a/READY/b",
-            "a_ready_b",
-            "ready",
-            "a/heartbeat/b",
-            "a_heartbeat_b",
-            "heartbeat",
             "/health",
             "a/HEALTH",
-            "/healthz",
-            "a/HEALTHZ",
+            "/health",
+            "a/HEALTH",
         ];
 
         for name in transaction_names {
@@ -76,10 +55,9 @@ mod tests {
                 transaction: Annotated::new(name.into()),
                 ..Event::default()
             };
-            assert!(matches(&event), "Did not match `{name}`")
+            assert!(matches(&event, &patterns), "Did not match `{name}`")
         }
     }
-
     /// tests non matching transactions transactions
     #[test]
     fn test_does_not_match() {
@@ -94,6 +72,7 @@ mod tests {
             "/healthx",
             "/healthzx",
         ];
+        let patterns = _get_patterns();
 
         for name in transaction_names {
             let event = Event {
@@ -101,7 +80,7 @@ mod tests {
                 ..Event::default()
             };
             assert!(
-                !matches(&event),
+                !matches(&event, &patterns),
                 "Did match `{name}` but it shouldn't have."
             )
         }
@@ -111,8 +90,9 @@ mod tests {
     #[test]
     fn test_does_not_match_missing_transaction() {
         let event = Event { ..Event::default() };
+        let patterns = _get_patterns();
         assert!(
-            !matches(&event),
+            !matches(&event, &patterns),
             "Did match with empty transaction but it shouldn't have."
         )
     }
@@ -123,7 +103,14 @@ mod tests {
             transaction: Annotated::new("/health".into()),
             ..Event::default()
         };
-        let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+
+        let config = HealthCheckEndpointsFilterConfig {
+            patterns: _get_patterns(),
+        };
+        let is_empty = config.is_empty();
+        print!("Config is empty={is_empty}\n");
+
+        let filter_result = should_filter(&event, &config);
         assert_eq!(
             filter_result,
             Err(FilterStatKey::HealthCheck),
@@ -136,7 +123,12 @@ mod tests {
             transaction: Annotated::new("/health".into()),
             ..Event::default()
         };
-        let filter_result = should_filter(&event, &FilterConfig { is_enabled: false });
+        let filter_result = should_filter(
+            &event,
+            &HealthCheckEndpointsFilterConfig {
+                patterns: GlobPatterns::new(vec![]),
+            },
+        );
         assert_eq!(
             filter_result,
             Ok(()),
@@ -150,7 +142,12 @@ mod tests {
             transaction: Annotated::new("/a/b/c".into()),
             ..Event::default()
         };
-        let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+        let filter_result = should_filter(
+            &event,
+            &HealthCheckEndpointsFilterConfig {
+                patterns: _get_patterns(),
+            },
+        );
         assert_eq!(
             filter_result,
             Ok(()),

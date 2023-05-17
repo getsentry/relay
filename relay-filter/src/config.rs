@@ -136,6 +136,20 @@ pub struct ErrorMessagesFilterConfig {
     pub patterns: GlobPatterns,
 }
 
+/// Configuration for the error messages filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct HealthCheckEndpointsFilterConfig {
+    /// List of healthcheck patterns that will be filtered.
+    pub patterns: GlobPatterns,
+}
+
+impl HealthCheckEndpointsFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.patterns.is_empty()
+    }
+}
+
 impl ErrorMessagesFilterConfig {
     /// Returns true if no configuration for this filter is given.
     pub fn is_empty(&self) -> bool {
@@ -212,8 +226,11 @@ pub struct FiltersConfig {
     pub releases: ReleasesFilterConfig,
 
     /// Configuration for the healthcheck filter.
-    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
-    pub health_check: FilterConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "HealthCheckEndpointsFilterConfig::is_empty"
+    )]
+    pub health_check: HealthCheckEndpointsFilterConfig,
 }
 
 impl FiltersConfig {
@@ -265,8 +282,8 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: [],
             },
-            health_check: FilterConfig {
-                is_enabled: false,
+            health_check: HealthCheckEndpointsFilterConfig {
+                patterns: [],
             },
         }
         "###);
@@ -301,7 +318,9 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
             },
-            health_check: FilterConfig { is_enabled: true },
+            health_check: HealthCheckEndpointsFilterConfig {
+                patterns: GlobPatterns::new(vec!["*health*".to_string()]),
+            },
         };
 
         insta::assert_json_snapshot!(filters_config, @r###"
@@ -342,7 +361,9 @@ mod tests {
             ]
           },
           "healthCheck": {
-            "isEnabled": true
+            "patterns": [
+              "*health*"
+            ]
           }
         }
         "###);
