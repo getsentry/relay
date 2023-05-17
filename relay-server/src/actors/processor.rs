@@ -1997,8 +1997,8 @@ impl EnvelopeProcessorService {
 
         // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
         // below already checks for the event type.
-        let Some(event) = state.event.value() else { return; };
-        let Some(key_config) = state.project_state.get_public_key_config() else { return; };
+        let Some(event) = state.event.value() else { return };
+        let Some(key_config) = state.project_state.get_public_key_config() else { return };
 
         if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
