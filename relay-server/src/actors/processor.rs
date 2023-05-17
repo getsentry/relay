@@ -2240,6 +2240,9 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming event
     fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
+        // Running dynamic sampling involves either:
+        // - Tagging whether an incoming error has a sampled trace connected to it.
+        // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
             EventType::Default | EventType::Error => {
                 self.tag_error_with_sampling_decision(state);
