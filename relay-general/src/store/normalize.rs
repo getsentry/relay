@@ -326,8 +326,6 @@ fn remove_invalid_measurements(
         }
 
         meta.add_error(Error::invalid(format!("too many measurements: {}", name)));
-
-        // Retain payloads in _meta just for excessive custom measurements.
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
