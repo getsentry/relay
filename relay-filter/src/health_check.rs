@@ -1,6 +1,6 @@
-//! Implements event filtering based on whether the endpoint called is a healthcheck endpoint
+//! Implements event filtering based on whether the endpoint called is a healthcheck endpoint.
 //!
-//! If this filter is enabled messages to healthcheck endpoints will be filtered out
+//! If this filter is enabled messages to healthcheck endpoints will be filtered out.
 
 use once_cell::sync::Lazy;
 use regex::Regex;
