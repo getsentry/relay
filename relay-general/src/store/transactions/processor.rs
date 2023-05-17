@@ -2685,4 +2685,81 @@ mod tests {
         "resource.css",
         ""
     );
+
+    #[test]
+    fn test_scrub_span_identifiers_and_apply_rules() {
+        // Ensure rules are applied after scrubbing identifiers. Rules are only
+        // applied when `transaction.source="url"`, so this test ensures this
+        // value isn't set as part of identifier scrubbing.
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/transaction-name/hi",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                },
+                "spans": [
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "GET http://example.com/another/url/is/intact",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/not-scrubbed-for-different-op/remains-too",
+                        "op": "db.sql.query",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb452",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        // Pattern with the same format as transaction name rules.
+                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: RuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                true,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
 }
