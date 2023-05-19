@@ -541,7 +541,7 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
     let mut scrubbed = span.description.clone();
 
-    match span.op.value() {
+    let did_scrub = match span.op.value() {
         Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
         Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
         Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
@@ -549,17 +549,18 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
         _ => false,
     };
 
-    // FIXME: undo this change. only add the item to the description if it was scrubbed
-    if let Some(new_desc) = scrubbed.into_value() {
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(new_desc)),
-            );
-    };
+    if did_scrub {
+        if let Some(new_desc) = scrubbed.into_value() {
+            span.data
+                .get_or_insert_with(BTreeMap::new)
+                // We don't care what the cause of scrubbing was, since we assume
+                // that after scrubbing the value is sanitized.
+                .insert(
+                    "description.scrubbed".to_owned(),
+                    Annotated::new(Value::String(new_desc)),
+                );
+        };
+    }
 
     Ok(())
 }
