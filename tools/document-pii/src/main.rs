@@ -8,8 +8,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
-use clap::{command, Parser, ValueEnum};
-use serde::Serialize;
+use clap::{command, Parser};
 use syn::ItemEnum;
 use syn::ItemStruct;
 use walkdir::WalkDir;
@@ -28,13 +27,6 @@ pub mod pii_finder;
 pub enum EnumOrStruct {
     Struct(ItemStruct),
     Enum(ItemEnum),
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum, Default)]
-pub enum SchemaFormat {
-    #[default]
-    Json,
-    Yaml,
 }
 
 /// Gets all the .rs files in a given rust crate/workspace.
@@ -58,15 +50,12 @@ fn find_rs_files(dir: &PathBuf) -> Vec<std::path::PathBuf> {
 #[derive(Debug, Parser, Default)]
 #[command(verbatim_doc_comment)]
 pub struct Cli {
-    /// The format to output the documentation in.
-    #[arg(value_enum, short, long, default_value = "json")]
-    pub format: SchemaFormat,
-
     /// Optional output path. By default, documentation is printed on stdout.
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
     /// Path to the rust crate/workspace
+    #[arg(short, long)]
     pub path: Option<PathBuf>,
 
     /// The struct or enum of which you want to find all pii fields. Checks all items if none is
@@ -80,11 +69,10 @@ pub struct Cli {
 }
 
 impl Cli {
-    fn write_pii<W: Write>(&self, writer: W, metrics: &[Pii]) -> anyhow::Result<()> {
-        match self.format {
-            SchemaFormat::Json => serde_json::to_writer_pretty(writer, metrics)?,
-            SchemaFormat::Yaml => serde_yaml::to_writer(writer, metrics)?,
-        };
+    fn write_pii<W: Write>(&self, mut writer: W, metrics: &[String]) -> anyhow::Result<()> {
+        for metric in metrics {
+            writeln!(writer, "{}", metric)?;
+        }
 
         Ok(())
     }
@@ -130,30 +118,24 @@ impl Cli {
     }
 }
 
-/// Represents the output of a field which has the correct Pii value.
-#[derive(Debug, Serialize, Default)]
-struct Pii {
-    path: String,
-}
-
 /// Represent the pii fields in a format that will be used in the final output.
 fn get_pii_fields_output(
     pii_types: BTreeSet<Vec<TypeAndField>>,
     unnamed_replace: String,
-) -> Vec<Pii> {
+) -> Vec<String> {
     let mut output_vec = vec![];
     for pii in pii_types {
-        let mut output = Pii::default();
-        output.path.push_str(&pii[0].qualified_type_name);
+        let mut output = String::new();
+        output.push_str(&pii[0].qualified_type_name);
 
         for path in pii {
-            output.path.push_str(&format!(".{}", path.field_ident));
+            output.push_str(&format!(".{}", path.field_ident));
         }
 
-        output.path = output.path.replace("{{Unnamed}}.", &unnamed_replace);
+        output = output.replace("{{Unnamed}}.", &unnamed_replace);
         output_vec.push(output);
     }
-    output_vec.sort_by_key(|pii| pii.path.clone());
+    output_vec.sort();
     output_vec
 }
 
