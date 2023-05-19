@@ -29,7 +29,9 @@ use relay_general::protocol::{
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
-use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig, TransactionNameConfig};
+use relay_general::store::{
+    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+};
 use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
@@ -2346,6 +2348,12 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.config.max_secs_in_future()),
+                max_name_and_unit_len: Some(
+                    self.config
+                        .aggregator_config()
+                        .max_name_length
+                        .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+                ),
                 measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
@@ -2727,17 +2735,21 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use similar_asserts::assert_eq;
 
-    use relay_common::Uuid;
+    use relay_common::{DurationUnit, MetricUnit, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{LazyGlob, RedactionRule, RuleScope, TransactionNameRule};
-    use relay_sampling::{
-        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    use relay_general::store::{
+        LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
     };
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
     use relay_test::mock_service;
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -3745,5 +3757,38 @@ mod tests {
             .build()
             .unwrap()
             .block_on(future);
+    }
+
+    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
+    /// cannot be called from relay-general.
+    #[test]
+    fn test_mri_overhead_constant() {
+        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
+
+        let derived_value = {
+            let name = "foobar".to_string();
+            let value = 5.0; // Arbitrary value.
+            let unit = MetricUnit::Duration(DurationUnit::default());
+            let tags = TransactionMeasurementTags {
+                measurement_rating: None,
+                universal_tags: CommonTags(BTreeMap::new()),
+            };
+
+            let measurement = TransactionMetric::Measurement {
+                name: name.clone(),
+                value,
+                unit,
+                tags,
+            };
+
+            let metric: Metric = measurement.into_metric(UnixTimestamp::now());
+
+            metric.name.len() - unit.to_string().len() - name.len()
+        };
+        assert_eq!(
+            hardcoded_value, derived_value,
+            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
+        );
     }
 }
