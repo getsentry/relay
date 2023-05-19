@@ -2741,7 +2741,9 @@ mod tests {
     use relay_general::store::{
         LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
     };
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
+    use relay_sampling::{
+        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     use relay_test::mock_service;
 
     use crate::actors::test_store::TestStore;
