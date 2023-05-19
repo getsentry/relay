@@ -4,12 +4,8 @@ use std::path::PathBuf;
 
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
-use tracing::level_filters::LevelFilter;
-use tracing::Level;
-use tracing_subscriber::filter::EnvFilter;
-use tracing_subscriber::fmt::time::UtcTime;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::Layer;
+use tracing::{level_filters::LevelFilter, Level};
+use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -48,7 +44,7 @@ pub enum LogFormat {
     Json,
 }
 
-mod level {
+mod level_serde {
     use std::fmt;
 
     use serde::de::{Error, Unexpected, Visitor};
@@ -94,7 +90,7 @@ mod level {
 #[serde(default)]
 pub struct LogConfig {
     /// The log level for Relay.
-    #[serde(with = "level")]
+    #[serde(with = "level_serde")]
     pub level: Level,
 
     /// Controls the log output format.
@@ -171,15 +167,12 @@ fn capture_native_envelope(data: &[u8]) {
 
 /// Configures the given log level for all of Relay's crates.
 fn get_default_filters() -> EnvFilter {
-    let mut env_filter = EnvFilter::builder()
-        // Configure INFO as default for all third-party crates.
-        .with_default_directive(LevelFilter::INFO.into())
-        // Logs from some dependencies are very spammy on INFO level, so configure a higher level.
-        .parse_lossy("sqlx=warn,trust_dns_proto=warn");
+    // Configure INFO as default, expect for crates that are very spammy on INFO level.
+    let mut env_filter = EnvFilter::new("INFO,sqlx=WARN,trust_dns_proto=WARN");
 
     // Add all internal modules with maximum log-level.
     for name in CRATE_NAMES {
-        env_filter = env_filter.add_directive(format!("{name}=trace").parse().unwrap());
+        env_filter = env_filter.add_directive(format!("{name}=TRACE").parse().unwrap());
     }
 
     env_filter
@@ -204,14 +197,14 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         env::set_var("RUST_BACKTRACE", "full");
     }
 
-    let subscriber = tracing_subscriber::fmt::layer()
-        .with_timer(UtcTime::rfc_3339())
-        .with_target(true);
+    let subscriber = tracing_subscriber::fmt::layer().with_target(true);
 
     let format = match (config.format, console::user_attended()) {
-        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => subscriber.pretty().boxed(),
+        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
+            subscriber.compact().without_time().boxed()
+        }
         (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
-            subscriber.compact().with_ansi(false).boxed()
+            subscriber.with_ansi(false).boxed()
         }
         (LogFormat::Json, _) => subscriber
             .json()
