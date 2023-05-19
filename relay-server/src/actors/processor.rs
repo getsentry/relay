@@ -23,12 +23,12 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Context::Trace;
-use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::protocol::{Contexts, TraceSamplingResult};
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -2275,7 +2275,7 @@ impl EnvelopeProcessorService {
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         // By default an error will be tagged with sampled = false.
-        let mut sampled = false;
+        let mut sampled = TraceSamplingResult::Unknown;
 
         // We want to run dynamic sampling only if we have a root project state and a dynamic
         // sampling context.
@@ -2297,8 +2297,8 @@ impl EnvelopeProcessorService {
             );
 
             sampled = match sampling_result {
-                SamplingResult::Keep => true,
-                SamplingResult::Drop(_) => false,
+                SamplingResult::Keep => TraceSamplingResult::Kept,
+                SamplingResult::Drop(_) => TraceSamplingResult::Dropped,
             }
         }
 
@@ -2321,11 +2321,13 @@ impl EnvelopeProcessorService {
 
                 // We want to mutate the sampled after the "fake" sampling has been performed.
                 if let Some(Trace(boxed_context)) = context {
-                    boxed_context.sampled = Annotated::new(sampled);
+                    boxed_context.trace_sampling_result = Annotated::new(sampled);
                 }
             }
             None => {}
         }
+
+        println!("ERROR {:?}", state.event.to_json())
     }
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -3241,7 +3243,10 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(context.sampled.value().unwrap())
+            assert!(matches!(
+                context.trace_sampling_result.value().unwrap(),
+                TraceSamplingResult::Kept
+            ))
         }
 
         // We test the tagging when the incoming dsc matches a 0% rule.
@@ -3261,7 +3266,7 @@ mod tests {
         sampling_project_state.config.dynamic_sampling = Some(sampling_config);
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(
-                envelope.clone(),
+                envelope,
                 outcome_aggregator.clone(),
                 test_store.clone(),
             ),
@@ -3286,7 +3291,10 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(!context.sampled.value().unwrap())
+            assert!(matches!(
+                context.trace_sampling_result.value().unwrap(),
+                TraceSamplingResult::Dropped
+            ))
         }
 
         // We test the tagging when root project state and dsc are none.
@@ -3335,7 +3343,10 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(!context.sampled.value().unwrap())
+            assert!(matches!(
+                context.trace_sampling_result.value().unwrap(),
+                TraceSamplingResult::Unknown
+            ))
         }
     }
 

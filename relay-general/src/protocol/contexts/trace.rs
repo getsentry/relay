@@ -1,6 +1,8 @@
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use serde::{Serialize, Serializer};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType};
@@ -68,6 +70,77 @@ impl FromValue for SpanId {
     }
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub enum TraceSamplingResult {
+    Kept,
+    Dropped,
+    #[default]
+    Unknown,
+}
+
+impl Display for TraceSamplingResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let string = match self {
+            TraceSamplingResult::Kept => "kept",
+            TraceSamplingResult::Dropped => "dropped",
+            TraceSamplingResult::Unknown => "unknown",
+        };
+        write!(f, "{}", string)
+    }
+}
+
+impl FromStr for TraceSamplingResult {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "kept" => TraceSamplingResult::Kept,
+            "dropped" => TraceSamplingResult::Dropped,
+            "unknown" => TraceSamplingResult::Unknown,
+            _ => return Err(()),
+        })
+    }
+}
+
+impl FromValue for TraceSamplingResult {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(status) => Annotated(Some(status), meta),
+                Err(_) => {
+                    meta.add_error(Error::expected("a trace sampling result"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("a string"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+impl IntoValue for TraceSamplingResult {
+    fn into_value(self) -> Value {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
+    }
+}
+
 /// Trace context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -109,7 +182,7 @@ pub struct TraceContext {
     /// Track whether the trace connected to this event has been sampled entirely.
     ///
     /// This flag only applies to events with [`Error`] type.
-    pub sampled: Annotated<bool>,
+    pub trace_sampling_result: Annotated<TraceSamplingResult>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -233,7 +306,7 @@ mod tests {
                 );
                 map
             },
-            sampled: Annotated::empty(),
+            trace_sampling_result: Annotated::empty(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
