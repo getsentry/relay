@@ -2326,8 +2326,6 @@ impl EnvelopeProcessorService {
             }
             None => {}
         }
-
-        println!("ERROR {:?}", state.event.to_json())
     }
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
