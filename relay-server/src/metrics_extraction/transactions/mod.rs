@@ -59,6 +59,39 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
+/// Extract the browser name from the [`Context::Browser`] context.
+fn extract_browser_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let browser = contexts.get("browser").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
+        return browser_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the OS name from the [`Context::Os`] context.
+fn extract_os_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let os = contexts.get("os").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Os(os_context))) = os {
+        return os_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the GEO country code from the [`User`] context.
+fn extract_geo_country_code(event: &Event) -> Option<String> {
+    if let Some(user) = event.user.value() {
+        if let Some(geo) = user.geo.value() {
+            return geo.country_code.value().cloned();
+        }
+    }
+
+    None
+}
+
 fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
@@ -187,6 +220,18 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(http_method) = extract_http_method(event) {
         tags.insert(CommonTag::HttpMethod, http_method);
+    }
+
+    if let Some(browser_name) = extract_browser_name(event) {
+        tags.insert(CommonTag::BrowserName, browser_name);
+    }
+
+    if let Some(os_name) = extract_os_name(event) {
+        tags.insert(CommonTag::OsName, os_name);
+    }
+
+    if let Some(geo_country_code) = extract_geo_country_code(event) {
+        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -682,7 +727,10 @@ mod tests {
             "transaction": "mytransaction",
             "transaction_info": {"source": "custom"},
             "user": {
-                "id": "user123"
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
+                }
             },
             "tags": {
                 "fOO": "bar",
@@ -698,6 +746,12 @@ mod tests {
                     "span_id": "bd429c44b67a3eb4",
                     "op": "myop",
                     "status": "ok"
+                },
+                "browser": {
+                    "name": "Chrome"
+                },
+                "os": {
+                    "name": "Windows"
                 }
             },
             "spans": [
@@ -753,7 +807,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id = %s",
+                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -765,6 +819,43 @@ mod tests {
                         "db.system": "MyDatabase",
                         "db.operation": "SELECT"
                     }
+                },
+                {
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
+                    }
+                },
+                {
+                    "description": "http://domain/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 }
             ],
             "request": {
@@ -834,10 +925,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -852,11 +946,14 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
                     "measurement_rating": "meh",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -871,10 +968,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -889,10 +989,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -907,10 +1010,13 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -1063,6 +1169,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1080,10 +1187,109 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
                     "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "http://domain/static/myscript-*.js",
+                    "span.op": "resource.script",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "http://domain/static/myscript-*.js",
+                    "span.op": "resource.script",
+                    "span.status": "ok",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },
