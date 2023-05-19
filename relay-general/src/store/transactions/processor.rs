@@ -124,7 +124,6 @@ impl<'r> TransactionsProcessor<'r> {
 
         let mut scrubbed = false;
 
-        // TODO: only grab from span.data if exists. if not, take it from the span description.
         if let Some(data) = span.data.value_mut() {
             if let Some(description) = data.get_mut("description.scrubbed") {
                 description.apply(|name, meta| {
