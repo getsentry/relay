@@ -2274,16 +2274,33 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        // We run a variant of dynamic sampling that doesn't need an event, thus it will result in
-        // us matching only trace rules.
-        let sampling_result = utils::get_sampling_result(
-            self.config.processing_enabled(),
-            None,
+        // By default an error will be tagged with sampled = false.
+        let mut sampled = false;
+
+        // We want to run dynamic sampling only if we have a root project state and a dynamic
+        // sampling context.
+        //
+        // In reality the dynamic sampling logic supports optional root state and dsc but it will
+        // return keep. In our case having a keep in case of none root state and dsc will be
+        // a problem, since in reality we can't infer anything without trace metadata.
+        if let (Some(root_project_state), Some(dsc)) = (
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
-            None,
-            state.envelope().meta().client_addr(),
-        );
+        ) {
+            let sampling_result = utils::get_sampling_result(
+                self.config.processing_enabled(),
+                None,
+                Some(root_project_state),
+                Some(dsc),
+                None,
+                state.envelope().meta().client_addr(),
+            );
+
+            sampled = match sampling_result {
+                SamplingResult::Keep => true,
+                SamplingResult::Drop(_) => false,
+            }
+        }
 
         // In case the sampling result is positive, we assume that all the transactions
         // that have this DSC will be sampled and thus we mark the error as "having
@@ -2304,10 +2321,7 @@ impl EnvelopeProcessorService {
 
                 // We want to mutate the sampled after the "fake" sampling has been performed.
                 if let Some(Trace(boxed_context)) = context {
-                    boxed_context.sampled = Annotated::new(match sampling_result {
-                        SamplingResult::Keep => true,
-                        SamplingResult::Drop(_) => false,
-                    });
+                    boxed_context.sampled = Annotated::new(sampled);
                 }
             }
             None => {}
@@ -3150,7 +3164,7 @@ mod tests {
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
 
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -3246,9 +3260,62 @@ mod tests {
         let mut sampling_project_state = ProjectState::allowed();
         sampling_project_state.config.dynamic_sampling = Some(sampling_config);
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::standalone(
+                envelope.clone(),
+                outcome_aggregator.clone(),
+                test_store.clone(),
+            ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: Some(Arc::new(sampling_project_state)),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        let item = new_envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(!context.sampled.value().unwrap())
+        }
+
+        // We test the tagging when root project state and dsc are none.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                  "event_id": "52df9022835246eeb317dbd739ccd059",
+                  "exception": {
+                    "values": [
+                        {
+                          "type": "mytype",
+                          "value": "myvalue",
+                          "module": "mymodule",
+                          "thread_id": 42,
+                          "other": "value"
+                        }
+                    ]
+                  }
+                }"#,
+            );
+            item
+        });
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
         };
 
         let envelope_response = processor.process(message).unwrap();
