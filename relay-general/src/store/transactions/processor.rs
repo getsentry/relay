@@ -98,6 +98,32 @@ impl<'r> TransactionsProcessor<'r> {
             }
         }
 
+        // HACK(iker): work-around to scrub the description, in a
+        // context-manager-like approach.
+        //
+        // If data[description.scrubbed] isn't present, we want to scrub
+        // span.description. However, they have different types:
+        // Annotated<Value> vs Annotated<String>. The simplest and fastest
+        // solution I found is to add span.description to span.data if it
+        // doesn't exist already, scrub it, and remove it if we did nothing.
+        let previously_scrubbed =
+            matches!(span.data.value(), Some(data) if data.get("description.scrubbed").is_some());
+        if !previously_scrubbed {
+            dbg!(&span.description.clone().value());
+            if let Some(description) = span.description.clone().value() {
+                dbg!(&description);
+                span.data
+                    .value_mut()
+                    .get_or_insert_with(BTreeMap::new)
+                    .insert(
+                        "description.scrubbed".to_owned(),
+                        Annotated::new(Value::String(description.to_owned())),
+                    );
+            }
+        }
+
+        let mut scrubbed = false;
+
         // TODO: only grab from span.data if exists. if not, take it from the span description.
         if let Some(data) = span.data.value_mut() {
             if let Some(description) = data.get_mut("description.scrubbed") {
@@ -109,6 +135,7 @@ impl<'r> TransactionsProcessor<'r> {
                         });
 
                         if let Some((applied_rule, new_name)) = result {
+                            scrubbed = true;
                             if *s != new_name {
                                 meta.add_remark(Remark::new(
                                     RemarkType::Substituted,
@@ -125,6 +152,14 @@ impl<'r> TransactionsProcessor<'r> {
                 })?;
             }
         }
+
+        if !previously_scrubbed && !scrubbed {
+            span.data
+                .value_mut()
+                .as_mut()
+                .and_then(|data| data.remove("description.scrubbed"));
+        }
+
         Ok(())
     }
 }
