@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.24
+
+- Add optional event to respect signature of the `get_sampling_result` method. ([#2026](https://github.com/getsentry/relay/pull/2026))
+
 ## 0.8.23
 
 - Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
