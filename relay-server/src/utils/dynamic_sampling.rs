@@ -79,36 +79,11 @@ fn get_sampling_match_result(
     )
 }
 
-/// Checks whether an incoming event should be kept or dropped based only on trace rules, thus
-/// without requiring the configuration of the non-root project.
-///
-/// This method has been duplicated from the `should_keep_event` since it should be used independently
-/// and a clear separation is needed.
-pub fn should_keep_event_with_trace_rules(
+/// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
+/// kept or dropped.
+pub fn get_sampling_result(
     processing_enabled: bool,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
-    ip_addr: Option<IpAddr>,
-) -> SamplingResult {
-    let sampling_result = get_sampling_match_result(
-        processing_enabled,
-        None,
-        root_project_state,
-        dsc,
-        None,
-        ip_addr,
-        // For consistency reasons we take a snapshot in time and use that time across all code that
-        // requires it.
-        Utc::now(),
-    );
-    SamplingResult::determine_from_sampling_match(sampling_result)
-}
-
-/// Checks whether an incoming event should be kept or dropped based on the result of the sampling
-/// configuration match.
-pub fn should_keep_event(
-    processing_enabled: bool,
-    project_state: &ProjectState,
+    project_state: Option<&ProjectState>,
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
@@ -116,7 +91,7 @@ pub fn should_keep_event(
 ) -> SamplingResult {
     let sampling_result = get_sampling_match_result(
         processing_enabled,
-        Some(project_state),
+        project_state,
         root_project_state,
         dsc,
         event,
@@ -206,7 +181,7 @@ mod tests {
 
     #[test]
     /// Tests that an event is kept when there is a match and we have 100% sample rate.
-    fn test_should_keep_event_return_keep_with_match_and_100_sample_rate() {
+    fn test_get_sampling_result_return_keep_with_match_and_100_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
@@ -214,13 +189,14 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
+        let result =
+            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
         assert_eq!(result, SamplingResult::Keep)
     }
 
     #[test]
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
-    fn test_should_keep_event_return_drop_with_match_and_0_sample_rate() {
+    fn test_get_sampling_result_return_drop_with_match_and_0_sample_rate() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
@@ -228,7 +204,8 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
+        let result =
+            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))
@@ -237,7 +214,7 @@ mod tests {
 
     #[test]
     /// Tests that an event is kept when there is no match.
-    fn test_should_keep_event_return_keep_with_no_match() {
+    fn test_get_sampling_result_return_keep_with_no_match() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![SamplingRule {
@@ -252,13 +229,14 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
-        let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
+        let result =
+            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
         assert_eq!(result, SamplingResult::Keep)
     }
 
     #[test]
     /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
-    fn test_should_keep_event_return_keep_with_unsupported_rule() {
+    fn test_get_sampling_result_return_keep_with_unsupported_rule() {
         let project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![
@@ -269,10 +247,12 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = should_keep_event(false, &project_state, None, None, Some(&event), None);
+        let result =
+            get_sampling_result(false, Some(&project_state), None, None, Some(&event), None);
         assert_eq!(result, SamplingResult::Keep);
 
-        let result = should_keep_event(true, &project_state, None, None, Some(&event), None);
+        let result =
+            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
@@ -281,7 +261,7 @@ mod tests {
 
     #[test]
     /// Tests that an event is kept when there is a trace match and we have 100% sample rate.
-    fn test_should_keep_event_with_traces_rules_return_keep_when_match() {
+    fn test_get_sampling_result_with_traces_rules_return_keep_when_match() {
         let root_project_state = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
@@ -290,7 +270,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
 
         let result =
-            should_keep_event_with_trace_rules(true, Some(&root_project_state), Some(&dsc), None);
+            get_sampling_result_with_trace_rules(true, Some(&root_project_state), Some(&dsc), None);
         assert_eq!(result, SamplingResult::Keep)
     }
 }

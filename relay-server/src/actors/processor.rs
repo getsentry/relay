@@ -2256,9 +2256,9 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        state.sampling_result = utils::should_keep_event(
+        state.sampling_result = utils::get_sampling_result(
             self.config.processing_enabled(),
-            &state.project_state,
+            Some(&state.project_state),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
@@ -2274,10 +2274,12 @@ impl EnvelopeProcessorService {
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         // We run a variant of dynamic sampling that doesn't need an event, thus it will result in
         // us matching only trace rules.
-        let sampling_result = utils::should_keep_event_with_trace_rules(
+        let sampling_result = utils::get_sampling_result(
             self.config.processing_enabled(),
+            None,
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
+            None,
             state.envelope().meta().client_addr(),
         );
 

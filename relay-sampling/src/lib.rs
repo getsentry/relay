@@ -998,11 +998,11 @@ pub fn merge_configs_and_match(
     // The determination of the sampling mode occurs with the following priority:
     // 1. Non-root project sampling mode
     // 2. Root project sampling mode
-    // 3. SamplingMode::Unsupported
-    let sampling_mode = sampling_config.map_or(
-        root_sampling_config.map_or(SamplingMode::Unsupported, |config| config.mode),
-        |config| config.mode,
-    );
+    let Some(primary_config) = sampling_config.or(root_sampling_config) else {
+        relay_log::error!("cannot sample without at least one sampling config");
+        return None;
+    };
+    let sampling_mode = primary_config.sampling_mode;
     let sample_rate = match sampling_mode {
         SamplingMode::Received => match_result.sample_rate,
         SamplingMode::Total => match dsc {
@@ -1082,20 +1082,16 @@ impl SamplingMatch {
         // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
         //
         // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
-        let mut seed = event
-            .map_or(Annotated::empty(), |event| event.id.clone())
-            .value()
-            .map(|id| id.0);
+        let mut seed = event.and_then(|e| e.id.value()).map(|id| id.0);
         let mut accumulated_factors = 1.0;
 
-        let event_ty = event.and_then(|event| event.ty.value());
         for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
                     _ => false,
                 },
-                RuleType::Transaction => event.map_or(false, |event| match event_ty {
+                RuleType::Transaction => event.map_or(false, |event| match event.ty {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 }),
