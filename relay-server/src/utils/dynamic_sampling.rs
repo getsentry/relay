@@ -269,8 +269,14 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
 
-        let result =
-            get_sampling_result_with_trace_rules(true, Some(&root_project_state), Some(&dsc), None);
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&root_project_state),
+            Some(&dsc),
+            None,
+            None,
+        );
         assert_eq!(result, SamplingResult::Keep)
     }
 }

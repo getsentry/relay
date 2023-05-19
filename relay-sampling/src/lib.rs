@@ -1002,7 +1002,7 @@ pub fn merge_configs_and_match(
         relay_log::error!("cannot sample without at least one sampling config");
         return None;
     };
-    let sampling_mode = primary_config.sampling_mode;
+    let sampling_mode = primary_config.mode;
     let sample_rate = match sampling_mode {
         SamplingMode::Received => match_result.sample_rate,
         SamplingMode::Total => match dsc {
@@ -1091,7 +1091,7 @@ impl SamplingMatch {
                     Some(dsc) => rule.condition.matches(dsc, ip_addr),
                     _ => false,
                 },
-                RuleType::Transaction => event.map_or(false, |event| match event.ty {
+                RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
                     Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
                     _ => false,
                 }),
@@ -3972,7 +3972,29 @@ mod tests {
     #[test]
     /// Tests that no match is returned when no event and no dsc are passed.
     fn test_get_sampling_match_result_with_no_event_and_no_dsc() {
-        let result = merge_configs_and_match(true, None, None, None, None, None, Utc::now());
+        let sampling_config = mocked_sampling_config(SamplingMode::Received);
+        let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
+
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            Some(&root_sampling_config),
+            None,
+            None,
+            None,
+            Utc::now(),
+        );
+        assert_no_match!(result);
+    }
+
+    #[test]
+    /// Tests that no match is returned when no sampling configs are passed.
+    fn test_get_sampling_match_result_with_no_sampling_configs() {
+        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
+
+        let result =
+            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), None, Utc::now());
         assert_no_match!(result);
     }
 }
