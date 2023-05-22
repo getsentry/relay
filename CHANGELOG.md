@@ -4,12 +4,24 @@
 
 **Bug Fixes**:
 
+- Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+
+**Internal**:
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+- Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
+
+## 23.5.0
+
+**Bug Fixes**:
+
 - Enforce rate limits for monitor check-ins. ([#2065](https://github.com/getsentry/relay/pull/2065))
 - Allow rate limits greater than `u32::MAX`. ([#2079](https://github.com/getsentry/relay/pull/2079))
 - Do not drop envelope when client closes connection. ([#2089](https://github.com/getsentry/relay/pull/2089))
 
 **Features**:
 
+- Scrub IBAN as pii. ([#2117](https://github.com/getsentry/relay/pull/2117))
 - Scrub sensitive keys (`passwd`, `token`, ...) in Replay recording data. ([#2034](https://github.com/getsentry/relay/pull/2034))
 - Add support for old 'violated-directive' CSP format. ([#2048](https://github.com/getsentry/relay/pull/2048))
 - Add document_uri to csp filter. ([#2059](https://github.com/getsentry/relay/pull/2059))

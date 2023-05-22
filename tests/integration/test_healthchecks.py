@@ -102,6 +102,10 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
 
 
 def test_readiness_disk_spool(mini_sentry, relay):
+    @mini_sentry.app.endpoint("store_internal_error_event")
+    def store_internal_error_event():
+        return {}
+
     try:
         temp = tempfile.mkdtemp()
         dbfile = os.path.join(temp, "buffer.db")
@@ -147,8 +151,6 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
         try:
             # These events will consume all the disk sapce and we will report not ready.
-            relay.send_event(project_key)
-            relay.send_event(project_key)
             relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test

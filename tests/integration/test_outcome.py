@@ -207,22 +207,43 @@ def test_outcomes_two_topics(
     outcomes_consumer.assert_empty()
 
 
-def _send_event(relay, project_id=42, event_type="error", event_id=None):
+def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_id=None):
     """
     Send an event to the given project.
 
     If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
     """
+    trace_id = trace_id or uuid.uuid4().hex
     event_id = event_id or uuid.uuid1().hex
     message_text = "some message {}".format(datetime.now())
-    event_body = {
-        "event_id": event_id,
-        "message": message_text,
-        "extra": {"msg_text": message_text},
-        "type": event_type,
-        "environment": "production",
-        "release": "foo@1.2.3",
-    }
+    if event_type == "error":
+        event_body = {
+            "event_id": event_id,
+            "message": message_text,
+            "extra": {"msg_text": message_text},
+            "type": event_type,
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
+    elif event_type == "transaction":
+        event_body = {
+            "event_id": event_id,
+            "type": "transaction",
+            "transaction": "tr1",
+            "start_timestamp": 1597976392.6542819,
+            "timestamp": 1597976400.6189718,
+            "contexts": {
+                "trace": {
+                    "trace_id": trace_id,
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                }
+            },
+            "spans": [],
+            "extra": {"id": event_id},
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
 
     try:
         relay.send_event(project_id=project_id, payload=event_body)
@@ -715,7 +736,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -750,7 +771,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         },
     )
 
-    _send_event(downstream, event_type="error")
+    _send_event(downstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -769,7 +790,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -882,7 +903,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -906,8 +927,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         },
     )
 
-    _send_event(upstream, event_type="error")
-    _send_event(upstream, event_type="error")
+    _send_event(upstream, event_type="transaction")
+    _send_event(upstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -925,7 +946,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -1003,7 +1024,7 @@ def test_graceful_shutdown(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -1028,7 +1049,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         },
     )
 
-    _send_event(relay, event_type="error")
+    _send_event(relay, event_type="transaction")
 
     # Give relay some time to handle event
     time.sleep(0.1)
@@ -1053,7 +1074,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome

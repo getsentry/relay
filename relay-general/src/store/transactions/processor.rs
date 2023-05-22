@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use once_cell::sync::Lazy;
+use regex::Regex;
 use relay_common::SpanStatus;
 
 use super::TransactionNameRule;
@@ -8,7 +10,10 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
-use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
+use crate::store::regexes::{
+    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
+    TRANSACTION_NAME_NORMALIZER_REGEX,
+};
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -276,16 +281,34 @@ fn set_default_transaction_source(event: &mut Event) {
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
 fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
-        .capture_names()
-        .flatten()
-        .collect::<Vec<_>>();
+    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")
+}
+
+/// Normalize the given SQL-query-like string.
+fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
+}
+
+fn scrub_cache_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
+}
+
+fn scrub_resource_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    scrub_identifiers_with_regex(string, &RESOURCE_NORMALIZER_REGEX, "*")
+}
+
+fn scrub_identifiers_with_regex(
+    string: &mut Annotated<String>,
+    pattern: &Lazy<Regex>,
+    replacer: &str,
+) -> Result<bool, ProcessingAction> {
+    let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
     let mut did_change = false;
     string.apply(|trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
-        for captures in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+        for captures in pattern.captures_iter(trans) {
             for name in &capture_names {
                 if let Some(capture) = captures.name(name) {
                     let remark = Remark::with_range(
@@ -306,11 +329,11 @@ fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
         // Sort by the capture end position.
         caps.sort_by_key(|(capture, _)| capture.end());
-        let mut changed = String::with_capacity(trans.len());
+        let mut changed = String::with_capacity(trans.len() + caps.len() * replacer.len());
         let mut last_end = 0usize;
         for (capture, remark) in caps {
             changed.push_str(&trans[last_end..capture.start()]);
-            changed.push('*');
+            changed.push_str(replacer);
             last_end = capture.end();
             meta.add_remark(remark);
         }
@@ -462,20 +485,25 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
     let mut scrubbed = span.description.clone();
 
-    if let Some(is_url_like) = span.op.value().map(|op| op.starts_with("http")) {
-        if is_url_like && scrub_identifiers(&mut scrubbed)? {
-            let Some(new_desc) = scrubbed.value() else {
-                    return Ok(());
-                };
+    let did_scrub = match span.op.value() {
+        Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
+        Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
+        Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
+        Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
+        _ => false,
+    };
+
+    if did_scrub {
+        if let Some(new_desc) = scrubbed.into_value() {
             span.data
                 .get_or_insert_with(BTreeMap::new)
                 // We don't care what the cause of scrubbing was, since we assume
                 // that after scrubbing the value is sanitized.
                 .insert(
                     "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(new_desc.to_owned())),
+                    Annotated::new(Value::String(new_desc)),
                 );
-        }
+        };
     }
 
     Ok(())
@@ -2245,7 +2273,9 @@ mod tests {
     }
 
     macro_rules! span_description_test {
-        ($name:ident, $input:literal, $output:literal) => {
+        // Tests the scrubbed span description for the given op.
+        // An empty output `""` means the span description was not scrubbed at all.
+        ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -2256,10 +2286,10 @@ mod tests {
                         "start_timestamp": 1597976393.4619668,
                         "timestamp": 1597976393.4718769,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "op": "http.client"
+                        "op": "{}"
                     }}
                 "#,
-                    $input
+                    $description_in, $op_in
                 );
 
                 let mut span = Annotated::<Span>::from_json(&json).unwrap();
@@ -2271,7 +2301,18 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!($input, span.value().unwrap().description.value().unwrap());
+                // The input description may contain escaped characters, and the
+                // default formatter (when taking the value from the span
+                // description) automatically escapes them. The goal is to
+                // compute raw values, so we want to get rid of character
+                // escaping, and the debug formatter does that. The debug
+                // formatter doesn't remove the leading and trailing `"`s, so we
+                // manually add them to the input literal.
+                assert_eq!(
+                    format!("\"{}\"", $description_in),
+                    format!("{:?}", span.value().unwrap().description.value().unwrap())
+                );
+
                 if $output == "" {
                     assert!(span
                         .value()
@@ -2292,49 +2333,301 @@ mod tests {
         };
     }
 
-    span_description_test!(span_description_scrub_empty, "", "");
+    span_description_test!(span_description_scrub_empty, "", "http.client", "");
 
     span_description_test!(
         span_description_scrub_only_domain,
         "GET http://service.io",
+        "http.client",
         ""
+    );
+
+    span_description_test!(
+        span_description_scrub_only_urllike_on_http_ops,
+        "GET https://www.service.io/resources/01234",
+        "http.client",
+        "GET https://www.service.io/resources/*"
     );
 
     span_description_test!(
         span_description_scrub_path_ids_end,
         "GET https://www.service.io/resources/01234",
+        "http.client",
         "GET https://www.service.io/resources/*"
     );
 
     span_description_test!(
         span_description_scrub_path_ids_middle,
         "GET https://www.service.io/resources/01234/details",
+        "http.client",
         "GET https://www.service.io/resources/*/details"
     );
 
     span_description_test!(
         span_description_scrub_path_multiple_ids,
         "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+        "http.client",
         "GET https://www.service.io/users/*/settings/*"
     );
 
     span_description_test!(
         span_description_scrub_path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
     span_description_test!(
         span_description_scrub_path_sha_hashes,
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
     span_description_test!(
         span_description_scrub_path_uuids,
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
+        "http.client",
         "GET /clients/*/project/*"
     );
 
     // TODO(iker): Add span description test for URLs with paths
+
+    span_description_test!(
+        span_description_scrub_only_dblike_on_db_ops,
+        "SELECT count() FROM table WHERE id IN (%s, %s)",
+        "http.client",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_percentage,
+        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_dollar,
+        "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_questionmarks,
+        "SELECT count() FROM table WHERE id IN (?, ?, ?)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_unparameterized_ins_uppercase,
+        "SELECT count() FROM table WHERE id IN (100, 101, 102)",
+        "db.sql.query",
+        "SELECT count() FROM table WHERE id IN (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_ins_lowercase,
+        "select count() from table where id in (100, 101, 102)",
+        "db.sql.query",
+        "select count() from table where id in (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_uppercase,
+        "SAVEPOINT unquoted_identifier",
+        "db.sql.query",
+        "SAVEPOINT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_uppercase_semicolon,
+        "SAVEPOINT unquoted_identifier;",
+        "db.sql.query",
+        "SAVEPOINT %s;"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_lowercase,
+        "savepoint unquoted_identifier",
+        "db.sql.query",
+        "savepoint %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_quoted,
+        "SAVEPOINT 'single_quoted_identifier'",
+        "db.sql.query",
+        "SAVEPOINT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_savepoint_quoted_backtick,
+        "SAVEPOINT `backtick_quoted_identifier`",
+        "db.sql.query",
+        "SAVEPOINT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string,
+        "SELECT * FROM table WHERE sku = 'foo'",
+        "db.sql.query",
+        "SELECT * FROM table WHERE sku = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_single_quoted_string_unfinished,
+        r#"SELECT * FROM table WHERE quote = 'it\\'s a string"#,
+        "db.sql.query",
+        "SELECT * FROM table WHERE quote = %s"
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_postgres,
+        r#"SELECT * from \"table\" WHERE sku = %s"#,
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_double_quoted_strings_format_mysql,
+        r#"SELECT * from table WHERE sku = \"foo\""#,
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_num_where,
+        "SELECT * FROM table WHERE id = 1",
+        "db.sql.query",
+        "SELECT * FROM table WHERE id = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_limit,
+        "SELECT * FROM table LIMIT 1",
+        "db.sql.query",
+        "SELECT * FROM table LIMIT %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_negative_where,
+        "SELECT * FROM table WHERE temperature > -100",
+        "db.sql.query",
+        "SELECT * FROM table WHERE temperature > %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_num_e_where,
+        "SELECT * FROM table WHERE salary > 1e7",
+        "db.sql.query",
+        "SELECT * FROM table WHERE salary > %s"
+    );
+
+    span_description_test!(
+        span_description_already_scrubbed,
+        "SELECT * FROM table123 WHERE id = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_true,
+        "SELECT * FROM table WHERE deleted = true",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_false,
+        "SELECT * FROM table WHERE deleted = false",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_where_bool_insensitive,
+        "SELECT * FROM table WHERE deleted = FaLsE",
+        "db.sql.query",
+        "SELECT * FROM table WHERE deleted = %s"
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_true,
+        "SELECT * FROM table_true WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_tablename_false,
+        "SELECT * FROM table_false WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_true,
+        "SELECT * FROM tatrueble WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_boolean_not_in_mid_tablename_false,
+        "SELECT * FROM tafalseble WHERE deleted = %s",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_dont_scrub_nulls,
+        "SELECT * FROM table WHERE deleted_at IS NULL",
+        "db.sql.query",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_cache,
+        "abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
+        "cache.get_item",
+        "abc:*:*:*:*:*:zookeeper"
+    );
+
+    span_description_test!(
+        span_description_scrub_nothing_cache,
+        "abc-dontscrubme-meneither:stillno:ohplsstop",
+        "cache.get_item",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_script,
+        "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
+        "resource.script",
+        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.js-*.map"
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_script_numeric_filename,
+        "https://example.com/static/chunks/09876543211234567890",
+        "resource.script",
+        "https://example.com/static/chunks/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_resource_css,
+        "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
+        "resource.css",
+        "https://example.com/assets/dark_high_contrast-*.css"
+    );
+
+    span_description_test!(
+        span_description_scrub_nothing_in_resource,
+        "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
+        "resource.css",
+        ""
+    );
 }

@@ -6,8 +6,8 @@ use std::iter::FusedIterator;
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
 pub use relay_common::{
-    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
-    UnixTimestamp,
+    is_valid_metric_name, CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit,
+    ParseMetricUnitError, UnixTimestamp,
 };
 use serde::{Deserialize, Serialize};
 
@@ -149,20 +149,6 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name. This is the statsd name, i.e. without type or unit.
-///
-/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-fn is_valid_name(name: &str) -> bool {
-    let mut iter = name.as_bytes().iter();
-    if let Some(first_byte) = iter.next() {
-        if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
-        }
-    }
-    false
-}
-
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -291,7 +277,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !is_valid_name(name) {
+    if !is_valid_metric_name(name) {
         return None;
     }
 

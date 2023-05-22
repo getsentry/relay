@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
+use tracing::Level;
+
 /// Returns `true` if backtrace printing is enabled.
 ///
 /// # Example
@@ -22,8 +24,8 @@ pub fn backtrace_enabled() -> bool {
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
 pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
-    if log::log_enabled!(log::Level::Error) {
-        log::error!("{}", LogError(error.as_ref()));
+    if tracing::event_enabled!(Level::ERROR) {
+        crate::error!("{}", LogError(error.as_ref()));
     } else {
         eprintln!("error: {}", LogError(error.as_ref()));
     }
