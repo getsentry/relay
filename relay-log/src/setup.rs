@@ -203,7 +203,9 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         env::set_var("RUST_BACKTRACE", "full");
     }
 
-    let subscriber = tracing_subscriber::fmt::layer().with_target(true);
+    let subscriber = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_target(true);
 
     let format = match (config.format, console::user_attended()) {
         (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
