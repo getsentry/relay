@@ -167,7 +167,7 @@ fn capture_native_envelope(data: &[u8]) {
 
 /// Configures the given log level for all of Relay's crates.
 fn get_default_filters() -> EnvFilter {
-    // Configure INFO as default, expect for crates that are very spammy on INFO level.
+    // Configure INFO as default, except for crates that are very spammy on INFO level.
     let mut env_filter = EnvFilter::new(
         "INFO,\
         sqlx=WARN,\
