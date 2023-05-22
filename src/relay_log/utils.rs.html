@@ -58,8 +58,12 @@
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
+
+<span class="kw">use </span>tracing::Level;
 
 <span class="doccomment">/// Returns `true` if backtrace printing is enabled.
 ///
@@ -82,8 +86,8 @@
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
 </span><span class="kw">pub fn </span>ensure_error&lt;E: AsRef&lt;<span class="kw">dyn </span>Error&gt;&gt;(error: E) {
-    <span class="kw">if </span><span class="macro">log::log_enabled!</span>(log::Level::Error) {
-        <span class="macro">log::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error.as_ref()));
+    <span class="kw">if </span><span class="macro">tracing::event_enabled!</span>(Level::ERROR) {
+        <span class="macro">crate::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error.as_ref()));
     } <span class="kw">else </span>{
         <span class="macro">eprintln!</span>(<span class="string">&quot;error: {}&quot;</span>, LogError(error.as_ref()));
     }

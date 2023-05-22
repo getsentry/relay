@@ -28,15 +28,35 @@
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
-</pre><pre class="rust"><code><span class="kw">use </span>log::LevelFilter;
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+</pre><pre class="rust"><code><span class="kw">use </span>tracing_subscriber::EnvFilter;
+
+<span class="comment">// Import CRATE_NAMES, which lists all crates in the workspace.
+</span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 
 <span class="attr">#[doc(hidden)]
-</span><span class="kw">pub fn </span>__init_test(module_path: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) {
-    <span class="kw">let </span>crate_name = module_path.split(<span class="string">&quot;::&quot;</span>).next().unwrap();
+</span><span class="kw">pub fn </span>__init_test() {
+    <span class="kw">let </span><span class="kw-2">mut </span>env_filter = EnvFilter::new(<span class="string">&quot;ERROR&quot;</span>);
 
-    env_logger::builder()
-        .filter(<span class="prelude-val">Some</span>(crate_name), LevelFilter::Trace)
-        .is_test(<span class="bool-val">true</span>)
+    <span class="comment">// Add all internal modules with maximum log-level.
+    </span><span class="kw">for </span>name <span class="kw">in </span>CRATE_NAMES {
+        env_filter = env_filter.add_directive(<span class="macro">format!</span>(<span class="string">&quot;{name}=TRACE&quot;</span>).parse().unwrap());
+    }
+
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(env_filter)
+        .with_target(<span class="bool-val">true</span>)
+        .with_test_writer()
+        .compact()
         .try_init()
         .ok();
 }
@@ -54,7 +74,7 @@
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>init_test {
     () =&gt; {
-        <span class="macro-nonterminal">$crate::__init_test</span>(<span class="macro">::std::module_path!</span>());
+        <span class="macro-nonterminal">$crate::__init_test</span>();
     };
 }
 </code></pre></div>

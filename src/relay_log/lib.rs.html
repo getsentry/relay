@@ -254,11 +254,11 @@
 </span><span class="kw">pub use </span>test::<span class="kw-2">*</span>;
 
 <span class="kw">mod </span>utils;
-<span class="comment">// Expose the minimal log facade.
-</span><span class="attr">#[doc(inline)]
-</span><span class="kw">pub use </span>log::{debug, error, info, log, trace, warn};
 <span class="attr">#[cfg(feature = <span class="string">&quot;sentry&quot;</span>)]
 </span><span class="kw">pub use </span>sentry::integrations::tower;
+<span class="comment">// Expose the minimal log facade.
+</span><span class="attr">#[doc(inline)]
+</span><span class="kw">pub use </span>tracing::{debug, error, info, trace, warn, Level};
 <span class="comment">// Expose the minimal error reporting API.
 </span><span class="attr">#[doc(inline)]
 </span><span class="kw">pub use </span>sentry_core::{capture_error, configure_scope, protocol, with_scope, Hub};
