@@ -622,7 +622,6 @@ fn sql_table_from_query(query: &str) -> Option<&str> {
         .collect();
 
     for captures in SQL_TABLE_EXTRACTOR_REGEX.captures_iter(query) {
-        dbg!(&captures);
         for name in &capture_names {
             if let Some(capture) = captures.name(name) {
                 return Some(&query[capture.start()..capture.end()]);
@@ -1218,8 +1217,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.domain": "table",
                     "span.module": "db",
-                    "span.op": "db",
+                    "span.op": "db.sql.query",
                     "span.status": "ok",
                     "span.system": "MyDatabase",
                     "transaction": "mytransaction",
@@ -1236,8 +1236,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.domain": "table",
                     "span.module": "db",
-                    "span.op": "db",
+                    "span.op": "db.sql.query",
                     "span.status": "ok",
                     "span.system": "MyDatabase",
                     "transaction": "mytransaction",
