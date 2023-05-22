@@ -2279,68 +2279,57 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let mut sampling_result = None;
         // We want to run dynamic sampling only if we have a root project state and a dynamic
         // sampling context.
         //
         // In reality the dynamic sampling logic supports optional root state and dsc but it will
         // return keep. In our case having a keep in case of none root state and dsc will be
         // a problem, since in reality we can't infer anything without trace metadata.
-        if let (Some(root_project_state), Some(dsc)) = (
+        let sampling_result = if let (Some(root_project_state), Some(dsc)) = (
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
         ) {
-            sampling_result = Some(utils::get_sampling_result(
+            utils::get_sampling_result(
                 self.config.processing_enabled(),
                 None,
                 Some(root_project_state),
                 Some(dsc),
                 None,
                 state.envelope().meta().client_addr(),
-            ));
-        }
-
-        // In case we didn't run dynamic sampling, we shouldn't tag the event, thus we early return.
-        let sampling_result = if let Some(sampling_result) = sampling_result {
-            sampling_result
+            )
         } else {
             return;
         };
 
-        match state.event.value_mut() {
-            Some(event) => {
-                // In case the sampling result is positive, we assume that all the transactions
-                // that have this DSC will be sampled and thus we mark the error as "having
-                // a full trace".
-                // In case we have no contexts object, we have to create it.
-                if event.contexts.value().is_empty() {
-                    event.contexts = Annotated::new(Contexts::new());
-                }
+        let Some(event) = state.event.value_mut() else {
+            return;
+        };
 
-                // We want to get the specific trace context, or we want to create it in case
-                // it is not there.
-                let context = event.contexts.value_mut().as_mut().map(|context| {
-                    context
-                        .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()))
+        // In case the sampling result is positive, we assume that all the transactions
+        // that have this DSC will be sampled and thus we mark the error as "having
+        // a full trace".
+        // In case we have no contexts object, we have to create it.
+        let contexts = event.contexts.get_or_insert_with(Contexts::new);
+
+        // We want to get the specific trace context, or we want to create it in case
+        // it is not there.
+        let context =
+            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
+
+        // We want to mutate the sampled after the "fake" sampling has been performed.
+        //
+        // It is important to note that tagging only occurs if there is a dsc and root
+        // project state.
+        if let Trace(boxed_context) = context {
+            // We want to update `sampled` only if it was not set, since if we don't check this
+            // we will end up overriding the value set by downstream Relays and this will lead
+            // to more complex debugging in case of problems.
+            if boxed_context.sampled.is_empty() {
+                boxed_context.sampled = Annotated::new(match sampling_result {
+                    SamplingResult::Keep => true,
+                    SamplingResult::Drop(_) => false,
                 });
-
-                // We want to mutate the sampled after the "fake" sampling has been performed.
-                //
-                // It is important to note that tagging only occurs if there is a dsc and root
-                // project state.
-                if let Some(Trace(boxed_context)) = context {
-                    // We want to update `sampled` only if it was not set, since if we don't check this
-                    // we will end up overriding the value set by downstream Relays and this will lead
-                    // to more complex debugging in case of problems.
-                    if boxed_context.sampled.is_empty() {
-                        boxed_context.sampled = Annotated::new(match sampling_result {
-                            SamplingResult::Keep => true,
-                            SamplingResult::Drop(_) => false,
-                        });
-                    }
-                }
             }
-            None => {}
         }
     }
 
@@ -3343,16 +3332,7 @@ mod tests {
         let annotated_event: Annotated<Event> =
             Annotated::from_json_bytes(&item.payload()).unwrap();
         let event = annotated_event.into_value().unwrap();
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(context.sampled.is_empty())
-        }
+        assert!(event.contexts.value().is_none())
     }
 
     #[tokio::test]
