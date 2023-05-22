@@ -2274,6 +2274,13 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
+        // In case there is no incoming event we can't tag anything, thus we early return.
+        let event = if let Some(event) = state.event.value_mut() {
+            event
+        } else {
+            return;
+        };
+
         let mut sampling_result = None;
         // We want to run dynamic sampling only if we have a root project state and a dynamic
         // sampling context.
@@ -2295,37 +2302,36 @@ impl EnvelopeProcessorService {
             ));
         }
 
+        // In case we didn't run dynamic sampling, we shouldn't tag the event, thus we early return.
+        let sampling_result = if let Some(sampling_result) = sampling_result {
+            sampling_result
+        } else {
+            return;
+        };
+
         // In case the sampling result is positive, we assume that all the transactions
         // that have this DSC will be sampled and thus we mark the error as "having
         // a full trace".
-        match state.event.value_mut() {
-            Some(event) => {
-                // In case we have no contexts object, we have to create it.
-                if event.contexts.value().is_empty() {
-                    event.contexts = Annotated::new(Contexts::new());
-                }
+        // In case we have no contexts object, we have to create it.
+        if event.contexts.value().is_empty() {
+            event.contexts = Annotated::new(Contexts::new());
+        }
 
-                // We want to get the specific trace context, or we want to create it in case
-                // it is not there.
-                let context = event.contexts.value_mut().as_mut().map(|context| {
-                    context
-                        .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()))
-                });
+        // We want to get the specific trace context, or we want to create it in case
+        // it is not there.
+        let context = event.contexts.value_mut().as_mut().map(|context| {
+            context.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()))
+        });
 
-                // We want to mutate the sampled after the "fake" sampling has been performed.
-                //
-                // It is important to note that tagging only occurs if there is a dsc and root
-                // project state.
-                if let (Some(Trace(boxed_context)), Some(sampling_result)) =
-                    (context, sampling_result)
-                {
-                    boxed_context.sampled = Annotated::new(match sampling_result {
-                        SamplingResult::Keep => true,
-                        SamplingResult::Drop(_) => false,
-                    });
-                }
-            }
-            None => {}
+        // We want to mutate the sampled after the "fake" sampling has been performed.
+        //
+        // It is important to note that tagging only occurs if there is a dsc and root
+        // project state.
+        if let Some(Trace(boxed_context)) = context {
+            boxed_context.sampled = Annotated::new(match sampling_result {
+                SamplingResult::Keep => true,
+                SamplingResult::Drop(_) => false,
+            });
         }
     }
 

@@ -54,13 +54,13 @@
 //! ## [`SamplingConfig`]
 //!
 //! ```json
-#![doc = include_str ! ("../tests/fixtures/sampling_config.json")]
+#![doc = include_str!("../tests/fixtures/sampling_config.json")]
 //! ```
 //!
 //! ## [`DynamicSamplingContext`]
 //!
 //! ```json
-#![doc = include_str ! ("../tests/fixtures/dynamic_sampling_context.json")]
+#![doc = include_str!("../tests/fixtures/dynamic_sampling_context.json")]
 //! ```
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
@@ -1001,8 +1001,7 @@ pub fn merge_configs_and_match(
         relay_log::error!("cannot sample without at least one sampling config");
         return None;
     };
-    let sampling_mode = primary_config.mode;
-    let sample_rate = match sampling_mode {
+    let sample_rate = match primary_config.mode {
         SamplingMode::Received => match_result.sample_rate,
         SamplingMode::Total => match dsc {
             Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
@@ -1304,7 +1303,7 @@ impl DynamicSamplingContext {
 
         let contexts = event.contexts.value()?;
         let context = contexts.get(TraceContext::default_key())?.value()?;
-        let Context::Trace(ref trace) = context.0 else { return None; };
+        let Context::Trace(ref trace) = context.0 else { return None };
         let trace_id = trace.trace_id.value()?;
         let trace_id = trace_id.0.parse().ok()?;
 
