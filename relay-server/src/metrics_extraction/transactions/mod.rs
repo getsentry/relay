@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_filter::csp::SchemeDomainPort;
@@ -8,7 +10,7 @@ use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
-use relay_general::types::Annotated;
+use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -437,8 +439,6 @@ fn extract_span_metrics(
 ) -> Result<(), ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
 
-    let Some(spans) = event.spans.value() else { return Ok(())};
-
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -477,8 +477,10 @@ fn extract_span_metrics(
         }
     }
 
+    let Some(spans) = event.spans.value_mut() else { return Ok(())};
+
     for annotated_span in spans {
-        if let Some(span) = annotated_span.value() {
+        if let Some(span) = annotated_span.value_mut() {
             let mut span_tags = shared_tags.clone();
 
             if let Some(scrubbed_description) = span
@@ -532,20 +534,21 @@ fn extract_span_metrics(
                     span_tags.insert("span.action".to_owned(), act.to_owned());
                 }
 
-                if span_op == "http.client" {
-                    let domain = match span.description.value().and_then(|v| v.split_once(' ')) {
-                        Some((_method, url)) => {
-                            let url = SchemeDomainPort::from(url);
-                            match (url.domain, url.port) {
-                                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    };
-                    if let Some(dom) = domain {
-                        span_tags.insert("span.domain".to_owned(), dom.to_owned());
-                    }
+                let domain = if span_op == "http.client" {
+                    span.description
+                        .value()
+                        .and_then(|url| domain_from_http_url(url))
+                } else if span_op == "db.sql.query" {
+                    span.description
+                        .value()
+                        .and_then(|query| sql_table_from_query(query))
+                        .map(|s| s.to_owned())
+                } else {
+                    None
+                };
+
+                if let Some(dom) = domain {
+                    span_tags.insert("span.domain".to_owned(), dom.to_owned());
                 }
             }
 
@@ -570,6 +573,14 @@ fn extract_span_metrics(
             {
                 span_tags.insert("span.status_code".to_owned(), status_code.to_owned());
             }
+
+            // Even if we emit metrics, we want this info to be duplicated in every span.
+            span.data.get_or_insert_with(BTreeMap::new).extend(
+                span_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+            );
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
@@ -598,6 +609,41 @@ fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)from(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+
+/// only returns the first match
+fn sql_table_from_query(query: &str) -> Option<&str> {
+    let capture_names: Vec<_> = SQL_TABLE_EXTRACTOR_REGEX
+        .capture_names()
+        .flatten()
+        .collect();
+
+    for captures in SQL_TABLE_EXTRACTOR_REGEX.captures_iter(query) {
+        dbg!(&captures);
+        for name in &capture_names {
+            if let Some(capture) = captures.name(name) {
+                return Some(&query[capture.start()..capture.end()]);
+            }
+        }
+    }
+
+    None
+}
+
+fn domain_from_http_url(url: &str) -> Option<String> {
+    match url.split_once(' ') {
+        Some((_method, url)) => {
+            let domain_port = SchemeDomainPort::from(url);
+            match (domain_port.domain, domain_port.port) {
+                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
@@ -808,7 +854,7 @@ mod tests {
                 },
                 {
                     "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
-                    "op": "db",
+                    "op": "db.sql.query",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976393.4619668,
@@ -915,6 +961,8 @@ mod tests {
             &mut sampling_metrics,
         )
         .unwrap();
+
+        insta::assert_debug_snapshot!(event.value().unwrap().spans);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
