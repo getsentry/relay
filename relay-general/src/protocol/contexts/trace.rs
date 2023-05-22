@@ -108,7 +108,7 @@ pub struct TraceContext {
 
     /// Track whether the trace connected to this event has been sampled entirely.
     ///
-    /// This flag only applies to events with [`Error`] type.
+    /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
     pub sampled: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
