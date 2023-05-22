@@ -3183,6 +3183,28 @@ mod tests {
         annotated_event.into_value().unwrap()
     }
 
+    fn mocked_error_item() -> Item {
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              }
+            }"#,
+        );
+        item
+    }
+
     #[tokio::test]
     async fn test_error_is_tagged_correctly() {
         let event_id = EventId::new();
@@ -3204,27 +3226,7 @@ mod tests {
             other: BTreeMap::new(),
         };
         envelope.set_dsc(dsc);
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(
-                ContentType::Json,
-                r#"{
-                  "event_id": "52df9022835246eeb317dbd739ccd059",
-                  "exception": {
-                    "values": [
-                        {
-                          "type": "mytype",
-                          "value": "myvalue",
-                          "module": "mymodule",
-                          "thread_id": 42,
-                          "other": "value"
-                        }
-                    ]
-                  }
-                }"#,
-            );
-            item
-        });
+        envelope.add_item(mocked_error_item());
 
         // We test the tagging when the incoming dsc matches a 100% rule.
         let sampling_config = SamplingConfig {
@@ -3290,33 +3292,53 @@ mod tests {
             assert!(!context.sampled.value().unwrap())
         }
 
+        // We test the tagging is not performed when an event is already tagged.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              },
+              "contexts": {
+                "trace": {
+                    "sampled": true
+                }
+              }
+            }"#,
+        );
+        envelope.add_item(item);
+        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(context.sampled.value().unwrap())
+        }
+
         // We test the tagging when root project state and dsc are none.
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(
-                ContentType::Json,
-                r#"{
-                  "event_id": "52df9022835246eeb317dbd739ccd059",
-                  "exception": {
-                    "values": [
-                        {
-                          "type": "mytype",
-                          "value": "myvalue",
-                          "module": "mymodule",
-                          "thread_id": 42,
-                          "other": "value"
-                        }
-                    ]
-                  }
-                }"#,
-            );
-            item
-        });
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        envelope.add_item(mocked_error_item());
         let new_envelope = process_envelope_with_root_project_state(envelope, None);
         let event = extract_first_event_from_envelope(new_envelope);
 
-        assert!(event.contexts.value().is_none())
+        assert!(event.contexts.value().is_none());
     }
 
     #[tokio::test]
