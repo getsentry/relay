@@ -3205,6 +3205,24 @@ mod tests {
         item
     }
 
+    fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        sampling_project_state
+    }
+
     #[tokio::test]
     async fn test_error_is_tagged_correctly() {
         let event_id = EventId::new();
@@ -3229,20 +3247,7 @@ mod tests {
         envelope.add_item(mocked_error_item());
 
         // We test the tagging when the incoming dsc matches a 100% rule.
-        let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 1.0 },
-                ty: RuleType::Trace,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            mode: SamplingMode::Received,
-        };
-        let mut sampling_project_state = ProjectState::allowed();
-        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        let sampling_project_state = project_state_with_single_rule(1.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
             Some(Arc::new(sampling_project_state)),
@@ -3261,20 +3266,7 @@ mod tests {
         }
 
         // We test the tagging when the incoming dsc matches a 0% rule.
-        let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.0 },
-                ty: RuleType::Trace,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            mode: SamplingMode::Received,
-        };
-        let mut sampling_project_state = ProjectState::allowed();
-        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
             Some(Arc::new(sampling_project_state)),
@@ -3318,20 +3310,9 @@ mod tests {
             }"#,
         );
         envelope.add_item(item);
-        let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.0 },
-                ty: RuleType::Trace,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            mode: SamplingMode::Received,
-        };
-        let mut sampling_project_state = ProjectState::allowed();
-        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        // We want the sampling result to be Drop, so that we can show how sampled is still kept to
+        // to true.
+        let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
             Some(Arc::new(sampling_project_state)),
