@@ -1280,6 +1280,11 @@
 <a href="#1279" id="1279">1279</a>
 <a href="#1280" id="1280">1280</a>
 <a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1481,6 +1486,7 @@
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
+                    client,
                     retention,
                     item,
                 )<span class="question-mark">?</span>,
@@ -2065,6 +2071,7 @@
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
@@ -2072,6 +2079,7 @@
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            sdk: client.map(str::to_owned),
             payload: item.payload(),
         });
 
@@ -2334,6 +2342,8 @@
     </span>payload: Bytes,
     <span class="doccomment">/// Time at which the event was received by Relay.
     </span>start_time: u64,
+    <span class="doccomment">/// The SDK client which produced the event.
+    </span>sdk: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The project id for the current event.
     </span>project_id: ProjectId,
     <span class="comment">// Number of days to retain.
