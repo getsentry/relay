@@ -379,6 +379,10 @@
 <a href="#378" id="378">378</a>
 <a href="#379" id="379">379</a>
 <a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
 </pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -389,7 +393,6 @@
 <span class="kw">use </span>std::os::raw::c_char;
 <span class="kw">use </span>std::slice;
 
-<span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
@@ -733,21 +736,26 @@
         serde_json::from_str::&lt;SamplingConfig&gt;(root_sampling_config.as_str())<span class="question-mark">?</span>;
     <span class="comment">// We can optionally accept a dsc and event.
     </span><span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(dsc.as_str());
-    <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(event.as_str())<span class="question-mark">?</span>;
-    <span class="kw">let </span>event = event.value().context(<span class="string">&quot;the event can&#39;t be serialized&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(event.as_str());
 
     <span class="comment">// Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     </span><span class="kw">let </span>rules: Vec&lt;SamplingRule&gt; =
-        merge_rules_from_configs(<span class="kw-2">&amp;</span>sampling_config, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_sampling_config))
+        merge_rules_from_configs(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_sampling_config))
             .cloned()
             .collect();
 
     <span class="comment">// Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
-    </span><span class="kw">let </span>match_result = <span class="kw">if let </span><span class="prelude-val">Ok</span>(dsc) = dsc {
-        SamplingMatch::match_against_rules(rules.iter(), event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="prelude-val">None</span>, Utc::now())
+    </span><span class="kw">let </span>match_result = <span class="kw">if let </span>(<span class="prelude-val">Ok</span>(event), <span class="prelude-val">Ok</span>(dsc)) = (event, dsc) {
+        SamplingMatch::match_against_rules(
+            rules.iter(),
+            event.value(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc),
+            <span class="prelude-val">None</span>,
+            Utc::now(),
+        )
     } <span class="kw">else </span>{
         <span class="prelude-val">None
     </span>};

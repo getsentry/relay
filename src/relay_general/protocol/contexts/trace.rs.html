@@ -251,6 +251,12 @@
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
 <a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
 </pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>serde::{Serialize, Serializer};
@@ -358,6 +364,11 @@
     <span class="doccomment">/// The origin of the trace indicates what created the trace (see [OriginType] docs).
     </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.&quot;</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
+
+    <span class="doccomment">/// Track whether the trace connected to this event has been sampled entirely.
+    ///
+    /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
+    </span><span class="kw">pub </span>sampled: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
@@ -481,6 +492,7 @@
                 );
                 map
             },
+            sampled: Annotated::empty(),
         })));
 
         <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
