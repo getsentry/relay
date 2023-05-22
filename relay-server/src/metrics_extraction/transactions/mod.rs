@@ -572,12 +572,12 @@ fn extract_span_metrics(
             }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
-            for (key, value) in &span_tags {
-                span.data.get_or_insert_with(BTreeMap::new).insert(
-                    key.to_owned(),
-                    Annotated::from(Value::String(value.to_owned())),
-                );
-            }
+            span.data.get_or_insert_with(BTreeMap::new).extend(
+                span_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+            );
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
