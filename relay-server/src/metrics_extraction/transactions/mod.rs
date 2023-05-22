@@ -5,7 +5,7 @@ use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestam
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
 use relay_general::types::Annotated;
@@ -86,6 +86,71 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
     if let Some(user) = event.user.value() {
         if let Some(geo) = user.geo.value() {
             return geo.country_code.value().cloned();
+        }
+    }
+
+    None
+}
+
+/// Extract the HTTP status code from the span data.
+fn http_status_code_from_span_data(span: &Span) -> Option<String> {
+    span.data
+        .value()
+        .and_then(|v| v.get("status_code"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+/// Extracts the HTTP status code.
+fn extract_http_status_code(event: &Event) -> Option<String> {
+    if let Some(spans) = event.spans.value() {
+        for span in spans {
+            if let Some(span_value) = span.value() {
+                // For SDKs which put the HTTP status code into the span data.
+                if let Some(status_code) = http_status_code_from_span_data(span_value) {
+                    return Some(status_code);
+                }
+
+                // For SDKs which put the HTTP status code into the span tags.
+                if let Some(status_code) = span_value
+                    .tags
+                    .value()
+                    .and_then(|tags| tags.get("http.status_code"))
+                {
+                    return status_code.value().map(|v| v.as_str().to_string());
+                }
+            }
+        }
+    }
+
+    // For SDKs which put the HTTP status code into the breadcrumbs data.
+    if let Some(breadcrumbs) = event.breadcrumbs.value() {
+        if let Some(values) = breadcrumbs.values.value() {
+            for breadcrumb in values {
+                // We need only the `http` type.
+                if let Some(crumb) = breadcrumb
+                    .value()
+                    .filter(|bc| bc.ty.as_str() == Some("http"))
+                {
+                    // Try to get the status code om the map.
+                    if let Some(status_code) = crumb.data.value().and_then(|v| v.get("status_code"))
+                    {
+                        return status_code.value().and_then(|v| v.as_str()).map(Into::into);
+                    }
+                }
+            }
+        }
+    }
+
+    // For SDKs which put the HTTP status code in the `Response` context.
+    if let Some(contexts) = event.contexts.value() {
+        let response = contexts.get("response").and_then(Annotated::value);
+        if let Some(ContextInner(Context::Response(response_context))) = response {
+            let status_code = response_context
+                .status_code
+                .value()
+                .map(|code| code.to_string());
+            return status_code;
         }
     }
 
@@ -232,6 +297,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(geo_country_code) = extract_geo_country_code(event) {
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    }
+
+    if let Some(status_code) = extract_http_status_code(event) {
+        tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -562,13 +631,8 @@ fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
-            if let Some(status_code) = span
-                .data
-                .value()
-                .and_then(|v| v.get("status_code"))
-                .and_then(|sc| sc.as_str())
-            {
-                span_tags.insert("span.status_code".to_owned(), status_code.to_owned());
+            if let Some(status_code) = http_status_code_from_span_data(span) {
+                span_tags.insert("span.status_code".to_owned(), status_code);
             }
 
             if let Some(user) = event.user.value() {
@@ -931,6 +995,7 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
@@ -952,6 +1017,7 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "measurement_rating": "meh",
                     "os.name": "Windows",
                     "platform": "javascript",
@@ -974,6 +1040,7 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
@@ -995,6 +1062,7 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
@@ -1016,6 +1084,7 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
