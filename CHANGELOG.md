@@ -10,6 +10,7 @@
 
 - Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
 - Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
+- Enable PII scrubbing for urls field ([#2143](https://github.com/getsentry/relay/pull/2143))
 
 ## 23.5.0
 
