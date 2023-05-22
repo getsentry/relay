@@ -292,35 +292,6 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     assert evt_id == event_id
 
 
-def test_it_tags_error_with_unknown(mini_sentry, relay):
-    """
-    Tests that it tags an incoming error when no project state is set.
-    """
-    project_id = 42
-    relay = relay(mini_sentry, _outcomes_enabled_config())
-
-    # create a basic project config
-    config = mini_sentry.add_basic_project_config(project_id)
-    public_key = config["publicKeys"][0]["publicKey"]
-
-    # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope, event_id = _create_error_envelope(public_key)
-
-    # send the event, the transaction should be removed.
-    relay.send_envelope(project_id, envelope)
-    # test that error is kept by Relay
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    assert envelope is not None
-    # double check that we get back our object
-    # we put the id in extra since Relay overrides the initial event_id
-    items = [item for item in envelope]
-    assert len(items) == 1
-    evt = items[0].payload.json
-    assert evt["contexts"]["trace"]["trace_sampling_result"] == "unknown"
-    evt_id = evt.setdefault("extra", {}).get("id")
-    assert evt_id == event_id
-
-
 def test_it_keeps_events(mini_sentry, relay):
     """
     Tests that when sampling is set to 100% for the trace context project the events are kept

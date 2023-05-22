@@ -2274,9 +2274,7 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        // By default an error will be tagged with sampled = false.
-        let mut trace_sampling_result = TraceSamplingResult::Unknown;
-
+        let mut sampling_result = None;
         // We want to run dynamic sampling only if we have a root project state and a dynamic
         // sampling context.
         //
@@ -2287,19 +2285,14 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
         ) {
-            let sampling_result = utils::get_sampling_result(
+            sampling_result = Some(utils::get_sampling_result(
                 self.config.processing_enabled(),
                 None,
                 Some(root_project_state),
                 Some(dsc),
                 None,
                 state.envelope().meta().client_addr(),
-            );
-
-            trace_sampling_result = match sampling_result {
-                SamplingResult::Keep => TraceSamplingResult::Kept,
-                SamplingResult::Drop(_) => TraceSamplingResult::Dropped,
-            }
+            ));
         }
 
         // In case the sampling result is positive, we assume that all the transactions
@@ -2320,8 +2313,16 @@ impl EnvelopeProcessorService {
                 });
 
                 // We want to mutate the sampled after the "fake" sampling has been performed.
-                if let Some(Trace(boxed_context)) = context {
-                    boxed_context.trace_sampling_result = Annotated::new(trace_sampling_result);
+                //
+                // It is important to note that tagging only occurs if there is a dsc and root
+                // project state.
+                if let (Some(Trace(boxed_context)), Some(sampling_result)) =
+                    (context, sampling_result)
+                {
+                    boxed_context.sampled = Annotated::new(match sampling_result {
+                        SamplingResult::Keep => true,
+                        SamplingResult::Drop(_) => false,
+                    });
                 }
             }
             None => {}
@@ -3241,10 +3242,7 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(matches!(
-                context.trace_sampling_result.value().unwrap(),
-                TraceSamplingResult::Kept
-            ))
+            assert!(context.sampled.value().unwrap())
         }
 
         // We test the tagging when the incoming dsc matches a 0% rule.
@@ -3289,10 +3287,7 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(matches!(
-                context.trace_sampling_result.value().unwrap(),
-                TraceSamplingResult::Dropped
-            ))
+            assert!(!context.sampled.value().unwrap())
         }
 
         // We test the tagging when root project state and dsc are none.
@@ -3341,10 +3336,7 @@ mod tests {
             .unwrap();
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
-            assert!(matches!(
-                context.trace_sampling_result.value().unwrap(),
-                TraceSamplingResult::Unknown
-            ))
+            assert!(context.sampled.is_empty())
         }
     }
 

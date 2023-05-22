@@ -182,7 +182,7 @@ pub struct TraceContext {
     /// Track whether the trace connected to this event has been sampled entirely.
     ///
     /// This flag only applies to events with [`Error`] type.
-    pub trace_sampling_result: Annotated<TraceSamplingResult>,
+    pub sampled: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -306,7 +306,7 @@ mod tests {
                 );
                 map
             },
-            trace_sampling_result: Annotated::empty(),
+            sampled: Annotated::empty(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
