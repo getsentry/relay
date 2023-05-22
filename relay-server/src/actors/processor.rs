@@ -3158,12 +3158,34 @@ mod tests {
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
 
-    #[tokio::test]
-    async fn test_error_is_tagged_correctly() {
+    fn process_envelope_with_root_project_state(
+        envelope: Box<Envelope>,
+        sampling_project_state: Option<Arc<ProjectState>>,
+    ) -> Envelope {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
-        let event_id = protocol::EventId::new();
 
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        ctx.envelope().clone()
+    }
+
+    fn extract_first_event_from_envelope(envelope: Envelope) -> Event {
+        let item = envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        annotated_event.into_value().unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly() {
+        let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
@@ -3219,31 +3241,18 @@ mod tests {
         };
         let mut sampling_project_state = ProjectState::allowed();
         sampling_project_state.config.dynamic_sampling = Some(sampling_config);
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope.clone(),
-                outcome_aggregator.clone(),
-                test_store.clone(),
-            ),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: Some(Arc::new(sampling_project_state)),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        let item = new_envelope.items().next().unwrap();
-        let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&item.payload()).unwrap();
-        let event = annotated_event.into_value().unwrap();
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope.clone(),
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event
             .contexts
             .value()
             .unwrap()
             .get_context(TraceContext::default_key())
             .unwrap();
+
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
             assert!(context.sampled.value().unwrap())
@@ -3264,31 +3273,18 @@ mod tests {
         };
         let mut sampling_project_state = ProjectState::allowed();
         sampling_project_state.config.dynamic_sampling = Some(sampling_config);
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope,
-                outcome_aggregator.clone(),
-                test_store.clone(),
-            ),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: Some(Arc::new(sampling_project_state)),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        let item = new_envelope.items().next().unwrap();
-        let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&item.payload()).unwrap();
-        let event = annotated_event.into_value().unwrap();
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event
             .contexts
             .value()
             .unwrap()
             .get_context(TraceContext::default_key())
             .unwrap();
+
         assert!(matches!(trace_context, Trace(..)));
         if let Trace(context) = trace_context {
             assert!(!context.sampled.value().unwrap())
@@ -3317,21 +3313,9 @@ mod tests {
             );
             item
         });
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-        };
+        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let event = extract_first_event_from_envelope(new_envelope);
 
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        let item = new_envelope.items().next().unwrap();
-        let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&item.payload()).unwrap();
-        let event = annotated_event.into_value().unwrap();
         assert!(event.contexts.value().is_none())
     }
 
