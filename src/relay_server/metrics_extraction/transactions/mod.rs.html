@@ -2430,6 +2430,16 @@
 <a href="#2429" id="2429">2429</a>
 <a href="#2430" id="2430">2430</a>
 <a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -2440,7 +2450,7 @@
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 <span class="kw">use </span>relay_general::store;
-<span class="kw">use </span>relay_general::types::Annotated;
+<span class="kw">use </span>relay_general::types::{Annotated, Value};
 <span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -2869,9 +2879,7 @@
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExtractMetricsError&gt; {
     <span class="comment">// TODO(iker): measure the performance of this whole method
 
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(())};
-
-    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+    </span><span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value()) <span class="kw">else </span>{
@@ -2909,8 +2917,10 @@
         }
     }
 
+    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(())};
+
     <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() {
             <span class="kw">let </span><span class="kw-2">mut </span>span_tags = shared_tags.clone();
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed_description) = span
@@ -3002,6 +3012,14 @@
             {
                 span_tags.insert(<span class="string">&quot;span.status_code&quot;</span>.to_owned(), status_code.to_owned());
             }
+
+            <span class="comment">// Even if we emit metrics, we want this info to be duplicated in every span.
+            </span>span.data.get_or_insert_with(BTreeMap::new).extend(
+                span_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+            );
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
@@ -3347,6 +3365,8 @@
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
         .unwrap();
+
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans);
 
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
