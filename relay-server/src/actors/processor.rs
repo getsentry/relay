@@ -3318,7 +3318,24 @@ mod tests {
             }"#,
         );
         envelope.add_item(item);
-        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 0.0 },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event
             .contexts
@@ -3333,7 +3350,7 @@ mod tests {
         }
 
         // We test the tagging when root project state and dsc are none.
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         envelope.add_item(mocked_error_item());
         let new_envelope = process_envelope_with_root_project_state(envelope, None);
         let event = extract_first_event_from_envelope(new_envelope);
