@@ -1681,6 +1681,67 @@ mod tests {
     }
 
     #[test]
+    /// When the `ready` flag is set, mark a transaction as `sanitized` even if there are no rules.
+    fn test_transaction_name_normalize_mark_as_sanitized_when_ready() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/bar/user/john/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[],
+                    ready: true,
+                },
+                false,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/bar/user/john/0",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": []
+        }
+        "###);
+    }
+
+    #[test]
     fn test_transaction_name_rename_with_rules() {
         let json = r#"
         {
