@@ -614,7 +614,9 @@ fn extract_span_metrics(
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)from(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
 
-/// only returns the first match
+/// Returns the table in the SQL query, if any.
+///
+/// If multiple tables exist, only the first one is returned.
 fn sql_table_from_query(query: &str) -> Option<&str> {
     let capture_names: Vec<_> = SQL_TABLE_EXTRACTOR_REGEX
         .capture_names()
