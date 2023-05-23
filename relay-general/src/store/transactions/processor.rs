@@ -71,7 +71,7 @@ impl<'r> TransactionsProcessor<'r> {
         if let Some(info) = info.as_mut() {
             transaction.apply(|transaction, meta| {
                 let result = self.name_config.rules.iter().find_map(|rule| {
-                    rule.transaction_match_and_apply(Cow::Borrowed(transaction), info)
+                    rule.match_and_apply(Cow::Borrowed(transaction), info)
                         .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
                 });
 
