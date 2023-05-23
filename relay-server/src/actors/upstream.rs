@@ -14,7 +14,6 @@ use std::sync::Arc;
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
-use relay_log::LogError;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -1134,7 +1133,10 @@ impl AuthMonitor {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!("authentication encountered error: {}", LogError(&err));
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "authentication encountered error"
+                    );
 
                     // ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.

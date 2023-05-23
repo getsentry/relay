@@ -11,7 +11,6 @@ use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -388,7 +387,10 @@ impl StoreService {
                 let mut session = match SessionUpdate::parse(&item.payload()) {
                     Ok(session) => session,
                     Err(error) => {
-                        relay_log::error!("failed to store session: {}", LogError(&error));
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to store session"
+                        );
                         return Ok(());
                     }
                 };

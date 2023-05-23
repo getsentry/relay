@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
+use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +23,6 @@ use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 #[cfg(feature = "processing")]
-use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
@@ -858,7 +858,7 @@ impl OutcomeBroker {
                 if let Err(error) =
                     self.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::ClientReport(producer) => {
@@ -879,7 +879,7 @@ impl OutcomeBroker {
             Self::Kafka(kafka_producer) => {
                 let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::Http(producer) => {

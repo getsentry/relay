@@ -340,12 +340,13 @@ impl Producer {
         };
         let record = BaseRecord::to(topic_name).key(key).payload(payload);
 
-        producer.send(record).map_err(|(kafka_error, _message)| {
-            relay_log::with_scope(
-                |scope| scope.set_tag("variant", variant),
-                || relay_log::error!("error sending kafka message: {}", kafka_error),
+        producer.send(record).map_err(|(error, _message)| {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                variant = variant, // TODO(ja): Tag
+                "error sending kafka message"
             );
-            ClientError::SendFailed(kafka_error)
+            ClientError::SendFailed(error)
         })
     }
 }

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::error::Error;
 use std::io::Write;
 use std::net;
 use std::net::IpAddr as NetIPAddr;
@@ -34,7 +35,6 @@ use relay_general::store::{
 };
 use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
-use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
@@ -589,13 +589,21 @@ impl EnvelopeProcessorService {
 
         let release = &attributes.release;
         if let Err(e) = protocol::validate_release(release) {
-            relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
+            relay_log::trace!(
+                error = &e as &dyn Error,
+                release,
+                "skipping session with invalid release"
+            );
             return Err(());
         }
 
         if let Some(ref env) = attributes.environment {
             if let Err(e) = protocol::validate_environment(env) {
-                relay_log::trace!("removing invalid environment '{}': {}", env, e);
+                relay_log::trace!(
+                    error = &e as &dyn Error,
+                    env,
+                    "removing invalid environment"
+                );
                 attributes.environment = None;
                 changed = true;
             }
@@ -653,7 +661,10 @@ impl EnvelopeProcessorService {
         let mut session = match SessionUpdate::parse(&payload) {
             Ok(session) => session,
             Err(error) => {
-                relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
+                relay_log::trace!(
+                    error = &error as &dyn Error,
+                    "skipping invalid session payload"
+                );
                 return false;
             }
         };
@@ -728,7 +739,7 @@ impl EnvelopeProcessorService {
             let json_string = match serde_json::to_string(&session) {
                 Ok(json) => json,
                 Err(err) => {
-                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
                     return false;
                 }
             };
@@ -756,7 +767,10 @@ impl EnvelopeProcessorService {
         let mut session = match SessionAggregates::parse(&payload) {
             Ok(session) => session,
             Err(error) => {
-                relay_log::trace!("skipping invalid sessions payload: {}", LogError(&error));
+                relay_log::trace!(
+                    error = &error as &dyn Error,
+                    "skipping invalid sessions payload"
+                );
                 return false;
             }
         };
@@ -810,7 +824,7 @@ impl EnvelopeProcessorService {
             let json_string = match serde_json::to_string(&session) {
                 Ok(json) => json,
                 Err(err) => {
-                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
                     return false;
                 }
             };
@@ -880,7 +894,7 @@ impl EnvelopeProcessorService {
             let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
                 Ok(session) => session,
                 Err(error) => {
-                    relay_log::error!("failed to store user report: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to store user report");
                     return ItemAction::DropSilently;
                 }
             };
@@ -888,7 +902,10 @@ impl EnvelopeProcessorService {
             let json_string = match serde_json::to_string(&report) {
                 Ok(json) => json,
                 Err(err) => {
-                    relay_log::error!("failed to serialize user report: {}", LogError(&err));
+                    relay_log::error!(
+                        error = &err as &dyn Error,
+                        "failed to serialize user report"
+                    );
                     return ItemAction::DropSilently;
                 }
             };
@@ -971,7 +988,9 @@ impl EnvelopeProcessorService {
                         timestamp.get_or_insert(ts);
                     }
                 }
-                Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
+                Err(err) => {
+                    relay_log::trace!(error = &err as &dyn Error, "invalid client report received")
+                }
             }
             ItemAction::DropSilently
         });
@@ -1076,7 +1095,10 @@ impl EnvelopeProcessorService {
                 }
                 Err(error) => {
                     // TODO: Track an outcome.
-                    relay_log::debug!("dropped invalid monitor check-in: {}", LogError(&error));
+                    relay_log::debug!(
+                        error = &error as &dyn Error,
+                        "dropped invalid monitor check-in"
+                    );
                     ItemAction::DropSilently
                 }
             }
@@ -1182,9 +1204,9 @@ impl EnvelopeProcessorService {
 
                         match err {
                             relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!("invalid profile: {}", LogError(&err));
+                                relay_log::warn!(error = &err as &dyn Error, "invalid profile");
                             }
-                            _ => relay_log::debug!("invalid profile: {}", err),
+                            _ => relay_log::debug!(error = &err as &dyn Error, "invalid profile"),
                         };
                         ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -1233,10 +1255,10 @@ impl EnvelopeProcessorService {
                             item.set_payload(ContentType::Json, json);
                             ItemAction::Keep
                         }
-                        Err(e) => {
+                        Err(error) => {
                             relay_log::error!(
-                                "replay-event: failed to serialize replay with message {}",
-                                LogError(&e)
+                                error = &error as &dyn Error,
+                                "failed to serialize replay"
                             );
                             ItemAction::Keep
                         }
@@ -1724,7 +1746,10 @@ impl EnvelopeProcessorService {
             sample_rates = item.take_sample_rates();
             self.event_from_security_report(item, envelope.meta())
                 .map_err(|error| {
-                    relay_log::error!("failed to extract security report: {}", LogError(&error));
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        "failed to extract security report"
+                    );
                     error
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
@@ -2197,7 +2222,10 @@ impl EnvelopeProcessorService {
                             timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                             status = "error"
                         );
-                        relay_log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
+                        relay_log::warn!(
+                            error = &scrub_error as &dyn Error,
+                            "failed to scrub minidump",
+                        );
                         metric!(timer(RelayTimers::AttachmentScrubbing), {
                             processor.scrub_attachment(filename, &mut payload);
                         })
@@ -2556,9 +2584,10 @@ impl EnvelopeProcessorService {
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
                 if error.is_unexpected() {
-                    relay_log::with_scope(
-                        |scope| scope.set_tag("project_key", project_key),
-                        || relay_log::error!("error processing envelope: {}", LogError(&error)),
+                    relay_log::error!(
+                        project_key = %project_key, // TODO(ja): Tag
+                        error = &error as &dyn Error,
+                        "error processing envelope"
                     );
                 }
             }
@@ -2603,7 +2632,10 @@ impl EnvelopeProcessorService {
                             .send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
-                        relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
+                        relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket",
+                        );
                         metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                     }
                 }

@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
+use std::error::Error;
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
 use std::time::Duration;
@@ -8,7 +9,6 @@ use std::{fmt, mem};
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
-use relay_log::LogError;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
@@ -1230,15 +1230,13 @@ impl CostTracker {
     fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
         match self.cost_per_project_key.entry(project_key) {
             Entry::Vacant(_) => {
-                relay_log::error!(
-                    "Trying to subtract cost for a project key that has not been tracked"
-                );
+                relay_log::error!("cost subtracted for an untracked project key");
             }
             Entry::Occupied(mut entry) => {
                 // Handle per-project cost:
                 let project_cost = entry.get_mut();
                 if cost > *project_cost {
-                    relay_log::error!("Subtracting a project cost higher than what we tracked");
+                    relay_log::error!("underflow while subtracing project cost");
                     self.total_cost = self.total_cost.saturating_sub(*project_cost);
                     *project_cost = 0;
                 } else {
@@ -1776,7 +1774,7 @@ impl AggregatorService {
     {
         for bucket in buckets.into_iter() {
             if let Err(error) = self.merge(project_key, bucket) {
-                relay_log::error!("{}", error);
+                relay_log::error!(error = &error as &dyn Error);
             }
         }
 
@@ -1931,7 +1929,7 @@ impl AggregatorService {
         } = msg;
         for metric in metrics {
             if let Err(err) = self.insert(project_key, metric) {
-                relay_log::error!("failed to insert metrics: {}", LogError(&err));
+                relay_log::error!(error = &err as &dyn Error, "failed to insert metrics");
             }
         }
     }
@@ -1942,7 +1940,7 @@ impl AggregatorService {
             buckets,
         } = msg;
         if let Err(err) = self.merge_all(project_key, buckets) {
-            relay_log::error!("failed to merge buckets: {}", LogError(&err));
+            relay_log::error!(error = &err as &dyn Error, "failed to merge buckets");
         }
     }
 

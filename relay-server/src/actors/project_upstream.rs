@@ -9,7 +9,6 @@ use itertools::Itertools;
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
-use relay_log::LogError;
 use relay_statsd::metric;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -291,8 +290,8 @@ impl UpstreamProjectSourceService {
                     //   workflow
                     // - return `None` to signal that we do not have any response from the Upstream
                     //   and we should ignore this.
-                    Err(err) => {
-                        relay_log::error!("Failed to send the request to upstream: {err}");
+                    Err(_err) => {
+                        relay_log::error!("failed to send the request to upstream: channel full");
                         None
                     }
                 }
@@ -349,11 +348,7 @@ impl UpstreamProjectSourceService {
                             .remove(&key)
                             .unwrap_or(ErrorBoundary::Ok(None))
                             .unwrap_or_else(|error| {
-                                relay_log::error!(
-                                    "error fetching project state {}: {}",
-                                    key,
-                                    LogError(error)
-                                );
+                                relay_log::error!(error, "error fetching project state {key}");
                                 Some(ProjectState::err())
                             })
                             .unwrap_or_else(ProjectState::missing);
@@ -370,7 +365,10 @@ impl UpstreamProjectSourceService {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!("error fetching project states: {}", LogError(&err));
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "error fetching project states"
+                    );
                     metric!(
                         histogram(RelayHistograms::ProjectStatePending) =
                             self.state_channels.len() as u64
@@ -417,8 +415,8 @@ impl UpstreamProjectSourceService {
             let responses = Self::fetch_states(config, upstream_relay, channels).await;
             // Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
-            if let Err(err) = inner_tx.send(responses) {
-                relay_log::error!("Unable to forward the requests to further processing: {err}");
+            if inner_tx.send(responses).is_err() {
+                relay_log::error!("unable to forward the requests to further processing");
             }
         });
     }

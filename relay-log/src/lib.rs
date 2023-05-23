@@ -44,8 +44,6 @@
 //! ## Examples
 //!
 //! ```
-//! use relay_log::{LogConfig, SentryConfig};
-//!
 //! relay_log::info!("startup complete");
 //! ```
 //!
@@ -57,8 +55,6 @@
 //! ## Scopes
 //!
 //! ```
-//! use relay_log::{LogConfig, SentryConfig};
-//!
 //! relay_log::with_scope(|scope| scope.set_tag("custom", "value"), || {
 //!     relay_log::error!("this message has a custom tag");
 //! });
@@ -66,16 +62,15 @@
 //!
 //! ## Logging Error Types
 //!
-//! To log [errors](std::error::Error) to both Sentry and the error stream, use the [`LogError`]
-//! wrapper. It formats the error with all its causes, and ensures the format is suitable for error
-//! reporting to Sentry.
+//! To log [errors](std::error::Error) to both Sentry and the error stream, use [`error!`] and
+//! assign a reference to the error as `error` field. This formats the error with all its causes,
+//! and ensures the format is suitable for error reporting to Sentry.
 //!
 //! ```
 //! use std::io::{Error, ErrorKind};
-//! use relay_log::{LogConfig, SentryConfig, LogError};
 //!
 //! let custom_error = Error::new(ErrorKind::Other, "oh no!");
-//! relay_log::error!("operation failed: {}", LogError(&custom_error));
+//! relay_log::error!(error = &error as &dyn std::error::Error, "operation failed");
 //! ```
 //!
 //! ## Capturing without Logging
@@ -84,7 +79,6 @@
 //!
 //! ```
 //! use std::io::{Error, ErrorKind};
-//! use relay_log::{LogConfig, SentryConfig};
 //!
 //! let custom_error = Error::new(ErrorKind::Other, "oh no!");
 //! relay_log::capture_error(&custom_error);

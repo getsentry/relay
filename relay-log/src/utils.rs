@@ -25,7 +25,7 @@ pub fn backtrace_enabled() -> bool {
 /// errors need to be logged before the logger has been initialized.
 pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
     if tracing::event_enabled!(Level::ERROR) {
-        crate::error!("{}", LogError(error.as_ref()));
+        crate::error!(error = error.as_ref());
     } else {
         eprintln!("error: {}", LogError(error.as_ref()));
     }
@@ -39,10 +39,10 @@ pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
 /// use relay_log::LogError;
 ///
 /// if let Err(error) = std::env::var("FOO") {
-///     relay_log::error!("env failed: {}", LogError(&error));
+///     eprintln!("env failed: {}", LogError(&error));
 /// }
 /// ```
-pub struct LogError<'a, E: Error + ?Sized>(pub &'a E);
+struct LogError<'a, E: Error + ?Sized>(pub &'a E);
 
 impl<'a, E: Error + ?Sized> fmt::Display for LogError<'a, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

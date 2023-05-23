@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, RelayInfo};
-use relay_log::LogError;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
@@ -263,7 +262,10 @@ impl RelayCacheService {
                     Ok(response)
                 }
                 Err(error) => {
-                    relay_log::error!("error fetching public keys: {}", LogError(&error));
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "error fetching public keys"
+                    );
                     Err(channels)
                 }
             };

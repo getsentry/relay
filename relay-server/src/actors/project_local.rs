@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -127,8 +126,8 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
             }
         }
         Err(error) => relay_log::error!(
-            "failed to load static project configs: {}",
-            LogError(&error)
+            error = &error as &dyn std::error::Error,
+            "failed to load static project configs",
         ),
     };
 }
