@@ -106,8 +106,11 @@ impl<'r> TransactionsProcessor<'r> {
         // Annotated<Value> vs Annotated<String>. The simplest and fastest
         // solution I found is to add span.description to span.data if it
         // doesn't exist already, scrub it, and remove it if we did nothing.
-        let previously_scrubbed =
-            matches!(span.data.value(), Some(data) if data.get("description.scrubbed").is_some());
+        let previously_scrubbed = span
+            .data
+            .value()
+            .map(|d| d.get("description.scrubbed"))
+            .is_some();
         if !previously_scrubbed {
             if let Some(description) = span.description.clone().value() {
                 span.data
