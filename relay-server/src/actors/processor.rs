@@ -2378,6 +2378,7 @@ impl EnvelopeProcessorService {
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
+                    ready: state.project_state.config.tx_name_ready,
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -3736,6 +3737,7 @@ mod tests {
                                 substitution: "*".to_owned(),
                             },
                         }],
+                        ready: false,
                     },
                     ..Default::default()
                 };

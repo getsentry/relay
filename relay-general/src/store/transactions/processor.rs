@@ -23,6 +23,8 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
+    /// True if URL transactions should be marked as sanitized, even if there are no rules.
+    pub ready: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -371,16 +373,17 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // Normalize transaction names for URLs and Sanitized transaction sources.
-        // This in addition to renaming rules can catch some high cardinality parts.
-        let mut sanitized = false;
+        // If the project is marked as 'ready', always set the transaction source to sanitized.
+        let mut mark_as_sanitized = self.name_config.ready;
 
         if matches!(
             event.get_transaction_source(),
             &TransactionSource::Url | &TransactionSource::Sanitized
         ) {
+            // Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
             scrub_identifiers(&mut event.transaction)?.then(|| {
-                sanitized = true;
+                mark_as_sanitized = true;
             });
         }
 
@@ -390,10 +393,10 @@ impl Processor for TransactionsProcessor<'_> {
                 event.transaction_info.value_mut(),
             )?;
 
-            sanitized = true;
+            mark_as_sanitized = true;
         }
 
-        if sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
+        if mark_as_sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -1678,6 +1681,67 @@ mod tests {
     }
 
     #[test]
+    /// When the `ready` flag is set, mark a transaction as `sanitized` even if there are no rules.
+    fn test_transaction_name_normalize_mark_as_sanitized_when_ready() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/bar/user/john/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[],
+                    ready: true,
+                },
+                false,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/bar/user/john/0",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": []
+        }
+        "###);
+    }
+
+    #[test]
     fn test_transaction_name_rename_with_rules() {
         let json = r#"
         {
@@ -1730,6 +1794,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
             ),
@@ -1794,6 +1859,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
             ),
@@ -1892,6 +1958,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
             ),
@@ -1958,7 +2025,13 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[rule],
+                    ready: false,
+                },
+                false,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2185,6 +2258,7 @@ mod tests {
                         scope: RuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ready: false,
                 },
                 false,
             ),
@@ -2231,6 +2305,7 @@ mod tests {
                         scope: RuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ready: false,
                 },
                 false,
             ),
