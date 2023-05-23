@@ -5,10 +5,12 @@
 **Bug Fixes**:
 
 - Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+- Remove profiling feature flag. ([#2146](https://github.com/getsentry/relay/pull/2146))
 
 **Internal**:
 
-- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+- Mark all URL transactions as `sanitized` when `txNameReady` flag is set. ([#2128](https://github.com/getsentry/relay/pull/2128), [#2139](https://github.com/getsentry/relay/pull/2139))
+- Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
 
 ## 23.5.0
 

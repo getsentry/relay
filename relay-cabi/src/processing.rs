@@ -8,7 +8,6 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use anyhow::Context;
 use chrono::Utc;
 use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
@@ -352,21 +351,26 @@ pub unsafe extern "C" fn run_dynamic_sampling(
         serde_json::from_str::<SamplingConfig>(root_sampling_config.as_str())?;
     // We can optionally accept a dsc and event.
     let dsc = serde_json::from_str::<DynamicSamplingContext>(dsc.as_str());
-    let event = Annotated::<Event>::from_json(event.as_str())?;
-    let event = event.value().context("the event can't be serialized")?;
+    let event = Annotated::<Event>::from_json(event.as_str());
 
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     let rules: Vec<SamplingRule> =
-        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+        merge_rules_from_configs(Some(&sampling_config), Some(&root_sampling_config))
             .cloned()
             .collect();
 
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
-    let match_result = if let Ok(dsc) = dsc {
-        SamplingMatch::match_against_rules(rules.iter(), event, Some(&dsc), None, Utc::now())
+    let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
+        SamplingMatch::match_against_rules(
+            rules.iter(),
+            event.value(),
+            Some(&dsc),
+            None,
+            Utc::now(),
+        )
     } else {
         None
     };
