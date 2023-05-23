@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+- Fix tagging of incoming errors with `sampled` that was not done due to lack of sampling state. ([#2148](https://github.com/getsentry/relay/pull/2148))
 - Remove profiling feature flag. ([#2146](https://github.com/getsentry/relay/pull/2146))
 
 **Internal**:

@@ -2321,10 +2321,12 @@ impl EnvelopeProcessorService {
             // we will end up overriding the value set by downstream Relays and this will lead
             // to more complex debugging in case of problems.
             if boxed_context.sampled.is_empty() {
-                boxed_context.sampled = Annotated::new(match sampling_result {
+                let sampled = match sampling_result {
                     SamplingResult::Keep => true,
                     SamplingResult::Drop(_) => false,
-                });
+                };
+                relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
+                boxed_context.sampled = Annotated::new(sampled);
             }
         }
     }
