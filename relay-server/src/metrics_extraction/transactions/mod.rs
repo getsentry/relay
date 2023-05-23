@@ -8,7 +8,7 @@ use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
-use relay_general::types::Annotated;
+use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -437,8 +437,6 @@ fn extract_span_metrics(
 ) -> Result<(), ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
 
-    let Some(spans) = event.spans.value() else { return Ok(())};
-
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -477,8 +475,10 @@ fn extract_span_metrics(
         }
     }
 
+    let Some(spans) = event.spans.value_mut() else { return Ok(())};
+
     for annotated_span in spans {
-        if let Some(span) = annotated_span.value() {
+        if let Some(span) = annotated_span.value_mut() {
             let mut span_tags = shared_tags.clone();
 
             if let Some(scrubbed_description) = span
@@ -570,6 +570,14 @@ fn extract_span_metrics(
             {
                 span_tags.insert("span.status_code".to_owned(), status_code.to_owned());
             }
+
+            // Even if we emit metrics, we want this info to be duplicated in every span.
+            span.data.get_or_insert_with(BTreeMap::new).extend(
+                span_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+            );
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
@@ -915,6 +923,8 @@ mod tests {
             &mut sampling_metrics,
         )
         .unwrap();
+
+        insta::assert_debug_snapshot!(event.value().unwrap().spans);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [

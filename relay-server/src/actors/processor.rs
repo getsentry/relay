@@ -12,6 +12,9 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
+use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
+
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -19,15 +22,17 @@ use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetrics
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
+use relay_general::protocol::Context::Trace;
+use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
-use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
@@ -37,8 +42,6 @@ use relay_replays::recording::RecordingScrubber;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
-use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::actors::envelopes::SendMetrics,
@@ -46,7 +49,7 @@ use {
     crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
-    relay_general::protocol::{Context as SentryContext, Contexts, ProfileContext},
+    relay_general::protocol::{Context as SentryContext, ProfileContext},
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -2237,16 +2240,97 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Run dynamic sampling rules to see if we keep the envelope or remove it.
+    /// Computes the sampling decision on the incoming event
+    fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
+        // Running dynamic sampling involves either:
+        // - Tagging whether an incoming error has a sampled trace connected to it.
+        // - Computing the actual sampling decision on an incoming transaction.
+        match state.event_type().unwrap_or_default() {
+            EventType::Default | EventType::Error => {
+                self.tag_error_with_sampling_decision(state);
+            }
+            EventType::Transaction => {
+                self.compute_sampling_decision(state);
+            }
+            _ => {}
+        }
+    }
+
+    /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        state.sampling_result = utils::should_keep_event(
+        state.sampling_result = utils::get_sampling_result(
             self.config.processing_enabled(),
-            &state.project_state,
+            Some(&state.project_state),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
             state.envelope().meta().client_addr(),
         );
+    }
+
+    /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
+    /// decision.
+    ///
+    /// This execution of dynamic sampling is technically a "simulation" since we will use the result
+    /// only for tagging errors and not for actually sampling incoming events.
+    fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
+        // In case there is no incoming event we can't tag anything, thus we early return.
+        if state.event.is_empty() {
+            return;
+        }
+
+        // We want to run dynamic sampling only if we have a root project state and a dynamic
+        // sampling context.
+        //
+        // In reality the dynamic sampling logic supports optional root state and dsc but it will
+        // return keep. In our case having a keep in case of none root state and dsc will be
+        // a problem, since in reality we can't infer anything without trace metadata.
+        let sampling_result = if let (Some(root_project_state), Some(dsc)) = (
+            state.sampling_project_state.as_deref(),
+            state.envelope().dsc(),
+        ) {
+            utils::get_sampling_result(
+                self.config.processing_enabled(),
+                None,
+                Some(root_project_state),
+                Some(dsc),
+                None,
+                state.envelope().meta().client_addr(),
+            )
+        } else {
+            return;
+        };
+
+        let Some(event) = state.event.value_mut() else {
+            return;
+        };
+
+        // In case the sampling result is positive, we assume that all the transactions
+        // that have this DSC will be sampled and thus we mark the error as "having
+        // a full trace".
+        // In case we have no contexts object, we have to create it.
+        let contexts = event.contexts.get_or_insert_with(Contexts::new);
+
+        // We want to get the specific trace context, or we want to create it in case
+        // it is not there.
+        let context =
+            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
+
+        // We want to mutate the sampled after the "fake" sampling has been performed.
+        //
+        // It is important to note that tagging only occurs if there is a dsc and root
+        // project state.
+        if let Trace(boxed_context) = context {
+            // We want to update `sampled` only if it was not set, since if we don't check this
+            // we will end up overriding the value set by downstream Relays and this will lead
+            // to more complex debugging in case of problems.
+            if boxed_context.sampled.is_empty() {
+                boxed_context.sampled = Annotated::new(match sampling_result {
+                    SamplingResult::Keep => true,
+                    SamplingResult::Drop(_) => false,
+                });
+            }
+        }
     }
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -2352,7 +2436,7 @@ impl EnvelopeProcessorService {
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
-            self.compute_sampling_decision(state);
+            self.run_dynamic_sampling(state);
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
@@ -2388,7 +2472,6 @@ impl EnvelopeProcessorService {
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut state = self.prepare_state(message)?;
-
         let project_id = state.project_id;
         let client = state.envelope().meta().client().map(str::to_owned);
         let user_agent = state.envelope().meta().user_agent().map(str::to_owned);
@@ -2670,18 +2753,19 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use similar_asserts::assert_eq;
 
-    use relay_common::{DurationUnit, MetricUnit};
+    use relay_common::{DurationUnit, MetricUnit, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{
         LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
     };
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingMode};
+    use relay_sampling::{
+        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     use relay_test::mock_service;
-    use similar_asserts::assert_eq;
 
-    use super::*;
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
     use crate::metrics_extraction::transactions::types::{
@@ -2690,6 +2774,8 @@ mod tests {
     use crate::metrics_extraction::IntoMetric;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
+
+    use super::*;
 
     struct TestProcessSessionArguments<'a> {
         item: Item,
@@ -2788,6 +2874,7 @@ mod tests {
         );
         assert!(!args.run_session_producer());
     }
+
     #[tokio::test]
     async fn test_process_session_invalid_timestamp() {
         let mut args = TestProcessSessionArguments::default();
@@ -3070,6 +3157,187 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    fn process_envelope_with_root_project_state(
+        envelope: Box<Envelope>,
+        sampling_project_state: Option<Arc<ProjectState>>,
+    ) -> Envelope {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        ctx.envelope().clone()
+    }
+
+    fn extract_first_event_from_envelope(envelope: Envelope) -> Event {
+        let item = envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        annotated_event.into_value().unwrap()
+    }
+
+    fn mocked_error_item() -> Item {
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              }
+            }"#,
+        );
+        item
+    }
+
+    fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        sampling_project_state
+    }
+
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        envelope.set_dsc(dsc);
+        envelope.add_item(mocked_error_item());
+
+        // We test the tagging when the incoming dsc matches a 100% rule.
+        let sampling_project_state = project_state_with_single_rule(1.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope.clone(),
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(context.sampled.value().unwrap())
+        }
+
+        // We test the tagging when the incoming dsc matches a 0% rule.
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(!context.sampled.value().unwrap())
+        }
+
+        // We test the tagging is not performed when an event is already tagged.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              },
+              "contexts": {
+                "trace": {
+                    "sampled": true
+                }
+              }
+            }"#,
+        );
+        envelope.add_item(item);
+        // We want the sampling result to be Drop, so that we can show how sampled is still kept to
+        // to true.
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(context.sampled.value().unwrap())
+        }
+
+        // We test the tagging when root project state and dsc are none.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        envelope.add_item(mocked_error_item());
+        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let event = extract_first_event_from_envelope(new_envelope);
+
+        assert!(event.contexts.value().is_none());
     }
 
     #[tokio::test]
@@ -3382,7 +3650,7 @@ mod tests {
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
             Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
                 RuleId(123),
-                RuleId(456)
+                RuleId(456),
             ])))
         );
 

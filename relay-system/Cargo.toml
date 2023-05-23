@@ -14,7 +14,7 @@ futures = "0.3"
 once_cell = "1.13.1"
 relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }
-tokio = { version = "1.28.0", features = ["macros", "signal"] }
+tokio = { version = "1.28.0", features = ["macros", "signal", "tracing"] }
 
 [dev-dependencies]
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
