@@ -109,15 +109,12 @@ pub struct SpanDescriptionRule {
 
 impl From<&TransactionNameRule> for SpanDescriptionRule {
     fn from(value: &TransactionNameRule) -> Self {
-        // let mut rule: SpanDescriptionRule = value.clone();
-        let mut rule = SpanDescriptionRule {
-            pattern: value.pattern.clone(),
+        SpanDescriptionRule {
+            pattern: LazyGlob::new(format!("**{}", rule.pattern.raw)),
             expiry: value.expiry,
             scope: value.scope.clone(),
             redaction: value.redaction.clone(),
-        };
-        rule.pattern = LazyGlob::new(format!("**{}", rule.pattern.raw));
-        rule
+        }
     }
 }
 
