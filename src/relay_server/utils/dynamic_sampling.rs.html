@@ -390,13 +390,13 @@
 ///
 /// This function returns `None` if:
 ///  - there is no [`DynamicSamplingContext`] in the envelope headers.
-///  - there are no transactions in the envelope, since in this case sampling by trace is redundant.
+///  - there are no transactions or events in the envelope, since in this case sampling by trace is redundant.
 </span><span class="kw">pub fn </span>get_sampling_key(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="prelude-ty">Option</span>&lt;ProjectKey&gt; {
-    <span class="kw">let </span>transaction_item = envelope.get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction);
-
-    <span class="comment">// if there are no transactions to sample, return here
-    </span>transaction_item<span class="question-mark">?</span>;
-
+    <span class="comment">// If the envelope item is not of type transaction or event, we will not return a sampling key
+    // because it doesn&#39;t make sense to load the root project state if we don&#39;t perform trace
+    // sampling.
+    </span>envelope
+        .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction || item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)<span class="question-mark">?</span>;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 

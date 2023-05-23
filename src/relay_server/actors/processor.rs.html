@@ -3860,6 +3860,8 @@
 <a href="#3859" id="3859">3859</a>
 <a href="#3860" id="3860">3860</a>
 <a href="#3861" id="3861">3861</a>
+<a href="#3862" id="3862">3862</a>
+<a href="#3863" id="3863">3863</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -6183,10 +6185,12 @@
             // we will end up overriding the value set by downstream Relays and this will lead
             // to more complex debugging in case of problems.
             </span><span class="kw">if </span>boxed_context.sampled.is_empty() {
-                boxed_context.sampled = Annotated::new(<span class="kw">match </span>sampling_result {
+                <span class="kw">let </span>sampled = <span class="kw">match </span>sampling_result {
                     SamplingResult::Keep =&gt; <span class="bool-val">true</span>,
                     SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-                });
+                };
+                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;tagging error with `sampled = {}` flag&quot;</span>, sampled);
+                boxed_context.sampled = Annotated::new(sampled);
             }
         }
     }
