@@ -1044,19 +1044,15 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Remove profiles from the envelope if the feature flag is not enabled.
+    /// Remove profiles from the envelope if they can not be parsed
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile if !profiling_enabled => ItemAction::DropSilently,
-            ItemType::Profile if profiling_enabled => {
-                match relay_profiling::parse_metadata(&item.payload()) {
-                    Ok(_) => ItemAction::Keep,
-                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(err),
-                    ))),
-                }
-            }
+            ItemType::Profile => match relay_profiling::parse_metadata(&item.payload()) {
+                Ok(_) => ItemAction::Keep,
+                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    relay_profiling::discard_reason(err),
+                ))),
+            },
             _ => ItemAction::Keep,
         });
     }

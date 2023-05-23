@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+- Remove profiling feature flag. ([#2146](https://github.com/getsentry/relay/pull/2146))
 
 **Internal**:
 
