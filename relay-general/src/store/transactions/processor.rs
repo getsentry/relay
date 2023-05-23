@@ -109,9 +109,7 @@ impl<'r> TransactionsProcessor<'r> {
         let previously_scrubbed =
             matches!(span.data.value(), Some(data) if data.get("description.scrubbed").is_some());
         if !previously_scrubbed {
-            dbg!(&span.description.clone().value());
             if let Some(description) = span.description.clone().value() {
-                dbg!(&description);
                 span.data
                     .value_mut()
                     .get_or_insert_with(BTreeMap::new)
