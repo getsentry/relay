@@ -66,7 +66,7 @@ pub struct PiiFinder<'a> {
 }
 
 impl<'a> PiiFinder<'a> {
-    fn new(
+    pub fn new(
         path: &str,
         all_types: &'a HashMap<String, EnumOrStruct>,
         scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
@@ -258,44 +258,4 @@ fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
             .iter()
             .any(|pii_value| has_attr_value(attribute, "metastructure", "pii", pii_value))
     })
-}
-
-/// Finds all the pii fields recursively of a given type.
-pub fn find_pii_fields_of_type(
-    type_path: &str,
-    all_types: &HashMap<String, EnumOrStruct>,
-    scoped_paths: &BTreeMap<String, BTreeSet<String>>,
-    pii_values: &Vec<String>,
-) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
-    let mut visitor = PiiFinder::new(type_path, all_types, scoped_paths, pii_values)?;
-
-    let value = all_types
-        .get(type_path)
-        .ok_or_else(|| anyhow!("Unable to find item with following path: {}", type_path))?;
-
-    match value {
-        EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
-        EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
-    };
-    Ok(visitor.pii_types)
-}
-
-/// Finds all the pii fields recursively of all the types in the rust crate/workspace.
-pub fn find_pii_fields_of_all_types(
-    all_types: &HashMap<String, EnumOrStruct>,
-    scoped_paths: &BTreeMap<String, BTreeSet<String>>,
-    pii_values: &Vec<String>,
-) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
-    let mut pii_types = BTreeSet::new();
-
-    for type_path in all_types.keys() {
-        pii_types.extend(find_pii_fields_of_type(
-            type_path,
-            all_types,
-            scoped_paths,
-            pii_values,
-        )?);
-    }
-
-    Ok(pii_types)
 }

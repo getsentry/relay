@@ -14,6 +14,7 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::{ItemEnum, ItemStruct, UseTree};
 
+use crate::pii_finder::{PiiFinder, TypeAndField};
 use crate::EnumOrStruct;
 
 pub struct TypesAndScopedPaths {
@@ -22,6 +23,43 @@ pub struct TypesAndScopedPaths {
     // Maps the paths in scope to different modules. For use in constructing the full path
     // of an item from its type name.
     pub scoped_paths: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl TypesAndScopedPaths {
+    /// Finds all the pii fields recursively of a given type.
+    pub fn find_pii_fields_of_type(
+        &self,
+        type_path: &str,
+        pii_values: &Vec<String>,
+    ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+        let mut visitor =
+            PiiFinder::new(type_path, &self.all_types, &self.scoped_paths, pii_values)?;
+
+        let value = &self
+            .all_types
+            .get(type_path)
+            .ok_or_else(|| anyhow!("Unable to find item with following path: {}", type_path))?;
+
+        match value {
+            EnumOrStruct::Struct(itemstruct) => visitor.visit_item_struct(itemstruct),
+            EnumOrStruct::Enum(itemenum) => visitor.visit_item_enum(itemenum),
+        };
+        Ok(visitor.pii_types)
+    }
+
+    /// Finds all the pii fields recursively of all the types in the rust crate/workspace.
+    pub fn find_pii_fields_of_all_types(
+        &self,
+        pii_values: &Vec<String>,
+    ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+        let mut pii_types = BTreeSet::new();
+
+        for type_path in self.all_types.keys() {
+            pii_types.extend(self.find_pii_fields_of_type(type_path, pii_values)?);
+        }
+
+        Ok(pii_types)
+    }
 }
 
 /// The types and use statements items collected from the rust files.
