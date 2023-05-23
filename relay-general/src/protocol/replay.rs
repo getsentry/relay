@@ -25,7 +25,6 @@
 //! }
 //! ```
 
-use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
 
 use crate::protocol::{

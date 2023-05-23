@@ -84,14 +84,14 @@ impl OutcomeAggregator {
     }
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
-        relay_log::trace!("Outcome aggregation requested: {:?}", msg);
+        relay_log::trace!("Outcome aggregation requested: {msg:?}");
 
         if self.mode == AggregationMode::DropEverything {
             return;
         }
 
         let (event_id, remote_addr) = if self.erase_high_cardinality_fields(&msg) {
-            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
+            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {msg:?}");
             (None, None)
         } else {
             (msg.event_id, msg.remote_addr)

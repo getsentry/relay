@@ -803,7 +803,7 @@ impl OutcomeBroker {
         organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
-        relay_log::trace!("Tracking kafka outcome: {:?}", message);
+        relay_log::trace!("Tracking kafka outcome: {message:?}");
 
         send_outcome_metric(&message, "kafka");
 

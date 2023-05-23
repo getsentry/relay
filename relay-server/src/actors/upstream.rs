@@ -1241,10 +1241,7 @@ impl ConnectionMonitor {
 
         loop {
             let next_backoff = backoff.next_backoff();
-            relay_log::warn!(
-                "Network outage, scheduling another check in {:?}",
-                next_backoff
-            );
+            relay_log::warn!("network outage, scheduling another check in {next_backoff:?}");
 
             tokio::time::sleep(next_backoff).await;
             match client.send(&mut GetHealthCheck).await {

@@ -34,7 +34,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         Some(ts) => ts,
         None => {
             relay_log::error!(
-                timestamp = session.started(),
+                timestamp = %session.started(),
                 "invalid session started timestamp"
             );
             return;

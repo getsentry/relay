@@ -1631,7 +1631,7 @@ impl AggregatorService {
             if protocol::is_valid_tag_key(tag_key) {
                 true
             } else {
-                relay_log::debug!("invalid metric tag key {:?}", tag_key);
+                relay_log::debug!("invalid metric tag key {tag_key:?}");
                 false
             }
         });
@@ -2058,7 +2058,7 @@ mod tests {
             tokio::spawn(async move {
                 while let Some(message) = rx.recv().await {
                     let buckets = message.0.buckets;
-                    relay_log::debug!("received buckets: {:#?}", buckets);
+                    relay_log::debug!(?buckets, "received buckets");
                     if !self.reject_all {
                         self.add_buckets(buckets);
                     }

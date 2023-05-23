@@ -1045,7 +1045,7 @@ mod tests {
 
         // There are enough permits, so get an envelope:
         let res = rx.try_recv();
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
         assert_eq!(buffer_guard.available(), 2);
 
         // Simulate a new envelope coming in via a web request:

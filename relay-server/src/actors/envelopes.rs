@@ -385,7 +385,10 @@ impl EnvelopeManagerService {
         }
 
         if let Err(e) = self.submit_envelope(envelope, scoping, None).await {
-            relay_log::trace!("Failed to send envelope for client report: {:?}", e);
+            relay_log::trace!(
+                error = &e as &dyn Error,
+                "failed to send envelope for client report"
+            );
         }
     }
 

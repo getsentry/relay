@@ -2433,7 +2433,6 @@ mod tests {
         ]
         "#;
         let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
-        relay_log::debug!("{:?}", rules);
         assert!(rules.is_ok());
         let rules = rules.unwrap();
         insta::assert_ron_snapshot!(rules, @r###"

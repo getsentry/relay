@@ -1001,7 +1001,7 @@ impl Envelope {
         match &self.headers.trace {
             None => None,
             Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!("failed to parse sampling context: {:?}", e);
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
                 None
             }
             Some(ErrorBoundary::Ok(t)) => Some(t),
