@@ -1,6 +1,5 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
-use brotli::enc::threading::InternalOwned::Item;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
