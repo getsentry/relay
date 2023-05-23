@@ -35,29 +35,16 @@ use crate::store::{self, user_agent};
 use crate::types::{Annotated, Array};
 use crate::user_agent::RawUserAgentInfo;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ReplayError {
-    CouldNotParse(serde_json::Error),
+    #[error("invalid json")]
+    CouldNotParse(#[from] serde_json::Error),
+    #[error("no data found")]
     NoContent,
+    #[error("invalid payload {0}")]
     InvalidPayload(String),
+    #[error("failed to scrub PII: {0}")]
     CouldNotScrub(String),
-}
-
-impl Display for ReplayError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReplayError::CouldNotParse(e) => write!(f, "{e}"),
-            ReplayError::NoContent => write!(f, "No data found.",),
-            ReplayError::InvalidPayload(e) => write!(f, "{e}"),
-            ReplayError::CouldNotScrub(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl From<serde_json::Error> for ReplayError {
-    fn from(err: serde_json::Error) -> Self {
-        ReplayError::CouldNotParse(err)
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]

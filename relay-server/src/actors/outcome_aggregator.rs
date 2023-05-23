@@ -98,7 +98,7 @@ impl OutcomeAggregator {
         };
 
         if let Some(event_id) = event_id {
-            relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
+            relay_log::trace!("Forwarding outcome without aggregation: {event_id}");
             self.outcome_producer.send(msg);
             return;
         }
@@ -155,7 +155,7 @@ impl OutcomeAggregator {
                 quantity,
             };
 
-            relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
+            relay_log::trace!("Flushing outcome for timestamp {timestamp}");
             outcome_producer.send(outcome);
         }
     }

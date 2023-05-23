@@ -548,11 +548,11 @@ impl HttpOutcomeProducer {
         self.flush_handle.reset();
 
         if self.unsent_outcomes.is_empty() {
-            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send");
             return;
         } else {
             relay_log::trace!(
-                "sending outcome batch of size:{}",
+                "sending outcome batch of size {}",
                 self.unsent_outcomes.len()
             );
         }
@@ -565,16 +565,16 @@ impl HttpOutcomeProducer {
 
         tokio::spawn(async move {
             match upstream_relay.send(SendQuery(request)).await {
-                Ok(_) => relay_log::trace!("outcome batch sent."),
+                Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
-                    relay_log::error!("outcome batch sending failed with: {}", error)
+                    relay_log::error!(error = &error as &dyn Error, "outcome batch sending failed")
                 }
             }
         });
     }
 
     fn handle_message(&mut self, message: TrackRawOutcome) {
-        relay_log::trace!("Batching outcome");
+        relay_log::trace!("batching outcome");
         self.unsent_outcomes.push(message);
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
@@ -625,7 +625,7 @@ impl ClientReportOutcomeProducer {
     }
 
     fn flush(&mut self) {
-        relay_log::trace!("Flushing client reports");
+        relay_log::trace!("flushing client reports");
         self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);

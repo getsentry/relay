@@ -803,7 +803,7 @@ impl BufferService {
         if count > 0 {
             relay_log::with_scope(
                 |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("evicted project with {} envelopes", count),
+                || relay_log::error!(count, "evicted project with envelopes"),
             );
         }
 
@@ -845,8 +845,8 @@ impl BufferService {
         }
 
         relay_log::info!(
-            "received shutdown signal, spooling {} envelopes to disk",
-            count
+            count,
+            "received shutdown signal, spooling envelopes to disk"
         );
 
         let buffer = std::mem::take(&mut ram.buffer);
@@ -896,7 +896,7 @@ impl Drop for BufferService {
             BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } => {
                 let count = ram.count();
                 if count > 0 {
-                    relay_log::error!("dropped {} envelopes", count);
+                    relay_log::error!("dropped {count} envelopes");
                 }
             }
             BufferState::Disk(_) => (),

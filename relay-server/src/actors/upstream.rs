@@ -1076,8 +1076,8 @@ impl AuthMonitor {
         credentials: &Credentials,
     ) -> Result<(), UpstreamRequestError> {
         relay_log::info!(
-            "registering with upstream ({})",
-            self.config.upstream_descriptor()
+            descriptor = %self.config.upstream_descriptor(),
+            "registering with upstream"
         );
 
         self.send_state(if self.state.is_authenticated() {
@@ -1088,7 +1088,7 @@ impl AuthMonitor {
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
         let challenge = self.client.send_query(request).await?;
-        relay_log::debug!("got register challenge (token = {})", challenge.token());
+        relay_log::debug!(token = challenge.token(), "got register challenge");
 
         let response = challenge.into_response();
         relay_log::debug!("sending register challenge response");

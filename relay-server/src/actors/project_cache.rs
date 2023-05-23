@@ -668,7 +668,7 @@ impl ProjectCacheBroker {
 
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
-                project_key = %project_key,
+                project_key = %project_key, // TODO(ja): Tag
                 "project could not be found in the cache",
             );
             return;
@@ -676,7 +676,7 @@ impl ProjectCacheBroker {
 
         let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) else {
             relay_log::error!(
-                project_key = %project_key,
+                project_key = %project_key, // TODO(ja): Tag
                 "project has no valid cached state",
             );
             return;

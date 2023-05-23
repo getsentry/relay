@@ -143,9 +143,9 @@ async fn inner(
             configs.insert(project_key, Some(wrapper));
         } else {
             relay_log::debug!(
-                "Relay {} does not have access to project key {}",
-                relay.public_key,
-                project_key
+                relay = %relay.public_key,
+                project_key = %project_key,
+                "relay does not have access to project key",
             );
         };
     }

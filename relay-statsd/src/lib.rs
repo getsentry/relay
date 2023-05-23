@@ -199,8 +199,7 @@ pub fn init<A: ToSocketAddrs>(
     // Normalize sample_rate
     let sample_rate = sample_rate.clamp(0., 1.);
     relay_log::debug!(
-        "metrics sample rate is set to {}{}",
-        sample_rate,
+        "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
             ", no metrics will be reported"
         } else {

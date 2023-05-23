@@ -1039,11 +1039,7 @@ impl EnvelopeProcessorService {
             let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
                 Err(_) => {
-                    relay_log::trace!(
-                        "Invalid outcome_type / reason: ({:?}, {})",
-                        outcome_type,
-                        reason
-                    );
+                    relay_log::trace!(?outcome_type, reason, "invalid outcome combination");
                     continue;
                 }
             };
@@ -1263,26 +1259,14 @@ impl EnvelopeProcessorService {
                             ItemAction::Keep
                         }
                     },
-                    Err(e) => {
-                        let discard_reason = match e {
-                            ReplayError::NoContent => {
-                                relay_log::warn!("replay-event: no data found");
-                                DiscardReason::InvalidReplayEventNoPayload
-                            }
-                            ReplayError::CouldNotScrub(e) => {
-                                relay_log::warn!("replay-event: PII scrub failure {}", e);
-                                DiscardReason::InvalidReplayEventPii
-                            }
-                            ReplayError::CouldNotParse(e) => {
-                                relay_log::warn!("replay-event: {}", e.to_string());
-                                DiscardReason::InvalidReplayEvent
-                            }
-                            ReplayError::InvalidPayload(e) => {
-                                relay_log::warn!("replay-event: {}", e);
-                                DiscardReason::InvalidReplayEvent
-                            }
-                        };
-                        ItemAction::Drop(Outcome::Invalid(discard_reason))
+                    Err(error) => {
+                        relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
+                        ItemAction::Drop(Outcome::Invalid(match error {
+                            ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
+                            ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
+                            ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
+                            ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
+                        }))
                     }
                 }
             }
@@ -2761,7 +2745,7 @@ impl Service for EnvelopeProcessorService {
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.config.cpu_concurrency();
-        relay_log::info!("starting {} envelope processing workers", thread_count);
+        relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
             let service = Arc::new(self);

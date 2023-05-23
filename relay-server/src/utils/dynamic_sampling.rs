@@ -35,7 +35,12 @@ impl SamplingResult {
                 seed,
             }) => {
                 let random_number = relay_sampling::pseudo_random_from_uuid(seed);
-                relay_log::trace!("sampling event with sample rate {}", sample_rate);
+                relay_log::trace!(
+                    sample_rate,
+                    random_number,
+                    "applying dynamic sampling to matching event"
+                );
+
                 if random_number >= sample_rate {
                     relay_log::trace!("dropping event that matched the configuration");
                     SamplingResult::Drop(matched_rule_ids)

@@ -2023,7 +2023,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None), "{}", failure_name);
+            assert!(condition.matches(&dsc, None), "{failure_name}");
         }
     }
 
@@ -2101,7 +2101,7 @@ mod tests {
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches(&evt, ip_addr), "{}", failure_name);
+            assert!(condition.matches(&evt, ip_addr), "{failure_name}");
         }
     }
 
@@ -2199,11 +2199,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
         }
     }
 
@@ -2262,11 +2258,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
         }
     }
 
@@ -2302,11 +2294,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(
-                condition.matches(&dsc, None) == *expected,
-                "{}",
-                failure_name
-            );
+            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
         }
     }
 
@@ -2365,7 +2353,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(!condition.matches(&dsc, None), "{}", failure_name);
+            assert!(!condition.matches(&dsc, None), "{failure_name}");
         }
     }
 

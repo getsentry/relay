@@ -854,7 +854,7 @@ impl MetricsContainer for Bucket {
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
-#[error("failed to aggregate metrics: {}", .kind)]
+#[error("failed to aggregate metrics: {kind}")]
 pub struct AggregateMetricsError {
     kind: AggregateMetricsErrorKind,
 }
@@ -2002,7 +2002,7 @@ impl Drop for AggregatorService {
     fn drop(&mut self) {
         let remaining_buckets = self.buckets.len();
         if remaining_buckets > 0 {
-            relay_log::error!("Metrics aggregator dropping {} buckets", remaining_buckets);
+            relay_log::error!("metrics aggregator dropping {remaining_buckets} buckets");
             relay_statsd::metric!(
                 counter(MetricCounters::BucketsDropped) += remaining_buckets as i64
             );

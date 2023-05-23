@@ -176,7 +176,7 @@ impl KafkaClient {
     ) -> Result<(), ClientError> {
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
-                "Attempted to send message to {:?} using an unconfigured kafka producer.",
+                "attempted to send message to {:?} using an unconfigured kafka producer",
                 topic
             );
             ClientError::InvalidTopicName

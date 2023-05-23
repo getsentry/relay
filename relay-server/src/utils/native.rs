@@ -124,8 +124,8 @@ fn write_crashpad_annotations(
             Some(module) => module,
             None => {
                 relay_log::debug!(
-                    "Skipping invalid minidump module index {}",
-                    module_info.module_index
+                    module_index = module_info.module_index,
+                    "Skipping invalid minidump module index",
                 );
                 continue;
             }

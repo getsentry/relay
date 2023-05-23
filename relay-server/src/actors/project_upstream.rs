@@ -215,7 +215,7 @@ impl UpstreamProjectSourceService {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
-                    relay_log::error!("error fetching project state {}: deadline exceeded", id);
+                    relay_log::error!("error fetching project state {id}: deadline exceeded");
                 }
                 !channel.expired()
             });

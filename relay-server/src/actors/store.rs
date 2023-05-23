@@ -542,7 +542,7 @@ impl StoreService {
                         scope.set_extra("metric_message.name", message.name.into());
                     },
                     || {
-                        relay_log::error!("Store service dropping unknown metric usecase");
+                        relay_log::error!("store service dropping unknown metric usecase");
                     },
                 );
                 return Ok(());
