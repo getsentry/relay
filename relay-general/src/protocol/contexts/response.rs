@@ -36,6 +36,10 @@ pub struct ResponseContext {
     #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
 
+    /// The inferred content type of the response payload.
+    #[metastructure(skip_serialization = "empty")]
+    pub inferred_content_type: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     /// These fields are retained (`retain = "true"`) to keep supporting the format that the Dio integration sends:
     /// <https://github.com/getsentry/sentry-dart/blob/7011abe27ac69bd160bdc6ecf3314974b8340b97/dart/lib/src/protocol/sentry_response.dart#L4-L8>
@@ -88,6 +92,7 @@ mod tests {
   "data": {
     "some": 1
   },
+  "inferred_content_type": "application/json",
   "arbitrary_field": "arbitrary",
   "type": "response"
 }"#;
@@ -108,6 +113,7 @@ mod tests {
                 map.insert("some".to_string(), Annotated::new(Value::I64(1)));
                 Annotated::new(Value::Object(map))
             },
+            inferred_content_type: Annotated::new("application/json".to_string()),
             other: {
                 let mut map = Object::new();
                 map.insert(

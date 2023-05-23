@@ -3023,6 +3023,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 }
               ]
             },
+            "inferred_content_type": {
+              "description": " The inferred content type of the response payload.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "status_code": {
               "description": " HTTP status code.",
               "default": null,

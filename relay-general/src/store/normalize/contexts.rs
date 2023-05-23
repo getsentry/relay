@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
-use crate::types::{Annotated, Empty};
+use crate::types::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
 static OS_WINDOWS_REGEX1: Lazy<Regex> = Lazy::new(|| {
@@ -177,7 +177,82 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
+// TODO: extract urlencoded_from_str, parse_raw_response_data and normalize_response_data
+// can probably be reused in other places (original from normalize/request)
+
+/// Decodes an urlencoded body.
+fn urlencoded_from_str(raw: &str) -> Option<Value> {
+    // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
+    if !raw.is_ascii() {
+        return None;
+    }
+
+    // Avoid false positives with XML and partial JSON.
+    if raw.starts_with("<?xml") || raw.starts_with('{') || raw.starts_with('[') {
+        return None;
+    }
+
+    // serde_urlencoded always deserializes into `Value::Object`.
+    let object = match serde_urlencoded::from_str(raw) {
+        Ok(Value::Object(value)) => value,
+        _ => return None,
+    };
+
+    // `serde_urlencoded` can decode any string with valid characters into an object. However, we
+    // need to account for false-positives in the following cases:
+    //  - An empty string "" is decoded as empty object
+    //  - A string "foo" is decoded as {"foo": ""} (check for single empty value)
+    //  - A base64 encoded string "dGU=" also decodes with a single empty value
+    //  - A base64 encoded string "dA==" decodes as {"dA": "="} (check for single =)
+    let is_valid = object.len() > 1
+        || object
+            .values()
+            .next()
+            .and_then(Annotated::<Value>::as_str)
+            .map_or(false, |s| !matches!(s, "" | "="));
+
+    if is_valid {
+        Some(Value::Object(object))
+    } else {
+        None
+    }
+}
+
+fn parse_raw_response_data(response: &mut ResponseContext) -> Option<(&'static str, Value)> {
+    let raw = response.data.as_str()?;
+
+    // TODO: Try to decode base64 first
+
+    if let Ok(value) = serde_json::from_str(raw) {
+        Some(("application/json", value))
+    } else {
+        urlencoded_from_str(raw).map(|value| ("application/x-www-form-urlencoded", value))
+    }
+}
+
+fn normalize_response_data(response: &mut ResponseContext) {
+    // Always derive the `inferred_content_type` from the response body, even if there is a
+    // `Content-Type` header present. This value can technically be ingested (due to the schema) but
+    // should always be overwritten in normalization. Only if inference fails, fall back to the
+    // content type header.
+    if let Some((content_type, parsed_data)) = parse_raw_response_data(response) {
+        // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
+        // inferred content type.
+        response.data.set_value(Some(parsed_data));
+        response.inferred_content_type = Annotated::from(content_type.to_string());
+    } else {
+        response.inferred_content_type = response
+            .headers
+            .value()
+            .and_then(|headers| headers.get_header("Content-Type"))
+            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .into();
+    }
+}
+
 fn normalize_response(response: &mut ResponseContext) {
+    normalize_response_data(response);
+
     let headers = match response.headers.value_mut() {
         Some(headers) => headers,
         None => return,
@@ -197,9 +272,6 @@ fn normalize_response(response: &mut ResponseContext) {
         response.cookies = Annotated::from(new_cookies);
         headers.remove("Set-Cookie");
     }
-
-    // TODO: normalize_data for response.data
-    // https://github.com/getsentry/relay/blob/master/relay-general/src/store/normalize/request.rs
 }
 
 pub fn normalize_context(context: &mut Context) {
@@ -226,7 +298,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-    use crate::protocol::LenientString;
+    use crate::protocol::{Headers, LenientString, PairList};
 
     #[test]
     fn test_get_product_name() {
@@ -608,5 +680,123 @@ mod tests {
         // may be revisited
         assert_eq!(Some("15.0"), os.kernel_version.as_str());
         assert_eq!(None, os.build.value());
+    }
+
+    #[test]
+    fn test_infer_json() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            ..ResponseContext::default()
+        };
+
+        let mut expected_value = Object::new();
+        expected_value.insert(
+            "foo".to_string(),
+            Annotated::from(Value::String("bar".into())),
+        );
+
+        normalize_response(&mut response);
+        assert_eq!(
+            response.inferred_content_type.as_str(),
+            Some("application/json")
+        );
+        assert_eq!(response.data.value(), Some(&Value::Object(expected_value)));
+    }
+
+    #[test]
+    fn test_broken_json_with_fallback() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            headers: Annotated::from(Headers(PairList(vec![Annotated::new((
+                Annotated::new("Content-Type".to_string().into()),
+                Annotated::new("text/plain; encoding=utf-8".to_string().into()),
+            ))]))),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.as_str(), Some("text/plain"));
+        assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
+    }
+
+    #[test]
+    fn test_broken_json_without_fallback() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.value(), None);
+        assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
+    }
+
+    #[test]
+    fn test_infer_url_encoded() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
+            ..ResponseContext::default()
+        };
+
+        let mut expected_value = Object::new();
+        expected_value.insert(
+            "foo".to_string(),
+            Annotated::from(Value::String("bar".into())),
+        );
+
+        normalize_response(&mut response);
+        assert_eq!(
+            response.inferred_content_type.as_str(),
+            Some("application/x-www-form-urlencoded")
+        );
+        assert_eq!(response.data.value(), Some(&Value::Object(expected_value)));
+    }
+
+    #[test]
+    fn test_infer_url_false_positive() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String("dGU=".to_string())),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.value(), None);
+        assert_eq!(response.data.as_str(), Some("dGU="));
+    }
+
+    #[test]
+    fn test_infer_url_encoded_base64() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String("dA==".to_string())),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.value(), None);
+        assert_eq!(response.data.as_str(), Some("dA=="));
+    }
+
+    #[test]
+    fn test_infer_xml() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.value(), None);
+        assert_eq!(response.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
+    }
+
+    #[test]
+    fn test_infer_binary() {
+        let mut response = ResponseContext {
+            data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
+            ..ResponseContext::default()
+        };
+
+        normalize_response(&mut response);
+        assert_eq!(response.inferred_content_type.value(), None);
+        assert_eq!(response.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
     }
 }
