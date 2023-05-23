@@ -62,7 +62,7 @@ expression: event
             "": {
               "rem": [
                 [
-                  "description.scrubbed:/remains/*/**",
+                  "description.scrubbed:**/remains/*/**",
                   "s"
                 ]
               ]
