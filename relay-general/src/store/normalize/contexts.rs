@@ -299,6 +299,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::{Headers, LenientString, PairList};
+    use crate::types::Object;
 
     #[test]
     fn test_get_product_name() {
