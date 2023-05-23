@@ -1,5 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
+use brotli::enc::threading::InternalOwned::Item;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -107,13 +108,13 @@ pub fn get_sampling_result(
 ///
 /// This function returns `None` if:
 ///  - there is no [`DynamicSamplingContext`] in the envelope headers.
-///  - there are no transactions in the envelope, since in this case sampling by trace is redundant.
+///  - there are no transactions or events in the envelope, since in this case sampling by trace is redundant.
 pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
-    let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
-
-    // if there are no transactions to sample, return here
-    transaction_item?;
-
+    // If we the envelope item is not of type transaction or event, we will not return a sampling key
+    // because it doesn't make sense to load the root project state if we don't perform trace
+    // sampling.
+    envelope
+        .get_item_by(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Event)?;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
