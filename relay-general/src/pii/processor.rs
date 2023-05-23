@@ -195,6 +195,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         replay.process_child_values(self, state)?;
         Ok(())
     }
+
+    // TODO: data scrubbing for graph response
+    // process_graphql_response
 }
 
 fn apply_rule_to_value(

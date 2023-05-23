@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -2979,7 +2980,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "ResponseContext": {
-      "description": " Response interface that contains information on a HTTP response related to the event.",
+      "description": " Response interface that contains information on a HTTP response related to the event.\n\n The data variable should only contain the response body. It can either be\n a dictionary (for standard HTTP responses) or a raw response body.",
       "anyOf": [
         {
           "type": "object",
@@ -3005,6 +3006,10 @@ expression: "relay_general::protocol::event_json_schema()"
                   "type": "null"
                 }
               ]
+            },
+            "data": {
+              "description": " Response data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as string or\n structural data of any format.",
+              "default": null
             },
             "headers": {
               "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",

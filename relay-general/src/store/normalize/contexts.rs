@@ -197,6 +197,9 @@ fn normalize_response(response: &mut ResponseContext) {
         response.cookies = Annotated::from(new_cookies);
         headers.remove("Set-Cookie");
     }
+
+    // TODO: normalize_data for response.data
+    // https://github.com/getsentry/relay/blob/master/relay-general/src/store/normalize/request.rs
 }
 
 pub fn normalize_context(context: &mut Context) {
