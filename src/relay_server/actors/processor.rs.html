@@ -3862,6 +3862,8 @@
 <a href="#3861" id="3861">3861</a>
 <a href="#3862" id="3862">3862</a>
 <a href="#3863" id="3863">3863</a>
+<a href="#3864" id="3864">3864</a>
+<a href="#3865" id="3865">3865</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -6242,6 +6244,7 @@
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
+                    ready: state.project_state.config.tx_name_ready,
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -7600,6 +7603,7 @@
                                 substitution: <span class="string">&quot;*&quot;</span>.to_owned(),
                             },
                         }],
+                        ready: <span class="bool-val">false</span>,
                     },
                     ..Default::default()
                 };
