@@ -2869,6 +2869,7 @@ mod tests {
                         scope: RuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ..Default::default()
                 },
                 true,
             ),
