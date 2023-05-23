@@ -147,8 +147,6 @@ impl SpanDescriptionRule {
     }
 
     /// Applies the rule to the provided value.
-    ///
-    /// Note: currently only `url` source for rules supported.
     fn apply(&self, value: &str) -> String {
         match &self.redaction {
             RedactionRule::Replace { substitution } => self
