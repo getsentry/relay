@@ -19,7 +19,7 @@ use crate::pii_finder::TypeAndField;
 pub mod item_collector;
 pub mod pii_finder;
 
-/// Structs and Enums are the only items that are relevant for finding pii fields.
+/// Structs and Enums are the only items that are relevant for finding PII fields.
 #[derive(Clone)]
 pub enum EnumOrStruct {
     Struct(ItemStruct),
@@ -55,12 +55,12 @@ pub struct Cli {
     #[arg(short, long)]
     pub path: Option<PathBuf>,
 
-    /// The struct or enum of which you want to find all pii fields. Checks all items if none is
+    /// The struct or enum of which you want to find all PII fields. Checks all items if none is
     /// provided.
     #[arg(short, long)]
     pub item: Option<String>,
 
-    /// Vector of which pii-values should be looked for, options are: "true, maybe, false".
+    /// Vector of which PII-values should be looked for, options are: "true, maybe, false".
     #[arg(long, default_value = "true")]
     pub pii_values: Vec<String>,
 }
@@ -77,25 +77,26 @@ impl Cli {
     pub fn run(self) -> anyhow::Result<()> {
         // User must either provide the path to a rust crate/workspace or be in one when calling this script.
         let path = match self.path.clone() {
-            Some(path) => path,
+            Some(path) => {
+                if !path.join("Cargo.toml").exists() {
+                    anyhow::bail!("Please provide the path to a rust crate/workspace");
+                }
+                path
+            }
             None => std::env::current_dir()?,
         };
 
-        if !path.join("Cargo.toml").exists() {
-            panic!("Please provide the path to a rust crate/workspace");
-        }
-
-        let rust_file_paths = find_rs_files(&path);
-
-        // Before we can iterate over the pii fields properly, we make a mapping between all
+        // Before we can iterate over the PII fields properly, we make a mapping between all
         // paths to types and their AST node, and of all modules and the items in their scope.
-        let types_and_use_statements =
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths)?;
+        let types_and_use_statements = {
+            let rust_file_paths = find_rs_files(&path);
+            AstItemCollector::collect(&rust_file_paths)?
+        };
 
         let pii_types = match self.item.as_deref() {
-            // If user provides path to an item, find pii_fields under this item in particular.
+            // If user provides path to an item, find PII_fields under this item in particular.
             Some(path) => types_and_use_statements.find_pii_fields_of_type(path, &self.pii_values),
-            // If no item is provided, find pii fields of all types in crate/workspace.
+            // If no item is provided, find PII fields of all types in crate/workspace.
             None => types_and_use_statements.find_pii_fields_of_all_types(&self.pii_values),
         }?;
 
@@ -111,7 +112,7 @@ impl Cli {
     }
 }
 
-/// Represent the pii fields in a format that will be used in the final output.
+/// Represent the PII fields in a format that will be used in the final output.
 fn get_pii_fields_output(
     pii_types: BTreeSet<Vec<TypeAndField>>,
     unnamed_replace: String,
@@ -169,7 +170,7 @@ mod tests {
         let types_and_use_statements = {
             let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
             let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap()
+            AstItemCollector::collect(&rust_file_paths).unwrap()
         };
 
         let pii_types = types_and_use_statements
@@ -185,7 +186,7 @@ mod tests {
         let types_and_use_statements = {
             let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
             let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap()
+            AstItemCollector::collect(&rust_file_paths).unwrap()
         };
 
         let TypesAndScopedPaths { scoped_paths, .. } = types_and_use_statements;
@@ -197,7 +198,7 @@ mod tests {
         let types_and_use_statements = {
             let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
             let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap()
+            AstItemCollector::collect(&rust_file_paths).unwrap()
         };
 
         let pii_types = types_and_use_statements
@@ -213,7 +214,7 @@ mod tests {
         let types_and_use_statements = {
             let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
             let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap()
+            AstItemCollector::collect(&rust_file_paths).unwrap()
         };
 
         let pii_types = types_and_use_statements
@@ -229,7 +230,7 @@ mod tests {
         let types_and_use_statements = {
             let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
             let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::get_types_and_scoped_paths(&rust_file_paths).unwrap()
+            AstItemCollector::collect(&rust_file_paths).unwrap()
         };
 
         let pii_types = types_and_use_statements

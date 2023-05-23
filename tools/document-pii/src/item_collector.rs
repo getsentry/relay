@@ -1,8 +1,6 @@
-//! Collecting full paths to items and AST-nodes of types
-//!
-//! This module will iterate over all the rust files given and collect all of the full path names
-//! and the actual AST-node for the types defined in those paths. This is later needed for finding
-//! PII fields recursively.
+//! Contains the helper types and functions which help to iterate over all the given rust files,
+//! collect all of the full path names and the actual AST-node for the types defined in those paths.
+//! This is later needed for finding PII fields recursively.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, DirEntry};
@@ -26,7 +24,7 @@ pub struct TypesAndScopedPaths {
 }
 
 impl TypesAndScopedPaths {
-    /// Finds all the pii fields recursively of a given type.
+    /// Finds all the PII fields recursively of a given type.
     pub fn find_pii_fields_of_type(
         &self,
         type_path: &str,
@@ -47,7 +45,7 @@ impl TypesAndScopedPaths {
         Ok(visitor.pii_types)
     }
 
-    /// Finds all the pii fields recursively of all the types in the rust crate/workspace.
+    /// Finds all the PII fields recursively of all the types in the rust crate/workspace.
     pub fn find_pii_fields_of_all_types(
         &self,
         pii_values: &Vec<String>,
@@ -80,10 +78,10 @@ impl AstItemCollector {
             .extend(use_statements);
     }
 
-    /// Gets both a mapping of the full type to a type and its actual AST node, and also the
+    /// Gets both a mapping of the full path to a type and its actual AST node, and also the
     /// use_statements in its module, which is needed to fetch the types that it referes to in its
     /// fields.
-    pub fn get_types_and_scoped_paths(paths: &[PathBuf]) -> anyhow::Result<TypesAndScopedPaths> {
+    pub fn collect(paths: &[PathBuf]) -> anyhow::Result<TypesAndScopedPaths> {
         let mut visitor = Self::default();
 
         visitor.visit_files(paths)?;
@@ -199,10 +197,10 @@ fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<Stri
 }
 
 fn crate_name_from_file(file_path: &Path) -> anyhow::Result<String> {
-    let file_str = file_path
-        .as_os_str()
-        .to_str()
-        .ok_or_else(|| anyhow!("Invalid file path: {}", file_path.display()))?;
+    // We know the crate_name is located like home/foo/bar/crate_name/src/...
+    // We therefore first find the index of the '/' to the left of src, then we find the index
+    // of the '/' to the left of that, and the crate_name will be whats between those indexes.
+    let file_str = file_path.to_string_lossy();
 
     let src_index = file_str
         .find("/src/")
@@ -230,7 +228,7 @@ fn crate_name_from_file(file_path: &Path) -> anyhow::Result<String> {
         .0
         .split_at(back_index)
         .1
-        .replace('-', "_"))
+        .to_string())
 }
 
 fn add_file_stem_to_module_path(
@@ -252,25 +250,6 @@ fn add_file_stem_to_module_path(
     Ok(())
 }
 
-fn split_path_at_crate_name(module_path: &[String], file_path: &Path) -> anyhow::Result<String> {
-    // Build the final use-path by joining the module path components
-    // with "::" and removing the '-' character if any, since Rust module
-    // names replace '-' with '_'.
-    let use_path = module_path.join("::");
-    let crate_name = crate_name_from_file(file_path)?;
-
-    let index = use_path.find(&crate_name).ok_or_else(|| {
-        anyhow!(
-            "Failed to find crate name '{}' in use path '{}'",
-            crate_name,
-            use_path
-        )
-    })?;
-    let use_path = use_path.split_at(index).1.to_string();
-
-    Ok(use_path)
-}
-
 /// Takes in the path to a Rust file and returns the path as you'd refer to it in a use-statement.
 /// e.g. "/Users/tor/prog/rust/relay/relay-general/src/protocol/types.rs" -> "relay_general::protocol"
 fn module_name_from_file(file_path: &Path) -> anyhow::Result<String> {
@@ -283,7 +262,7 @@ fn module_name_from_file(file_path: &Path) -> anyhow::Result<String> {
             )
         })?
         .components()
-        .map(|part| part.as_os_str().to_string_lossy().replace('-', "_"))
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
         .filter(|part| part != "src")
         .collect::<Vec<String>>();
 
@@ -291,9 +270,16 @@ fn module_name_from_file(file_path: &Path) -> anyhow::Result<String> {
         add_file_stem_to_module_path(file_path, &mut module_path)?;
     }
 
-    let use_path = split_path_at_crate_name(&module_path, file_path)?;
+    let crate_name = crate_name_from_file(file_path).unwrap();
 
-    Ok(use_path)
+    // Removes all the folders before the crate name, and concatenates to a string.
+    Ok(module_path
+        .iter()
+        .position(|s| s == &crate_name)
+        .map(|index| &module_path[index..])
+        .ok_or_else(|| anyhow!("Couldn't find crate name {}.", crate_name))?
+        .join("::")
+        .replace('-', "_"))
 }
 
 fn is_file_declared_from_mod_file(parent_dir: &Path, file_stem: &str) -> anyhow::Result<bool> {
@@ -345,8 +331,7 @@ fn is_file_module(file_path: &Path) -> anyhow::Result<bool> {
     let file_stem = file_path
         .file_stem()
         .ok_or_else(|| anyhow!("Invalid file path: {}", file_path.display()))?
-        .to_string_lossy()
-        .into_owned();
+        .to_string_lossy();
 
     if is_file_declared_from_mod_file(parent_dir, &file_stem)? {
         return Ok(true);

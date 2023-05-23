@@ -2,7 +2,7 @@
 //! all the fields with the specified PII-value, and save those fields with the full path.
 //!
 //! E.g. `MyStruct.sub_struct.mystery_field.bitcoin_wallet_key`, meaning you can find the full path
-//! from the top-level type all the way down to wherever the field with the correct pii-value resides.
+//! from the top-level type all the way down to wherever the field with the correct PII-value resides.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -13,7 +13,7 @@ use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
 
 use crate::EnumOrStruct;
 
-/// The name of a field along with its type. Used for the path to a pii-field.
+/// The name of a field along with its type. Used for the path to a PII-field.
 #[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
 pub struct TypeAndField {
     // Full path of a type. E.g. relay_common::protocol::Event, rather than just 'Event'.
@@ -59,7 +59,7 @@ pub struct PiiFinder<'a> {
     pub all_types: &'a HashMap<String, EnumOrStruct>,
     // The full paths of rust types either defined in the module or brought in to scope with a use-statement.
     pub scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
-    // The pii-values of the types that the user wants to collect.
+    // The PII-values of the types that the user wants to collect.
     pub pii_values: &'a Vec<String>,
     pub current_path: Vec<TypeAndField>,
     pub pii_types: BTreeSet<Vec<TypeAndField>>, // output
@@ -250,7 +250,7 @@ fn has_attr_value(attr: &Attribute, ident: &str, name: &str, value: &str) -> boo
     )
 }
 
-/// Checks if a field has the metastructure "pii" and if it does, if it is equal to any
+/// Checks if a field has the metastructure "PII" and if it does, if it is equal to any
 /// of the values that the user defines.
 fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
     field.attrs.iter().any(|attribute| {
