@@ -97,7 +97,7 @@ impl Default for RedactionRule {
 /// The rule describes how span descriptions should be changed.
 #[derive(Debug, Clone)]
 pub struct SpanDescriptionRule {
-    /// The pattern which will be applied to transaction name.
+    /// The pattern which will be applied to the span description.
     pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
@@ -110,7 +110,7 @@ pub struct SpanDescriptionRule {
 impl From<&TransactionNameRule> for SpanDescriptionRule {
     fn from(value: &TransactionNameRule) -> Self {
         SpanDescriptionRule {
-            pattern: LazyGlob::new(format!("**{}", rule.pattern.raw)),
+            pattern: LazyGlob::new(format!("**{}", value.pattern.raw)),
             expiry: value.expiry,
             scope: value.scope.clone(),
             redaction: value.redaction.clone(),
