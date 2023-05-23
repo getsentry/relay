@@ -612,7 +612,7 @@ fn extract_span_metrics(
 }
 
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)from(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+    Lazy::new(|| Regex::new(r#"(?i)(from|into)(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
 
 /// Returns the table in the SQL query, if any.
 ///
@@ -855,6 +855,48 @@ mod tests {
                 },
                 {
                     "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO from_date (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
                     "op": "db.sql.query",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
