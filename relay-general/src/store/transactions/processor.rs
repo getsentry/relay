@@ -14,7 +14,7 @@ use crate::store::regexes::{
     CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
     TRANSACTION_NAME_NORMALIZER_REGEX,
 };
-use crate::store::LazyGlob;
+use crate::store::SpanDescriptionRule;
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -30,13 +30,26 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
+    span_desc_rules: Option<Vec<SpanDescriptionRule>>,
     scrub_span_descriptions: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     pub fn new(name_config: TransactionNameConfig<'r>, scrub_span_descriptions: bool) -> Self {
+        let mut span_desc_rules = None;
+        if scrub_span_descriptions && !name_config.rules.is_empty() {
+            span_desc_rules = Some(
+                (*(name_config.rules))
+                    .iter()
+                    .clone()
+                    .map(|tx_rule| SpanDescriptionRule::from(tx_rule))
+                    .collect::<Vec<SpanDescriptionRule>>(),
+            );
+        }
+
         Self {
             name_config,
+            span_desc_rules,
             scrub_span_descriptions,
         }
     }
@@ -98,6 +111,10 @@ impl<'r> TransactionsProcessor<'r> {
             }
         }
 
+        let Some(rules) = &self.span_desc_rules else {
+            return Ok(());
+        };
+
         // HACK(iker): work-around to scrub the description, in a
         // context-manager-like approach.
         //
@@ -129,8 +146,8 @@ impl<'r> TransactionsProcessor<'r> {
             if let Some(description) = data.get_mut("description.scrubbed") {
                 description.apply(|name, meta| {
                     if let Value::String(s) = name {
-                        let result = self.name_config.rules.iter().find_map(|rule| {
-                            apply_tx_rule_to_string(Cow::Borrowed(s), rule.clone())
+                        let result = rules.iter().find_map(|rule| {
+                            rule.match_and_apply(Cow::Borrowed(s))
                                 .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
                         });
 
@@ -162,18 +179,6 @@ impl<'r> TransactionsProcessor<'r> {
 
         Ok(())
     }
-}
-
-/// Applies the transaction rule to the string, no matter what the string format is.
-///
-/// Transaction rules are generated on the assumption that they are only
-/// applied to transactions, which have a specific format. Span
-/// descriptions, however, have a different format, including the start of
-/// the string. As a workaround, we add a leading `**` to omit that first
-/// part of the string.
-fn apply_tx_rule_to_string(string: Cow<String>, mut rule: TransactionNameRule) -> Option<String> {
-    rule.pattern = LazyGlob::new(format!("**{}", rule.pattern.raw));
-    rule.match_and_apply(string)
 }
 
 /// Get the value for a measurement, e.g. lcp -> event.measurements.lcp

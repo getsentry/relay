@@ -94,6 +94,75 @@ impl Default for RedactionRule {
     }
 }
 
+/// The rule describes how span descriptions should be changed.
+#[derive(Debug, Clone)]
+pub struct SpanDescriptionRule {
+    /// The pattern which will be applied to transaction name.
+    pub pattern: LazyGlob,
+    /// Date time when the rule expires and it should not be applied anymore.
+    pub expiry: DateTime<Utc>,
+    /// Object containing transaction attributes the rules must only be applied to.
+    pub scope: RuleScope,
+    /// Object describing what to do with the matched pattern.
+    pub redaction: RedactionRule,
+}
+
+impl From<&TransactionNameRule> for SpanDescriptionRule {
+    fn from(value: &TransactionNameRule) -> Self {
+        // let mut rule: SpanDescriptionRule = value.clone();
+        let mut rule = SpanDescriptionRule {
+            pattern: value.pattern.clone(),
+            expiry: value.expiry,
+            scope: value.scope.clone(),
+            redaction: value.redaction.clone(),
+        };
+        rule.pattern = LazyGlob::new(format!("**{}", rule.pattern.raw));
+        rule
+    }
+}
+
+impl SpanDescriptionRule {
+    pub fn match_and_apply(&self, mut string: Cow<String>) -> Option<String> {
+        let slash_is_present = string.ends_with('/');
+        if !slash_is_present {
+            string.to_mut().push('/');
+        }
+        let is_matched = self.matches(&string);
+
+        if is_matched {
+            let mut result = self.apply(&string);
+            if !slash_is_present {
+                result.pop();
+            }
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the rule isn't expired yet and its pattern matches the given string.
+    fn matches(&self, string: &str) -> bool {
+        let now = Utc::now();
+        self.expiry > now && self.pattern.compiled().is_match(string)
+    }
+
+    /// Applies the rule to the provided value.
+    ///
+    /// Note: currently only `url` source for rules supported.
+    fn apply(&self, value: &str) -> String {
+        match &self.redaction {
+            RedactionRule::Replace { substitution } => self
+                .pattern
+                .compiled()
+                .replace_captures(value, substitution),
+            _ => {
+                relay_log::trace!("Replacement rule type is unsupported!");
+                value.to_owned()
+            }
+        }
+    }
+}
+
 /// The rule describes how transaction name should be changed.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TransactionNameRule {
