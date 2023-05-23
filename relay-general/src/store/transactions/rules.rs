@@ -218,9 +218,8 @@ impl TransactionNameRule {
         }
     }
 
-    /// Returns `true` if the transaction info has a matching transaction source and
-    /// the transaction name matches the rule (see
-    /// [`TransactionNameRule::matches`]).
+    /// Returns `true` if the current rule pattern matches transaction, expected transaction
+    /// source, and not expired yet.
     fn matches(&self, transaction: &str, info: &TransactionInfo) -> bool {
         let now = Utc::now();
         info.source
