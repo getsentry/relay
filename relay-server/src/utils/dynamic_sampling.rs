@@ -109,7 +109,7 @@ pub fn get_sampling_result(
 ///  - there is no [`DynamicSamplingContext`] in the envelope headers.
 ///  - there are no transactions or events in the envelope, since in this case sampling by trace is redundant.
 pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
-    // If we the envelope item is not of type transaction or event, we will not return a sampling key
+    // If the envelope item is not of type transaction or event, we will not return a sampling key
     // because it doesn't make sense to load the root project state if we don't perform trace
     // sampling.
     envelope
