@@ -6,7 +6,7 @@ use axum::http::{header, HeaderValue};
 use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
-use relay_log::tower::NewSentryLayer;
+use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -76,6 +76,7 @@ impl Service for HttpServer {
                 HeaderValue::from_static(constants::SERVER),
             ))
             .layer(NewSentryLayer::new_from_top())
+            .layer(SentryHttpLayer::with_transaction())
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)

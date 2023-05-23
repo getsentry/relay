@@ -49,6 +49,7 @@ fn decode_bytes(body: Bytes, limit: usize) -> Result<Bytes, io::Error> {
 /// Parses an event body into an `Envelope`.
 ///
 /// If the body is encoded with base64 or zlib, it will be transparently decoded.
+#[tracing::instrument(skip_all, fields(?meta))]
 fn parse_event(
     mut body: Bytes,
     meta: RequestMeta,
@@ -102,12 +103,30 @@ struct PostResponse {
     id: Option<EventId>,
 }
 
+#[derive(Debug)]
+struct MyBytes(Bytes);
+
+#[axum::async_trait]
+impl<S, B> axum::extract::FromRequest<S, B> for MyBytes
+where
+    Bytes: axum::extract::FromRequest<S, B>,
+    B: Send + 'static,
+    S: Send + Sync,
+{
+    type Rejection = <Bytes as axum::extract::FromRequest<S, B>>::Rejection;
+
+    #[tracing::instrument(name = "Bytes::from_request", skip_all)]
+    async fn from_request(req: axum::http::Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(Bytes::from_request(req, state).await?))
+    }
+}
+
 /// Handler for the JSON event store endpoint.
 async fn handle_post(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
-    body: Bytes,
+    MyBytes(body): MyBytes,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = match content_type.as_ref() {
         envelope::CONTENT_TYPE => Envelope::parse_request(body, meta)?,

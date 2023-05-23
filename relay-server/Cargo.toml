@@ -78,6 +78,10 @@ tower-http = { version = "0.4.0", default-features = false, features = ["catch-p
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
 
+
+# TODO(ja): Here
+tracing = "0.1"
+
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["json"] }
 relay-test = { path = "../relay-test" }

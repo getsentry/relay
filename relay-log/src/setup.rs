@@ -211,9 +211,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with_target(true);
 
     let format = match (config.format, console::user_attended()) {
-        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
-            subscriber.compact().without_time().boxed()
-        }
+        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => subscriber.pretty().boxed(),
         (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
             subscriber.with_ansi(false).boxed()
         }
@@ -243,6 +241,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
+            traces_sample_rate: 1.0,
             ..Default::default()
         });
 

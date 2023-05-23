@@ -911,6 +911,7 @@ impl Envelope {
     /// request. It validates that request headers are in line with the envelope's headers.
     ///
     /// If no event id is provided explicitly, one is created on the fly.
+    #[tracing::instrument(fields(meta = ?request_meta))]
     pub fn parse_request(
         bytes: Bytes,
         request_meta: RequestMeta,
