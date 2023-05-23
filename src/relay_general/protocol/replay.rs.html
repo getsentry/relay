@@ -610,6 +610,18 @@
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -768,6 +780,7 @@
     </span><span class="kw">pub </span>replay_start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// A list of URLs visted during the lifetime of the segment.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
     </span><span class="kw">pub </span>urls: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// A list of error-ids discovered during the lifetime of the segment.
@@ -1165,6 +1178,17 @@
             .get(<span class="string">&quot;credit-card&quot;</span>);
 
         <span class="macro">assert_eq!</span>(maybe_credit_card, <span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>));
+
+        <span class="comment">// Assert URLs field scrubs array items.
+        </span><span class="kw">let </span>maybe_url_0 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">0</span>);
+        <span class="kw">let </span>maybe_url_1 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">1</span>);
+        <span class="kw">let </span>maybe_url_2 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(
+            maybe_url_0.map(|i| i.as_str()),
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;sentry.io?ssn=[Filtered]&quot;</span>))
+        );
+        <span class="macro">assert_eq!</span>(maybe_url_1.map(|i| i.as_str()), <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>)));
+        <span class="macro">assert_eq!</span>(maybe_url_2.map(|i| i.as_str()), <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>)));
     }
 
     <span class="attr">#[test]
