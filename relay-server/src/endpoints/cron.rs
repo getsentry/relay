@@ -63,7 +63,6 @@ async fn handle(
     params: CronParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = params.extract_envelope()?;
-    let id = envelope.event_id();
 
     // Never respond with a 429
     match common::handle_envelope(&state, envelope).await {
