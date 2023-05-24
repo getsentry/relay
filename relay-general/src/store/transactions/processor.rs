@@ -41,11 +41,11 @@ impl<'r> TransactionsProcessor<'r> {
         let mut span_desc_rules = None;
         if scrub_span_descriptions && !name_config.rules.is_empty() {
             span_desc_rules = Some(
-                (*(name_config.rules))
+                name_config
+                    .rules
                     .iter()
-                    .clone()
-                    .map(|tx_rule| SpanDescriptionRule::from(tx_rule))
-                    .collect::<Vec<SpanDescriptionRule>>(),
+                    .map(SpanDescriptionRule::from)
+                    .collect::<Vec<_>>(),
             );
         }
 
