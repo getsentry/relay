@@ -7,7 +7,7 @@ use crate::types::{Annotated, Object, Value};
 /// a dictionary (for standard HTTP responses) or a raw response body.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-#[metastructure(process_func = "process_response", value_type = "ResponseContext")]
+#[metastructure(process_func = "process_response")]
 pub struct ResponseContext {
     /// The cookie values.
     ///
