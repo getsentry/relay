@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.24
 
 - Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))
 
