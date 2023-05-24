@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use crate::pii::builtin::BUILTIN_RULES_MAP;
-use crate::pii::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType};
+use crate::pii::{LazyPattern, PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType};
 use crate::processor::SelectorSpec;
 
 /// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`. It is
@@ -30,7 +30,7 @@ impl CompiledPiiConfig {
 
     /// Force compilation of all [`LazyPattern`]s in this config.
     ///
-    /// Useful for validation.
+    /// Used to verify that all patterns are valid regex.
     pub fn force_compile(&self) -> Result<(), PiiConfigError> {
         for rule in self.applications.iter().flat_map(|(_, rules)| rules.iter()) {
             match &rule.ty {
