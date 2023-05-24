@@ -14,7 +14,6 @@ publish = false
 default = []
 processing = [
     "dep:minidump",
-    "dep:relay-monitors",
     "dep:symbolic-common",
     "dep:symbolic-unreal",
     "dep:zstd",
@@ -54,7 +53,7 @@ relay-general = { path = "../relay-general" }
 relay-kafka = { path = "../relay-kafka", optional = true }
 relay-log = { path = "../relay-log", features = ["sentry"] }
 relay-metrics = { path = "../relay-metrics" }
-relay-monitors = { path = "../relay-monitors", optional = true }
+relay-monitors = { path = "../relay-monitors" }
 relay-profiling = { path = "../relay-profiling" }
 relay-dynamic-config = { path = "../relay-dynamic-config"}
 relay-quotas = { path = "../relay-quotas" }
