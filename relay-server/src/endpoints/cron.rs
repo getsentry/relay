@@ -13,6 +13,11 @@ use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
+struct CronPath {
+    monitor_slug: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct CronQuery {
     status: CheckInStatus,
     check_in_id: Option<Uuid>,
@@ -24,18 +29,15 @@ struct CronQuery {
 #[from_request(state(ServiceState))]
 struct CronParams {
     meta: RequestMeta,
-    monitor_slug: Path<String>,
+    #[from_request(via(Path))]
+    path: CronPath,
     #[from_request(via(Query))]
     query: CronQuery,
 }
 
 impl CronParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self {
-            meta,
-            monitor_slug,
-            query,
-        } = self;
+        let Self { meta, path, query } = self;
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
@@ -44,7 +46,7 @@ impl CronParams {
             ContentType::Json,
             serde_json::to_vec(&CheckIn {
                 check_in_id: query.check_in_id.unwrap_or_default(),
-                monitor_slug: monitor_slug.0,
+                monitor_slug: path.monitor_slug,
                 status: query.status,
                 environment: query.environment,
                 duration: query.duration,
