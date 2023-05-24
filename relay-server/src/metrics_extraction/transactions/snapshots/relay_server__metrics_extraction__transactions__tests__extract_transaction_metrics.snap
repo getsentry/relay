@@ -233,7 +233,7 @@ expression: event.value().unwrap().spans
         ),
         exclusive_time: ~,
         description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
-        op: "db",
+        op: "db.sql.query",
         span_id: SpanId(
             "bb7af8b99e95af5f",
         ),
@@ -265,11 +265,191 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "SELECT column FROM table WHERE id IN (%s)",
             ),
+            "span.domain": String(
+                "table",
+            ),
             "span.module": String(
                 "db",
             ),
             "span.op": String(
+                "db.sql.query",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "MyDatabase",
+            ),
+            "transaction": String(
+                "mytransaction",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:19:53.471876859Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:19:53.461966753Z,
+        ),
+        exclusive_time: ~,
+        description: "INSERT INTO table (col) VALUES (val)",
+        op: "db.sql.query",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.operation": String(
+                "INSERT",
+            ),
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "span.action": String(
+                "INSERT",
+            ),
+            "span.domain": String(
+                "table",
+            ),
+            "span.module": String(
                 "db",
+            ),
+            "span.op": String(
+                "db.sql.query",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "MyDatabase",
+            ),
+            "transaction": String(
+                "mytransaction",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:19:53.471876859Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:19:53.461966753Z,
+        ),
+        exclusive_time: ~,
+        description: "INSERT INTO from_date (col) VALUES (val)",
+        op: "db.sql.query",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.operation": String(
+                "INSERT",
+            ),
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "span.action": String(
+                "INSERT",
+            ),
+            "span.domain": String(
+                "from_date",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db.sql.query",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "MyDatabase",
+            ),
+            "transaction": String(
+                "mytransaction",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:19:53.471876859Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:19:53.461966753Z,
+        ),
+        exclusive_time: ~,
+        description: "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
+        op: "db.sql.query",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.operation": String(
+                "SELECT",
+            ),
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "span.action": String(
+                "SELECT",
+            ),
+            "span.domain": String(
+                "table",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db.sql.query",
             ),
             "span.status": String(
                 "ok",
