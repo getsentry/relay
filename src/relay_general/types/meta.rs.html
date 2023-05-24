@@ -632,6 +632,12 @@
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -946,6 +952,12 @@
     </span><span class="kw">pub fn </span>nonempty() -&gt; <span class="self">Self </span>{
         <span class="comment">// TODO: Replace `invalid_data` this with an explicity error constant for empty values
         </span>Error::invalid(<span class="string">&quot;expected a non-empty value&quot;</span>)
+    }
+
+    <span class="doccomment">/// Creates an error that describes an expected non-empty string.
+    </span><span class="kw">pub fn </span>nonempty_string() -&gt; <span class="self">Self </span>{
+        <span class="comment">// TODO: Replace `invalid_data` this with an explicity error constant for empty values
+        </span>Error::invalid(<span class="string">&quot;expected a non-empty string&quot;</span>)
     }
 
     <span class="doccomment">/// Returns the kind of this error.

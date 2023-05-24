@@ -273,6 +273,22 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
@@ -288,7 +304,7 @@
         state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
     ) -&gt; ProcessingResult {
         value_trim_whitespace(value, meta, state);
-        verify_value_nonempty(value, meta, state)<span class="question-mark">?</span>;
+        verify_value_nonempty_string(value, meta, state)<span class="question-mark">?</span>;
         verify_value_characters(value, meta, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
@@ -359,6 +375,22 @@
     }
 }
 
+<span class="kw">fn </span>verify_value_nonempty_string&lt;T&gt;(
+    value: <span class="kw-2">&amp;mut </span>T,
+    meta: <span class="kw-2">&amp;mut </span>Meta,
+    state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+) -&gt; ProcessingResult
+<span class="kw">where
+    </span>T: Empty,
+{
+    <span class="kw">if </span>state.attrs().nonempty &amp;&amp; value.is_empty() {
+        meta.add_error(Error::nonempty_string());
+        <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard)
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
 <span class="kw">fn </span>verify_value_characters(
     value: <span class="kw-2">&amp;mut </span>str,
     meta: <span class="kw-2">&amp;mut </span>Meta,
@@ -388,7 +420,7 @@
     };
     <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Array, Error, ErrorKind, Object};
 
-    <span class="kw">fn </span>assert_nonempty_base&lt;T&gt;()
+    <span class="kw">fn </span>assert_nonempty_base&lt;T&gt;(expected_error: <span class="kw-2">&amp;</span>str)
     <span class="kw">where
         </span>T: Default + PartialEq + <span class="kw">crate</span>::processor::ProcessValue,
     {
@@ -408,7 +440,7 @@
         <span class="macro">assert_eq!</span>(
             wrapper,
             Annotated::new(Foo {
-                bar: Annotated::from_error(Error::expected(<span class="string">&quot;a non-empty value&quot;</span>), <span class="prelude-val">None</span>),
+                bar: Annotated::from_error(Error::expected(expected_error), <span class="prelude-val">None</span>),
                 bar2: Annotated::new(T::default())
             })
         );
@@ -416,17 +448,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_nonempty_string() {
-        assert_nonempty_base::&lt;String&gt;();
+        assert_nonempty_base::&lt;String&gt;(<span class="string">&quot;a non-empty string&quot;</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_nonempty_array() {
-        assert_nonempty_base::&lt;Array&lt;u64&gt;&gt;();
+        assert_nonempty_base::&lt;Array&lt;u64&gt;&gt;(<span class="string">&quot;a non-empty value&quot;</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_nonempty_object() {
-        assert_nonempty_base::&lt;Object&lt;u64&gt;&gt;();
+        assert_nonempty_base::&lt;Object&lt;u64&gt;&gt;(<span class="string">&quot;a non-empty value&quot;</span>);
     }
 
     <span class="attr">#[test]
