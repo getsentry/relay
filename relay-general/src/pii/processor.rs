@@ -11,7 +11,7 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 /// A processor that performs PII stripping.
@@ -196,8 +196,17 @@ impl<'a> Processor for PiiProcessor<'a> {
         Ok(())
     }
 
-    // TODO: data scrubbing for graph response
-    // process_graphql_response
+    // Response PII processor entry point.
+    fn process_response(
+        &mut self,
+        response: &mut ResponseContext,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // TODO: implement PII data scrubbing in response.data
+
+        Ok(())
+    }
 }
 
 fn apply_rule_to_value(
