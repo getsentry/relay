@@ -129,7 +129,7 @@ mod tests {
     };
     use crate::types::{Annotated, Array, Error, ErrorKind, Object};
 
-    fn assert_nonempty_base<T>()
+    fn assert_nonempty_base<T>(expected_error: &str)
     where
         T: Default + PartialEq + crate::processor::ProcessValue,
     {
@@ -149,51 +149,25 @@ mod tests {
         assert_eq!(
             wrapper,
             Annotated::new(Foo {
-                bar: Annotated::from_error(Error::expected("a non-empty value"), None),
+                bar: Annotated::from_error(Error::expected(expected_error), None),
                 bar2: Annotated::new(T::default())
-            })
-        );
-    }
-
-    fn assert_nonempty_string<String>()
-    where
-        String: Default + PartialEq + crate::processor::ProcessValue,
-    {
-        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-        struct Foo<String> {
-            #[metastructure(required = "true", nonempty = "true")]
-            bar: Annotated<String>,
-            bar2: Annotated<String>,
-        }
-
-        let mut wrapper = Annotated::new(Foo {
-            bar: Annotated::new(String::default()),
-            bar2: Annotated::new(String::default()),
-        });
-        process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
-
-        assert_eq!(
-            wrapper,
-            Annotated::new(Foo {
-                bar: Annotated::from_error(Error::expected("a non-empty string"), None),
-                bar2: Annotated::new(String::default())
             })
         );
     }
 
     #[test]
     fn test_nonempty_string() {
-        assert_nonempty_string::<String>();
+        assert_nonempty_base::<String>("a non-empty string");
     }
 
     #[test]
     fn test_nonempty_array() {
-        assert_nonempty_base::<Array<u64>>();
+        assert_nonempty_base::<Array<u64>>("a non-empty value");
     }
 
     #[test]
     fn test_nonempty_object() {
-        assert_nonempty_base::<Object<u64>>();
+        assert_nonempty_base::<Object<u64>>("a non-empty value");
     }
 
     #[test]
