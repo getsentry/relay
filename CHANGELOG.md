@@ -1,8 +1,10 @@
 # Changelog
 
-## 23.5.2
+## Unreleased
 
-**Feature**:
+**Features**:
+
+- Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 
 - Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
 
