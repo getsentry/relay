@@ -2832,6 +2832,19 @@ mod tests {
                         "status": "ok"
                     },
                     {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok",
+                        "data": {
+                            "description.scrubbed": "POST http://example.com/remains/to-scrub/remains-too/*"
+                        }
+                    },
+                    {
                         "description": "GET http://example.com/another/url/is/intact",
                         "op": "http.client",
                         "parent_span_id": "8f5a2b8768cafb4e",

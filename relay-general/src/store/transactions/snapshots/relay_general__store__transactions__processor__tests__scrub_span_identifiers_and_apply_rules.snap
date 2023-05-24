@@ -35,6 +35,19 @@ expression: event
     {
       "timestamp": 1597976393.471877,
       "start_timestamp": 1597976393.461967,
+      "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+      "op": "http.client",
+      "span_id": "bd2eb23da2beb450",
+      "parent_span_id": "8f5a2b8768cafb4e",
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "status": "ok",
+      "data": {
+        "description.scrubbed": "POST http://example.com/remains/*/remains-too/*"
+      }
+    },
+    {
+      "timestamp": 1597976393.471877,
+      "start_timestamp": 1597976393.461967,
       "description": "GET http://example.com/another/url/is/intact",
       "op": "http.client",
       "span_id": "bd2eb23da2beb451",
@@ -57,6 +70,20 @@ expression: event
   "_meta": {
     "spans": {
       "0": {
+        "data": {
+          "description.scrubbed": {
+            "": {
+              "rem": [
+                [
+                  "description.scrubbed:**/remains/*/**",
+                  "s"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "1": {
         "data": {
           "description.scrubbed": {
             "": {
