@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Compile regexes in PII config validation. ([2152](https://github.com/getsentry/relay/pull/2152))
+- Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))
 
 ## 0.8.23
 
