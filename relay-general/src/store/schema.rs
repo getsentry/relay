@@ -155,9 +155,35 @@ mod tests {
         );
     }
 
+    fn assert_nonempty_string<String>()
+    where
+        String: Default + PartialEq + crate::processor::ProcessValue,
+    {
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Foo<String> {
+            #[metastructure(required = "true", nonempty = "true")]
+            bar: Annotated<String>,
+            bar2: Annotated<String>,
+        }
+
+        let mut wrapper = Annotated::new(Foo {
+            bar: Annotated::new(String::default()),
+            bar2: Annotated::new(String::default()),
+        });
+        process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            wrapper,
+            Annotated::new(Foo {
+                bar: Annotated::from_error(Error::expected("a non-empty string"), None),
+                bar2: Annotated::new(String::default())
+            })
+        );
+    }
+
     #[test]
     fn test_nonempty_string() {
-        assert_nonempty_base::<String>();
+        assert_nonempty_string::<String>();
     }
 
     #[test]
