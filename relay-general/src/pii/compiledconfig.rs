@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use crate::pii::builtin::BUILTIN_RULES_MAP;
-use crate::pii::{PiiConfig, Redaction, RuleSpec, RuleType};
+use crate::pii::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType};
 use crate::processor::SelectorSpec;
 
 /// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`. It is
@@ -26,6 +26,39 @@ impl CompiledPiiConfig {
         }
 
         CompiledPiiConfig { applications }
+    }
+
+    /// Force compilation of all [`LazyPattern`]s in this config.
+    ///
+    /// Useful for validation.
+    pub fn force_compile(&self) -> Result<(), PiiConfigError> {
+        for rule in self.applications.iter().flat_map(|(_, rules)| rules.iter()) {
+            match &rule.ty {
+                RuleType::Pattern(rule) => {
+                    rule.pattern.compiled().map_err(|e| e.clone())?;
+                }
+                RuleType::RedactPair(rule) => {
+                    rule.key_pattern.compiled().map_err(|e| e.clone())?;
+                }
+                RuleType::Anything
+                | RuleType::Imei
+                | RuleType::Mac
+                | RuleType::Uuid
+                | RuleType::Email
+                | RuleType::Ip
+                | RuleType::Creditcard
+                | RuleType::Iban
+                | RuleType::Userpath
+                | RuleType::Pemkey
+                | RuleType::UrlAuth
+                | RuleType::UsSsn
+                | RuleType::Password
+                | RuleType::Multiple(_)
+                | RuleType::Alias(_)
+                | RuleType::Unknown(_) => {}
+            }
+        }
+        Ok(())
     }
 }
 
