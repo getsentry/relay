@@ -32,21 +32,19 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    span_desc_rules: Option<Vec<SpanDescriptionRule>>,
+    span_desc_rules: Vec<SpanDescriptionRule>,
     scrub_span_descriptions: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     pub fn new(name_config: TransactionNameConfig<'r>, scrub_span_descriptions: bool) -> Self {
-        let mut span_desc_rules = None;
+        let mut span_desc_rules = Vec::new();
         if scrub_span_descriptions && !name_config.rules.is_empty() {
-            span_desc_rules = Some(
-                name_config
-                    .rules
-                    .iter()
-                    .map(SpanDescriptionRule::from)
-                    .collect::<Vec<_>>(),
-            );
+            span_desc_rules = name_config
+                .rules
+                .iter()
+                .map(SpanDescriptionRule::from)
+                .collect::<Vec<_>>();
         }
 
         Self {
@@ -113,9 +111,9 @@ impl<'r> TransactionsProcessor<'r> {
             }
         }
 
-        let Some(rules) = &self.span_desc_rules else {
+        if self.span_desc_rules.is_empty() {
             return Ok(());
-        };
+        }
 
         // HACK(iker): work-around to scrub the description, in a
         // context-manager-like approach.
@@ -148,7 +146,7 @@ impl<'r> TransactionsProcessor<'r> {
             if let Some(description) = data.get_mut("description.scrubbed") {
                 description.apply(|name, meta| {
                     if let Value::String(s) = name {
-                        let result = rules.iter().find_map(|rule| {
+                        let result = self.span_desc_rules.iter().find_map(|rule| {
                             rule.match_and_apply(Cow::Borrowed(s))
                                 .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
                         });
