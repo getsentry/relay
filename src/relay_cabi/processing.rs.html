@@ -383,6 +383,59 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
 </pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -398,7 +451,7 @@
 <span class="kw">use </span>relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 <span class="kw">use </span>relay_dynamic_config::{validate_json, ProjectConfig};
 <span class="kw">use </span>relay_general::pii::{
-    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
+    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
 <span class="kw">use </span>relay_general::processor::{process_value, split_chunks, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::{Event, VALID_PLATFORMS};
@@ -537,8 +590,11 @@
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
 </span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_pii_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
-    <span class="kw">match </span>serde_json::from_str((<span class="kw-2">*</span>value).as_str()) {
-        <span class="prelude-val">Ok</span>(PiiConfig { .. }) =&gt; RelayStr::new(<span class="string">&quot;&quot;</span>),
+    <span class="kw">match </span>serde_json::from_str::&lt;PiiConfig&gt;((<span class="kw-2">*</span>value).as_str()) {
+        <span class="prelude-val">Ok</span>(config) =&gt; <span class="kw">match </span>config.compiled().force_compile() {
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; RelayStr::new(<span class="string">&quot;&quot;</span>),
+            <span class="prelude-val">Err</span>(PiiConfigError::RegexError(source)) =&gt; RelayStr::from_string(source.to_string()),
+        },
         <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
@@ -766,6 +822,56 @@
     };
 
     RelayStr::from(serde_json::to_string(<span class="kw-2">&amp;</span>result).unwrap())
+}
+
+<span class="attr">#[test]
+</span><span class="kw">fn </span>pii_config_validation_invalid_regex() {
+    <span class="kw">let </span>config = <span class="string">r#&quot;
+        {
+          &quot;rules&quot;: {
+            &quot;strip-fields&quot;: {
+              &quot;type&quot;: &quot;redact_pair&quot;,
+              &quot;keyPattern&quot;: &quot;(not valid regex&quot;,
+              &quot;redaction&quot;: {
+                &quot;method&quot;: &quot;replace&quot;,
+                &quot;text&quot;: &quot;[Filtered]&quot;
+              }
+            }
+          },
+          &quot;applications&quot;: {
+            &quot;*.everything&quot;: [&quot;strip-fields&quot;]
+          }
+        }
+    &quot;#</span>;
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe </span>{ relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str() },
+        <span class="string">&quot;regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group&quot;
+    </span>);
+}
+
+<span class="attr">#[test]
+</span><span class="kw">fn </span>pii_config_validation_valid_regex() {
+    <span class="kw">let </span>config = <span class="string">r#&quot;
+        {
+          &quot;rules&quot;: {
+            &quot;strip-fields&quot;: {
+              &quot;type&quot;: &quot;redact_pair&quot;,
+              &quot;keyPattern&quot;: &quot;(\\w+)?+&quot;,
+              &quot;redaction&quot;: {
+                &quot;method&quot;: &quot;replace&quot;,
+                &quot;text&quot;: &quot;[Filtered]&quot;
+              }
+            }
+          },
+          &quot;applications&quot;: {
+            &quot;*.everything&quot;: [&quot;strip-fields&quot;]
+          }
+        }
+    &quot;#</span>;
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe </span>{ relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str() },
+        <span class="string">&quot;&quot;
+    </span>);
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_cabi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
