@@ -13,7 +13,7 @@ use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
 use relay_general::pii::{
-    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
+    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
@@ -152,8 +152,11 @@ pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> RelayStr {
-    match serde_json::from_str((*value).as_str()) {
-        Ok(PiiConfig { .. }) => RelayStr::new(""),
+    match serde_json::from_str::<PiiConfig>((*value).as_str()) {
+        Ok(config) => match config.compiled().force_compile() {
+            Ok(_) => RelayStr::new(""),
+            Err(PiiConfigError::RegexError(source)) => RelayStr::from_string(source.to_string()),
+        },
         Err(e) => RelayStr::from_string(e.to_string()),
     }
 }
@@ -381,4 +384,54 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     };
 
     RelayStr::from(serde_json::to_string(&result).unwrap())
+}
+
+#[test]
+fn pii_config_validation_invalid_regex() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(not valid regex",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          },
+          "applications": {
+            "*.everything": ["strip-fields"]
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+    );
+}
+
+#[test]
+fn pii_config_validation_valid_regex() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(\\w+)?+",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          },
+          "applications": {
+            "*.everything": ["strip-fields"]
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        ""
+    );
 }
