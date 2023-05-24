@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+
 ## 23.5.1
 
 **Bug Fixes**:
