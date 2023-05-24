@@ -13,7 +13,7 @@ impl Processor for SchemaProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         value_trim_whitespace(value, meta, state);
-        verify_value_nonempty(value, meta, state)?;
+        verify_value_nonempty_string(value, meta, state)?;
         verify_value_characters(value, meta, state)?;
         Ok(())
     }
@@ -78,6 +78,22 @@ where
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::nonempty());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_value_nonempty_string<T>(
+    value: &mut T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty_string());
         Err(ProcessingAction::DeleteValueHard)
     } else {
         Ok(())
