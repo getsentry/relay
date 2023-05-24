@@ -382,3 +382,25 @@ pub unsafe extern "C" fn run_dynamic_sampling(
 
     RelayStr::from(serde_json::to_string(&result).unwrap())
 }
+
+#[test]
+fn pii_config_needs_to_compile() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "\/",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        ""
+    );
+}
