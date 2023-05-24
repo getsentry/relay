@@ -2440,6 +2440,75 @@
 <a href="#2439" id="2439">2439</a>
 <a href="#2440" id="2440">2440</a>
 <a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -2447,7 +2516,7 @@
 <span class="kw">use </span>relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 <span class="kw">use </span>relay_filter::csp::SchemeDomainPort;
 <span class="kw">use </span>relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
 };
 <span class="kw">use </span>relay_general::store;
 <span class="kw">use </span>relay_general::types::{Annotated, Value};
@@ -2528,6 +2597,71 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(geo) = user.geo.value() {
             <span class="kw">return </span>geo.country_code.value().cloned();
+        }
+    }
+
+    <span class="prelude-val">None
+</span>}
+
+<span class="doccomment">/// Extract the HTTP status code from the span data.
+</span><span class="kw">fn </span>http_status_code_from_span_data(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    span.data
+        .value()
+        .and_then(|v| v.get(<span class="string">&quot;status_code&quot;</span>))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+<span class="doccomment">/// Extracts the HTTP status code.
+</span><span class="kw">fn </span>extract_http_status_code(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() {
+        <span class="kw">for </span>span <span class="kw">in </span>spans {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_value) = span.value() {
+                <span class="comment">// For SDKs which put the HTTP status code into the span data.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span_data(span_value) {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>(status_code);
+                }
+
+                <span class="comment">// For SDKs which put the HTTP status code into the span tags.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = span_value
+                    .tags
+                    .value()
+                    .and_then(|tags| tags.get(<span class="string">&quot;http.status_code&quot;</span>))
+                {
+                    <span class="kw">return </span>status_code.value().map(|v| v.as_str().to_string());
+                }
+            }
+        }
+    }
+
+    <span class="comment">// For SDKs which put the HTTP status code into the breadcrumbs data.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(breadcrumbs) = event.breadcrumbs.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(values) = breadcrumbs.values.value() {
+            <span class="kw">for </span>breadcrumb <span class="kw">in </span>values {
+                <span class="comment">// We need only the `http` type.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(crumb) = breadcrumb
+                    .value()
+                    .filter(|bc| bc.ty.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>))
+                {
+                    <span class="comment">// Try to get the status code om the map.
+                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = crumb.data.value().and_then(|v| v.get(<span class="string">&quot;status_code&quot;</span>))
+                    {
+                        <span class="kw">return </span>status_code.value().and_then(|v| v.as_str()).map(Into::into);
+                    }
+                }
+            }
+        }
+    }
+
+    <span class="comment">// For SDKs which put the HTTP status code in the `Response` context.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value() {
+        <span class="kw">let </span>response = contexts.get(<span class="string">&quot;response&quot;</span>).and_then(Annotated::value);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Response(response_context))) = response {
+            <span class="kw">let </span>status_code = response_context
+                .status_code
+                .value()
+                .map(|code| code.to_string());
+            <span class="kw">return </span>status_code;
         }
     }
 
@@ -2674,6 +2808,10 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(geo_country_code) = extract_geo_country_code(event) {
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = extract_http_status_code(event) {
+        tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
     <span class="kw">let </span>custom_tags = <span class="kw-2">&amp;</span>config.extract_custom_tags;
@@ -3004,13 +3142,8 @@
                 span_tags.insert(<span class="string">&quot;span.status&quot;</span>.to_owned(), span_status.to_string());
             }
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = span
-                .data
-                .value()
-                .and_then(|v| v.get(<span class="string">&quot;status_code&quot;</span>))
-                .and_then(|sc| sc.as_str())
-            {
-                span_tags.insert(<span class="string">&quot;span.status_code&quot;</span>.to_owned(), status_code.to_owned());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span_data(span) {
+                span_tags.insert(<span class="string">&quot;span.status_code&quot;</span>.to_owned(), status_code);
             }
 
             <span class="comment">// Even if we emit metrics, we want this info to be duplicated in every span.
@@ -3383,6 +3516,7 @@
                     &quot;fOO&quot;: &quot;bar&quot;,
                     &quot;geo.country_code&quot;: &quot;US&quot;,
                     &quot;http.method&quot;: &quot;POST&quot;,
+                    &quot;http.status_code&quot;: &quot;200&quot;,
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
@@ -3404,6 +3538,7 @@
                     &quot;fOO&quot;: &quot;bar&quot;,
                     &quot;geo.country_code&quot;: &quot;US&quot;,
                     &quot;http.method&quot;: &quot;POST&quot;,
+                    &quot;http.status_code&quot;: &quot;200&quot;,
                     &quot;measurement_rating&quot;: &quot;meh&quot;,
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
@@ -3426,6 +3561,7 @@
                     &quot;fOO&quot;: &quot;bar&quot;,
                     &quot;geo.country_code&quot;: &quot;US&quot;,
                     &quot;http.method&quot;: &quot;POST&quot;,
+                    &quot;http.status_code&quot;: &quot;200&quot;,
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
@@ -3447,6 +3583,7 @@
                     &quot;fOO&quot;: &quot;bar&quot;,
                     &quot;geo.country_code&quot;: &quot;US&quot;,
                     &quot;http.method&quot;: &quot;POST&quot;,
+                    &quot;http.status_code&quot;: &quot;200&quot;,
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
@@ -3468,6 +3605,7 @@
                     &quot;fOO&quot;: &quot;bar&quot;,
                     &quot;geo.country_code&quot;: &quot;US&quot;,
                     &quot;http.method&quot;: &quot;POST&quot;,
+                    &quot;http.status_code&quot;: &quot;200&quot;,
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
