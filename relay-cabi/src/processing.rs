@@ -387,7 +387,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
 }
 
 #[test]
-fn pii_config_needs_to_compile() {
+fn pii_config_validation_invalid_regex() {
     let config = r#"
         {
           "rules": {
@@ -408,5 +408,30 @@ fn pii_config_needs_to_compile() {
     assert_eq!(
         unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
         "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+    );
+}
+
+#[test]
+fn pii_config_validation_valid_regex() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(\\w+)?+",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          },
+          "applications": {
+            "*.everything": ["strip-fields"]
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        ""
     );
 }
