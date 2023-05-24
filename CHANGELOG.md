@@ -1,5 +1,11 @@
 # Changelog
 
+## 23.5.2
+
+**Feature**:
+
+- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+
 ## 23.5.1
 
 **Bug Fixes**:
