@@ -57,3 +57,29 @@ def test_crons_endpoint_with_processing(
         "monitor_slug": "my-monitor",
         "status": "ok",
     }
+
+
+def test_crons_endpoint_embedded_auth_with_processing(
+    mini_sentry, relay_with_processing, monitors_consumer
+):
+    project_id = 42
+    options = {"processing": {}}
+    relay = relay_with_processing(options)
+    monitors_consumer = monitors_consumer()
+
+    mini_sentry.add_full_project_config(project_id)
+
+    monitor_slug = "my-monitor"
+    public_key = relay.get_dsn_public_key(project_id)
+    relay.post(
+        "/api/cron/{}/{}?status=ok".format(monitor_slug, public_key),
+    )
+
+    check_in, message = monitors_consumer.get_check_in()
+    assert message["start_time"] is not None
+    assert message["project_id"] == 42
+    assert check_in == {
+        "check_in_id": "00000000000000000000000000000000",
+        "monitor_slug": "my-monitor",
+        "status": "ok",
+    }

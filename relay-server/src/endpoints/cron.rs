@@ -69,7 +69,6 @@ async fn handle(
         Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
         Err(error) => return Err(error),
     };
-
     // What do we want to return?
     Ok(TextResponse(None))
 }
@@ -80,5 +79,5 @@ where
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
 {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
