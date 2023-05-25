@@ -816,7 +816,7 @@ pub fn light_normalize_event(
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
-        if config.light_normalize_spans {
+        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
