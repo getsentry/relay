@@ -142,6 +142,7 @@ pub struct Replay {
     pub replay_start_timestamp: Annotated<Timestamp>,
 
     /// A list of URLs visted during the lifetime of the segment.
+    #[metastructure(pii = "true", bag_size = "large")]
     pub urls: Annotated<Array<String>>,
 
     /// A list of error-ids discovered during the lifetime of the segment.
@@ -539,6 +540,17 @@ mod tests {
             .get("credit-card");
 
         assert_eq!(maybe_credit_card, Some("[Filtered]"));
+
+        // Assert URLs field scrubs array items.
+        let maybe_url_0 = replay.value().unwrap().urls.value().unwrap().get(0);
+        let maybe_url_1 = replay.value().unwrap().urls.value().unwrap().get(1);
+        let maybe_url_2 = replay.value().unwrap().urls.value().unwrap().get(2);
+        assert_eq!(
+            maybe_url_0.map(|i| i.as_str()),
+            Some(Some("sentry.io?ssn=[Filtered]"))
+        );
+        assert_eq!(maybe_url_1.map(|i| i.as_str()), Some(Some("[Filtered]")));
+        assert_eq!(maybe_url_2.map(|i| i.as_str()), Some(Some("[Filtered]")));
     }
 
     #[test]

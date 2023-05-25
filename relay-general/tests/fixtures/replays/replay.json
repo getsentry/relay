@@ -7,7 +7,9 @@
     "timestamp": 1597977777.6189718,
     "replay_start_timestamp": 1597976392.6542819,
     "urls": [
-        "sentry.io"
+        "sentry.io?ssn=111-11-1111",
+        "4111-1111-1111-1111",
+        "111-11-1111"
     ],
     "error_ids": [
         "1",

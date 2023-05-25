@@ -2,14 +2,23 @@
 
 ## Unreleased
 
+**Features**:
+
+- Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+
+## 23.5.1
+
 **Bug Fixes**:
 
 - Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+- Fix tagging of incoming errors with `sampled` that was not done due to lack of sampling state. ([#2148](https://github.com/getsentry/relay/pull/2148))
+- Remove profiling feature flag. ([#2146](https://github.com/getsentry/relay/pull/2146))
 
 **Internal**:
 
 - Mark all URL transactions as `sanitized` when `txNameReady` flag is set. ([#2128](https://github.com/getsentry/relay/pull/2128), [#2139](https://github.com/getsentry/relay/pull/2139))
 - Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
+- Enable PII scrubbing for urls field ([#2143](https://github.com/getsentry/relay/pull/2143))
 
 ## 23.5.0
 

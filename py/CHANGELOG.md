@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.24
+
+- Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))
+
 ## 0.8.23
 
 - Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
