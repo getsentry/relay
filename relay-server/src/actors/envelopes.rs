@@ -317,7 +317,7 @@ impl EnvelopeManagerService {
                     || {
                         relay_log::error!(
                             error = &error as &dyn Error,
-                            project_key = %scoping.project_key, // TODO(ja): tag
+                            tags.project_key = %scoping.project_key,
                             "error sending envelope"
                         )
                     },

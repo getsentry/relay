@@ -22,7 +22,7 @@ impl ProducerContext for CaptureErrorContext {
             relay_log::error!(
                 error = error as &dyn Error,
                 payload_len = message.payload_len(),
-                topic = message.topic(), // TODO(ja): Tag
+                tags.topic = message.topic(),
                 "failed to produce message to Kafka (delivery callback)",
             );
 

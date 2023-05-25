@@ -294,12 +294,12 @@ impl ManagedEnvelope {
                 let summary = &self.context.summary;
 
                 relay_log::error!(
-                    has_attachments = summary.attachment_quantity > 0, // TODO(ja): Tag
-                    has_sessions = summary.session_quantity > 0, // TODO(ja): Tag
-                    has_profiles = summary.profile_quantity > 0, // TODO(ja): Tag
-                    has_replays = summary.replay_quantity > 0, // TODO(ja): Tag
-                    has_checkins = summary.checkin_quantity > 0, // TODO(ja): Tag
-                    event_category = ?summary.event_category, // TODO(ja): Tag
+                    tags.has_attachments = summary.attachment_quantity > 0,
+                    tags.has_sessions = summary.session_quantity > 0,
+                    tags.has_profiles = summary.profile_quantity > 0,
+                    tags.has_replays = summary.replay_quantity > 0,
+                    tags.has_checkins = summary.checkin_quantity > 0,
+                    tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
                     "dropped envelope: {outcome}"

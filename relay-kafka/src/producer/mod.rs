@@ -342,7 +342,7 @@ impl Producer {
         producer.send(record).map_err(|(error, _message)| {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
-                variant = variant, // TODO(ja): Tag
+                tags.variant = variant,
                 "error sending kafka message"
             );
             ClientError::SendFailed(error)

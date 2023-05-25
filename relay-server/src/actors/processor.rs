@@ -2567,7 +2567,7 @@ impl EnvelopeProcessorService {
                 // bugs. In other cases, we "expect" errors and log them as debug level.
                 if error.is_unexpected() {
                     relay_log::error!(
-                        project_key = %project_key, // TODO(ja): Tag
+                        tags.project_key = %project_key,
                         error = &error as &dyn Error,
                         "error processing envelope"
                     );
