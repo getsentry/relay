@@ -3750,7 +3750,7 @@ mod tests {
         let captures = capture_test_event("/nothing", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
         ]
         "###);
     }
@@ -3760,7 +3760,7 @@ mod tests {
         let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
         "###);
     }
@@ -3770,7 +3770,7 @@ mod tests {
         let captures = capture_test_event("/something/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
         ]
         "###);
     }
@@ -3780,7 +3780,7 @@ mod tests {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
         ]
         "###);
     }
@@ -3790,7 +3790,7 @@ mod tests {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route",
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "###);
     }
