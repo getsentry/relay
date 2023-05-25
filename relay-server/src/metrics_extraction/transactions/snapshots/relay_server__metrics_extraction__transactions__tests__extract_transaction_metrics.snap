@@ -5,12 +5,12 @@ expression: event.value().unwrap().spans
 [
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "<OrganizationContext>",
         op: "react.mount",
         span_id: SpanId(
@@ -43,12 +43,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
         op: "http.client",
         span_id: SpanId(
@@ -102,12 +102,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "POST http://targetdomain.tld:targetport/api/hi",
         op: "http.client",
         span_id: SpanId(
@@ -161,12 +161,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "POST http://targetdomain:targetport/api/id/0987654321",
         op: "http.client",
         span_id: SpanId(
@@ -226,12 +226,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
         op: "db.sql.query",
         span_id: SpanId(
@@ -291,12 +291,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "INSERT INTO table (col) VALUES (val)",
         op: "db.sql.query",
         span_id: SpanId(
@@ -350,12 +350,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "INSERT INTO from_date (col) VALUES (val)",
         op: "db.sql.query",
         span_id: SpanId(
@@ -409,12 +409,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
         op: "db.sql.query",
         span_id: SpanId(
@@ -468,12 +468,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "SAVEPOINT save_this_one",
         op: "db",
         span_id: SpanId(
@@ -530,12 +530,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "GET cache:user:{123}",
         op: "cache.get_item",
         span_id: SpanId(
@@ -583,12 +583,12 @@ expression: event.value().unwrap().spans
     },
     Span {
         timestamp: Timestamp(
-            2020-08-21T02:19:53.471876859Z,
+            2020-08-21T02:18:22Z,
         ),
         start_timestamp: Timestamp(
-            2020-08-21T02:19:53.461966753Z,
+            2020-08-21T02:18:20Z,
         ),
-        exclusive_time: ~,
+        exclusive_time: 2000.0,
         description: "http://domain/static/myscript-v1.9.23.js",
         op: "resource.script",
         span_id: SpanId(
