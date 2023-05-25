@@ -2355,6 +2355,10 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
+        let light_normalize_spans = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtraction);
+
         log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -2385,6 +2389,7 @@ impl EnvelopeProcessorService {
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: false,
+                light_normalize_spans,
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
