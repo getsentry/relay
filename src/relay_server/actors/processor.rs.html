@@ -3862,6 +3862,11 @@
 <a href="#3861" id="3861">3861</a>
 <a href="#3862" id="3862">3862</a>
 <a href="#3863" id="3863">3863</a>
+<a href="#3864" id="3864">3864</a>
+<a href="#3865" id="3865">3865</a>
+<a href="#3866" id="3866">3866</a>
+<a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -6219,6 +6224,10 @@
         <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
+        <span class="kw">let </span>light_normalize_spans = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtraction);
+
         log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -6249,6 +6258,7 @@
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: <span class="bool-val">false</span>,
+                light_normalize_spans,
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
