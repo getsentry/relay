@@ -243,7 +243,7 @@
                     <span class="self">self</span>.captures.insert(event_id, <span class="prelude-val">Ok</span>(envelope));
                 }
                 (<span class="prelude-val">Some</span>(event_id), <span class="prelude-val">Err</span>(message)) =&gt; {
-                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;capturing failed event {}&quot;</span>, event_id);
+                    <span class="macro">relay_log::debug!</span>(%event_id, <span class="string">&quot;capturing failed event&quot;</span>);
                     <span class="self">self</span>.captures.insert(event_id, <span class="prelude-val">Err</span>(message));
                 }
 

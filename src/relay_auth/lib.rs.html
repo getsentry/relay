@@ -1756,7 +1756,7 @@
         <span class="macro">println!</span>(<span class="string">&quot;RESPONSE = b&#39;{serialized_response}&#39;&quot;</span>);
         <span class="macro">println!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{response_sig}\&quot;&quot;</span>);
 
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{}\&quot;&quot;</span>, <span class="kw-2">&amp;</span>LATEST_VERSION);
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{LATEST_VERSION}\&quot;&quot;</span>);
     }
 
     <span class="doccomment">/// Test we can still deserialize an old response that does not contain the version

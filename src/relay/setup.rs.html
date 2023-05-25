@@ -98,11 +98,11 @@
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay mode: {}&quot;</span>, config.relay_mode());
 
     <span class="kw">match </span>config.relay_id() {
-        <span class="prelude-val">Some</span>(id) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, id),
+        <span class="prelude-val">Some</span>(id) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: {id}&quot;</span>),
         <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
     };
     <span class="kw">match </span>config.public_key() {
-        <span class="prelude-val">Some</span>(key) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: {}&quot;</span>, key),
+        <span class="prelude-val">Some</span>(key) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: {key}&quot;</span>),
         <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: -&quot;</span>),
     };
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;  log level: {}&quot;</span>, config.logging().level);

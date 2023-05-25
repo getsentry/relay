@@ -394,11 +394,6 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -690,26 +685,21 @@
         // &quot;expect&quot; errors and log them as debug level.
         </span><span class="kw">let </span>handling = Handling::from_outcome(<span class="kw-2">&amp;</span>outcome);
         <span class="kw">match </span>handling {
-            Handling::Success =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome),
+            Handling::Success =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {outcome}&quot;</span>),
             Handling::Failure =&gt; {
                 <span class="kw">let </span>summary = <span class="kw-2">&amp;</span><span class="self">self</span>.context.summary;
-                relay_log::with_scope(
-                    |scope| {
-                        scope.set_tag(<span class="string">&quot;event_category&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, summary.event_category));
-                        scope.set_tag(<span class="string">&quot;has_attachments&quot;</span>, summary.attachment_quantity &gt; <span class="number">0</span>);
-                        scope.set_tag(<span class="string">&quot;has_sessions&quot;</span>, summary.session_quantity &gt; <span class="number">0</span>);
-                        scope.set_tag(<span class="string">&quot;has_profiles&quot;</span>, summary.profile_quantity &gt; <span class="number">0</span>);
-                        scope.set_tag(<span class="string">&quot;has_replays&quot;</span>, summary.replay_quantity &gt; <span class="number">0</span>);
-                        scope.set_tag(<span class="string">&quot;has_checkins&quot;</span>, summary.checkin_quantity &gt; <span class="number">0</span>);
-                        scope.set_tag(<span class="string">&quot;event_category&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, summary.event_category));
-                        scope.set_extra(<span class="string">&quot;cached_summary&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, summary).into());
-                        scope.set_extra(
-                            <span class="string">&quot;recomputed_summary&quot;</span>,
-                            <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, EnvelopeSummary::compute(<span class="self">self</span>.envelope())).into(),
-                        );
-                    },
-                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome),
-                );
+
+                <span class="macro">relay_log::error!</span>(
+                    tags.has_attachments = summary.attachment_quantity &gt; <span class="number">0</span>,
+                    tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
+                    tags.has_profiles = summary.profile_quantity &gt; <span class="number">0</span>,
+                    tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
+                    tags.has_checkins = summary.checkin_quantity &gt; <span class="number">0</span>,
+                    tags.event_category = <span class="question-mark">?</span>summary.event_category,
+                    cached_summary = <span class="question-mark">?</span>summary,
+                    recomputed_summary = <span class="question-mark">?</span>EnvelopeSummary::compute(<span class="self">self</span>.envelope()),
+                    <span class="string">&quot;dropped envelope: {outcome}&quot;
+                </span>);
             }
         }
 

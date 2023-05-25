@@ -278,15 +278,13 @@
 <a href="#277" id="277">277</a>
 <a href="#278" id="278">278</a>
 <a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Server endpoint that proxies any request to the upstream.
 //!
 //! This endpoint will issue a client request to the upstream and append relay&#39;s own headers
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 </span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
@@ -299,7 +297,6 @@
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::utils::GlobMatcher;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>tokio::sync::oneshot;
 <span class="kw">use </span>tokio::sync::oneshot::error::RecvError;
 
@@ -347,7 +344,7 @@
             UpstreamRequestError::Http(e) =&gt; <span class="kw">match </span>e {
                 HttpError::Overflow =&gt; StatusCode::PAYLOAD_TOO_LARGE.into_response(),
                 HttpError::Reqwest(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error));
+                    <span class="macro">relay_log::error!</span>(error = error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error);
                     error
                         .status()
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -364,12 +361,9 @@
                     StatusCode::BAD_GATEWAY.into_response()
                 }
             }
-            e =&gt; {
+            error =&gt; {
                 <span class="comment">// should all be unreachable
-                </span><span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;supposedly unreachable codepath for forward endpoint: {}&quot;</span>,
-                    LogError(e)
-                );
+                </span><span class="macro">relay_log::error!</span>(error = error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;unreachable code&quot;</span>);
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
         }

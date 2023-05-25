@@ -1469,7 +1469,6 @@
 <a href="#1468" id="1468">1468</a>
 <a href="#1469" id="1469">1469</a>
 <a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1486,7 +1485,6 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 <span class="kw">use </span>relay_config::{Config, Credentials, RelayMode};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -2549,9 +2547,9 @@
         credentials: <span class="kw-2">&amp;</span>Credentials,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), UpstreamRequestError&gt; {
         <span class="macro">relay_log::info!</span>(
-            <span class="string">&quot;registering with upstream ({})&quot;</span>,
-            <span class="self">self</span>.config.upstream_descriptor()
-        );
+            descriptor = %<span class="self">self</span>.config.upstream_descriptor(),
+            <span class="string">&quot;registering with upstream&quot;
+        </span>);
 
         <span class="self">self</span>.send_state(<span class="kw">if </span><span class="self">self</span>.state.is_authenticated() {
             AuthState::Renewing
@@ -2561,7 +2559,7 @@
 
         <span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>credentials.id, <span class="kw-2">&amp;</span>credentials.public_key);
         <span class="kw">let </span>challenge = <span class="self">self</span>.client.send_query(request).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;got register challenge (token = {})&quot;</span>, challenge.token());
+        <span class="macro">relay_log::debug!</span>(token = challenge.token(), <span class="string">&quot;got register challenge&quot;</span>);
 
         <span class="kw">let </span>response = challenge.into_response();
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
@@ -2606,7 +2604,10 @@
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;authentication encountered error: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;authentication encountered error&quot;
+                    </span>);
 
                     <span class="comment">// ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.
@@ -2711,10 +2712,7 @@
 
         <span class="kw">loop </span>{
             <span class="kw">let </span>next_backoff = backoff.next_backoff();
-            <span class="macro">relay_log::warn!</span>(
-                <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
-                next_backoff
-            );
+            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;network outage, scheduling another check in {next_backoff:?}&quot;</span>);
 
             tokio::time::sleep(next_backoff).<span class="kw">await</span>;
             <span class="kw">match </span>client.send(<span class="kw-2">&amp;mut </span>GetHealthCheck).<span class="kw">await </span>{

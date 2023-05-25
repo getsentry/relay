@@ -338,8 +338,8 @@
 //!
 //! let parsed = unsafe { parse_number() };
 //! match with_last_error(|e| e.to_string()) {
-//!     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
-//!     None =&gt; println!(&quot;result: {}&quot;, parsed),
+//!     Some(error) =&gt; println!(&quot;errored with: {error}&quot;),
+//!     None =&gt; println!(&quot;result: {parsed}&quot;),
 //! }
 //! ```
 //!
@@ -358,7 +358,7 @@
 //! unsafe { fail() };
 //!
 //! if let Some(description) = with_last_error(|e| e.to_string()) {
-//!     println!(&quot;{}&quot;, description);
+//!     println!(&quot;{description}&quot;);
 //! }
 //! ```
 //!
@@ -458,8 +458,8 @@
 ///
 /// let parsed = unsafe { run_ffi() };
 /// match with_last_error(|e| e.to_string()) {
-///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
-///     None =&gt; println!(&quot;result: {}&quot;, parsed),
+///     Some(error) =&gt; println!(&quot;errored with: {error}&quot;),
+///     None =&gt; println!(&quot;result: {parsed}&quot;),
 /// }
 /// ```
 </span><span class="kw">pub fn </span>with_last_error&lt;R, F&gt;(f: F) -&gt; <span class="prelude-ty">Option</span>&lt;R&gt;
@@ -485,8 +485,8 @@
 ///
 /// let parsed = unsafe { run_ffi() };
 /// match take_last_error() {
-///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
-///     None =&gt; println!(&quot;result: {}&quot;, parsed),
+///     Some(error) =&gt; println!(&quot;errored with: {error}&quot;),
+///     None =&gt; println!(&quot;result: {parsed}&quot;),
 /// }
 /// ```
 </span><span class="kw">pub fn </span>take_last_error() -&gt; <span class="prelude-ty">Option</span>&lt;anyhow::Error&gt; {

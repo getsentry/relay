@@ -131,6 +131,8 @@
 <a href="#130" id="130">130</a>
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Error reporting and logging facade for Relay.
 //!
 //! # Setup
@@ -177,39 +179,42 @@
 //! ## Examples
 //!
 //! ```
-//! use relay_log::{LogConfig, SentryConfig};
-//!
-//! relay_log::info!(&quot;startup complete&quot;);
+//! # let startup_time = std::time::Duration::ZERO;
+//! relay_log::info!(duration = ?startup_time, &quot;startup complete&quot;);
 //! ```
 //!
 //! # Error Reporting
 //!
-//! `sentry` is used for error reporting of all messages logged with an error level. To add custom
-//! scope information, use [`configure_scope`] or [`with_scope`].
+//! `sentry` is used for error reporting of all messages logged with an ERROR level. To add custom
+//! information, add fields with the `tags.` prefix.
 //!
-//! ## Scopes
+//! ## Tags and Fields
 //!
 //! ```
-//! use relay_log::{LogConfig, SentryConfig};
-//!
-//! relay_log::with_scope(|scope| scope.set_tag(&quot;custom&quot;, &quot;value&quot;), || {
-//!     relay_log::error!(&quot;this message has a custom tag&quot;);
-//! });
+//! relay_log::error!(
+//!     tags.custom = &quot;value&quot;,            // will become a tag in Sentry
+//!     field = &quot;value&quot;,                  // will become a context field
+//!     &quot;this message has a custom tag&quot;,
+//! );
 //! ```
 //!
 //! ## Logging Error Types
 //!
-//! To log [errors](std::error::Error) to both Sentry and the error stream, use the [`LogError`]
-//! wrapper. It formats the error with all its causes, and ensures the format is suitable for error
-//! reporting to Sentry.
+//! To log [errors](std::error::Error) to both Sentry and the error stream, use [`error!`] and
+//! assign a reference to the error as `error` field. This formats the error with all its sources,
+//! and ensures the format is suitable for error reporting to Sentry.
 //!
 //! ```
-//! use std::io::{Error, ErrorKind};
-//! use relay_log::{LogConfig, SentryConfig, LogError};
+//! use std::error::Error;
+//! use std::io;
 //!
-//! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);
-//! relay_log::error!(&quot;operation failed: {}&quot;, LogError(&amp;custom_error));
+//! let custom_error = io::Error::new(io::ErrorKind::Other, &quot;oh no!&quot;);
+//! relay_log::error!(error = &amp;custom_error as &amp;dyn Error, &quot;operation failed&quot;);
 //! ```
+//!
+//! Alternatively, higher level self-explanatory errors can be passed without an additional message.
+//! They are displayed in the same way in log output, but in Sentry they will display with the error
+//! type as primary title.
 //!
 //! ## Capturing without Logging
 //!
@@ -217,7 +222,6 @@
 //!
 //! ```
 //! use std::io::{Error, ErrorKind};
-//! use relay_log::{LogConfig, SentryConfig};
 //!
 //! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);
 //! relay_log::capture_error(&amp;custom_error);

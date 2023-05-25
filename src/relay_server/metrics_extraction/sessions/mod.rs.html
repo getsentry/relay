@@ -568,6 +568,9 @@
 <a href="#567" id="567">567</a>
 <a href="#568" id="568">568</a>
 <a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
 <span class="kw">use </span>relay_general::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
@@ -603,7 +606,10 @@
     <span class="kw">let </span>timestamp = <span class="kw">match </span>UnixTimestamp::from_datetime(session.started()) {
         <span class="prelude-val">Some</span>(ts) =&gt; ts,
         <span class="prelude-val">None </span>=&gt; {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid session started timestamp: {}&quot;</span>, session.started());
+            <span class="macro">relay_log::error!</span>(
+                timestamp = %session.started(),
+                <span class="string">&quot;invalid session started timestamp&quot;
+            </span>);
             <span class="kw">return</span>;
         }
     };

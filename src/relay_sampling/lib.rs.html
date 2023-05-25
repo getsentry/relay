@@ -3984,19 +3984,6 @@
 <a href="#3983" id="3983">3983</a>
 <a href="#3984" id="3984">3984</a>
 <a href="#3985" id="3985">3985</a>
-<a href="#3986" id="3986">3986</a>
-<a href="#3987" id="3987">3987</a>
-<a href="#3988" id="3988">3988</a>
-<a href="#3989" id="3989">3989</a>
-<a href="#3990" id="3990">3990</a>
-<a href="#3991" id="3991">3991</a>
-<a href="#3992" id="3992">3992</a>
-<a href="#3993" id="3993">3993</a>
-<a href="#3994" id="3994">3994</a>
-<a href="#3995" id="3995">3995</a>
-<a href="#3996" id="3996">3996</a>
-<a href="#3997" id="3997">3997</a>
-<a href="#3998" id="3998">3998</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -6022,7 +6009,7 @@
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, failure_name);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6100,7 +6087,7 @@
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="kw">let </span>ip_addr = <span class="prelude-val">Some</span>(NetIpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>)));
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>evt, ip_addr), <span class="string">&quot;{}&quot;</span>, failure_name);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>evt, ip_addr), <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6198,11 +6185,7 @@
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(
-                condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
-                <span class="string">&quot;{}&quot;</span>,
-                failure_name
-            );
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6261,11 +6244,7 @@
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(
-                condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
-                <span class="string">&quot;{}&quot;</span>,
-                failure_name
-            );
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6301,11 +6280,7 @@
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(
-                condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
-                <span class="string">&quot;{}&quot;</span>,
-                failure_name
-            );
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6364,7 +6339,7 @@
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
             <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, failure_name);
+            <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{failure_name}&quot;</span>);
         }
     }
 
@@ -6444,7 +6419,6 @@
         ]
         &quot;#</span>;
         <span class="kw">let </span>rules: <span class="prelude-ty">Result</span>&lt;Vec&lt;RuleCondition&gt;, <span class="kw">_</span>&gt; = serde_json::from_str(serialized_rules);
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;{:?}&quot;</span>, rules);
         <span class="macro">assert!</span>(rules.is_ok());
         <span class="kw">let </span>rules = rules.unwrap();
         <span class="macro">insta::assert_ron_snapshot!</span>(rules, @<span class="string">r###&quot;

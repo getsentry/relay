@@ -418,7 +418,17 @@
 <a href="#417" id="417">417</a>
 <a href="#418" id="418">418</a>
 <a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
@@ -427,7 +437,6 @@
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
 <span class="kw">use </span>relay_general::protocol::ClientReport;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_metrics::{Aggregator, Bucket, MergeBuckets};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -734,7 +743,13 @@
                 // indicate errors in the infrastructure or implementation bugs.
                 </span>relay_log::with_scope(
                     |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, scoping.project_key),
-                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error)),
+                    || {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            tags.project_key = %scoping.project_key,
+                            <span class="string">&quot;error sending envelope&quot;
+                        </span>)
+                    },
                 );
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
@@ -767,8 +782,8 @@
         <span class="kw">let </span>result = <span class="self">self</span>.submit_envelope(envelope, scoping, partition_key).<span class="kw">await</span>;
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = result {
             <span class="macro">relay_log::trace!</span>(
-                <span class="string">&quot;failed to submit the envelope, merging buckets back: {}&quot;</span>,
-                LogError(<span class="kw-2">&amp;</span>err)
+                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                <span class="string">&quot;failed to submit the envelope, merging buckets back&quot;</span>,
             );
             <span class="self">self</span>.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));
@@ -799,7 +814,10 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.submit_envelope(envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Failed to send envelope for client report: {:?}&quot;</span>, e);
+            <span class="macro">relay_log::trace!</span>(
+                error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                <span class="string">&quot;failed to send envelope for client report&quot;
+            </span>);
         }
     }
 

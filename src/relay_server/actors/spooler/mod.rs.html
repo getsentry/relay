@@ -1180,7 +1180,17 @@
 <a href="#1179" id="1179">1179</a>
 <a href="#1180" id="1180">1180</a>
 <a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a>
+<a href="#1184" id="1184">1184</a>
+<a href="#1185" id="1185">1185</a>
+<a href="#1186" id="1186">1186</a>
+<a href="#1187" id="1187">1187</a>
+<a href="#1188" id="1188">1188</a>
+<a href="#1189" id="1189">1189</a>
+<a href="#1190" id="1190">1190</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
@@ -1188,7 +1198,6 @@
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::sqlite::{
@@ -1490,7 +1499,10 @@
                 |(key, received_at, managed)| <span class="kw">match </span>managed.into_envelope().to_vec() {
                     <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Some</span>((key, vec, received_at)),
                     <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize the envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">&quot;failed to serialize the envelope&quot;
+                        </span>);
                         <span class="prelude-val">None
                     </span>}
                 },
@@ -1600,8 +1612,8 @@
                     <span class="comment">// Bail if there are errors in the stream.
                     </span><span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
-                            <span class="string">&quot;failed to read the buffer stream from the disk: {}&quot;</span>,
-                            LogError(<span class="kw-2">&amp;</span>err)
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">&quot;failed to read the buffer stream from the disk&quot;</span>,
                         );
                         <span class="self">self</span>.track_count(-count);
                         <span class="kw">return </span><span class="prelude-val">Err</span>(key);
@@ -1613,8 +1625,8 @@
                         sender.send(managed_envelope).ok();
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::error!</span>(
-                        <span class="string">&quot;failed to extract envelope from the buffer: {}&quot;</span>,
-                        LogError(<span class="kw-2">&amp;</span>err)
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;failed to extract envelope from the buffer&quot;</span>,
                     ),
                 }
             }
@@ -1765,8 +1777,8 @@
             {
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
                     <span class="macro">relay_log::error!</span>(
-                        <span class="string">&quot;failed to spool the in-memory buffer to disk: {}&quot;</span>,
-                        LogError(<span class="kw-2">&amp;</span>err)
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;failed to spool the in-memory buffer to disk&quot;</span>,
                     );
                 }
                 <span class="self">Self</span>::Disk(disk)
@@ -1982,7 +1994,7 @@
         <span class="kw">if </span>count &gt; <span class="number">0 </span>{
             relay_log::with_scope(
                 |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, project_key),
-                || <span class="macro">relay_log::error!</span>(<span class="string">&quot;evicted project with {} envelopes&quot;</span>, count),
+                || <span class="macro">relay_log::error!</span>(count, <span class="string">&quot;evicted project with envelopes&quot;</span>),
             );
         }
 
@@ -2024,9 +2036,9 @@
         }
 
         <span class="macro">relay_log::info!</span>(
-            <span class="string">&quot;received shutdown signal, spooling {} envelopes to disk&quot;</span>,
-            count
-        );
+            count,
+            <span class="string">&quot;received shutdown signal, spooling envelopes to disk&quot;
+        </span>);
 
         <span class="kw">let </span>buffer = std::mem::take(<span class="kw-2">&amp;mut </span>ram.buffer);
         disk.spool(buffer).<span class="kw">await</span><span class="question-mark">?</span>;
@@ -2047,12 +2059,18 @@
 
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.handle_message(message).<span class="kw">await </span>{
-                            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to handle an incoming message: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err))
+                            <span class="macro">relay_log::error!</span>(
+                                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                                <span class="string">&quot;failed to handle an incoming message&quot;</span>,
+                            );
                         }
                     }
                     <span class="kw">_ </span>= shutdown.notified() =&gt; {
                        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.handle_shutdown().<span class="kw">await </span>{
-                            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed while shutting down the service: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err))
+                            <span class="macro">relay_log::error!</span>(
+                                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                                <span class="string">&quot;failed while shutting down the service&quot;</span>,
+                            );
                         }
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
@@ -2069,7 +2087,7 @@
             BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } =&gt; {
                 <span class="kw">let </span>count = ram.count();
                 <span class="kw">if </span>count &gt; <span class="number">0 </span>{
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped {} envelopes&quot;</span>, count);
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped {count} envelopes&quot;</span>);
                 }
             }
             BufferState::Disk(<span class="kw">_</span>) =&gt; (),
@@ -2218,7 +2236,7 @@
 
         <span class="comment">// There are enough permits, so get an envelope:
         </span><span class="kw">let </span>res = rx.try_recv();
-        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
         <span class="macro">assert_eq!</span>(buffer_guard.available(), <span class="number">2</span>);
 
         <span class="comment">// Simulate a new envelope coming in via a web request:

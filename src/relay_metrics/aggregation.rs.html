@@ -3169,10 +3169,9 @@
 <a href="#3168" id="3168">3168</a>
 <a href="#3169" id="3169">3169</a>
 <a href="#3170" id="3170">3170</a>
-<a href="#3171" id="3171">3171</a>
-<a href="#3172" id="3172">3172</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::iter::{FromIterator, FusedIterator};
 <span class="kw">use </span>std::time::Duration;
@@ -3181,7 +3180,6 @@
 <span class="kw">use </span>float_ord::FloatOrd;
 <span class="kw">use </span>fnv::FnvHasher;
 <span class="kw">use </span>relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
@@ -4027,7 +4025,7 @@
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
-#[error(<span class="string">&quot;failed to aggregate metrics: {}&quot;</span>, .kind)]
+#[error(<span class="string">&quot;failed to aggregate metrics: {kind}&quot;</span>)]
 </span><span class="kw">pub struct </span>AggregateMetricsError {
     kind: AggregateMetricsErrorKind,
 }
@@ -4403,15 +4401,13 @@
     <span class="kw">fn </span>subtract_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, cost: usize) {
         <span class="kw">match </span><span class="self">self</span>.cost_per_project_key.entry(project_key) {
             Entry::Vacant(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;Trying to subtract cost for a project key that has not been tracked&quot;
-                </span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;cost subtracted for an untracked project key&quot;</span>);
             }
             Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
                 <span class="comment">// Handle per-project cost:
                 </span><span class="kw">let </span>project_cost = entry.get_mut();
                 <span class="kw">if </span>cost &gt; <span class="kw-2">*</span>project_cost {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Subtracting a project cost higher than what we tracked&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;underflow while subtracing project cost&quot;</span>);
                     <span class="self">self</span>.total_cost = <span class="self">self</span>.total_cost.saturating_sub(<span class="kw-2">*</span>project_cost);
                     <span class="kw-2">*</span>project_cost = <span class="number">0</span>;
                 } <span class="kw">else </span>{
@@ -4806,7 +4802,7 @@
             <span class="kw">if </span>protocol::is_valid_tag_key(tag_key) {
                 <span class="bool-val">true
             </span>} <span class="kw">else </span>{
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric tag key {:?}&quot;</span>, tag_key);
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric tag key {tag_key:?}&quot;</span>);
                 <span class="bool-val">false
             </span>}
         });
@@ -4949,7 +4945,7 @@
     {
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.merge(project_key, bucket) {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;{}&quot;</span>, error);
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error);
             }
         }
 
@@ -5104,7 +5100,7 @@
         } = msg;
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.insert(project_key, metric) {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to insert metrics: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to insert metrics&quot;</span>);
             }
         }
     }
@@ -5115,7 +5111,7 @@
             buckets,
         } = msg;
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.merge_all(project_key, buckets) {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to merge buckets: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+            <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to merge buckets&quot;</span>);
         }
     }
 
@@ -5177,7 +5173,7 @@
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>remaining_buckets = <span class="self">self</span>.buckets.len();
         <span class="kw">if </span>remaining_buckets &gt; <span class="number">0 </span>{
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;Metrics aggregator dropping {} buckets&quot;</span>, remaining_buckets);
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;metrics aggregator dropping {remaining_buckets} buckets&quot;</span>);
             <span class="macro">relay_statsd::metric!</span>(
                 counter(MetricCounters::BucketsDropped) += remaining_buckets <span class="kw">as </span>i64
             );
@@ -5233,7 +5229,7 @@
             tokio::spawn(<span class="kw">async move </span>{
                 <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
                     <span class="kw">let </span>buckets = message.<span class="number">0</span>.buckets;
-                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;received buckets: {:#?}&quot;</span>, buckets);
+                    <span class="macro">relay_log::debug!</span>(<span class="question-mark">?</span>buckets, <span class="string">&quot;received buckets&quot;</span>);
                     <span class="kw">if </span>!<span class="self">self</span>.reject_all {
                         <span class="self">self</span>.add_buckets(buckets);
                     }

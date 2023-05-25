@@ -38,8 +38,8 @@ however, and document the behavior of custom structures in case of an error.</p>
 
 <span class="kw">let </span>parsed = <span class="kw">unsafe </span>{ parse_number() };
 <span class="kw">match </span>with_last_error(|e| e.to_string()) {
-    <span class="prelude-val">Some</span>(error) =&gt; <span class="macro">println!</span>(<span class="string">&quot;errored with: {}&quot;</span>, error),
-    <span class="prelude-val">None </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;result: {}&quot;</span>, parsed),
+    <span class="prelude-val">Some</span>(error) =&gt; <span class="macro">println!</span>(<span class="string">&quot;errored with: {error}&quot;</span>),
+    <span class="prelude-val">None </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;result: {parsed}&quot;</span>),
 }</code></pre></div>
 <p>To capture panics, register the panic hook early during library initialization:</p>
 
@@ -55,7 +55,7 @@ relay_ffi::set_panic_hook();
 <span class="kw">unsafe </span>{ fail() };
 
 <span class="kw">if let </span><span class="prelude-val">Some</span>(description) = with_last_error(|e| e.to_string()) {
-    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, description);
+    <span class="macro">println!</span>(<span class="string">&quot;{description}&quot;</span>);
 }</code></pre></div>
 <h2 id="creating-c-apis"><a href="#creating-c-apis">Creating C-APIs</a></h2>
 <p>This is an example for exposing an API to C:</p>

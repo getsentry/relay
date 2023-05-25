@@ -1023,7 +1023,6 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1033,6 +1032,7 @@
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryInto;
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1047,8 +1047,6 @@
 <span class="kw">use </span>relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{ReasonCode, Scoping};
 <span class="kw">use </span>relay_sampling::MatchedRuleIds;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1574,11 +1572,11 @@
         <span class="self">self</span>.flush_handle.reset();
 
         <span class="kw">if </span><span class="self">self</span>.unsent_outcomes.is_empty() {
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send.&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send&quot;</span>);
             <span class="kw">return</span>;
         } <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(
-                <span class="string">&quot;sending outcome batch of size:{}&quot;</span>,
+                <span class="string">&quot;sending outcome batch of size {}&quot;</span>,
                 <span class="self">self</span>.unsent_outcomes.len()
             );
         }
@@ -1591,16 +1589,16 @@
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">match </span>upstream_relay.send(SendQuery(request)).<span class="kw">await </span>{
-                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>),
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent&quot;</span>),
                 <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, error)
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;outcome batch sending failed&quot;</span>)
                 }
             }
         });
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackRawOutcome) {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Batching outcome&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;batching outcome&quot;</span>);
         <span class="self">self</span>.unsent_outcomes.push(message);
 
         <span class="kw">if </span><span class="self">self</span>.unsent_outcomes.len() &gt;= <span class="self">self</span>.config.outcome_batch_size() {
@@ -1651,7 +1649,7 @@
     }
 
     <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing client reports&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing client reports&quot;</span>);
         <span class="self">self</span>.flush_handle.reset();
 
         <span class="kw">let </span>unsent_reports = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_reports);
@@ -1829,7 +1827,7 @@
         organization_id: u64,
         message: TrackRawOutcome,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), OutcomeError&gt; {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, message);
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {message:?}&quot;</span>);
 
         send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
 
@@ -1884,7 +1882,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) =
                     <span class="self">self</span>.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to produce outcome&quot;</span>);
                 }
             }
             <span class="self">Self</span>::ClientReport(producer) =&gt; {
@@ -1905,7 +1903,7 @@
             </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
                 <span class="kw">let </span>sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, sharding_id, message) {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to produce outcome&quot;</span>);
                 }
             }
             <span class="self">Self</span>::Http(producer) =&gt; {

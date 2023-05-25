@@ -591,7 +591,7 @@
         init_config(config.path(), matches)
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {
         <span class="kw">match </span>matches.get_one(<span class="string">&quot;format&quot;</span>).map(String::as_str).unwrap() {
-            <span class="string">&quot;debug&quot; </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="kw-2">&amp;</span>config),
+            <span class="string">&quot;debug&quot; </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;{config:#?}&quot;</span>),
             <span class="string">&quot;yaml&quot; </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, config.to_yaml_string()<span class="question-mark">?</span>),
             <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
         }

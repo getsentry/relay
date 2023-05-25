@@ -357,6 +357,7 @@
 <a href="#356" id="356">356</a>
 <a href="#357" id="357">357</a>
 <a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
@@ -364,7 +365,6 @@
 
 <span class="kw">use </span>relay_auth::{PublicKey, RelayId};
 <span class="kw">use </span>relay_config::{Config, RelayInfo};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
@@ -614,7 +614,7 @@
                     <span class="kw">let </span>response = GetRelaysResponse::from(response);
 
                     <span class="kw">for </span>(id, channel) <span class="kw">in </span>channels {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, id);
+                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {id} public key updated&quot;</span>);
                         <span class="kw">let </span>info = response.relays.get(<span class="kw-2">&amp;</span>id).unwrap_or(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
                         channel.send(info.clone());
                     }
@@ -622,7 +622,10 @@
                     <span class="prelude-val">Ok</span>(response)
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching public keys: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;error fetching public keys&quot;
+                    </span>);
                     <span class="prelude-val">Err</span>(channels)
                 }
             };
@@ -673,14 +676,13 @@
 
         <span class="kw">if </span><span class="self">self</span>.config.credentials().is_none() {
             <span class="macro">relay_log::error!</span>(
-                <span class="string">&quot;No credentials configured. Relay {} cannot send requests to this relay.&quot;</span>,
-                relay_id
+                <span class="string">&quot;no credentials configured. relay {relay_id} cannot send requests to this relay&quot;</span>,
             );
             sender.send(<span class="prelude-val">None</span>);
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, relay_id);
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {relay_id} public key requested&quot;</span>);
         <span class="self">self</span>.channels
             .entry(relay_id)
             .or_insert_with(BroadcastChannel::new)

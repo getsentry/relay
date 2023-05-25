@@ -2216,12 +2216,12 @@
 
         <span class="macro">assert_text_rule!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
-            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, valid_norwegian_iban);
+            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {valid_norwegian_iban}!&quot;</span>);
             output = <span class="string">&quot;some iban: [iban]!&quot;</span>;
             remarks = <span class="macro">vec!</span>[Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@iban&quot;</span>, (<span class="number">11</span>, <span class="number">17</span>))];
         );
 
-        <span class="kw">let </span>valid_iban_within_word = <span class="macro">format!</span>(<span class="string">&quot;foo{}bar&quot;</span>, valid_norwegian_iban);
+        <span class="kw">let </span>valid_iban_within_word = <span class="macro">format!</span>(<span class="string">&quot;foo{valid_norwegian_iban}bar&quot;</span>);
         <span class="macro">assert_rule_not_applied!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
             input = <span class="kw-2">&amp;</span>valid_iban_within_word;
@@ -2234,7 +2234,7 @@
 
         <span class="macro">assert_text_rule!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
-            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, valid_norwegian_iban);
+            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {valid_norwegian_iban}!&quot;</span>);
             output = <span class="string">&quot;some iban: [iban]!&quot;</span>;
             remarks = <span class="macro">vec!</span>[Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@iban&quot;</span>, (<span class="number">11</span>, <span class="number">17</span>))];
         );
@@ -2247,14 +2247,14 @@
         <span class="comment">// Since norway has the shortest iban, it won&#39;t recognize an iban shorter than that.
         </span><span class="macro">assert_rule_not_applied!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
-            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, invalid_norwegian_iban);
+            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {invalid_norwegian_iban}!&quot;</span>);
         );
 
         <span class="kw">let </span><span class="kw-2">mut </span>valid_russian_iban = <span class="string">&quot;RU0204452560040702810412345678901&quot;</span>.to_string();
 
         <span class="macro">assert_text_rule!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
-            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, valid_russian_iban);
+            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {valid_russian_iban}!&quot;</span>);
             output = <span class="string">&quot;some iban: [iban]!&quot;</span>;
             remarks = <span class="macro">vec!</span>[Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@iban&quot;</span>, (<span class="number">11</span>, <span class="number">17</span>))];
         );
@@ -2267,7 +2267,7 @@
         <span class="comment">// Since russia has the longest iban, it won&#39;t recognize an iban longer than that.
         </span><span class="macro">assert_rule_not_applied!</span>(
             rule = <span class="string">&quot;@iban&quot;</span>;
-            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, invalid_russian_iban);
+            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {invalid_russian_iban}!&quot;</span>);
         );
 
         <span class="comment">// Don&#39;t apply if it doesnt start with two uppercase letters.
@@ -2365,7 +2365,7 @@
         <span class="kw">for </span>iban_code <span class="kw">in </span>valid_iban_codes {
             <span class="macro">assert_text_rule!</span>(
                 rule = <span class="string">&quot;@iban&quot;</span>;
-                input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {}!&quot;</span>, iban_code);
+                input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;some iban: {iban_code}!&quot;</span>);
                 output = <span class="string">&quot;some iban: [iban]!&quot;</span>;
                 remarks = <span class="macro">vec!</span>[Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@iban&quot;</span>, (<span class="number">11</span>, <span class="number">17</span>))];
             );

@@ -3645,7 +3645,7 @@
         .join(<span class="string">&quot;.&quot;</span>);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = port {
-        replaced = <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, replaced, port);
+        replaced = <span class="macro">format!</span>(<span class="string">&quot;{replaced}:{port}&quot;</span>);
     }
     <span class="prelude-val">Some</span>(replaced)
 }

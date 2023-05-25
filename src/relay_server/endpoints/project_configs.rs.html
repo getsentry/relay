@@ -328,9 +328,9 @@
             configs.insert(project_key, <span class="prelude-val">Some</span>(wrapper));
         } <span class="kw">else </span>{
             <span class="macro">relay_log::debug!</span>(
-                <span class="string">&quot;Relay {} does not have access to project key {}&quot;</span>,
-                relay.public_key,
-                project_key
+                relay = %relay.public_key,
+                project_key = %project_key,
+                <span class="string">&quot;relay does not have access to project key&quot;</span>,
             );
         };
     }

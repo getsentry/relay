@@ -284,12 +284,13 @@
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::{Regex, RegexBuilder};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::pii::{CompiledPiiConfig, Redaction};
@@ -359,8 +360,11 @@
                     .build()
                     .map_err(PiiConfigError::RegexError);
 
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>err) = regex_result {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Unable to compile pattern into regex: {}&quot;</span>, LogError(err));
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>error) = regex_result {
+                    <span class="macro">relay_log::error!</span>(
+                        error = error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;unable to compile pattern into regex&quot;
+                    </span>);
                 }
                 regex_result
             })

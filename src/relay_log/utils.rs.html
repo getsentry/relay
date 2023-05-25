@@ -50,16 +50,6 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 
@@ -87,24 +77,14 @@
 /// errors need to be logged before the logger has been initialized.
 </span><span class="kw">pub fn </span>ensure_error&lt;E: AsRef&lt;<span class="kw">dyn </span>Error&gt;&gt;(error: E) {
     <span class="kw">if </span><span class="macro">tracing::event_enabled!</span>(Level::ERROR) {
-        <span class="macro">crate::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error.as_ref()));
+        <span class="macro">crate::error!</span>(error = error.as_ref());
     } <span class="kw">else </span>{
         <span class="macro">eprintln!</span>(<span class="string">&quot;error: {}&quot;</span>, LogError(error.as_ref()));
     }
 }
 
 <span class="doccomment">/// A wrapper around an error that prints its causes.
-///
-/// # Example
-///
-/// ```
-/// use relay_log::LogError;
-///
-/// if let Err(error) = std::env::var(&quot;FOO&quot;) {
-///     relay_log::error!(&quot;env failed: {}&quot;, LogError(&amp;error));
-/// }
-/// ```
-</span><span class="kw">pub struct </span>LogError&lt;<span class="lifetime">&#39;a</span>, E: Error + <span class="question-mark">?</span>Sized&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>E);
+</span><span class="kw">struct </span>LogError&lt;<span class="lifetime">&#39;a</span>, E: Error + <span class="question-mark">?</span>Sized&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>E);
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E: Error + <span class="question-mark">?</span>Sized&gt; fmt::Display <span class="kw">for </span>LogError&lt;<span class="lifetime">&#39;a</span>, E&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {

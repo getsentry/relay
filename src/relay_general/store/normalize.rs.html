@@ -3121,9 +3121,6 @@
 <a href="#3120" id="3120">3120</a>
 <a href="#3121" id="3121">3121</a>
 <a href="#3122" id="3122">3122</a>
-<a href="#3123" id="3123">3123</a>
-<a href="#3124" id="3124">3124</a>
-<a href="#3125" id="3125">3125</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3410,9 +3407,8 @@
 
         <span class="kw">if </span>!is_valid_metric_name(name) {
             meta.add_error(Error::invalid(<span class="macro">format!</span>(
-                <span class="string">&quot;Metric name contains invalid characters: \&quot;{}\&quot;&quot;</span>,
-                name
-            )));
+                <span class="string">&quot;Metric name contains invalid characters: \&quot;{name}\&quot;&quot;
+            </span>)));
             removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
@@ -3425,10 +3421,8 @@
 
             <span class="kw">if </span>name.len() &gt; max_name_len {
                 meta.add_error(Error::invalid(<span class="macro">format!</span>(
-                    <span class="string">&quot;Metric name too long {}/{}: \&quot;{}\&quot;&quot;</span>,
+                    <span class="string">&quot;Metric name too long {}/{max_name_len}: \&quot;{name}\&quot;&quot;</span>,
                     name.len(),
-                    max_name_len,
-                    name
                 )));
                 removed_measurements
                     .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
@@ -3452,7 +3446,7 @@
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
 
-        meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;Too many measurements: {}&quot;</span>, name)));
+        meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;Too many measurements: {name}&quot;</span>)));
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         <span class="bool-val">false

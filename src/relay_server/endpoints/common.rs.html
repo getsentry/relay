@@ -441,12 +441,13 @@
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
 <a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_general::protocol::{EventId, EventType};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>serde::Deserialize;
@@ -578,7 +579,10 @@
 
         <span class="macro">metric!</span>(counter(RelayCounters::EnvelopeRejected) += <span class="number">1</span>);
         <span class="kw">if </span>response.status().is_server_error() {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;error handling request: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span><span class="self">self</span>));
+            <span class="macro">relay_log::error!</span>(
+                error = <span class="kw-2">&amp;</span><span class="self">self </span><span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                <span class="string">&quot;error handling request&quot;
+            </span>);
         }
 
         response

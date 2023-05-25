@@ -249,7 +249,6 @@
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ffi::OsStr;
 <span class="kw">use </span>std::path::Path;
@@ -257,7 +256,6 @@
 
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
@@ -331,19 +329,19 @@
     };
 
     <span class="comment">// only printed when directory even exists.
-    </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;Loading local states from directory {:?}&quot;</span>, projects_path);
+    </span><span class="macro">relay_log::debug!</span>(directory = <span class="question-mark">?</span>projects_path, <span class="string">&quot;loading local states from file system&quot;</span>);
 
     <span class="kw">while let </span><span class="prelude-val">Some</span>(entry) = directory.next_entry().<span class="kw">await</span><span class="question-mark">? </span>{
         <span class="kw">let </span>path = entry.path();
 
         <span class="kw">let </span>metadata = entry.metadata().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">if </span>!(metadata.is_file() || metadata.is_symlink()) {
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping {:?}, not a file&quot;</span>, path);
+            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, not a file&quot;</span>);
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if </span>path.extension().map(|x| x != <span class="string">&quot;json&quot;</span>).unwrap_or(<span class="bool-val">true</span>) {
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping {:?}, file extension must be .json&quot;</span>, path);
+            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, file extension must be .json&quot;</span>);
             <span class="kw">continue</span>;
         }
 
@@ -355,7 +353,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = get_project_id(<span class="kw-2">&amp;</span>path) {
                 sanitized.project_id = <span class="prelude-val">Some</span>(project_id);
             } <span class="kw">else </span>{
-                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping {:?}, filename is not a valid project id&quot;</span>, path);
+                <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, filename is not a valid project id&quot;</span>);
                 <span class="kw">continue</span>;
             }
         }
@@ -379,8 +377,8 @@
             }
         }
         <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::error!</span>(
-            <span class="string">&quot;failed to load static project configs: {}&quot;</span>,
-            LogError(<span class="kw-2">&amp;</span>error)
+            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+            <span class="string">&quot;failed to load static project configs&quot;</span>,
         ),
     };
 }

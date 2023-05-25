@@ -480,8 +480,6 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -493,7 +491,6 @@
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -700,7 +697,7 @@
                         counter(RelayCounters::ProjectUpstreamCompleted) += <span class="number">1</span>,
                         result = <span class="string">&quot;timeout&quot;</span>,
                     );
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching project state {}: deadline exceeded&quot;</span>, id);
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching project state {id}: deadline exceeded&quot;</span>);
                 }
                 !channel.expired()
             });
@@ -775,8 +772,8 @@
                     //   workflow
                     // - return `None` to signal that we do not have any response from the Upstream
                     //   and we should ignore this.
-                    </span><span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to send the request to upstream: {err}&quot;</span>);
+                    </span><span class="prelude-val">Err</span>(_err) =&gt; {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to send the request to upstream: channel full&quot;</span>);
                         <span class="prelude-val">None
                     </span>}
                 }
@@ -833,11 +830,7 @@
                             .remove(<span class="kw-2">&amp;</span>key)
                             .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>))
                             .unwrap_or_else(|error| {
-                                <span class="macro">relay_log::error!</span>(
-                                    <span class="string">&quot;error fetching project state {}: {}&quot;</span>,
-                                    key,
-                                    LogError(error)
-                                );
+                                <span class="macro">relay_log::error!</span>(error, <span class="string">&quot;error fetching project state {key}&quot;</span>);
                                 <span class="prelude-val">Some</span>(ProjectState::err())
                             })
                             .unwrap_or_else(ProjectState::missing);
@@ -854,7 +847,10 @@
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching project states: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;error fetching project states&quot;
+                    </span>);
                     <span class="macro">metric!</span>(
                         histogram(RelayHistograms::ProjectStatePending) =
                             <span class="self">self</span>.state_channels.len() <span class="kw">as </span>u64
@@ -901,8 +897,8 @@
             <span class="kw">let </span>responses = <span class="self">Self</span>::fetch_states(config, upstream_relay, channels).<span class="kw">await</span>;
             <span class="comment">// Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
-            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(err) = inner_tx.send(responses) {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Unable to forward the requests to further processing: {err}&quot;</span>);
+            </span><span class="kw">if </span>inner_tx.send(responses).is_err() {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;unable to forward the requests to further processing&quot;</span>);
             }
         });
     }

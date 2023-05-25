@@ -226,12 +226,17 @@
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.
 //!
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
@@ -352,8 +357,8 @@
             <span class="prelude-val">Some</span>(module) =&gt; module,
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::debug!</span>(
-                    <span class="string">&quot;Skipping invalid minidump module index {}&quot;</span>,
-                    module_info.module_index
+                    module_index = module_info.module_index,
+                    <span class="string">&quot;Skipping invalid minidump module index&quot;</span>,
                 );
                 <span class="kw">continue</span>;
             }
@@ -420,7 +425,7 @@
     <span class="kw">let </span>minidump = <span class="kw">match </span>Minidump::read(data) {
         <span class="prelude-val">Ok</span>(minidump) =&gt; minidump,
         <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump: {:?}&quot;</span>, err);
+            <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to parse minidump&quot;</span>);
             <span class="kw">return</span>;
         }
     };
@@ -439,7 +444,10 @@
     // are non-essential to processing.
     </span><span class="kw">if let </span><span class="prelude-val">Err</span>(err) = write_crashpad_annotations(event, <span class="kw-2">&amp;</span>minidump) {
         <span class="comment">// TODO: Consider adding an event error for failed annotation extraction.
-        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump module list: {:?}&quot;</span>, err);
+        </span><span class="macro">relay_log::debug!</span>(
+            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+            <span class="string">&quot;failed to parse minidump module list&quot;
+        </span>);
     }
 }
 

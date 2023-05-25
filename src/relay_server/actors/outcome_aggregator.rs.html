@@ -292,21 +292,21 @@
     }
 
     <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: TrackOutcome) {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Outcome aggregation requested: {:?}&quot;</span>, msg);
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Outcome aggregation requested: {msg:?}&quot;</span>);
 
         <span class="kw">if </span><span class="self">self</span>.mode == AggregationMode::DropEverything {
             <span class="kw">return</span>;
         }
 
         <span class="kw">let </span>(event_id, remote_addr) = <span class="kw">if </span><span class="self">self</span>.erase_high_cardinality_fields(<span class="kw-2">&amp;</span>msg) {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Erasing event_id, remote_addr for aggregation: {:?}&quot;</span>, msg);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Erasing event_id, remote_addr for aggregation: {msg:?}&quot;</span>);
             (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
         } <span class="kw">else </span>{
             (msg.event_id, msg.remote_addr)
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event_id) = event_id {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Forwarding outcome without aggregation: {}&quot;</span>, event_id);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Forwarding outcome without aggregation: {event_id}&quot;</span>);
             <span class="self">self</span>.outcome_producer.send(msg);
             <span class="kw">return</span>;
         }
@@ -363,7 +363,7 @@
                 quantity,
             };
 
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing outcome for timestamp {}&quot;</span>, timestamp);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing outcome for timestamp {timestamp}&quot;</span>);
             outcome_producer.send(outcome);
         }
     }

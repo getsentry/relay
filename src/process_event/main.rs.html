@@ -206,15 +206,15 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(pii_config) = <span class="self">self</span>.load_pii_config()<span class="question-mark">? </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(pii_config.compiled());
             process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
-                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))<span class="question-mark">?</span>;
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if </span><span class="self">self</span>.store {
             light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default())
-                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))<span class="question-mark">?</span>;
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreProcessor::new(StoreConfig::default(), <span class="prelude-val">None</span>);
             process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
-                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))
                 .with_context(|| <span class="string">&quot;failed to store process event&quot;</span>)<span class="question-mark">?</span>;
         }
 

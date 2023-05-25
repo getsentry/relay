@@ -151,7 +151,7 @@
         <span class="self">self</span>.tx
             .send(object)
             .map_err(|e| {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to send object to garbage disposal thread, drop here&quot;</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to send object to garbage disposal thread, drop here&quot;</span>);
                 drop(e.<span class="number">0</span>);
             })
             .ok();

@@ -1285,6 +1285,8 @@
 <a href="#1284" id="1284">1284</a>
 <a href="#1285" id="1285">1285</a>
 <a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1298,7 +1300,6 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::{<span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1675,7 +1676,10 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionUpdate::parse(<span class="kw-2">&amp;</span>item.payload()) {
                     <span class="prelude-val">Ok</span>(session) =&gt; session,
                     <span class="prelude-val">Err</span>(error) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                            <span class="string">&quot;failed to store session&quot;
+                        </span>);
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                     }
                 };
@@ -1827,7 +1831,7 @@
                         scope.set_extra(<span class="string">&quot;metric_message.name&quot;</span>, message.name.into());
                     },
                     || {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Store service dropping unknown metric usecase&quot;</span>);
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;store service dropping unknown metric usecase&quot;</span>);
                     },
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());

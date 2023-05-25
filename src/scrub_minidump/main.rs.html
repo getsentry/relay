@@ -198,7 +198,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self</span>.load_minidump()<span class="question-mark">?</span>;
         <span class="kw">let </span>changed = processor
             .scrub_minidump(<span class="self">self</span>.minidump_name(), <span class="kw-2">&amp;mut </span>data)
-            .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))<span class="question-mark">?</span>; <span class="comment">// does not implement std::error::Error
+            .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))<span class="question-mark">?</span>; <span class="comment">// does not implement std::error::Error
 
         </span><span class="kw">if </span>changed {
             <span class="self">self</span>.write_output(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;

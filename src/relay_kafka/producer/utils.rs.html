@@ -35,14 +35,10 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-</pre><pre class="rust"><code><span class="kw">use </span>rdkafka::producer::{DeliveryResult, ProducerContext};
+</pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
+
+<span class="kw">use </span>rdkafka::producer::{DeliveryResult, ProducerContext};
 <span class="kw">use </span>rdkafka::{ClientContext, Message};
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::KafkaCounters;
@@ -60,17 +56,11 @@
     /// It&#39;s called asynchronously for every message, so we want to handle errors explicitly here.
     </span><span class="kw">fn </span>delivery(<span class="kw-2">&amp;</span><span class="self">self</span>, result: <span class="kw-2">&amp;</span>DeliveryResult, _delivery_opaque: <span class="self">Self</span>::DeliveryOpaque) {
         <span class="kw">if let </span><span class="prelude-val">Err</span>((error, message)) = result {
-            relay_log::with_scope(
-                |scope| {
-                    scope.set_tag(<span class="string">&quot;topic&quot;</span>, message.topic());
-                    scope.set_extra(<span class="string">&quot;payload_len&quot;</span>, message.payload_len().into());
-                },
-                || {
-                    <span class="macro">relay_log::error!</span>(
-                        <span class="string">&quot;failed to produce message to Kafka (delivery callback): {}&quot;</span>,
-                        LogError(error)
-                    )
-                },
+            <span class="macro">relay_log::error!</span>(
+                error = error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                payload_len = message.payload_len(),
+                tags.topic = message.topic(),
+                <span class="string">&quot;failed to produce message to Kafka (delivery callback)&quot;</span>,
             );
 
             <span class="macro">metric!</span>(counter(KafkaCounters::ProcessingProduceError) += <span class="number">1</span>);

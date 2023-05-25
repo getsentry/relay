@@ -44,7 +44,7 @@
         <span class="string">&quot;no error details&quot;
     </span>};
 
-    <span class="macro">relay_log::error!</span>(<span class="string">&quot;panic in web handler: {}&quot;</span>, detail);
+    <span class="macro">relay_log::error!</span>(<span class="string">&quot;panic in web handler: {detail}&quot;</span>);
 
     <span class="kw">let </span>response = (
         StatusCode::INTERNAL_SERVER_ERROR,

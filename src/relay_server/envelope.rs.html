@@ -2732,7 +2732,7 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.headers.trace {
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse sampling context: {:?}&quot;</span>, e);
+                <span class="macro">relay_log::debug!</span>(error = e.as_ref(), <span class="string">&quot;failed to parse sampling context&quot;</span>);
                 <span class="prelude-val">None
             </span>}
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(t)) =&gt; <span class="prelude-val">Some</span>(t),

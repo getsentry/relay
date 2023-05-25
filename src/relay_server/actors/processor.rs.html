@@ -3867,8 +3867,25 @@
 <a href="#3866" id="3866">3866</a>
 <a href="#3867" id="3867">3867</a>
 <a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a>
+<a href="#3881" id="3881">3881</a>
+<a href="#3882" id="3882">3882</a>
+<a href="#3883" id="3883">3883</a>
+<a href="#3884" id="3884">3884</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net;
 <span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>NetIPAddr;
@@ -3903,7 +3920,6 @@
 };
 <span class="kw">use </span>relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
@@ -4458,13 +4474,21 @@
 
         <span class="kw">let </span>release = <span class="kw-2">&amp;</span>attributes.release;
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = protocol::validate_release(release) {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session with invalid release &#39;{}&#39;: {}&quot;</span>, release, e);
+            <span class="macro">relay_log::trace!</span>(
+                error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                release,
+                <span class="string">&quot;skipping session with invalid release&quot;
+            </span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(());
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>env) = attributes.environment {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = protocol::validate_environment(env) {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;removing invalid environment &#39;{}&#39;: {}&quot;</span>, env, e);
+                <span class="macro">relay_log::trace!</span>(
+                    error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    env,
+                    <span class="string">&quot;removing invalid environment&quot;
+                </span>);
                 attributes.environment = <span class="prelude-val">None</span>;
                 changed = <span class="bool-val">true</span>;
             }
@@ -4522,7 +4546,10 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionUpdate::parse(<span class="kw-2">&amp;</span>payload) {
             <span class="prelude-val">Ok</span>(session) =&gt; session,
             <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid session payload: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                <span class="macro">relay_log::trace!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">&quot;skipping invalid session payload&quot;
+                </span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
         };
@@ -4597,7 +4624,7 @@
             <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>session) {
                 <span class="prelude-val">Ok</span>(json) =&gt; json,
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize session: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to serialize session&quot;</span>);
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
             };
@@ -4625,7 +4652,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionAggregates::parse(<span class="kw-2">&amp;</span>payload) {
             <span class="prelude-val">Ok</span>(session) =&gt; session,
             <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid sessions payload: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                <span class="macro">relay_log::trace!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">&quot;skipping invalid sessions payload&quot;
+                </span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
         };
@@ -4679,7 +4709,7 @@
             <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>session) {
                 <span class="prelude-val">Ok</span>(json) =&gt; json,
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize session: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to serialize session&quot;</span>);
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
             };
@@ -4749,7 +4779,7 @@
             <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(session) =&gt; session,
                 <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store user report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to store user report&quot;</span>);
                     <span class="kw">return </span>ItemAction::DropSilently;
                 }
             };
@@ -4757,7 +4787,10 @@
             <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>report) {
                 <span class="prelude-val">Ok</span>(json) =&gt; json,
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize user report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;failed to serialize user report&quot;
+                    </span>);
                     <span class="kw">return </span>ItemAction::DropSilently;
                 }
             };
@@ -4840,7 +4873,9 @@
                         timestamp.get_or_insert(ts);
                     }
                 }
-                <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;invalid client report received: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err)),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::trace!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid client report received&quot;</span>)
+                }
             }
             ItemAction::DropSilently
         });
@@ -4889,11 +4924,7 @@
             <span class="kw">let </span>outcome = <span class="kw">match </span>outcome_from_parts(outcome_type, <span class="kw-2">&amp;</span>reason) {
                 <span class="prelude-val">Ok</span>(outcome) =&gt; outcome,
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">relay_log::trace!</span>(
-                        <span class="string">&quot;Invalid outcome_type / reason: ({:?}, {})&quot;</span>,
-                        outcome_type,
-                        reason
-                    );
+                    <span class="macro">relay_log::trace!</span>(<span class="question-mark">?</span>outcome_type, reason, <span class="string">&quot;invalid outcome combination&quot;</span>);
                     <span class="kw">continue</span>;
                 }
             };
@@ -4941,7 +4972,10 @@
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="comment">// TODO: Track an outcome.
-                    </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped invalid monitor check-in: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    </span><span class="macro">relay_log::debug!</span>(
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;dropped invalid monitor check-in&quot;
+                    </span>);
                     ItemAction::DropSilently
                 }
             }
@@ -5047,9 +5081,9 @@
 
                         <span class="kw">match </span>err {
                             relay_profiling::ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; {
-                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                                <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>);
                             }
-                            <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, err),
+                            <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>),
                         };
                         ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -5098,34 +5132,22 @@
                             item.set_payload(ContentType::Json, json);
                             ItemAction::Keep
                         }
-                        <span class="prelude-val">Err</span>(e) =&gt; {
+                        <span class="prelude-val">Err</span>(error) =&gt; {
                             <span class="macro">relay_log::error!</span>(
-                                <span class="string">&quot;replay-event: failed to serialize replay with message {}&quot;</span>,
-                                LogError(<span class="kw-2">&amp;</span>e)
-                            );
+                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                                <span class="string">&quot;failed to serialize replay&quot;
+                            </span>);
                             ItemAction::Keep
                         }
                     },
-                    <span class="prelude-val">Err</span>(e) =&gt; {
-                        <span class="kw">let </span>discard_reason = <span class="kw">match </span>e {
-                            ReplayError::NoContent =&gt; {
-                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: no data found&quot;</span>);
-                                DiscardReason::InvalidReplayEventNoPayload
-                            }
-                            ReplayError::CouldNotScrub(e) =&gt; {
-                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: PII scrub failure {}&quot;</span>, e);
-                                DiscardReason::InvalidReplayEventPii
-                            }
-                            ReplayError::CouldNotParse(e) =&gt; {
-                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e.to_string());
-                                DiscardReason::InvalidReplayEvent
-                            }
-                            ReplayError::InvalidPayload(e) =&gt; {
-                                <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay-event: {}&quot;</span>, e);
-                                DiscardReason::InvalidReplayEvent
-                            }
-                        };
-                        ItemAction::Drop(Outcome::Invalid(discard_reason))
+                    <span class="prelude-val">Err</span>(error) =&gt; {
+                        <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid replay event&quot;</span>);
+                        ItemAction::Drop(Outcome::Invalid(<span class="kw">match </span>error {
+                            ReplayError::NoContent =&gt; DiscardReason::InvalidReplayEventNoPayload,
+                            ReplayError::CouldNotScrub(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEventPii,
+                            ReplayError::CouldNotParse(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
+                            ReplayError::InvalidPayload(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
+                        }))
                     }
                 }
             }
@@ -5589,7 +5611,10 @@
             sample_rates = item.take_sample_rates();
             <span class="self">self</span>.event_from_security_report(item, envelope.meta())
                 .map_err(|error| {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract security report: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;failed to extract security report&quot;
+                    </span>);
                     error
                 })<span class="question-mark">?
         </span>} <span class="kw">else if </span>attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
@@ -6062,7 +6087,10 @@
                             timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                             status = <span class="string">&quot;error&quot;
                         </span>);
-                        <span class="macro">relay_log::warn!</span>(<span class="string">&quot;failed to scrub minidump: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>scrub_error));
+                        <span class="macro">relay_log::warn!</span>(
+                            error = <span class="kw-2">&amp;</span>scrub_error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">&quot;failed to scrub minidump&quot;</span>,
+                        );
                         <span class="macro">metric!</span>(timer(RelayTimers::AttachmentScrubbing), {
                             processor.scrub_attachment(filename, <span class="kw-2">&amp;mut </span>payload);
                         })
@@ -6428,10 +6456,11 @@
                 <span class="comment">// Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we &quot;expect&quot; errors and log them as debug level.
                 </span><span class="kw">if </span>error.is_unexpected() {
-                    relay_log::with_scope(
-                        |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, project_key),
-                        || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error processing envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error)),
-                    );
+                    <span class="macro">relay_log::error!</span>(
+                        tags.project_key = %project_key,
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                        <span class="string">&quot;error processing envelope&quot;
+                    </span>);
                 }
             }
         }
@@ -6475,7 +6504,10 @@
                             .send(MergeBuckets::new(public_key, buckets));
                     }
                     <span class="prelude-val">Err</span>(error) =&gt; {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                        <span class="macro">relay_log::debug!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">&quot;failed to parse metric bucket&quot;</span>,
+                        );
                         <span class="macro">metric!</span>(counter(RelayCounters::MetricBucketsParsingFailed) += <span class="number">1</span>);
                     }
                 }
@@ -6601,7 +6633,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>thread_count = <span class="self">self</span>.config.cpu_concurrency();
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {} envelope processing workers&quot;</span>, thread_count);
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {thread_count} envelope processing workers&quot;</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>service = Arc::new(<span class="self">self</span>);
