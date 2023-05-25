@@ -32,16 +32,6 @@ pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
 }
 
 /// A wrapper around an error that prints its causes.
-///
-/// # Example
-///
-/// ```
-/// use relay_log::LogError;
-///
-/// if let Err(error) = std::env::var("FOO") {
-///     eprintln!("env failed: {}", LogError(&error));
-/// }
-/// ```
 struct LogError<'a, E: Error + ?Sized>(pub &'a E);
 
 impl<'a, E: Error + ?Sized> fmt::Display for LogError<'a, E> {

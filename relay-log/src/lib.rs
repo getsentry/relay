@@ -44,34 +44,42 @@
 //! ## Examples
 //!
 //! ```
-//! relay_log::info!("startup complete");
+//! # let startup_time = std::time::Duration::ZERO;
+//! relay_log::info!(duration = ?startup_time, "startup complete");
 //! ```
 //!
 //! # Error Reporting
 //!
-//! `sentry` is used for error reporting of all messages logged with an error level. To add custom
-//! scope information, use [`configure_scope`] or [`with_scope`].
+//! `sentry` is used for error reporting of all messages logged with an ERROR level. To add custom
+//! information, add fields with the `tags.` prefix.
 //!
-//! ## Scopes
+//! ## Tags and Fields
 //!
 //! ```
-//! relay_log::with_scope(|scope| scope.set_tag("custom", "value"), || {
-//!     relay_log::error!("this message has a custom tag");
-//! });
+//! relay_log::error!(
+//!     tags.custom = "value",            // will become a tag in Sentry
+//!     field = "value",                  // will become a context field
+//!     "this message has a custom tag",
+//! );
 //! ```
 //!
 //! ## Logging Error Types
 //!
 //! To log [errors](std::error::Error) to both Sentry and the error stream, use [`error!`] and
-//! assign a reference to the error as `error` field. This formats the error with all its causes,
+//! assign a reference to the error as `error` field. This formats the error with all its sources,
 //! and ensures the format is suitable for error reporting to Sentry.
 //!
 //! ```
-//! use std::io::{Error, ErrorKind};
+//! use std::error::Error;
+//! use std::io;
 //!
-//! let custom_error = Error::new(ErrorKind::Other, "oh no!");
-//! relay_log::error!(error = &error as &dyn std::error::Error, "operation failed");
+//! let custom_error = io::Error::new(io::ErrorKind::Other, "oh no!");
+//! relay_log::error!(error = &custom_error as &dyn Error, "operation failed");
 //! ```
+//!
+//! Alternatively, higher level self-explanatory errors can be passed without an additional message.
+//! They are displayed in the same way in log output, but in Sentry they will display with the error
+//! type as primary title.
 //!
 //! ## Capturing without Logging
 //!
