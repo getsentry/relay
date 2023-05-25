@@ -7614,7 +7614,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/nothing&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false&quot;,
         ]
         &quot;###</span>);
     }
@@ -7624,7 +7624,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/denver&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false&quot;,
         ]
         &quot;###</span>);
     }
@@ -7634,7 +7634,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/something/12345&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false&quot;,
         ]
         &quot;###</span>);
     }
@@ -7644,7 +7644,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Url);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false&quot;,
         ]
         &quot;###</span>);
     }
@@ -7654,7 +7654,7 @@
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Route);
         <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route&quot;,
+            &quot;event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false&quot;,
         ]
         &quot;###</span>);
     }
