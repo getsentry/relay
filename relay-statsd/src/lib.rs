@@ -66,7 +66,6 @@ use cadence::{
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
-use relay_log::LogError;
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
@@ -113,9 +112,9 @@ impl MetricsClient {
 
         if let Err(error) = metric.try_send() {
             relay_log::error!(
-                "Error sending a metric: {}, maximum capacity: {}",
-                LogError(&error),
-                METRICS_MAX_QUEUE_SIZE
+                error = &error as &dyn std::error::Error,
+                maximum_capacity = METRICS_MAX_QUEUE_SIZE,
+                "Error sending a metric",
             );
         }
     }
@@ -200,8 +199,7 @@ pub fn init<A: ToSocketAddrs>(
     // Normalize sample_rate
     let sample_rate = sample_rate.clamp(0., 1.);
     relay_log::debug!(
-        "metrics sample rate is set to {}{}",
-        sample_rate,
+        "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
             ", no metrics will be reported"
         } else {

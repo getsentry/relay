@@ -908,12 +908,12 @@ mod tests {
 
         assert_text_rule!(
             rule = "@iban";
-            input = &format!("some iban: {}!", valid_norwegian_iban);
+            input = &format!("some iban: {valid_norwegian_iban}!");
             output = "some iban: [iban]!";
             remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
         );
 
-        let valid_iban_within_word = format!("foo{}bar", valid_norwegian_iban);
+        let valid_iban_within_word = format!("foo{valid_norwegian_iban}bar");
         assert_rule_not_applied!(
             rule = "@iban";
             input = &valid_iban_within_word;
@@ -926,7 +926,7 @@ mod tests {
 
         assert_text_rule!(
             rule = "@iban";
-            input = &format!("some iban: {}!", valid_norwegian_iban);
+            input = &format!("some iban: {valid_norwegian_iban}!");
             output = "some iban: [iban]!";
             remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
         );
@@ -939,14 +939,14 @@ mod tests {
         // Since norway has the shortest iban, it won't recognize an iban shorter than that.
         assert_rule_not_applied!(
             rule = "@iban";
-            input = &format!("some iban: {}!", invalid_norwegian_iban);
+            input = &format!("some iban: {invalid_norwegian_iban}!");
         );
 
         let mut valid_russian_iban = "RU0204452560040702810412345678901".to_string();
 
         assert_text_rule!(
             rule = "@iban";
-            input = &format!("some iban: {}!", valid_russian_iban);
+            input = &format!("some iban: {valid_russian_iban}!");
             output = "some iban: [iban]!";
             remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
         );
@@ -959,7 +959,7 @@ mod tests {
         // Since russia has the longest iban, it won't recognize an iban longer than that.
         assert_rule_not_applied!(
             rule = "@iban";
-            input = &format!("some iban: {}!", invalid_russian_iban);
+            input = &format!("some iban: {invalid_russian_iban}!");
         );
 
         // Don't apply if it doesnt start with two uppercase letters.
@@ -1057,7 +1057,7 @@ mod tests {
         for iban_code in valid_iban_codes {
             assert_text_rule!(
                 rule = "@iban";
-                input = &format!("some iban: {}!", iban_code);
+                input = &format!("some iban: {iban_code}!");
                 output = "some iban: [iban]!";
                 remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
             );

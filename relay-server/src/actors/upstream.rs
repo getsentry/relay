@@ -14,7 +14,6 @@ use std::sync::Arc;
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
-use relay_log::LogError;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -1077,8 +1076,8 @@ impl AuthMonitor {
         credentials: &Credentials,
     ) -> Result<(), UpstreamRequestError> {
         relay_log::info!(
-            "registering with upstream ({})",
-            self.config.upstream_descriptor()
+            descriptor = %self.config.upstream_descriptor(),
+            "registering with upstream"
         );
 
         self.send_state(if self.state.is_authenticated() {
@@ -1089,7 +1088,7 @@ impl AuthMonitor {
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
         let challenge = self.client.send_query(request).await?;
-        relay_log::debug!("got register challenge (token = {})", challenge.token());
+        relay_log::debug!(token = challenge.token(), "got register challenge");
 
         let response = challenge.into_response();
         relay_log::debug!("sending register challenge response");
@@ -1134,7 +1133,10 @@ impl AuthMonitor {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!("authentication encountered error: {}", LogError(&err));
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "authentication encountered error"
+                    );
 
                     // ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.
@@ -1239,10 +1241,7 @@ impl ConnectionMonitor {
 
         loop {
             let next_backoff = backoff.next_backoff();
-            relay_log::warn!(
-                "Network outage, scheduling another check in {:?}",
-                next_backoff
-            );
+            relay_log::warn!("network outage, scheduling another check in {next_backoff:?}");
 
             tokio::time::sleep(next_backoff).await;
             match client.send(&mut GetHealthCheck).await {

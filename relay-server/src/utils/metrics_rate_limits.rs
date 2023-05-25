@@ -37,7 +37,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 let mri = match MetricResourceIdentifier::parse(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
-                        relay_log::error!("Invalid MRI: {}", metric.name());
+                        relay_log::error!("invalid MRI: {}", metric.name());
                         return None;
                     }
                 };

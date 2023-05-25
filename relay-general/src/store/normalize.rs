@@ -284,8 +284,7 @@ fn remove_invalid_measurements(
 
         if !is_valid_metric_name(name) {
             meta.add_error(Error::invalid(format!(
-                "Metric name contains invalid characters: \"{}\"",
-                name
+                "Metric name contains invalid characters: \"{name}\""
             )));
             removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
             return false;
@@ -299,10 +298,8 @@ fn remove_invalid_measurements(
 
             if name.len() > max_name_len {
                 meta.add_error(Error::invalid(format!(
-                    "Metric name too long {}/{}: \"{}\"",
+                    "Metric name too long {}/{max_name_len}: \"{name}\"",
                     name.len(),
-                    max_name_len,
-                    name
                 )));
                 removed_measurements
                     .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
@@ -326,7 +323,7 @@ fn remove_invalid_measurements(
             return true;
         }
 
-        meta.add_error(Error::invalid(format!("Too many measurements: {}", name)));
+        meta.add_error(Error::invalid(format!("Too many measurements: {name}")));
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false

@@ -46,7 +46,7 @@ impl<T: Send + 'static> GarbageDisposal<T> {
         self.tx
             .send(object)
             .map_err(|e| {
-                relay_log::error!("Failed to send object to garbage disposal thread, drop here");
+                relay_log::error!("failed to send object to garbage disposal thread, drop here");
                 drop(e.0);
             })
             .ok();

@@ -738,7 +738,7 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
         .join(".");
 
     if let Some(port) = port {
-        replaced = format!("{}:{}", replaced, port);
+        replaced = format!("{replaced}:{port}");
     }
     Some(replaced)
 }

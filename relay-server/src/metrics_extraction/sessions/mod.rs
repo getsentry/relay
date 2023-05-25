@@ -33,7 +33,10 @@ pub fn extract_session_metrics<T: SessionLike>(
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
         None => {
-            relay_log::error!("invalid session started timestamp: {}", session.started());
+            relay_log::error!(
+                timestamp = %session.started(),
+                "invalid session started timestamp"
+            );
             return;
         }
     };
