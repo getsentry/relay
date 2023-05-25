@@ -3760,7 +3760,7 @@ mod tests {
         let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
         insta::assert_debug_snapshot!(captures, @r###"
         [
-            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized",
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
         "###);
     }
