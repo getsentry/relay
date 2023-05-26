@@ -155,7 +155,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn truncte_basic() {
+    fn truncate_basic() {
         let mut test1 = "test_".repeat(50);
         trim_slug(&mut test1);
         assert_eq!("test_test_test_test_test_test_test_test_test_test_", test1,);
