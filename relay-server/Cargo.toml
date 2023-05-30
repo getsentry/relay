@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.4.0"
+version = "23.5.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -15,7 +15,6 @@ default = []
 processing = [
     "dep:minidump",
     "dep:relay-monitors",
-    "dep:relay-profiling",
     "dep:symbolic-common",
     "dep:symbolic-unreal",
     "dep:zstd",
@@ -28,7 +27,7 @@ processing = [
 
 [dependencies]
 anyhow = "1.0.66"
-axum = { version = "0.6.15", features = ["headers", "macros", "matched-path", "multipart"] }
+axum = { version = "0.6.15", features = ["headers", "macros", "matched-path", "multipart", "tracing"] }
 axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli = "3.3.4"
@@ -56,7 +55,7 @@ relay-kafka = { path = "../relay-kafka", optional = true }
 relay-log = { path = "../relay-log", features = ["sentry"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-monitors = { path = "../relay-monitors", optional = true }
-relay-profiling = { path = "../relay-profiling", optional = true }
+relay-profiling = { path = "../relay-profiling" }
 relay-dynamic-config = { path = "../relay-dynamic-config"}
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
@@ -76,7 +75,6 @@ thiserror = "1.0.38"
 tokio = { version = "1.28.0", features = ["rt-multi-thread", "sync", "macros"] }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.4.0", default-features = false, features = ["catch-panic", "cors", "decompression-br", "decompression-deflate", "decompression-gzip", "set-header", "trace"] }
-tracing = "0.1.37"
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
 

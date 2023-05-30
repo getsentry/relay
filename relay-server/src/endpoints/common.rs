@@ -3,7 +3,6 @@
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use relay_general::protocol::{EventId, EventType};
-use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
@@ -135,7 +134,10 @@ impl IntoResponse for BadStoreRequest {
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
         if response.status().is_server_error() {
-            relay_log::error!("error handling request: {}", LogError(&self));
+            relay_log::error!(
+                error = &self as &dyn std::error::Error,
+                "error handling request"
+            );
         }
 
         response

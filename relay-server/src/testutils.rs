@@ -7,6 +7,7 @@ use relay_sampling::{
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::extractors::RequestMeta;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -90,4 +91,12 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
     envelope.add_item(item3);
 
     envelope
+}
+
+pub fn empty_envelope() -> Box<Envelope> {
+    let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+        .parse()
+        .unwrap();
+
+    Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
 }

@@ -11,7 +11,7 @@ fn main() {
     macro_rules! write_version {
         ($component:literal) => {{
             let value = env::var(concat!("CARGO_PKG_VERSION_", $component)).unwrap();
-            writeln!(f, "pub const VERSION_{}: u8 = {};", $component, value).unwrap();
+            writeln!(f, "pub const VERSION_{}: u8 = {value};", $component).unwrap();
         }};
     }
 

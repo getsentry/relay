@@ -1,12 +1,16 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
+use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
 };
 use relay_general::store;
-use relay_general::types::Annotated;
+use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -55,6 +59,104 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
     Some(method.clone())
+}
+
+/// Extract the browser name from the [`Context::Browser`] context.
+fn extract_browser_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let browser = contexts.get("browser").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
+        return browser_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the OS name from the [`Context::Os`] context.
+fn extract_os_name(event: &Event) -> Option<String> {
+    let contexts = event.contexts.value()?;
+    let os = contexts.get("os").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Os(os_context))) = os {
+        return os_context.name.value().cloned();
+    }
+
+    None
+}
+
+/// Extract the GEO country code from the [`User`] context.
+fn extract_geo_country_code(event: &Event) -> Option<String> {
+    if let Some(user) = event.user.value() {
+        if let Some(geo) = user.geo.value() {
+            return geo.country_code.value().cloned();
+        }
+    }
+
+    None
+}
+
+/// Extract the HTTP status code from the span data.
+fn http_status_code_from_span_data(span: &Span) -> Option<String> {
+    span.data
+        .value()
+        .and_then(|v| v.get("status_code"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+/// Extracts the HTTP status code.
+pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
+    if let Some(spans) = event.spans.value() {
+        for span in spans {
+            if let Some(span_value) = span.value() {
+                // For SDKs which put the HTTP status code into the span data.
+                if let Some(status_code) = http_status_code_from_span_data(span_value) {
+                    return Some(status_code);
+                }
+
+                // For SDKs which put the HTTP status code into the span tags.
+                if let Some(status_code) = span_value
+                    .tags
+                    .value()
+                    .and_then(|tags| tags.get("http.status_code"))
+                {
+                    return status_code.value().map(|v| v.as_str().to_string());
+                }
+            }
+        }
+    }
+
+    // For SDKs which put the HTTP status code into the breadcrumbs data.
+    if let Some(breadcrumbs) = event.breadcrumbs.value() {
+        if let Some(values) = breadcrumbs.values.value() {
+            for breadcrumb in values {
+                // We need only the `http` type.
+                if let Some(crumb) = breadcrumb
+                    .value()
+                    .filter(|bc| bc.ty.as_str() == Some("http"))
+                {
+                    // Try to get the status code om the map.
+                    if let Some(status_code) = crumb.data.value().and_then(|v| v.get("status_code"))
+                    {
+                        return status_code.value().and_then(|v| v.as_str()).map(Into::into);
+                    }
+                }
+            }
+        }
+    }
+
+    // For SDKs which put the HTTP status code in the `Response` context.
+    if let Some(contexts) = event.contexts.value() {
+        let response = contexts.get("response").and_then(Annotated::value);
+        if let Some(ContextInner(Context::Response(response_context))) = response {
+            let status_code = response_context
+                .status_code
+                .value()
+                .map(|code| code.to_string());
+            return status_code;
+        }
+    }
+
+    None
 }
 
 fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
@@ -185,6 +287,22 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(http_method) = extract_http_method(event) {
         tags.insert(CommonTag::HttpMethod, http_method);
+    }
+
+    if let Some(browser_name) = extract_browser_name(event) {
+        tags.insert(CommonTag::BrowserName, browser_name);
+    }
+
+    if let Some(os_name) = extract_os_name(event) {
+        tags.insert(CommonTag::OsName, os_name);
+    }
+
+    if let Some(geo_country_code) = extract_geo_country_code(event) {
+        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    }
+
+    if let Some(status_code) = extract_http_status_code(event) {
+        tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -390,8 +508,6 @@ fn extract_span_metrics(
 ) -> Result<(), ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
 
-    let Some(spans) = event.spans.value() else { return Ok(())};
-
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -430,9 +546,23 @@ fn extract_span_metrics(
         }
     }
 
+    let Some(spans) = event.spans.value_mut() else { return Ok(())};
+
     for annotated_span in spans {
-        if let Some(span) = annotated_span.value() {
+        if let Some(span) = annotated_span.value_mut() {
             let mut span_tags = shared_tags.clone();
+
+            if let Some(scrubbed_description) = span
+                .data
+                .value()
+                .and_then(|data| data.get("description.scrubbed"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    "span.description".to_owned(),
+                    scrubbed_description.to_owned(),
+                );
+            }
 
             if let Some(span_op) = span.op.value() {
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
@@ -472,6 +602,23 @@ fn extract_span_metrics(
                 if let Some(act) = action {
                     span_tags.insert("span.action".to_owned(), act.to_owned());
                 }
+
+                let domain = if span_op == "http.client" {
+                    span.description
+                        .value()
+                        .and_then(|url| domain_from_http_url(url))
+                } else if span_op == "db.sql.query" {
+                    span.description
+                        .value()
+                        .and_then(|query| sql_table_from_query(query))
+                        .map(|s| s.to_owned())
+                } else {
+                    None
+                };
+
+                if let Some(dom) = domain {
+                    span_tags.insert("span.domain".to_owned(), dom.to_owned());
+                }
             }
 
             let system = span
@@ -487,6 +634,18 @@ fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
+            if let Some(status_code) = http_status_code_from_span_data(span) {
+                span_tags.insert("span.status_code".to_owned(), status_code);
+            }
+
+            // Even if we emit metrics, we want this info to be duplicated in every span.
+            span.data.get_or_insert_with(BTreeMap::new).extend(
+                span_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+            );
+
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
@@ -498,6 +657,20 @@ fn extract_span_metrics(
                         span_tags.clone(),
                     ));
                 }
+            }
+
+            if let Some(exclusive_time) = span.exclusive_time.value() {
+                // NOTE(iker): this exclusive time doesn't consider all cases,
+                // such as sub-transactions. We accept these limitations for
+                // now.
+                metrics.push(Metric::new_mri(
+                    MetricNamespace::Transactions,
+                    "span.exclusive_time",
+                    MetricUnit::Duration(DurationUnit::MilliSecond),
+                    MetricValue::Distribution(*exclusive_time),
+                    timestamp,
+                    span_tags.clone(),
+                ));
             }
 
             // The `duration` of a span. This metric also serves as the
@@ -514,6 +687,60 @@ fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)(from|into)(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+
+/// Returns the table in the SQL query, if any.
+///
+/// If multiple tables exist, only the first one is returned.
+fn sql_table_from_query(query: &str) -> Option<&str> {
+    let capture_names: Vec<_> = SQL_TABLE_EXTRACTOR_REGEX
+        .capture_names()
+        .flatten()
+        .collect();
+
+    for captures in SQL_TABLE_EXTRACTOR_REGEX.captures_iter(query) {
+        for name in &capture_names {
+            if let Some(capture) = captures.name(name) {
+                return Some(&query[capture.start()..capture.end()]);
+            }
+        }
+    }
+
+    None
+}
+
+fn domain_from_http_url(url: &str) -> Option<String> {
+    match url.split_once(' ') {
+        Some((_method, url)) => {
+            let domain_port = SchemeDomainPort::from(url);
+            match (domain_port.domain, domain_port.port) {
+                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+    let mut tokens = domain.rsplitn(3, '.');
+    let tld = tokens.next();
+    let domain = tokens.next();
+    let prefix = tokens.next().map(|_| "*");
+
+    let mut replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(".");
+
+    if let Some(port) = port {
+        replaced = format!("{replaced}:{port}");
+    }
+    Some(replaced)
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -616,8 +843,8 @@ mod tests {
         {
             "type": "transaction",
             "platform": "javascript",
-            "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
             "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",
@@ -625,7 +852,10 @@ mod tests {
             "transaction": "mytransaction",
             "transaction_info": {"source": "custom"},
             "user": {
-                "id": "user123"
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
+                }
             },
             "tags": {
                 "fOO": "bar",
@@ -641,6 +871,12 @@ mod tests {
                     "span_id": "bd429c44b67a3eb4",
                     "op": "myop",
                     "status": "ok"
+                },
+                "browser": {
+                    "name": "Chrome"
+                },
+                "os": {
+                    "name": "Windows"
                 }
             },
             "spans": [
@@ -649,9 +885,144 @@ mod tests {
                     "op": "react.mount",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd429c44b67a3eb4",
-                    "start_timestamp": 1597976393.4619668,
-                    "timestamp": 1597976393.4718769,
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO from_date (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
+                    }
+                },
+                {
+                    "description": "http://domain/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 }
             ],
             "request": {
@@ -691,6 +1062,8 @@ mod tests {
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
+                scrub_span_descriptions: true,
+                light_normalize_spans: true,
                 ..Default::default()
             },
         );
@@ -711,6 +1084,8 @@ mod tests {
         )
         .unwrap();
 
+        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -720,10 +1095,14 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -738,11 +1117,15 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
                     "measurement_rating": "meh",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -753,14 +1136,18 @@ mod tests {
             Metric {
                 name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
-                    9.910106,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -775,10 +1162,14 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -793,10 +1184,14 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
+                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
+                    "geo.country_code": "US",
                     "http.method": "POST",
+                    "http.status_code": "200",
+                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "mytransaction",
@@ -818,6 +1213,19 @@ mod tests {
                 },
             },
             Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.op": "react.mount",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
                 name: "d:transactions/span.duration@millisecond",
                 value: Distribution(
                     59000.0,
@@ -826,6 +1234,537 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "*.domain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.domain": "targetdomain.tld:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "POST",
+                    "span.description": "POST http://targetdomain:targetport/api/id/*",
+                    "span.domain": "targetdomain:targetport",
+                    "span.module": "http",
+                    "span.op": "http.client",
+                    "span.status": "ok",
+                    "span.status_code": "200",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "from_date",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "from_date",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "INSERT",
+                    "span.domain": "from_date",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SAVEPOINT %s",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "GET cache:user:*",
+                    "span.module": "cache",
+                    "span.op": "cache.get_item",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "http://domain/static/myscript-*.js",
+                    "span.op": "resource.script",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "http://domain/static/myscript-*.js",
+                    "span.op": "resource.script",
+                    "span.status": "ok",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.description": "http://domain/static/myscript-*.js",
+                    "span.op": "resource.script",
+                    "span.status": "ok",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
                 },

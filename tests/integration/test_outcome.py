@@ -207,22 +207,43 @@ def test_outcomes_two_topics(
     outcomes_consumer.assert_empty()
 
 
-def _send_event(relay, project_id=42, event_type="error", event_id=None):
+def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_id=None):
     """
     Send an event to the given project.
 
     If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
     """
+    trace_id = trace_id or uuid.uuid4().hex
     event_id = event_id or uuid.uuid1().hex
     message_text = "some message {}".format(datetime.now())
-    event_body = {
-        "event_id": event_id,
-        "message": message_text,
-        "extra": {"msg_text": message_text},
-        "type": event_type,
-        "environment": "production",
-        "release": "foo@1.2.3",
-    }
+    if event_type == "error":
+        event_body = {
+            "event_id": event_id,
+            "message": message_text,
+            "extra": {"msg_text": message_text},
+            "type": event_type,
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
+    elif event_type == "transaction":
+        event_body = {
+            "event_id": event_id,
+            "type": "transaction",
+            "transaction": "tr1",
+            "start_timestamp": 1597976392.6542819,
+            "timestamp": 1597976400.6189718,
+            "contexts": {
+                "trace": {
+                    "trace_id": trace_id,
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                }
+            },
+            "spans": [],
+            "extra": {"id": event_id},
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
 
     try:
         relay.send_event(project_id=project_id, payload=event_body)
@@ -283,7 +304,8 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
 
     try:
         mini_sentry.captured_outcomes.get(timeout=0.2)
-        assert False  # we should not be here ( previous call should have failed)
+        # we should not be here ( previous call should have failed)
+        assert False
     except Empty:
         pass  # we do expect not to get anything since we have outcomes disabled
 
@@ -567,6 +589,87 @@ def _get_event_payload(event_type):
         raise Exception("Invalid event type")
 
 
+def _get_profile_payload(metadata_only=True):
+    profile = {
+        "event_id": "41fed0925670468bb0457f61a74688ec",
+        "version": "1",
+        "os": {"name": "iOS", "version": "16.0", "build_number": "19H253"},
+        "device": {
+            "architecture": "arm64e",
+            "is_emulator": False,
+            "locale": "en_US",
+            "manufacturer": "Apple",
+            "model": "iPhone14,3",
+        },
+        "timestamp": "2022-09-01T09:45:00.000Z",
+        "release": "0.1 (199)",
+        "platform": "cocoa",
+        "debug_meta": {
+            "images": [
+                {
+                    "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
+                    "image_addr": "0x000000010258c000",
+                    "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
+                    "type": "macho",
+                    "image_size": 1720320,
+                    "image_vmaddr": "0x0000000100000000",
+                }
+            ]
+        },
+        "transactions": [
+            {
+                "name": "example_ios_movies_sources.MoviesViewController",
+                "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+                "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+                "active_thread_id": "259",
+                "relative_start_ns": "500500",
+                "relative_end_ns": "50500500",
+            }
+        ],
+    }
+    if metadata_only:
+        return profile
+    profile["profile"] = {
+        "samples": [
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "10500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "20500500",
+            },
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "30500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "40500500",
+            },
+        ],
+        "stacks": [[0], [1]],
+        "frames": [
+            {"instruction_addr": "0xa722447ffffffffc"},
+            {"instruction_addr": "0x442e4b81f5031e58"},
+        ],
+        "thread_metadata": {"1": {"priority": 31}, "2": {}},
+        "queue_metadata": {
+            "0x0000000102adc700": {"label": "com.apple.main-thread"},
+            "0x000000016d8fb180": {"label": "com.apple.network.connections"},
+        },
+    }
+    return profile
+
+
 @pytest.mark.parametrize(
     "category,is_outcome_expected", [("session", False), ("transaction", True)]
 )
@@ -633,7 +736,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -668,7 +771,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         },
     )
 
-    _send_event(downstream, event_type="error")
+    _send_event(downstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -687,7 +790,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -800,7 +903,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -824,8 +927,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         },
     )
 
-    _send_event(upstream, event_type="error")
-    _send_event(upstream, event_type="error")
+    _send_event(upstream, event_type="transaction")
+    _send_event(upstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -843,7 +946,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -921,7 +1024,7 @@ def test_graceful_shutdown(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -946,7 +1049,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         },
     )
 
-    _send_event(relay, event_type="error")
+    _send_event(relay, event_type="transaction")
 
     # Give relay some time to handle event
     time.sleep(0.1)
@@ -971,7 +1074,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -1080,7 +1183,8 @@ def test_profile_outcomes(
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
-        2: "pop-relay",  # outcomes from client reports do not have a correct source (known issue)
+        # outcomes from client reports do not have a correct source (known issue)
+        2: "pop-relay",
     }[num_intermediate_relays]
     expected_outcomes = [
         {
@@ -1130,13 +1234,86 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_profile_outcomes_invalid(
+def test_profile_outcomes_metadata_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
 ):
     """
-    Tests that Relay reports correct outcomes for invalid profiles as `ProfileIndexed`.
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 6,  # Profile
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+
+def test_profile_outcomes_data_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    """
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
 
@@ -1174,7 +1351,12 @@ def test_profile_outcomes_invalid(
                 type="transaction",
             )
         )
-        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(_get_profile_payload()).encode()),
+                type="profile",
+            )
+        )
         return envelope
 
     envelope = make_envelope()
@@ -1185,19 +1367,19 @@ def test_profile_outcomes_invalid(
 
     expected_outcomes = [
         {
-            "category": 6,  # Profile
+            "category": 6,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
+            "outcome": 0,
             "project_id": 42,
             "quantity": 1,
             "source": "processing-relay",
         },
         {
-            "category": 11,  # ProfileIndexed
+            "category": 11,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": 3,
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",

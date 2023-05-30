@@ -25,7 +25,6 @@
 //! }
 //! ```
 
-use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
 
 use crate::protocol::{
@@ -35,29 +34,16 @@ use crate::store::{self, user_agent};
 use crate::types::{Annotated, Array};
 use crate::user_agent::RawUserAgentInfo;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ReplayError {
-    CouldNotParse(serde_json::Error),
+    #[error("invalid json")]
+    CouldNotParse(#[from] serde_json::Error),
+    #[error("no data found")]
     NoContent,
+    #[error("invalid payload {0}")]
     InvalidPayload(String),
+    #[error("failed to scrub PII: {0}")]
     CouldNotScrub(String),
-}
-
-impl Display for ReplayError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReplayError::CouldNotParse(e) => write!(f, "{e}"),
-            ReplayError::NoContent => write!(f, "No data found.",),
-            ReplayError::InvalidPayload(e) => write!(f, "{e}"),
-            ReplayError::CouldNotScrub(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl From<serde_json::Error> for ReplayError {
-    fn from(err: serde_json::Error) -> Self {
-        ReplayError::CouldNotParse(err)
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -156,6 +142,7 @@ pub struct Replay {
     pub replay_start_timestamp: Annotated<Timestamp>,
 
     /// A list of URLs visted during the lifetime of the segment.
+    #[metastructure(pii = "true", bag_size = "large")]
     pub urls: Annotated<Array<String>>,
 
     /// A list of error-ids discovered during the lifetime of the segment.
@@ -553,6 +540,17 @@ mod tests {
             .get("credit-card");
 
         assert_eq!(maybe_credit_card, Some("[Filtered]"));
+
+        // Assert URLs field scrubs array items.
+        let maybe_url_0 = replay.value().unwrap().urls.value().unwrap().get(0);
+        let maybe_url_1 = replay.value().unwrap().urls.value().unwrap().get(1);
+        let maybe_url_2 = replay.value().unwrap().urls.value().unwrap().get(2);
+        assert_eq!(
+            maybe_url_0.map(|i| i.as_str()),
+            Some(Some("sentry.io?ssn=[Filtered]"))
+        );
+        assert_eq!(maybe_url_1.map(|i| i.as_str()), Some(Some("[Filtered]")));
+        assert_eq!(maybe_url_2.map(|i| i.as_str()), Some(Some("[Filtered]")));
     }
 
     #[test]

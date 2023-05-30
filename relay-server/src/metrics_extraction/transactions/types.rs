@@ -150,6 +150,10 @@ pub enum CommonTag {
     TransactionStatus,
     TransactionOp,
     HttpMethod,
+    HttpStatusCode,
+    BrowserName,
+    OsName,
+    GeoCountryCode,
     Custom(String),
 }
 
@@ -164,6 +168,10 @@ impl Display for CommonTag {
             CommonTag::TransactionStatus => "transaction.status",
             CommonTag::TransactionOp => "transaction.op",
             CommonTag::HttpMethod => "http.method",
+            CommonTag::HttpStatusCode => "http.status_code",
+            CommonTag::BrowserName => "browser.name",
+            CommonTag::OsName => "os.name",
+            CommonTag::GeoCountryCode => "geo.country_code",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")

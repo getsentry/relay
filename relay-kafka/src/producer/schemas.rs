@@ -64,7 +64,7 @@ impl Validator {
         if let Err(e) = schema.validate(&message_value) {
             let mut result = String::new();
             for error in e {
-                writeln!(result, "{}", error).unwrap();
+                writeln!(result, "{error}").unwrap();
             }
 
             return Err(SchemaError::Message(result));

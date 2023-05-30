@@ -28,7 +28,7 @@ impl MetricInput {
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
             let mut metric = self.metric.clone();
             metric.name = metric_name;
-            let key = ProjectKey::parse(&format!("{:0width$x}", key_id, width = 32)).unwrap();
+            let key = ProjectKey::parse(&format!("{key_id:0width$x}", width = 32)).unwrap();
             rv.push((key, metric));
         }
 

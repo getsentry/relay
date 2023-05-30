@@ -69,10 +69,8 @@ mod tests {
             assert_eq!(
                 actual,
                 expected,
-                "Release {} should have {} been filtered by {:?}",
-                release,
+                "Release {release} should have {} been filtered by {blocked_releases:?}",
                 if expected { "" } else { "not" },
-                blocked_releases
             )
         }
     }
