@@ -1394,11 +1394,13 @@ def test_profile_outcomes_data_invalid(
     assert outcomes == expected_outcomes, outcomes
 
 
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 @pytest.mark.parametrize("quota_category", ["transaction", "profile"])
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
+    metrics_already_extracted,
     quota_category,
 ):
     """
@@ -1448,7 +1450,7 @@ def test_profile_outcomes_rate_limited(
         Item(
             payload=PayloadRef(bytes=json.dumps(payload).encode()),
             type="transaction",
-            headers={"metrics_extracted": True},
+            headers={"metrics_extracted": metrics_already_extracted},
         )
     )
     envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
@@ -1474,7 +1476,7 @@ def test_profile_outcomes_rate_limited(
 
     expected_outcomes += [
         {
-            "category": 6,
+            "category": 11 if metrics_already_extracted else 6,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,  # RateLimited

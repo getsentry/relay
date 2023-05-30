@@ -894,6 +894,8 @@ impl OutcomeBroker {
 /// Returns true if the outcome represents profiles dropped by dynamic sampling.
 #[cfg(feature = "processing")]
 fn is_sampled_profile(outcome: &TrackRawOutcome) -> bool {
+    // Older external Relays will still emit a `Profile` outcome.
+    // Newer Relays will emit a `ProfileIndexed` outcome.
     (outcome.category == Some(DataCategory::Profile as u8)
         || outcome.category == Some(DataCategory::ProfileIndexed as u8))
         && outcome.outcome == OutcomeId::FILTERED
