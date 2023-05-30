@@ -189,7 +189,7 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
         assert request_count == 1 + RETRIES
         assert {str(e) for _, e in mini_sentry.test_failures} == {
-            "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error\n  caused by: no error details",
+            "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error: no error details",
         }
     finally:
         mini_sentry.test_failures.clear()

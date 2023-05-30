@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
-use relay_log::LogError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
@@ -73,8 +72,11 @@ impl LazyPattern {
                     .build()
                     .map_err(PiiConfigError::RegexError);
 
-                if let Err(ref err) = regex_result {
-                    relay_log::error!("Unable to compile pattern into regex: {}", LogError(err));
+                if let Err(ref error) = regex_result {
+                    relay_log::error!(
+                        error = error as &dyn std::error::Error,
+                        "unable to compile pattern into regex"
+                    );
                 }
                 regex_result
             })

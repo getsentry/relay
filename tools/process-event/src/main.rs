@@ -79,15 +79,15 @@ impl Cli {
         if let Some(pii_config) = self.load_pii_config()? {
             let mut processor = PiiProcessor::new(pii_config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root())
-                .map_err(|e| format_err!("{}", e))?;
+                .map_err(|e| format_err!("{e}"))?;
         }
 
         if self.store {
             light_normalize_event(&mut event, LightNormalizationConfig::default())
-                .map_err(|e| format_err!("{}", e))?;
+                .map_err(|e| format_err!("{e}"))?;
             let mut processor = StoreProcessor::new(StoreConfig::default(), None);
             process_value(&mut event, &mut processor, ProcessingState::root())
-                .map_err(|e| format_err!("{}", e))
+                .map_err(|e| format_err!("{e}"))
                 .with_context(|| "failed to store process event")?;
         }
 

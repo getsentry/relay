@@ -48,8 +48,8 @@
 //!
 //! let parsed = unsafe { parse_number() };
 //! match with_last_error(|e| e.to_string()) {
-//!     Some(error) => println!("errored with: {}", error),
-//!     None => println!("result: {}", parsed),
+//!     Some(error) => println!("errored with: {error}"),
+//!     None => println!("result: {parsed}"),
 //! }
 //! ```
 //!
@@ -68,7 +68,7 @@
 //! unsafe { fail() };
 //!
 //! if let Some(description) = with_last_error(|e| e.to_string()) {
-//!     println!("{}", description);
+//!     println!("{description}");
 //! }
 //! ```
 //!
@@ -168,8 +168,8 @@ pub mod __internal {
 ///
 /// let parsed = unsafe { run_ffi() };
 /// match with_last_error(|e| e.to_string()) {
-///     Some(error) => println!("errored with: {}", error),
-///     None => println!("result: {}", parsed),
+///     Some(error) => println!("errored with: {error}"),
+///     None => println!("result: {parsed}"),
 /// }
 /// ```
 pub fn with_last_error<R, F>(f: F) -> Option<R>
@@ -195,8 +195,8 @@ where
 ///
 /// let parsed = unsafe { run_ffi() };
 /// match take_last_error() {
-///     Some(error) => println!("errored with: {}", error),
-///     None => println!("result: {}", parsed),
+///     Some(error) => println!("errored with: {error}"),
+///     None => println!("result: {parsed}"),
 /// }
 /// ```
 pub fn take_last_error() -> Option<anyhow::Error> {

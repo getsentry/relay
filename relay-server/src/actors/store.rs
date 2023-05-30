@@ -11,7 +11,6 @@ use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -199,6 +198,7 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
+                    client,
                     retention,
                     item,
                 )?,
@@ -387,7 +387,10 @@ impl StoreService {
                 let mut session = match SessionUpdate::parse(&item.payload()) {
                     Ok(session) => session,
                     Err(error) => {
-                        relay_log::error!("failed to store session: {}", LogError(&error));
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to store session"
+                        );
                         return Ok(());
                     }
                 };
@@ -539,7 +542,7 @@ impl StoreService {
                         scope.set_extra("metric_message.name", message.name.into());
                     },
                     || {
-                        relay_log::error!("Store service dropping unknown metric usecase");
+                        relay_log::error!("store service dropping unknown metric usecase");
                     },
                 );
                 return Ok(());
@@ -783,6 +786,7 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
+        client: Option<&str>,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
@@ -790,6 +794,7 @@ impl StoreService {
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            sdk: client.map(str::to_owned),
             payload: item.payload(),
         });
 
@@ -1052,6 +1057,8 @@ struct CheckInKafkaMessage {
     payload: Bytes,
     /// Time at which the event was received by Relay.
     start_time: u64,
+    /// The SDK client which produced the event.
+    sdk: Option<String>,
     /// The project id for the current event.
     project_id: ProjectId,
     // Number of days to retain.

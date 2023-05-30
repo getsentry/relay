@@ -81,7 +81,7 @@ impl Cli {
         let mut data = self.load_minidump()?;
         let changed = processor
             .scrub_minidump(self.minidump_name(), &mut data)
-            .map_err(|e| format_err!("{}", e))?; // does not implement std::error::Error
+            .map_err(|e| format_err!("{e}"))?; // does not implement std::error::Error
 
         if changed {
             self.write_output(&data)?;
