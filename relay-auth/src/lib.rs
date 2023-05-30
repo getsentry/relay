@@ -850,7 +850,7 @@ mod tests {
         println!("RESPONSE = b'{serialized_response}'");
         println!("RESPONSE_SIG = \"{response_sig}\"");
 
-        println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
+        println!("RELAY_VERSION = \"{LATEST_VERSION}\"");
     }
 
     /// Test we can still deserialize an old response that does not contain the version

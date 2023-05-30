@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
+use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,8 +22,6 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-#[cfg(feature = "processing")]
-use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
@@ -548,11 +547,11 @@ impl HttpOutcomeProducer {
         self.flush_handle.reset();
 
         if self.unsent_outcomes.is_empty() {
-            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send");
             return;
         } else {
             relay_log::trace!(
-                "sending outcome batch of size:{}",
+                "sending outcome batch of size {}",
                 self.unsent_outcomes.len()
             );
         }
@@ -565,16 +564,16 @@ impl HttpOutcomeProducer {
 
         tokio::spawn(async move {
             match upstream_relay.send(SendQuery(request)).await {
-                Ok(_) => relay_log::trace!("outcome batch sent."),
+                Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
-                    relay_log::error!("outcome batch sending failed with: {}", error)
+                    relay_log::error!(error = &error as &dyn Error, "outcome batch sending failed")
                 }
             }
         });
     }
 
     fn handle_message(&mut self, message: TrackRawOutcome) {
-        relay_log::trace!("Batching outcome");
+        relay_log::trace!("batching outcome");
         self.unsent_outcomes.push(message);
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
@@ -625,7 +624,7 @@ impl ClientReportOutcomeProducer {
     }
 
     fn flush(&mut self) {
-        relay_log::trace!("Flushing client reports");
+        relay_log::trace!("flushing client reports");
         self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
@@ -803,7 +802,7 @@ impl OutcomeBroker {
         organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
-        relay_log::trace!("Tracking kafka outcome: {:?}", message);
+        relay_log::trace!("Tracking kafka outcome: {message:?}");
 
         send_outcome_metric(&message, "kafka");
 
@@ -858,7 +857,7 @@ impl OutcomeBroker {
                 if let Err(error) =
                     self.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::ClientReport(producer) => {
@@ -879,7 +878,7 @@ impl OutcomeBroker {
             Self::Kafka(kafka_producer) => {
                 let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::Http(producer) => {

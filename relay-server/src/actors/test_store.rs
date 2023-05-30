@@ -103,7 +103,7 @@ impl TestStoreService {
                     self.captures.insert(event_id, Ok(envelope));
                 }
                 (Some(event_id), Err(message)) => {
-                    relay_log::debug!("capturing failed event {}", event_id);
+                    relay_log::debug!(%event_id, "capturing failed event");
                     self.captures.insert(event_id, Err(message));
                 }
 

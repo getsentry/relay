@@ -13,7 +13,7 @@ impl Processor for SchemaProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         value_trim_whitespace(value, meta, state);
-        verify_value_nonempty(value, meta, state)?;
+        verify_value_nonempty_string(value, meta, state)?;
         verify_value_characters(value, meta, state)?;
         Ok(())
     }
@@ -84,6 +84,22 @@ where
     }
 }
 
+fn verify_value_nonempty_string<T>(
+    value: &mut T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty_string());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
 fn verify_value_characters(
     value: &mut str,
     meta: &mut Meta,
@@ -113,7 +129,7 @@ mod tests {
     };
     use crate::types::{Annotated, Array, Error, ErrorKind, Object};
 
-    fn assert_nonempty_base<T>()
+    fn assert_nonempty_base<T>(expected_error: &str)
     where
         T: Default + PartialEq + crate::processor::ProcessValue,
     {
@@ -133,7 +149,7 @@ mod tests {
         assert_eq!(
             wrapper,
             Annotated::new(Foo {
-                bar: Annotated::from_error(Error::expected("a non-empty value"), None),
+                bar: Annotated::from_error(Error::expected(expected_error), None),
                 bar2: Annotated::new(T::default())
             })
         );
@@ -141,17 +157,17 @@ mod tests {
 
     #[test]
     fn test_nonempty_string() {
-        assert_nonempty_base::<String>();
+        assert_nonempty_base::<String>("a non-empty string");
     }
 
     #[test]
     fn test_nonempty_array() {
-        assert_nonempty_base::<Array<u64>>();
+        assert_nonempty_base::<Array<u64>>("a non-empty value");
     }
 
     #[test]
     fn test_nonempty_object() {
-        assert_nonempty_base::<Object<u64>>();
+        assert_nonempty_base::<Object<u64>>("a non-empty value");
     }
 
     #[test]

@@ -51,12 +51,16 @@ where
     };
 
     let new_source = inner.get_transaction_source();
+    let is_404 = inner
+        .get_tag_value("http.status_code")
+        .map_or(false, |s| s == "404");
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,
         source_in = old_source.as_str(),
         changes = changes,
         source_out = new_source.as_str(),
+        is_404 = if is_404 { "true" } else { "false" },
     );
 
     res
