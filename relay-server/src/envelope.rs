@@ -550,11 +550,7 @@ impl Item {
             ItemType::Metrics | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            ItemType::Profile => Some(if indexed {
-                DataCategory::ProfileIndexed
-            } else {
-                DataCategory::Profile
-            }),
+            ItemType::Profile => Some(DataCategory::Profile),
             ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),

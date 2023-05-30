@@ -4,18 +4,10 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from queue import Empty
 import signal
-from pathlib import Path
 
 import requests
 import pytest
 import time
-
-from sentry_relay import DataCategory
-from sentry_sdk.envelope import Envelope, Item, PayloadRef
-
-
-RELAY_ROOT = Path(__file__).parent.parent.parent
-
 
 HOUR_MILLISEC = 1000 * 3600
 
