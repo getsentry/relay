@@ -37,14 +37,19 @@ pub struct TransactionsProcessor<'r> {
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(name_config: TransactionNameConfig<'r>, scrub_span_descriptions: bool) -> Self {
-        let mut span_desc_rules = Vec::new();
+    pub fn new(
+        name_config: TransactionNameConfig<'r>,
+        scrub_span_descriptions: bool,
+        span_description_rules: Option<&Vec<SpanDescriptionRule>>,
+    ) -> Self {
+        let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
+            span_desc_rules.clone()
+        } else {
+            Vec::new()
+        };
+
         if scrub_span_descriptions && !name_config.rules.is_empty() {
-            span_desc_rules = name_config
-                .rules
-                .iter()
-                .map(SpanDescriptionRule::from)
-                .collect::<Vec<_>>();
+            span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
         }
 
         Self {
@@ -617,7 +622,9 @@ mod tests {
     use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
-    use crate::store::{LazyGlob, RedactionRule, RuleScope};
+    use crate::store::{
+        LazyGlob, RedactionRule, SpanDescriptionRuleScope, TransactionNameRuleScope,
+    };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
@@ -1607,7 +1614,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1691,7 +1698,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1725,7 +1732,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1807,6 +1814,7 @@ mod tests {
                     ready: true,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1891,6 +1899,7 @@ mod tests {
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1956,6 +1965,7 @@ mod tests {
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2055,6 +2065,7 @@ mod tests {
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2125,6 +2136,7 @@ mod tests {
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2219,7 +2231,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2349,12 +2361,13 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
+                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2396,12 +2409,13 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
+                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
                     ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2433,7 +2447,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2465,7 +2479,7 @@ mod tests {
 
                 process_value(
                     &mut span,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), true),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), true, None),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2877,12 +2891,119 @@ mod tests {
                         // Pattern with the same format as transaction name rules.
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
+                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
                     ..Default::default()
                 },
                 true,
+                None,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_scrub_identifiers_with_span_description_rules_and_transaction_name_rules() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/transaction-name/hi",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                },
+                "spans": [
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok",
+                        "data": {
+                            "description.scrubbed": "POST http://example.com/remains/to-scrub/remains-too/*"
+                        }
+                    },
+                    {
+                        "description": "GET http://example.com/another/url/is/intact",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "GET http://example.com/applies-from-transaction-name-rules/to-scrub/untouched/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/not-scrubbed-for-different-op/remains-too",
+                        "op": "db.sql.query",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb452",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        // Pattern with the same format as transaction name rules.
+                        pattern: LazyGlob::new(
+                            "/applies-from-transaction-name-rules/*/untouched/**".to_owned(),
+                        ),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: TransactionNameRuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                    ..Default::default()
+                },
+                true,
+                Some(&Vec::from([SpanDescriptionRule {
+                    pattern: LazyGlob::new("**/remains/*/**".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: SpanDescriptionRuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }])),
             ),
             ProcessingState::root(),
         )
