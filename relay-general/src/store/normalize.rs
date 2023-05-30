@@ -904,6 +904,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        // TODO: scrubb request.data by trying to convert it to a JSON object and scrubbing
+        // the "variables" object.
+
         request.process_child_values(self, state)?;
 
         request::normalize_request(request)?;

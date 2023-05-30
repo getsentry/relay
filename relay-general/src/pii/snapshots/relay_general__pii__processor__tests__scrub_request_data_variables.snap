@@ -1,0 +1,124 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: "&data"
+---
+Event {
+    id: EventId(
+        5b978c77-c034-4ca1-a360-acca3da68167,
+    ),
+    level: ~,
+    version: ~,
+    ty: ~,
+    fingerprint: ~,
+    culprit: ~,
+    transaction: ~,
+    transaction_info: ~,
+    time_spent: ~,
+    logentry: ~,
+    logger: ~,
+    modules: ~,
+    platform: ~,
+    timestamp: ~,
+    start_timestamp: ~,
+    received: ~,
+    server_name: ~,
+    release: ~,
+    dist: ~,
+    environment: ~,
+    site: ~,
+    user: ~,
+    request: Request {
+        url: "http://absolute.uri/foo",
+        method: "POST",
+        data: Object(
+            {
+                "query": String(
+                    "{\n  viewer {\n    login\n  }\n}",
+                ),
+                "variables": String(
+                    "[Filtered]",
+                ),
+            },
+        ),
+        query_string: Query(
+            PairList(
+                [
+                    (
+                        "query",
+                        JsonLenientString(
+                            "foobar",
+                        ),
+                    ),
+                    (
+                        "page",
+                        JsonLenientString(
+                            "2",
+                        ),
+                    ),
+                ],
+            ),
+        ),
+        fragment: ~,
+        cookies: ~,
+        headers: ~,
+        body_size: ~,
+        env: ~,
+        inferred_content_type: ~,
+        other: {
+            "graphql_error": Bool(
+                true,
+            ),
+        },
+    },
+    contexts: Contexts(
+        {
+            "response": ContextInner(
+                Response(
+                    ResponseContext {
+                        cookies: ~,
+                        headers: ~,
+                        status_code: 200,
+                        body_size: ~,
+                        data: Object(
+                            {
+                                "data": String(
+                                    "[Filtered]",
+                                ),
+                            },
+                        ),
+                        inferred_content_type: ~,
+                        other: {
+                            "graphql_error": Bool(
+                                true,
+                            ),
+                        },
+                    },
+                ),
+            ),
+        },
+    ),
+    breadcrumbs: ~,
+    exceptions: ~,
+    stacktrace: ~,
+    template: ~,
+    threads: ~,
+    tags: ~,
+    extra: ~,
+    debug_meta: ~,
+    client_sdk: ~,
+    ingest_path: ~,
+    errors: ~,
+    key_id: ~,
+    project: ~,
+    grouping_config: ~,
+    checksum: ~,
+    csp: ~,
+    hpkp: ~,
+    expectct: ~,
+    expectstaple: ~,
+    spans: ~,
+    measurements: ~,
+    breakdowns: ~,
+    _metrics: ~,
+    other: {},
+}

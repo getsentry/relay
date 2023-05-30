@@ -11,8 +11,10 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User};
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
+use crate::protocol::{AsPair, Context, Event, IpAddr, NativeImagePath, PairList, Replay, User};
+use crate::types::{
+    Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
+};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -196,14 +198,42 @@ impl<'a> Processor for PiiProcessor<'a> {
         Ok(())
     }
 
-    // Response PII processor entry point.
-    fn process_response(
+    fn process_event(
         &mut self,
-        response: &mut ResponseContext,
+        event: &mut Event,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // TODO: implement PII data scrubbing in response.data
+        // collect the variables keys and remove them from the event
+        if let Some(request) = event.request.value_mut() {
+            if let Some(Value::Object(data)) = request.data.value_mut() {
+                // TODO: scrub the key values with [Filtered] instead
+                // data.remove("variables");
+
+                data.insert(
+                    "variables".to_string(),
+                    Annotated::new(Value::String("[Filtered]".to_string())),
+                );
+            }
+        }
+
+        // scrub PII from the data object if they match the variables keys
+        if let Some(ref mut contexts) = event.contexts.value_mut() {
+            if let Some(Context::Response(ref mut response)) = contexts.get_context_mut("response")
+            {
+                if let Some(Value::Object(data)) = response.data.value_mut() {
+                    // TODO: scrub the key values with [Filtered] instead
+                    // data.remove("data");
+
+                    data.insert(
+                        "data".to_string(),
+                        Annotated::new(Value::String("[Filtered]".to_string())),
+                    );
+                }
+            }
+        }
+
+        event.process_child_values(self, state)?;
 
         Ok(())
     }
@@ -1292,5 +1322,55 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_request_data_variables() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+              "event_id": "5b978c77c0344ca1a360acca3da68167",
+              "request": {
+                "method": "POST",
+                "url": "http://absolute.uri/foo",
+                "query_string": "query=foobar&page=2",
+                "data": {
+                  "query": "{\n  viewer {\n    login\n  }\n}",
+                  "variables": {
+                    "login": "foo"
+                  }
+                },
+                "graphql_error": true
+              },
+              "contexts": {
+                "response": {
+                  "type": "response",
+                  "data": {
+                    "data": {
+                      "viewer": {
+                        "login": "foo"
+                      }
+                    }
+                  },
+                  "graphql_error": true,
+                  "status_code": 200
+                }
+              }
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
     }
 }
