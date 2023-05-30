@@ -713,7 +713,6 @@ impl SharedClient {
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
-            .trust_dns(true)
             .build()
             .unwrap();
 
