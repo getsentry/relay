@@ -165,13 +165,15 @@ mod tests {
 
     const RUST_TEST_CRATE: &str = "../../tests/test_pii_docs";
 
+    fn get_types_and_use_statements() -> TypesAndScopedPaths {
+        let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
+        let rust_file_paths = find_rs_files(&rust_crate);
+        AstItemCollector::collect(&rust_file_paths).unwrap()
+    }
+
     #[test]
     fn test_single_type() {
-        let types_and_use_statements = {
-            let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-            let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::collect(&rust_file_paths).unwrap()
-        };
+        let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
             .find_pii_fields_of_type("test_pii_docs::SubStruct", &vec!["true".to_string()])
@@ -183,11 +185,7 @@ mod tests {
 
     #[test]
     fn test_scoped_paths() {
-        let types_and_use_statements = {
-            let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-            let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::collect(&rust_file_paths).unwrap()
-        };
+        let types_and_use_statements = get_types_and_use_statements();
 
         let TypesAndScopedPaths { scoped_paths, .. } = types_and_use_statements;
         insta::assert_debug_snapshot!(scoped_paths);
@@ -195,11 +193,7 @@ mod tests {
 
     #[test]
     fn test_pii_true() {
-        let types_and_use_statements = {
-            let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-            let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::collect(&rust_file_paths).unwrap()
-        };
+        let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
             .find_pii_fields_of_all_types(&vec!["true".to_string()])
@@ -211,11 +205,7 @@ mod tests {
 
     #[test]
     fn test_pii_false() {
-        let types_and_use_statements = {
-            let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-            let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::collect(&rust_file_paths).unwrap()
-        };
+        let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
             .find_pii_fields_of_all_types(&vec!["false".to_string()])
@@ -227,11 +217,7 @@ mod tests {
 
     #[test]
     fn test_pii_all() {
-        let types_and_use_statements = {
-            let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-            let rust_file_paths = find_rs_files(&rust_crate);
-            AstItemCollector::collect(&rust_file_paths).unwrap()
-        };
+        let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
             .find_pii_fields_of_all_types(&vec![
