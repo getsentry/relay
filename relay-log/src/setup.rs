@@ -102,6 +102,11 @@ pub struct LogConfig {
     ///
     /// Otherwise, backtraces can be enabled by setting the `RUST_BACKTRACE` variable to `full`.
     pub enable_backtraces: bool,
+
+    /// Sets the trace sample rate for performance monitoring.
+    ///
+    /// Defaults to `0.0` for release builds and `1.0` for local development builds.
+    pub traces_sample_rate: f32,
 }
 
 impl Default for LogConfig {
@@ -110,6 +115,10 @@ impl Default for LogConfig {
             level: Level::INFO,
             format: LogFormat::Auto,
             enable_backtraces: false,
+            #[cfg(debug_assertions)]
+            traces_sample_rate: 1.0,
+            #[cfg(not(debug_assertions))]
+            traces_sample_rate: 0.0,
         }
     }
 }
@@ -241,7 +250,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
-            traces_sample_rate: 1.0,
+            traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
         });
 
