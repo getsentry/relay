@@ -3,9 +3,7 @@ source: relay-general/src/pii/processor.rs
 expression: "&data"
 ---
 Event {
-    id: EventId(
-        5b978c77-c034-4ca1-a360-acca3da68167,
-    ),
+    id: ~,
     level: ~,
     version: ~,
     ty: ~,
@@ -28,8 +26,8 @@ Event {
     site: ~,
     user: ~,
     request: Request {
-        url: "http://absolute.uri/foo",
-        method: "POST",
+        url: ~,
+        method: ~,
         data: Object(
             {
                 "query": String(
@@ -44,24 +42,7 @@ Event {
                 ),
             },
         ),
-        query_string: Query(
-            PairList(
-                [
-                    (
-                        "query",
-                        JsonLenientString(
-                            "foobar",
-                        ),
-                    ),
-                    (
-                        "page",
-                        JsonLenientString(
-                            "2",
-                        ),
-                    ),
-                ],
-            ),
-        ),
+        query_string: ~,
         fragment: ~,
         cookies: ~,
         headers: ~,
@@ -81,7 +62,7 @@ Event {
                     ResponseContext {
                         cookies: ~,
                         headers: ~,
-                        status_code: 200,
+                        status_code: ~,
                         body_size: ~,
                         data: Object(
                             {

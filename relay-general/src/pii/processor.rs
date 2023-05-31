@@ -1378,11 +1378,7 @@ mod tests {
     fn test_scrub_graphql_response_data_with_variables() {
         let mut data = Event::from_value(
             serde_json::json!({
-              "event_id": "5b978c77c0344ca1a360acca3da68167",
               "request": {
-                "method": "POST",
-                "url": "http://absolute.uri/foo",
-                "query_string": "query=foobar&page=2",
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}",
                   "variables": {
@@ -1401,7 +1397,6 @@ mod tests {
                       }
                     }
                   },
-                  "status_code": 200,
                   "graphql_error": true,
                 }
               }
@@ -1428,11 +1423,7 @@ mod tests {
     fn test_scrub_graphql_response_data_without_variables() {
         let mut data = Event::from_value(
             serde_json::json!({
-              "event_id": "5b978c77c0344ca1a360acca3da68167",
               "request": {
-                "method": "POST",
-                "url": "http://absolute.uri/foo",
-                "query_string": "query=foobar&page=2",
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}"
                 },
@@ -1448,7 +1439,6 @@ mod tests {
                       }
                     }
                   },
-                  "status_code": 200,
                   "graphql_error": true,
                 }
               }
@@ -1475,11 +1465,7 @@ mod tests {
     fn test_does_not_scrub_if_no_graphql() {
         let mut data = Event::from_value(
             serde_json::json!({
-              "event_id": "5b978c77c0344ca1a360acca3da68167",
               "request": {
-                "method": "POST",
-                "url": "http://absolute.uri/foo",
-                "query_string": "query=foobar&page=2",
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}",
                   "variables": {
@@ -1497,7 +1483,6 @@ mod tests {
                       }
                     }
                   },
-                  "status_code": 200,
                 }
               }
             })
