@@ -607,7 +607,7 @@ fn extract_span_metrics(
                     span.description
                         .value()
                         .and_then(|url| domain_from_http_url(url))
-                } else if span_op == "db.sql.query" {
+                } else if span_op.starts_with("db") {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
@@ -689,8 +689,9 @@ fn extract_span_metrics(
     Ok(())
 }
 
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(from|into)(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)(from|into)(\s|"|\()+(?P<table>(\w+(\.\w+)*))(\s|"|\))+"#).unwrap()
+});
 
 /// Returns the table in the SQL query, if any.
 ///
