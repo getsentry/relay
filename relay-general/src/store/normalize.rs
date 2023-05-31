@@ -20,7 +20,9 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
+use crate::store::{
+    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Remark, RemarkType, SpanAttribute, Value,
@@ -734,6 +736,7 @@ pub struct LightNormalizationConfig<'a> {
     pub device_class_synthesis_config: bool,
     pub scrub_span_descriptions: bool,
     pub light_normalize_spans: bool,
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 }
 
 pub fn light_normalize_event(
@@ -752,6 +755,7 @@ pub fn light_normalize_event(
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
             config.scrub_span_descriptions,
+            config.span_description_rules,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
