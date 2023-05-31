@@ -334,6 +334,7 @@ pub fn extract_transaction_metrics(
     event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
+    has_profile: bool,
     project_metrics: &mut Vec<Metric>,  // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
@@ -345,6 +346,7 @@ pub fn extract_transaction_metrics(
         event,
         transaction_from_dsc,
         sampling_result,
+        has_profile,
         project_metrics,
         sampling_metrics,
     )?;
@@ -364,6 +366,7 @@ fn extract_transaction_metrics_inner(
     event: &Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
+    has_profile: bool,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
@@ -1079,6 +1082,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1813,6 +1817,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1906,6 +1911,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1986,6 +1992,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2062,6 +2069,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2173,6 +2181,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2261,6 +2270,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2311,6 +2321,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2351,6 +2362,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2400,6 +2412,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         );
@@ -2426,6 +2439,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2466,6 +2480,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2840,6 +2855,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )

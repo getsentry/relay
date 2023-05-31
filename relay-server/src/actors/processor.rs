@@ -13,6 +13,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
+use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
@@ -307,6 +308,9 @@ struct ProcessEnvelopeState {
 
     /// The managed envelope before processing.
     managed_envelope: ManagedEnvelope,
+
+    /// Whether there is a profiling item in the envelope.
+    has_profile: bool,
 }
 
 impl ProcessEnvelopeState {
@@ -1061,15 +1065,28 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if they can not be parsed
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let mut found_profile = false;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => match relay_profiling::parse_metadata(&item.payload()) {
-                Ok(_) => ItemAction::Keep,
+                Ok(_) => {
+                    if !found_profile {
+                        // Found first profile, keep it.
+                        found_profile = true;
+                        ItemAction::Keep
+                    } else {
+                        // We found a second profile, drop it.
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+                        )))
+                    }
+                }
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(err),
                 ))),
             },
             _ => ItemAction::Keep,
         });
+        state.has_profile = found_profile;
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
@@ -1341,6 +1358,7 @@ impl EnvelopeProcessorService {
             sampling_project_state,
             project_id,
             managed_envelope,
+            has_profile: false,
         })
     }
 
@@ -2074,6 +2092,7 @@ impl EnvelopeProcessorService {
                         event,
                         transaction_from_dsc,
                         &state.sampling_result,
+                        state.has_profile,
                         &mut state.extracted_metrics.project_metrics,
                         &mut state.extracted_metrics.sampling_metrics,
                     );
@@ -2928,6 +2947,7 @@ mod tests {
                     outcome_aggregator.clone(),
                     test_store.clone(),
                 ),
+                has_profile: false,
             };
 
             // TODO: This does not test if the sampling decision is actually applied. This should be
