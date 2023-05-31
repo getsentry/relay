@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.5.2
 
 **Features**:
 
