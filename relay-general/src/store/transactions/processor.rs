@@ -14,6 +14,7 @@ use crate::store::regexes::{
     CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
     TRANSACTION_NAME_NORMALIZER_REGEX,
 };
+use crate::store::SpanDescriptionRule;
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -23,19 +24,37 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
+    /// True if URL transactions should be marked as sanitized, even if there are no rules.
+    pub ready: bool,
 }
 
 /// Rejects transactions based on required fields.
 #[derive(Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
+    span_desc_rules: Vec<SpanDescriptionRule>,
     scrub_span_descriptions: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
-    pub fn new(name_config: TransactionNameConfig<'r>, scrub_span_descriptions: bool) -> Self {
+    pub fn new(
+        name_config: TransactionNameConfig<'r>,
+        scrub_span_descriptions: bool,
+        span_description_rules: Option<&Vec<SpanDescriptionRule>>,
+    ) -> Self {
+        let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
+            span_desc_rules.clone()
+        } else {
+            Vec::new()
+        };
+
+        if scrub_span_descriptions && !name_config.rules.is_empty() {
+            span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
+        }
+
         Self {
             name_config,
+            span_desc_rules,
             scrub_span_descriptions,
         }
     }
@@ -82,6 +101,87 @@ impl<'r> TransactionsProcessor<'r> {
                 Ok(())
             })?;
         }
+        Ok(())
+    }
+
+    /// Applies rules to the span description.
+    ///
+    /// For now, rules are only generated from transaction names, and the
+    /// scrubbed value is stored in `span.data[description.scrubbed]` instead of
+    /// `span.description` (which remains intact).
+    fn apply_span_rename_rules(&self, span: &mut Span) -> ProcessingResult {
+        if let Some(op) = span.op.value() {
+            if !op.starts_with("http") {
+                return Ok(());
+            }
+        }
+
+        if self.span_desc_rules.is_empty() {
+            return Ok(());
+        }
+
+        // HACK(iker): work-around to scrub the description, in a
+        // context-manager-like approach.
+        //
+        // If data[description.scrubbed] isn't present, we want to scrub
+        // span.description. However, they have different types:
+        // Annotated<Value> vs Annotated<String>. The simplest and fastest
+        // solution I found is to add span.description to span.data if it
+        // doesn't exist already, scrub it, and remove it if we did nothing.
+        let previously_scrubbed = span
+            .data
+            .value()
+            .map(|d| d.get("description.scrubbed"))
+            .is_some();
+        if !previously_scrubbed {
+            if let Some(description) = span.description.clone().value() {
+                span.data
+                    .value_mut()
+                    .get_or_insert_with(BTreeMap::new)
+                    .insert(
+                        "description.scrubbed".to_owned(),
+                        Annotated::new(Value::String(description.to_owned())),
+                    );
+            }
+        }
+
+        let mut scrubbed = false;
+
+        if let Some(data) = span.data.value_mut() {
+            if let Some(description) = data.get_mut("description.scrubbed") {
+                description.apply(|name, meta| {
+                    if let Value::String(s) = name {
+                        let result = self.span_desc_rules.iter().find_map(|rule| {
+                            rule.match_and_apply(Cow::Borrowed(s))
+                                .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
+                        });
+
+                        if let Some((applied_rule, new_name)) = result {
+                            scrubbed = true;
+                            if *s != new_name {
+                                meta.add_remark(Remark::new(
+                                    RemarkType::Substituted,
+                                    // Setting a different format to not get
+                                    // confused by the actual `span.description`.
+                                    format!("description.scrubbed:{}", applied_rule),
+                                ));
+                                *name = Value::String(new_name);
+                            }
+                        }
+                    }
+
+                    Ok(())
+                })?;
+            }
+        }
+
+        if !previously_scrubbed && !scrubbed {
+            span.data
+                .value_mut()
+                .as_mut()
+                .and_then(|data| data.remove("description.scrubbed"));
+        }
+
         Ok(())
     }
 }
@@ -371,16 +471,17 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // Normalize transaction names for URLs and Sanitized transaction sources.
-        // This in addition to renaming rules can catch some high cardinality parts.
-        let mut sanitized = false;
+        // If the project is marked as 'ready', always set the transaction source to sanitized.
+        let mut mark_as_sanitized = self.name_config.ready;
 
         if matches!(
             event.get_transaction_source(),
             &TransactionSource::Url | &TransactionSource::Sanitized
         ) {
+            // Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
             scrub_identifiers(&mut event.transaction)?.then(|| {
-                sanitized = true;
+                mark_as_sanitized = true;
             });
         }
 
@@ -390,10 +491,10 @@ impl Processor for TransactionsProcessor<'_> {
                 event.transaction_info.value_mut(),
             )?;
 
-            sanitized = true;
+            mark_as_sanitized = true;
         }
 
-        if sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
+        if mark_as_sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -470,6 +571,7 @@ impl Processor for TransactionsProcessor<'_> {
 
         if self.scrub_span_descriptions {
             scrub_span_description(span)?;
+            self.apply_span_rename_rules(span)?;
         }
 
         span.process_child_values(self, state)?;
@@ -520,7 +622,9 @@ mod tests {
     use super::*;
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
-    use crate::store::{LazyGlob, RedactionRule, RuleScope};
+    use crate::store::{
+        LazyGlob, RedactionRule, SpanDescriptionRuleScope, TransactionNameRuleScope,
+    };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
@@ -1510,7 +1614,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1594,7 +1698,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1628,7 +1732,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1673,6 +1777,68 @@ mod tests {
               }
             }
           }
+        }
+        "###);
+    }
+
+    #[test]
+    /// When the `ready` flag is set, mark a transaction as `sanitized` even if there are no rules.
+    fn test_transaction_name_normalize_mark_as_sanitized_when_ready() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/bar/user/john/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[],
+                    ready: true,
+                },
+                false,
+                None,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/bar/user/john/0",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": []
         }
         "###);
     }
@@ -1730,8 +1896,10 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1794,8 +1962,10 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1892,8 +2062,10 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1958,7 +2130,14 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[rule],
+                    ready: false,
+                },
+                false,
+                None,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2052,7 +2231,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2182,11 +2361,13 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
+                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2228,11 +2409,13 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: RuleScope::default(),
+                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ready: false,
                 },
                 false,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2264,7 +2447,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false),
+            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2296,7 +2479,7 @@ mod tests {
 
                 process_value(
                     &mut span,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), true),
+                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), true, None),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2630,4 +2813,202 @@ mod tests {
         "resource.css",
         ""
     );
+
+    #[test]
+    fn test_scrub_span_identifiers_and_apply_rules() {
+        // Ensure rules are applied after scrubbing identifiers. Rules are only
+        // applied when `transaction.source="url"`, so this test ensures this
+        // value isn't set as part of identifier scrubbing.
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/transaction-name/hi",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                },
+                "spans": [
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok",
+                        "data": {
+                            "description.scrubbed": "POST http://example.com/remains/to-scrub/remains-too/*"
+                        }
+                    },
+                    {
+                        "description": "GET http://example.com/another/url/is/intact",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/not-scrubbed-for-different-op/remains-too",
+                        "op": "db.sql.query",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb452",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        // Pattern with the same format as transaction name rules.
+                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: TransactionNameRuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                    ..Default::default()
+                },
+                true,
+                None,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_scrub_identifiers_with_span_description_rules_and_transaction_name_rules() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/transaction-name/hi",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                },
+                "spans": [
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/to-scrub/remains-too/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb450",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok",
+                        "data": {
+                            "description.scrubbed": "POST http://example.com/remains/to-scrub/remains-too/*"
+                        }
+                    },
+                    {
+                        "description": "GET http://example.com/another/url/is/intact",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "GET http://example.com/applies-from-transaction-name-rules/to-scrub/untouched/1234567890",
+                        "op": "http.client",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb451",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    },
+                    {
+                        "description": "POST http://example.com/remains/not-scrubbed-for-different-op/remains-too",
+                        "op": "db.sql.query",
+                        "parent_span_id": "8f5a2b8768cafb4e",
+                        "span_id": "bd2eb23da2beb452",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "status": "ok"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        // Pattern with the same format as transaction name rules.
+                        pattern: LazyGlob::new(
+                            "/applies-from-transaction-name-rules/*/untouched/**".to_owned(),
+                        ),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        scope: TransactionNameRuleScope::default(),
+                        redaction: RedactionRule::default(),
+                    }],
+                    ..Default::default()
+                },
+                true,
+                Some(&Vec::from([SpanDescriptionRule {
+                    pattern: LazyGlob::new("**/remains/*/**".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    scope: SpanDescriptionRuleScope::default(),
+                    redaction: RedactionRule::default(),
+                }])),
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event);
+    }
 }

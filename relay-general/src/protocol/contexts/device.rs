@@ -28,7 +28,7 @@ pub static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy
         (Some(model_index), Some(product_name_index)) => (model_index, product_name_index),
         (_, _) => {
             relay_log::error!(
-                "Failed to find Model and/or Marketing Name headers for android-model map",
+                "failed to find model and/or marketing name headers for android-model map",
             );
 
             return HashMap::new();

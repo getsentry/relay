@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -79,19 +78,19 @@ async fn load_local_states(
     };
 
     // only printed when directory even exists.
-    relay_log::debug!("Loading local states from directory {:?}", projects_path);
+    relay_log::debug!(directory = ?projects_path, "loading local states from file system");
 
     while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
         let metadata = entry.metadata().await?;
         if !(metadata.is_file() || metadata.is_symlink()) {
-            relay_log::warn!("skipping {:?}, not a file", path);
+            relay_log::warn!(?path, "skipping file, not a file");
             continue;
         }
 
         if path.extension().map(|x| x != "json").unwrap_or(true) {
-            relay_log::warn!("skipping {:?}, file extension must be .json", path);
+            relay_log::warn!(?path, "skipping file, file extension must be .json");
             continue;
         }
 
@@ -103,7 +102,7 @@ async fn load_local_states(
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
             } else {
-                relay_log::warn!("skipping {:?}, filename is not a valid project id", path);
+                relay_log::warn!(?path, "skipping file, filename is not a valid project id");
                 continue;
             }
         }
@@ -127,8 +126,8 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
             }
         }
         Err(error) => relay_log::error!(
-            "failed to load static project configs: {}",
-            LogError(&error)
+            error = &error as &dyn std::error::Error,
+            "failed to load static project configs",
         ),
     };
 }

@@ -1,4 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
@@ -19,10 +20,12 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
+use crate::store::{
+    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
-    ProcessingResult, Remark, RemarkType, Value,
+    ProcessingResult, Remark, RemarkType, SpanAttribute, Value,
 };
 use crate::user_agent::RawUserAgentInfo;
 
@@ -284,8 +287,7 @@ fn remove_invalid_measurements(
 
         if !is_valid_metric_name(name) {
             meta.add_error(Error::invalid(format!(
-                "Metric name contains invalid characters: \"{}\"",
-                name
+                "Metric name contains invalid characters: \"{name}\""
             )));
             removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
             return false;
@@ -299,10 +301,8 @@ fn remove_invalid_measurements(
 
             if name.len() > max_name_len {
                 meta.add_error(Error::invalid(format!(
-                    "Metric name too long {}/{}: \"{}\"",
+                    "Metric name too long {}/{max_name_len}: \"{name}\"",
                     name.len(),
-                    max_name_len,
-                    name
                 )));
                 removed_measurements
                     .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
@@ -326,7 +326,7 @@ fn remove_invalid_measurements(
             return true;
         }
 
-        meta.add_error(Error::invalid(format!("Too many measurements: {}", name)));
+        meta.add_error(Error::invalid(format!("Too many measurements: {name}")));
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
@@ -736,6 +736,8 @@ pub struct LightNormalizationConfig<'a> {
     pub is_renormalize: bool,
     pub device_class_synthesis_config: bool,
     pub scrub_span_descriptions: bool,
+    pub light_normalize_spans: bool,
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 }
 
 pub fn light_normalize_event(
@@ -754,6 +756,7 @@ pub fn light_normalize_event(
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
             config.scrub_span_descriptions,
+            config.span_description_rules,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -814,6 +817,15 @@ pub fn light_normalize_event(
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+            // XXX(iker): span normalization runs in the store processor, but
+            // the exclusive time is required for span metrics. Most of
+            // transactions don't have many spans, but if this is no longer the
+            // case and we roll this flag out for most projects, we may want to
+            // reconsider this approach.
+            spans::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+        }
 
         Ok(())
     })

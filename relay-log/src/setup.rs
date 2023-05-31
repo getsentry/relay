@@ -158,7 +158,10 @@ fn capture_native_envelope(data: &[u8]) {
     if let Some(client) = sentry::Hub::main().client() {
         match sentry::Envelope::from_slice(data) {
             Ok(envelope) => client.send_envelope(envelope),
-            Err(error) => crate::error!("failed to capture crash: {}", crate::LogError(&error)),
+            Err(error) => {
+                let error = &error as &dyn std::error::Error;
+                crate::error!(error, "failed to capture crash")
+            }
         }
     } else {
         crate::error!("failed to capture crash: no sentry client registered");
