@@ -35,8 +35,12 @@ Event {
                 "query": String(
                     "{\n  viewer {\n    login\n  }\n}",
                 ),
-                "variables": String(
-                    "[Filtered]",
+                "variables": Object(
+                    {
+                        "login": String(
+                            "[Filtered]",
+                        ),
+                    },
                 ),
             },
         ),
@@ -81,8 +85,16 @@ Event {
                         body_size: ~,
                         data: Object(
                             {
-                                "data": String(
-                                    "[Filtered]",
+                                "data": Object(
+                                    {
+                                        "viewer": Object(
+                                            {
+                                                "login": String(
+                                                    "[Filtered]",
+                                                ),
+                                            },
+                                        ),
+                                    },
                                 ),
                             },
                         ),

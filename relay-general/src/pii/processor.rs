@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::mem;
 
 use once_cell::sync::OnceCell;
@@ -204,31 +205,46 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // collect the variables keys and remove them from the event
+        // TODO: make keys lazy init
+        let mut keys = Vec::new();
+
+        // collect the variables keys and scrub them out
         if let Some(request) = event.request.value_mut() {
             if let Some(Value::Object(data)) = request.data.value_mut() {
-                // TODO: scrub the key values with [Filtered] instead
-                // data.remove("variables");
-
-                data.insert(
-                    "variables".to_string(),
-                    Annotated::new(Value::String("[Filtered]".to_string())),
-                );
+                if let Some(Annotated(Some(Value::Bool(graph_ql_error)), _)) =
+                    request.other.get("graphql_error")
+                {
+                    dbg!("graphql_error request {graphql_error}");
+                    if *graph_ql_error {
+                        if let Some(Annotated(Some(Value::Object(variables)), _)) =
+                            data.get_mut("variables")
+                        {
+                            for item in variables.iter_mut() {
+                                keys.push(item.0.to_string());
+                                item.1
+                                    .set_value(Some(Value::String("[Filtered]".to_string())));
+                            }
+                        }
+                    }
+                }
             }
         }
 
         // scrub PII from the data object if they match the variables keys
-        if let Some(ref mut contexts) = event.contexts.value_mut() {
-            if let Some(Context::Response(ref mut response)) = contexts.get_context_mut("response")
-            {
+        if let Some(contexts) = event.contexts.value_mut() {
+            if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
                 if let Some(Value::Object(data)) = response.data.value_mut() {
-                    // TODO: scrub the key values with [Filtered] instead
-                    // data.remove("data");
-
-                    data.insert(
-                        "data".to_string(),
-                        Annotated::new(Value::String("[Filtered]".to_string())),
-                    );
+                    if let Some(Annotated(Some(Value::Bool(graph_ql_error)), _)) =
+                        response.other.get("graphql_error")
+                    {
+                        if *graph_ql_error {
+                            if let Some(Annotated(Some(Value::Object(response_data)), _)) =
+                                data.get_mut("data")
+                            {
+                                scrub_data_from_response(keys.clone(), response_data);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -236,6 +252,23 @@ impl<'a> Processor for PiiProcessor<'a> {
         event.process_child_values(self, state)?;
 
         Ok(())
+    }
+}
+
+fn scrub_data_from_response(keys: Vec<String>, data: &mut BTreeMap<String, Annotated<Value>>) {
+    for item in data.iter_mut() {
+        match item.1.value_mut() {
+            Some(Value::Object(item_data)) => {
+                // TODO: can we avoid cloning every time?
+                scrub_data_from_response(keys.clone(), item_data);
+            }
+            _ => {
+                if keys.contains(item.0) {
+                    item.1
+                        .set_value(Some(Value::String("[Filtered]".to_string())));
+                }
+            }
+        }
     }
 }
 
@@ -1351,8 +1384,8 @@ mod tests {
                       }
                     }
                   },
+                  "status_code": 200,
                   "graphql_error": true,
-                  "status_code": 200
                 }
               }
             })
