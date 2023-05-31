@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
+use crate::store::normalize::url_encoding;
 use crate::types::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -177,47 +178,6 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
-// TODO: extract urlencoded_from_str, parse_raw_response_data and normalize_response_data
-// can probably be reused in other places (original from normalize/request)
-
-/// Decodes an urlencoded body.
-fn urlencoded_from_str(raw: &str) -> Option<Value> {
-    // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
-    if !raw.is_ascii() {
-        return None;
-    }
-
-    // Avoid false positives with XML and partial JSON.
-    if raw.starts_with("<?xml") || raw.starts_with('{') || raw.starts_with('[') {
-        return None;
-    }
-
-    // serde_urlencoded always deserializes into `Value::Object`.
-    let object = match serde_urlencoded::from_str(raw) {
-        Ok(Value::Object(value)) => value,
-        _ => return None,
-    };
-
-    // `serde_urlencoded` can decode any string with valid characters into an object. However, we
-    // need to account for false-positives in the following cases:
-    //  - An empty string "" is decoded as empty object
-    //  - A string "foo" is decoded as {"foo": ""} (check for single empty value)
-    //  - A base64 encoded string "dGU=" also decodes with a single empty value
-    //  - A base64 encoded string "dA==" decodes as {"dA": "="} (check for single =)
-    let is_valid = object.len() > 1
-        || object
-            .values()
-            .next()
-            .and_then(Annotated::<Value>::as_str)
-            .map_or(false, |s| !matches!(s, "" | "="));
-
-    if is_valid {
-        Some(Value::Object(object))
-    } else {
-        None
-    }
-}
-
 fn parse_raw_response_data(response: &mut ResponseContext) -> Option<(&'static str, Value)> {
     let raw = response.data.as_str()?;
 
@@ -226,7 +186,8 @@ fn parse_raw_response_data(response: &mut ResponseContext) -> Option<(&'static s
     if let Ok(value) = serde_json::from_str(raw) {
         Some(("application/json", value))
     } else {
-        urlencoded_from_str(raw).map(|value| ("application/x-www-form-urlencoded", value))
+        url_encoding::encoded_from_str(raw)
+            .map(|value| ("application/x-www-form-urlencoded", value))
     }
 }
 
