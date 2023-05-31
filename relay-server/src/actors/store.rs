@@ -194,6 +194,14 @@ impl StoreService {
                     retention,
                     item,
                 )?,
+                ItemType::CombinedReplayEventAndRecording => self
+                    .produce_combined_replay_event_and_recording(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        retention,
+                        item,
+                    )?,
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
                     scoping.project_id,
@@ -781,6 +789,31 @@ impl StoreService {
         })
     }
 
+    fn produce_combined_replay_event_and_recording(
+        &self,
+        replay_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = KafkaMessage::CombinedReplayEventAndRecording(
+            CombinedReplayEventAndRecordingKafkaMessage {
+                replay_id,
+                project_id,
+                retention_days,
+                payload: item.payload(),
+            },
+        );
+
+        self.produce(KafkaTopic::ReplayRecordings, organization_id, message)?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "combined_replay_event_and_recording"
+        );
+        Ok(())
+    }
     fn produce_check_in(
         &self,
         organization_id: u64,
@@ -952,6 +985,17 @@ struct ReplayRecordingChunkKafkaMessage {
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
+#[derive(Debug, Serialize)]
+struct CombinedReplayEventAndRecordingKafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// The event id.
+    replay_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    // Number of days to retain.
+    retention_days: u16,
+}
 
 #[derive(Debug, Serialize)]
 struct ReplayRecordingChunkMeta {
@@ -1081,6 +1125,7 @@ enum KafkaMessage {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
+    CombinedReplayEventAndRecording(CombinedReplayEventAndRecordingKafkaMessage),
     CheckIn(CheckInKafkaMessage),
 }
 
@@ -1098,6 +1143,9 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayRecording(_) => "replay_recording",
             KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
+            KafkaMessage::CombinedReplayEventAndRecording(_) => {
+                "combined_replay_event_and_recording"
+            }
             KafkaMessage::CheckIn(_) => "check_in",
         }
     }
@@ -1116,6 +1164,7 @@ impl Message for KafkaMessage {
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
+            Self::CombinedReplayEventAndRecording(_message) => Uuid::nil(), // Ensure random partitioning.
             Self::CheckIn(_message) => Uuid::nil(),
         };
 

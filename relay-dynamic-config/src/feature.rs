@@ -9,6 +9,9 @@ pub enum Feature {
     SessionReplay,
     /// Enables data scrubbing of replay recording payloads.
     SessionReplayRecordingScrubbing,
+    /// Enables combining session replay envelope item (Replay Recordings and Replay Events).
+    /// into one item.
+    SessionReplayCombinedEnvelopeItems,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -46,6 +49,9 @@ impl Serialize for Feature {
             Feature::SessionReplay => "organizations:session-replay",
             Feature::SessionReplayRecordingScrubbing => {
                 "organizations:session-replay-recording-scrubbing"
+            }
+            Feature::SessionReplayCombinedEnvelopeItems => {
+                "organizations:session-replay-combined-envelope-items"
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
             Feature::SpanMetricsExtraction => "projects:span-metrics-extraction",

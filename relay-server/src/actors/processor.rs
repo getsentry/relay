@@ -1215,6 +1215,8 @@ impl EnvelopeProcessorService {
         let project_state = &state.project_state;
         let replays_enabled = project_state.has_feature(Feature::SessionReplay);
         let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+        let combined_envelope_items =
+            project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
         let meta = state.envelope().meta().clone();
         let client_addr = meta.client_addr();
@@ -1300,6 +1302,36 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
+
+        if combined_envelope_items {
+            // If this flag is enabled, combine both items into a single item,
+            // and remove the original items.
+            // The combined Item's payload is a MsgPack map with the keys
+            // "replay_event" and "replay_recording".
+            // The values are the original payloads of the items.
+            let envelope = &mut state.envelope_mut();
+            if let Some(replay_event_item) =
+                envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent)
+            {
+                if let Some(replay_recording_item) =
+                    envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
+                {
+                    let mut data = Vec::new();
+                    let mut combined_item_payload = BTreeMap::new();
+                    combined_item_payload.insert("replay_event", replay_event_item.payload());
+                    combined_item_payload
+                        .insert("replay_recording", replay_recording_item.payload());
+                    rmp_serde::encode::write(&mut data, &combined_item_payload)
+                        .expect("write msgpack");
+
+                    let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
+                    combined_item.set_payload(ContentType::MsgPack, data);
+                    envelope.add_item(combined_item);
+                } else {
+                    envelope.add_item(replay_event_item)
+                }
+            }
+        }
 
         Ok(())
     }
@@ -1665,6 +1697,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile => false,
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
+            ItemType::CombinedReplayEventAndRecording => false,
             ItemType::CheckIn => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
@@ -3176,6 +3209,101 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    #[tokio::test]
+    async fn test_replays_combined_payload() {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+        let event_id = protocol::EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ReplayRecording);
+            item.set_payload(ContentType::OctetStream, r###"{"foo": "bar"}"###);
+            item
+        });
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ReplayEvent);
+            item.set_payload(ContentType::Json, r#"{
+                "type": "replay_event",
+                "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+                "replay_type": "session",
+                "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+                "segment_id": 0,
+                "timestamp": 1597977777.6189718,
+                "replay_start_timestamp": 1597976392.6542819,
+                "urls": ["sentry.io"],
+                "error_ids": ["1", "2"],
+                "trace_ids": ["3", "4"],
+                "dist": "1.12",
+                "platform": "javascript",
+                "environment": "production",
+                "release": 42,
+                "tags": {
+                    "transaction": "/organizations/:orgId/performance/:eventSlug/"
+                },
+                "sdk": {
+                    "name": "name",
+                    "version": "veresion"
+                },
+                "user": {
+                    "id": "123",
+                    "username": "user",
+                    "email": "user@site.com",
+                    "ip_address": "192.168.11.12"
+                },
+                "request": {
+                    "url": null,
+                    "headers": {
+                        "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                    }
+                },
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                        "span_id": "FA90FDEAD5F74052",
+                        "type": "trace"
+                    },
+                    "replay": {
+                        "error_sample_rate": 0.125,
+                        "session_sample_rate": 0.5
+                    }
+                }
+            }"#);
+            item
+        });
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.insert(Feature::SessionReplay);
+        project_state
+            .config
+            .features
+            .insert(Feature::SessionReplayCombinedEnvelopeItems);
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+
+        assert_eq!(
+            new_envelope.items().next().unwrap().ty(),
+            &ItemType::CombinedReplayEventAndRecording
+        );
     }
 
     fn process_envelope_with_root_project_state(

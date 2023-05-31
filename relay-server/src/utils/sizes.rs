@@ -63,6 +63,9 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             ItemType::UserReport => (),
             ItemType::Metrics => (),
             ItemType::MetricBuckets => (),
+            // The Combined Replay Envelope isn't generated on the client so its size does not need
+            // to be checked.
+            ItemType::CombinedReplayEventAndRecording => (),
             ItemType::Unknown(_) => (),
         }
     }

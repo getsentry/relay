@@ -107,6 +107,8 @@ pub enum ItemType {
     ReplayEvent,
     /// Replay Recording data.
     ReplayRecording,
+    /// Combined Replay metadata and Recording Payload
+    CombinedReplayEventAndRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
     /// A new item type that is yet unknown by this version of Relay.
@@ -150,6 +152,9 @@ impl fmt::Display for ItemType {
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
+            Self::CombinedReplayEventAndRecording => {
+                write!(f, "combined_replay_event_and_recording")
+            }
             Self::CheckIn => write!(f, "check_in"),
             Self::Unknown(s) => s.fmt(f),
         }
@@ -565,7 +570,10 @@ impl Item {
             } else {
                 DataCategory::Profile
             }),
-            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
+            ItemType::ReplayEvent
+            | ItemType::ReplayRecording
+            | ItemType::CombinedReplayEventAndRecording => Some(DataCategory::Replay),
+
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
@@ -746,6 +754,7 @@ impl Item {
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
+            | ItemType::CombinedReplayEventAndRecording
             | ItemType::Profile
             | ItemType::CheckIn => false,
 
@@ -775,6 +784,7 @@ impl Item {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
+            ItemType::CombinedReplayEventAndRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
 
