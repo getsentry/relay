@@ -12,6 +12,8 @@ import time
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .test_metrics import metrics_by_name
+
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -1085,6 +1087,7 @@ def test_profile_outcomes(
     relay_with_processing,
     outcomes_consumer,
     num_intermediate_relays,
+    metrics_consumer,
 ):
     """
     Tests that Relay reports correct outcomes for profiles.
@@ -1094,6 +1097,7 @@ def test_profile_outcomes(
     are properly forwarded up to sentry.
     """
     outcomes_consumer = outcomes_consumer(timeout=5)
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1208,10 +1212,15 @@ def test_profile_outcomes(
     for outcome in outcomes:
         outcome.pop("timestamp")
 
+    metrics = metrics_by_name(metrics_consumer, 3)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_profile_outcomes_metadata_invalid(
+def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
@@ -1256,6 +1265,9 @@ def test_profile_outcomes_metadata_invalid(
             )
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+
+        # Second profile, will be dropped
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
         return envelope
 
     envelope = make_envelope()
@@ -1273,6 +1285,17 @@ def test_profile_outcomes_metadata_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+        {
+            "category": 6,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_too_many_profiles",
             "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
