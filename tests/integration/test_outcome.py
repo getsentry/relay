@@ -1093,7 +1093,7 @@ def test_profile_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer(timeout=5)
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1153,7 +1153,7 @@ def test_profile_outcomes(
     ) as f:
         profile = f.read()
 
-    def make_envelope(transaction_name, num_profiles):
+    def make_envelope(transaction_name):
         payload = _get_event_payload("transaction")
         payload["transaction"] = transaction_name
         envelope = Envelope()
@@ -1163,16 +1163,14 @@ def test_profile_outcomes(
                 type="transaction",
             )
         )
-        for _ in range(num_profiles):
-
-            envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
         return envelope
 
     upstream.send_envelope(
-        project_id, make_envelope("hi", 2)
+        project_id, make_envelope("hi")
     )  # should get dropped by dynamic sampling
     upstream.send_envelope(
-        project_id, make_envelope("ho", 3)
+        project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
     outcomes = outcomes_consumer.get_outcomes()
@@ -1186,27 +1184,8 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": 6,  # Profile
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 2,
-            "source": expected_source,
-        },
-        {
-            "category": 6,  # Profile
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 3,
-            # The accepted outcome for profiles that survived dynamic sampling is always emitted
-            # by the processing relay:
-            "source": "processing-relay",
-        },
-        {
-            "category": 9,  # TransactionIndexed
+            # 6 == Profile, should be 11 = ProfileIndexed once follow-up PRs merge.
+            "category": 6,
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1216,12 +1195,12 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": 11,  # ProfileIndexed
+            "category": 9,  # TransactionIndexed
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
-            "quantity": 2,
+            "quantity": 1,
             "reason": "Sampled:1",
             "source": expected_source,
         },
