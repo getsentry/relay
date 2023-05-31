@@ -3883,6 +3883,7 @@
 <a href="#3882" id="3882">3882</a>
 <a href="#3883" id="3883">3883</a>
 <a href="#3884" id="3884">3884</a>
+<a href="#3885" id="3885">3885</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6287,6 +6288,7 @@
                     .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,
+                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -6663,7 +6665,7 @@
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::{EventId, TransactionSource};
     <span class="kw">use </span>relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
+        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
     };
     <span class="kw">use </span>relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
@@ -7636,7 +7638,7 @@
                         rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                             pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_owned()),
                             expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
-                            scope: RuleScope::default(),
+                            scope: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: <span class="string">&quot;*&quot;</span>.to_owned(),
                             },

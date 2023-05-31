@@ -136,12 +136,22 @@
 <a href="#135" id="135">135</a>
 <a href="#136" id="136">136</a>
 <a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
 <span class="kw">use </span>relay_filter::FiltersConfig;
 <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
-<span class="kw">use </span>relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
+<span class="kw">use </span>relay_general::store::{
+    BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
+};
 <span class="kw">use </span>relay_general::types::SpanAttribute;
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>relay_sampling::SamplingConfig;
@@ -206,6 +216,9 @@
     <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_ready: bool,
+    <span class="doccomment">/// Span description renaming rules.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>ProjectConfig {
@@ -229,6 +242,7 @@
             features: BTreeSet::new(),
             tx_name_rules: Vec::new(),
             tx_name_ready: <span class="bool-val">false</span>,
+            span_description_rules: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -268,6 +282,8 @@
     <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_ready: bool,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
 }
 
 <span class="kw">fn </span>is_false(value: <span class="kw-2">&amp;</span>bool) -&gt; bool {

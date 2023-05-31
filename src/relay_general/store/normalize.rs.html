@@ -3121,6 +3121,10 @@
 <a href="#3120" id="3120">3120</a>
 <a href="#3121" id="3121">3121</a>
 <a href="#3122" id="3122">3122</a>
+<a href="#3123" id="3123">3123</a>
+<a href="#3124" id="3124">3124</a>
+<a href="#3125" id="3125">3125</a>
+<a href="#3126" id="3126">3126</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3143,7 +3147,9 @@
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-<span class="kw">use </span><span class="kw">crate</span>::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
+<span class="kw">use </span><span class="kw">crate</span>::store::{
+    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+};
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Remark, RemarkType, SpanAttribute, Value,
@@ -3857,6 +3863,7 @@
     <span class="kw">pub </span>device_class_synthesis_config: bool,
     <span class="kw">pub </span>scrub_span_descriptions: bool,
     <span class="kw">pub </span>light_normalize_spans: bool,
+    <span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
 }
 
 <span class="kw">pub fn </span>light_normalize_event(
@@ -3875,6 +3882,7 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
             config.scrub_span_descriptions,
+            config.span_description_rules,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
