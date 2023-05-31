@@ -104,7 +104,7 @@ fn http_status_code_from_span_data(span: &Span) -> Option<String> {
 }
 
 /// Extracts the HTTP status code.
-fn extract_http_status_code(event: &Event) -> Option<String> {
+pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
     if let Some(spans) = event.spans.value() {
         for span in spans {
             if let Some(span_value) = span.value() {
