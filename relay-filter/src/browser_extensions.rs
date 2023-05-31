@@ -40,7 +40,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         plugin\.setSuspendState\sis\snot\sa\sfunction|
         # Chrome extension message passing failure
         Extension\scontext\sinvalidated|
-        @webkit-masked-url
+        webkit-masked-url:
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -251,7 +251,7 @@ mod tests {
             "null is not an object (evaluating 'elt.parentNode')",
             "plugin.setSuspendState is not a function",
             "Extension context invalidated",
-            "useless error @webkit-masked-url please filter",
+            "useless error webkit-masked-url: please filter",
         ];
 
         for exc_value in &exceptions {
