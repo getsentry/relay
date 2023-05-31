@@ -5,6 +5,7 @@
 **Features**:
 
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+- Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
 
 ## 23.5.1
 
