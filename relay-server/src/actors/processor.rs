@@ -1061,7 +1061,16 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if they can not be parsed
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let transaction_count: usize = state
+            .managed_envelope
+            .envelope()
+            .items()
+            .filter(|item| item.ty() == &ItemType::Transaction)
+            .count();
+
         state.managed_envelope.retain_items(|item| match item.ty() {
+            // Drop profile without a transaction in the same envelope
+            ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             ItemType::Profile => match relay_profiling::parse_metadata(&item.payload()) {
                 Ok(_) => ItemAction::Keep,
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
