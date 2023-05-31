@@ -5,11 +5,14 @@ use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
 use data_encoding::BASE64_NOPAD;
 use relay_general::protocol::EventId;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::measurements::Measurement;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::ProfileError;
+
+const THIRTY_SECONDS: Duration = Duration::new(30, 0);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProfileMetadata {
@@ -181,6 +184,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
 
     if profile.profile.events.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
+    }
+
+    if profile.profile.elapsed_time > THIRTY_SECONDS {
+        return Err(ProfileError::DurationIsTooLong);
     }
 
     Ok(profile)

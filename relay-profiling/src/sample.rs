@@ -213,6 +213,13 @@ impl SampleProfile {
         true
     }
 
+    fn check_duration(&self) -> bool {
+        if let Some(sample) = &self.profile.samples.last() {
+            return sample.elapsed_since_start_ns <= 30_000_000_000;
+        }
+        return false;
+    }
+
     /// Removes a sample when it's the only sample on its thread
     fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
@@ -325,6 +332,10 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
     if !profile.check_stacks() {
         return Err(ProfileError::MalformedStacks);
+    }
+
+    if !profile.check_duration() {
+        return Err(ProfileError::DurationIsTooLong);
     }
 
     profile.strip_pointer_authentication_code();
