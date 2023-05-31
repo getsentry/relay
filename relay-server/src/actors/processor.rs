@@ -2729,7 +2729,6 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
     use relay_common::{DurationUnit, MetricUnit, Uuid};
