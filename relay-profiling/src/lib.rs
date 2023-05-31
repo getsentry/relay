@@ -95,6 +95,7 @@
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 mod android;
 mod cocoa;
@@ -113,6 +114,8 @@ use crate::extract_from_transaction::{extract_transaction_metadata, extract_tran
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
+
+const MAX_PROFILE_DURATION: Duration = Duration::new(30, 0);
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {

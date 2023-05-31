@@ -9,6 +9,9 @@ use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
+use crate::MAX_PROFILE_DURATION;
+
+const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
@@ -213,11 +216,11 @@ impl SampleProfile {
         true
     }
 
-    fn check_duration(&self) -> bool {
+    fn is_below_max_duration(&self) -> bool {
         if let Some(sample) = &self.profile.samples.last() {
-            return sample.elapsed_since_start_ns <= 30_000_000_000;
+            return sample.elapsed_since_start_ns <= MAX_PROFILE_DURATION_NS;
         }
-        return false;
+        false
     }
 
     /// Removes a sample when it's the only sample on its thread
@@ -334,7 +337,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
-    if !profile.check_duration() {
+    if !profile.is_below_max_duration() {
         return Err(ProfileError::DurationIsTooLong);
     }
 
