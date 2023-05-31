@@ -1215,8 +1215,6 @@ impl EnvelopeProcessorService {
         let project_state = &state.project_state;
         let replays_enabled = project_state.has_feature(Feature::SessionReplay);
         let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-        let combined_envelope_items =
-            project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
         let meta = state.envelope().meta().clone();
         let client_addr = meta.client_addr();
@@ -1303,6 +1301,18 @@ impl EnvelopeProcessorService {
             _ => ItemAction::Keep,
         });
 
+        Ok(())
+    }
+
+    #[cfg(feature = "processing")]
+    fn process_replays_combine_items(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        let project_state = &state.project_state;
+        let combined_envelope_items =
+            project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
+
         if combined_envelope_items {
             // If this flag is enabled, combine both items into a single item,
             // and remove the original items.
@@ -1321,10 +1331,9 @@ impl EnvelopeProcessorService {
                     combined_item_payload.insert("replay_event", replay_event_item.payload());
                     combined_item_payload
                         .insert("replay_recording", replay_recording_item.payload());
-                    rmp_serde::encode::write(&mut data, &combined_item_payload)
-                        .expect("write msgpack");
-
+                    rmp_serde::encode::write(&mut data, &combined_item_payload).expect("msg");
                     let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
+
                     combined_item.set_payload(ContentType::MsgPack, data);
                     envelope.add_item(combined_item);
                 } else {
@@ -1332,7 +1341,6 @@ impl EnvelopeProcessorService {
                 }
             }
         }
-
         Ok(())
     }
 
@@ -2459,6 +2467,8 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_replays(state)?;
+        if_processing!({ self.process_replays_combine_items(state)? });
+
         self.filter_profiles(state);
 
         // After filtering, we need to update the envelope summary:
@@ -3212,6 +3222,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "processing")]
     async fn test_replays_combined_payload() {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
