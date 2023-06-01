@@ -1069,19 +1069,20 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 if !found_profile {
-                    // Found first profile, keep it.
-                    found_profile = true;
+                    match relay_profiling::parse_metadata(&item.payload()) {
+                        Ok(_) => {
+                            found_profile = true;
+                            ItemAction::Keep
+                        }
+                        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        ))),
+                    }
                 } else {
                     // We found a second profile, drop it.
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                         relay_profiling::discard_reason(ProfileError::TooManyProfiles),
                     )));
-                }
-                match relay_profiling::parse_metadata(&item.payload()) {
-                    Ok(_) => ItemAction::Keep,
-                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(err),
-                    ))),
                 }
             }
             _ => ItemAction::Keep,

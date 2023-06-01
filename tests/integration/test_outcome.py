@@ -1224,11 +1224,13 @@ def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
+    metrics_consumer,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1306,16 +1308,22 @@ def test_profile_outcomes_invalid(
 
     assert outcomes == expected_outcomes, outcomes
 
+    # Make sure the profile will not be counted as accepted:
+    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+    assert "has_profile" not in metric["tags"]
+
 
 def test_profile_outcomes_data_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
+    metrics_consumer,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1393,6 +1401,10 @@ def test_profile_outcomes_data_invalid(
 
     assert outcomes == expected_outcomes, outcomes
 
+    # Make sure the profile will not be counted as accepted:
+    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+    assert "has_profile" not in metric["tags"]
+
 
 @pytest.mark.parametrize("metrics_already_extracted", [False, True])
 @pytest.mark.parametrize("quota_category", ["transaction", "profile"])
@@ -1400,6 +1412,7 @@ def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
+    metrics_consumer,
     metrics_already_extracted,
     quota_category,
 ):
@@ -1408,6 +1421,7 @@ def test_profile_outcomes_rate_limited(
     Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1490,3 +1504,7 @@ def test_profile_outcomes_rate_limited(
         outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
+
+    # Make sure the profile will not be counted as accepted:
+    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+    assert "has_profile" not in metric["tags"]
