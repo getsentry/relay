@@ -36,7 +36,6 @@ mod mechanism;
 mod request;
 mod spans;
 mod stacktrace;
-mod url_encoding;
 
 pub mod user_agent;
 

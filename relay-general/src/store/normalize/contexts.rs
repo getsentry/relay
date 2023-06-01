@@ -2,7 +2,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext, ANDROID_MODEL_NAMES};
-use crate::store::normalize::url_encoding;
 use crate::types::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -181,13 +180,10 @@ fn normalize_os_context(os: &mut OsContext) {
 fn parse_raw_response_data(response: &mut ResponseContext) -> Option<(&'static str, Value)> {
     let raw = response.data.as_str()?;
 
-    // TODO: Try to decode base64 first
-
     if let Ok(value) = serde_json::from_str(raw) {
         Some(("application/json", value))
     } else {
-        url_encoding::encoded_from_str(raw)
-            .map(|value| ("application/x-www-form-urlencoded", value))
+        None
     }
 }
 
@@ -691,74 +687,5 @@ mod tests {
         normalize_response(&mut response);
         assert_eq!(response.inferred_content_type.value(), None);
         assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
-    }
-
-    #[test]
-    fn test_infer_url_encoded() {
-        let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
-            ..ResponseContext::default()
-        };
-
-        let mut expected_value = Object::new();
-        expected_value.insert(
-            "foo".to_string(),
-            Annotated::from(Value::String("bar".into())),
-        );
-
-        normalize_response(&mut response);
-        assert_eq!(
-            response.inferred_content_type.as_str(),
-            Some("application/x-www-form-urlencoded")
-        );
-        assert_eq!(response.data.value(), Some(&Value::Object(expected_value)));
-    }
-
-    #[test]
-    fn test_infer_url_false_positive() {
-        let mut response = ResponseContext {
-            data: Annotated::from(Value::String("dGU=".to_string())),
-            ..ResponseContext::default()
-        };
-
-        normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.value(), None);
-        assert_eq!(response.data.as_str(), Some("dGU="));
-    }
-
-    #[test]
-    fn test_infer_url_encoded_base64() {
-        let mut response = ResponseContext {
-            data: Annotated::from(Value::String("dA==".to_string())),
-            ..ResponseContext::default()
-        };
-
-        normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.value(), None);
-        assert_eq!(response.data.as_str(), Some("dA=="));
-    }
-
-    #[test]
-    fn test_infer_xml() {
-        let mut response = ResponseContext {
-            data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
-            ..ResponseContext::default()
-        };
-
-        normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.value(), None);
-        assert_eq!(response.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
-    }
-
-    #[test]
-    fn test_infer_binary() {
-        let mut response = ResponseContext {
-            data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
-            ..ResponseContext::default()
-        };
-
-        normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.value(), None);
-        assert_eq!(response.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
     }
 }
