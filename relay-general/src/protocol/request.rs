@@ -501,7 +501,7 @@ pub struct Request {
     ///
     /// Values can be `graphql`, `rest`, etc.
     ///
-    /// The [data] field should contain the request and response bodies based on its target specification.
+    /// The data field should contain the request and response bodies based on its target specification.
     ///
     /// This information can be used to better data scrubbing and normalization.
     pub api_target: Annotated<String>,
