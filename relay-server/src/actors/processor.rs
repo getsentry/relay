@@ -2402,6 +2402,7 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::SpanMetricsExtraction),
                 is_renormalize: false,
                 light_normalize_spans,
+                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -2778,7 +2779,7 @@ mod tests {
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
     use relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, RuleScope, TransactionNameRule,
+        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
     };
     use relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
@@ -3751,7 +3752,7 @@ mod tests {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
-                            scope: RuleScope::default(),
+                            scope: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: "*".to_owned(),
                             },

@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## 23.5.2
 
 **Features**:
 
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+- Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
 
 ## 23.5.1
 
