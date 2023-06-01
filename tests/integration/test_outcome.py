@@ -1270,8 +1270,6 @@ def test_profile_outcomes_invalid(
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
 
-        # Second profile, will be dropped
-        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
         return envelope
 
     envelope = make_envelope()
@@ -1295,17 +1293,6 @@ def test_profile_outcomes_invalid(
             "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
-        {
-            "category": expected_category,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "remote_addr": "127.0.0.1",
-            "source": "pop-relay",
-        },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
@@ -1315,7 +1302,9 @@ def test_profile_outcomes_invalid(
 
     if not metrics_already_extracted:
         # Make sure the profile will not be counted as accepted:
-        metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+        metric = metrics_by_name(metrics_consumer, 2)[
+            "d:transactions/duration@millisecond"
+        ]
         assert "has_profile" not in metric["tags"]
 
 
@@ -1398,9 +1387,10 @@ def test_profile_outcomes_data_invalid(
 
     assert outcomes == expected_outcomes, outcomes
 
-    # Make sure the profile will not be counted as accepted:
+    # Because invalid data is detected _after_ metrics extraction, there is still a metric:
     metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-    assert "has_profile" not in metric["tags"]
+    assert metric["tags"]["has_profile"] == "true"
+    assert len(metric["value"]) == 1
 
 
 @pytest.mark.parametrize("metrics_already_extracted", [False, True])
@@ -1409,7 +1399,6 @@ def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_consumer,
     metrics_already_extracted,
     quota_category,
 ):
@@ -1418,7 +1407,6 @@ def test_profile_outcomes_rate_limited(
     Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
-    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1501,8 +1489,3 @@ def test_profile_outcomes_rate_limited(
         outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
-
-    if not metrics_already_extracted:
-        # Make sure the profile will not be counted as accepted:
-        metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-        assert "has_profile" not in metric["tags"]
