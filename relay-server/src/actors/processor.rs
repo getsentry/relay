@@ -1067,23 +1067,23 @@ impl EnvelopeProcessorService {
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
         let mut found_profile = false;
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile => match relay_profiling::parse_metadata(&item.payload()) {
-                Ok(_) => {
-                    if !found_profile {
-                        // Found first profile, keep it.
-                        found_profile = true;
-                        ItemAction::Keep
-                    } else {
-                        // We found a second profile, drop it.
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                        )))
-                    }
+            ItemType::Profile => {
+                if !found_profile {
+                    // Found first profile, keep it.
+                    found_profile = true;
+                } else {
+                    // We found a second profile, drop it.
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+                    )));
                 }
-                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
-            },
+                match relay_profiling::parse_metadata(&item.payload()) {
+                    Ok(_) => ItemAction::Keep,
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
+                }
+            }
             _ => ItemAction::Keep,
         });
         state.has_profile = found_profile;
@@ -2725,6 +2725,7 @@ impl Service for EnvelopeProcessorService {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};

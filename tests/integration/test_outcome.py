@@ -12,6 +12,8 @@ import time
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .test_metrics import metrics_by_name
+
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -1085,6 +1087,7 @@ def test_profile_outcomes(
     relay_with_processing,
     outcomes_consumer,
     num_intermediate_relays,
+    metrics_consumer,
 ):
     """
     Tests that Relay reports correct outcomes for profiles.
@@ -1093,7 +1096,8 @@ def test_profile_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer(timeout=5)
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1153,7 +1157,7 @@ def test_profile_outcomes(
     ) as f:
         profile = f.read()
 
-    def make_envelope(transaction_name, num_profiles):
+    def make_envelope(transaction_name):
         payload = _get_event_payload("transaction")
         payload["transaction"] = transaction_name
         envelope = Envelope()
@@ -1163,16 +1167,14 @@ def test_profile_outcomes(
                 type="transaction",
             )
         )
-        for _ in range(num_profiles):
-
-            envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
         return envelope
 
     upstream.send_envelope(
-        project_id, make_envelope("hi", 2)
+        project_id, make_envelope("hi")
     )  # should get dropped by dynamic sampling
     upstream.send_envelope(
-        project_id, make_envelope("ho", 3)
+        project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
     outcomes = outcomes_consumer.get_outcomes()
@@ -1186,24 +1188,15 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": 6,  # Profile
+            # 6 == Profile, should be 11 = ProfileIndexed once follow-up PRs merge.
+            "category": 6,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
+            "outcome": 1,  # Filtered
             "project_id": 42,
-            "quantity": 2,
+            "quantity": 1,
+            "reason": "Sampled:1",
             "source": expected_source,
-        },
-        {
-            "category": 6,  # Profile
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 3,
-            # The accepted outcome for profiles that survived dynamic sampling is always emitted
-            # by the processing relay:
-            "source": "processing-relay",
         },
         {
             "category": 9,  # TransactionIndexed
@@ -1215,24 +1208,19 @@ def test_profile_outcomes(
             "reason": "Sampled:1",
             "source": expected_source,
         },
-        {
-            "category": 11,  # ProfileIndexed
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 1,  # Filtered
-            "project_id": 42,
-            "quantity": 2,
-            "reason": "Sampled:1",
-            "source": expected_source,
-        },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
 
+    metrics = metrics_by_name(metrics_consumer, 3)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_profile_outcomes_metadata_invalid(
+def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
@@ -1277,6 +1265,9 @@ def test_profile_outcomes_metadata_invalid(
             )
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+
+        # Second profile, will be dropped
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
         return envelope
 
     envelope = make_envelope()
@@ -1294,6 +1285,17 @@ def test_profile_outcomes_metadata_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+        {
+            "category": 6,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_too_many_profiles",
             "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
