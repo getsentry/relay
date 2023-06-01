@@ -21,8 +21,7 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
 use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
-use crate::endpoints::common::BytesWrapper;
-use crate::extractors::ForwardedFor;
+use crate::extractors::{ForwardedFor, InstrumentedBytes};
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
 
@@ -191,7 +190,7 @@ async fn handle(
     method: Method,
     uri: Uri,
     headers: HeaderMap<HeaderValue>,
-    data: BytesWrapper,
+    InstrumentedBytes(data): InstrumentedBytes,
 ) -> Result<impl IntoResponse, ForwardError> {
     // The `/api/` path is special as it is actually a web UI endpoint. Therefore, reject requests
     // that either go to the API root or point outside the API.
@@ -206,7 +205,7 @@ async fn handle(
         path: uri.to_string(),
         headers,
         forwarded_for,
-        data: data.0,
+        data,
         max_response_size: state.config().max_api_payload_size(),
         sender: tx,
     };

@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use axum::extract::{DefaultBodyLimit, Multipart};
+use axum::extract::DefaultBodyLimit;
 use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
@@ -11,9 +11,9 @@ use relay_config::Config;
 use relay_general::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RawContentType, RequestMeta};
+use crate::extractors::{InstrumentedBytes, InstrumentedMultipart, RawContentType, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
 
@@ -82,10 +82,10 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(name = "function", skip_all)]
 async fn extract_multipart(
     config: &Config,
-    multipart: Multipart,
+    InstrumentedMultipart(multipart): InstrumentedMultipart,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_size = config.max_attachment_size();
@@ -113,15 +113,15 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(name = "function", skip_all)]
 fn extract_raw_minidump(
-    data: BytesWrapper,
+    InstrumentedBytes(data): InstrumentedBytes,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    validate_minidump(&data.0)?;
+    validate_minidump(&data)?;
 
     let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::Minidump, data.0);
+    item.set_payload(ContentType::Minidump, data);
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 

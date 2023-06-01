@@ -6,9 +6,9 @@ use relay_general::protocol::EventId;
 use serde::Deserialize;
 
 use crate::constants::UNREAL_USER_HEADER;
-use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{InstrumentedBytes, RequestMeta};
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
@@ -23,22 +23,26 @@ struct UnrealParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: UnrealQuery,
-    data: BytesWrapper,
+    data: InstrumentedBytes,
 }
 
 impl UnrealParams {
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(name = "function", skip_all)]
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { meta, query, data } = self;
+        let Self {
+            meta,
+            query,
+            data: InstrumentedBytes(data),
+        } = self;
 
-        if data.0.is_empty() {
+        if data.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
         let mut item = Item::new(ItemType::UnrealReport);
-        item.set_payload(ContentType::OctetStream, data.0);
+        item.set_payload(ContentType::OctetStream, data);
         envelope.add_item(item);
 
         if let Some(user_id) = query.user_id {

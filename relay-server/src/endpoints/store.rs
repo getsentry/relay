@@ -13,9 +13,9 @@ use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
-use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RawContentType, RequestMeta};
+use crate::extractors::{InstrumentedBytes, RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
 /// Decodes a base64-encoded zlib compressed request body.
@@ -49,7 +49,7 @@ fn decode_bytes(body: Bytes, limit: usize) -> Result<Bytes, io::Error> {
 /// Parses an event body into an `Envelope`.
 ///
 /// If the body is encoded with base64 or zlib, it will be transparently decoded.
-#[tracing::instrument(skip_all, fields(?meta))]
+#[tracing::instrument(name = "function", skip_all, fields(?meta))]
 fn parse_event(
     mut body: Bytes,
     meta: RequestMeta,
@@ -108,7 +108,7 @@ async fn handle_post(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
-    BytesWrapper(body): BytesWrapper,
+    InstrumentedBytes(body): InstrumentedBytes,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = match content_type.as_ref() {
         envelope::CONTENT_TYPE => Envelope::parse_request(body, meta)?,

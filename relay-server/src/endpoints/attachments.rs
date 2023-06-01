@@ -9,28 +9,9 @@ use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope};
-use crate::extractors::RequestMeta;
+use crate::extractors::{InstrumentedMultipart, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
-
-#[derive(Debug)]
-struct MultipartWrapper(Multipart);
-
-/// A wrapper overt [`axum::extract::Multipart`] with tracing instrumentation.
-#[axum::async_trait]
-impl<S, B> axum::extract::FromRequest<S, B> for MultipartWrapper
-where
-    Multipart: axum::extract::FromRequest<S, B>,
-    B: Send + 'static,
-    S: Send + Sync,
-{
-    type Rejection = <Multipart as axum::extract::FromRequest<S, B>>::Rejection;
-
-    #[tracing::instrument(name = "Multipart::from_request", skip_all)]
-    async fn from_request(req: axum::http::Request<B>, state: &S) -> Result<Self, Self::Rejection> {
-        Ok(Self(Multipart::from_request(req, state).await?))
-    }
-}
 
 #[derive(Debug, Deserialize)]
 struct AttachmentPath {
@@ -57,9 +38,9 @@ async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
-    multipart: MultipartWrapper,
+    InstrumentedMultipart(multipart): InstrumentedMultipart,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    let envelope = extract_envelope(state.config(), meta, path, multipart.0).await?;
+    let envelope = extract_envelope(state.config(), meta, path, multipart).await?;
     common::handle_envelope(&state, envelope).await?;
     Ok(StatusCode::CREATED)
 }

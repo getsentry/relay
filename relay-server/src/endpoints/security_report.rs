@@ -8,9 +8,9 @@ use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
-use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{Mime, RequestMeta};
+use crate::extractors::{InstrumentedBytes, Mime, RequestMeta};
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
@@ -25,19 +25,23 @@ struct SecurityReportParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: SecurityReportQuery,
-    body: BytesWrapper,
+    body: InstrumentedBytes,
 }
 
 impl SecurityReportParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { meta, query, body } = self;
+        let Self {
+            meta,
+            query,
+            body: InstrumentedBytes(body),
+        } = self;
 
-        if body.0.is_empty() {
+        if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
         let mut report_item = Item::new(ItemType::RawSecurity);
-        report_item.set_payload(ContentType::Json, body.0);
+        report_item.set_payload(ContentType::Json, body);
 
         if let Some(sentry_release) = query.sentry_release {
             report_item.set_header("sentry_release", sentry_release);
