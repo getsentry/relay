@@ -1188,8 +1188,7 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            # 6 == Profile, should be 11 = ProfileIndexed once follow-up PRs merge.
-            "category": 6,
+            "category": 9,  # TransactionIndexed
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1199,7 +1198,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": 9,  # TransactionIndexed
+            "category": 11,
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1220,10 +1219,12 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
+    metrics_already_extracted,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
@@ -1262,6 +1263,7 @@ def test_profile_outcomes_invalid(
             Item(
                 payload=PayloadRef(bytes=json.dumps(payload).encode()),
                 type="transaction",
+                headers={"metrics_extracted": metrics_already_extracted},
             )
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
@@ -1276,9 +1278,12 @@ def test_profile_outcomes_invalid(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
+    # Expect ProfileIndexed, except when no metrics have been extracted.
+    expected_category = 11 if metrics_already_extracted else 6
+
     expected_outcomes = [
         {
-            "category": 6,  # Profile
+            "category": expected_category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
@@ -1289,7 +1294,7 @@ def test_profile_outcomes_invalid(
             "source": "pop-relay",
         },
         {
-            "category": 6,
+            "category": expected_category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,
@@ -1367,16 +1372,7 @@ def test_profile_outcomes_data_invalid(
 
     expected_outcomes = [
         {
-            "category": 6,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-            "source": "processing-relay",
-        },
-        {
-            "category": 11,
+            "category": 11,  # ProfileIndexed
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,
