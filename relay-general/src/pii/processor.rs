@@ -215,7 +215,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
 /// Scrubs GraphQL variables from the event.
 fn scrub_graphql(event: &mut Event) {
-    let mut keys: Option<BTreeSet<String>> = None;
+    let mut keys: Option<BTreeSet<&str>> = None;
 
     let mut is_graphql = false;
 
@@ -232,9 +232,9 @@ fn scrub_graphql(event: &mut Event) {
                 if let Some(Annotated(Some(Value::Object(variables)), _)) =
                     data.get_mut("variables")
                 {
-                    let mut current_keys: BTreeSet<String> = BTreeSet::new();
+                    let mut current_keys: BTreeSet<&str> = BTreeSet::new();
                     for (key, value) in variables.iter_mut() {
-                        current_keys.insert(key.to_string());
+                        current_keys.insert(key);
                         value.set_value(Some(Value::String("[Filtered]".to_string())));
                     }
                     keys = Some(current_keys);
@@ -274,14 +274,14 @@ fn scrub_graphql(event: &mut Event) {
 }
 
 /// Scrubs values from the data object to `[Filtered]`.
-fn scrub_graphql_data(keys: &BTreeSet<String>, data: &mut BTreeMap<String, Annotated<Value>>) {
+fn scrub_graphql_data(keys: &BTreeSet<&str>, data: &mut BTreeMap<String, Annotated<Value>>) {
     for (key, value) in data.iter_mut() {
         match value.value_mut() {
             Some(Value::Object(item_data)) => {
                 scrub_graphql_data(keys, item_data);
             }
             _ => {
-                if keys.contains(key) {
+                if keys.contains(key.as_str()) {
                     value.set_value(Some(Value::String("[Filtered]".to_string())));
                 }
             }
