@@ -1,6 +1,7 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
+use bytes::Bytes;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
@@ -23,17 +24,14 @@ struct UnrealParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: UnrealQuery,
-    data: InstrumentedBytes,
+    #[from_request(via(InstrumentedBytes))]
+    data: Bytes,
 }
 
 impl UnrealParams {
     #[tracing::instrument(name = "function", skip_all)]
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self {
-            meta,
-            query,
-            data: InstrumentedBytes(data),
-        } = self;
+        let Self { meta, query, data } = self;
 
         if data.is_empty() {
             return Err(BadStoreRequest::EmptyBody);

@@ -4,6 +4,7 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
+use bytes::Bytes;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
@@ -25,16 +26,13 @@ struct SecurityReportParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: SecurityReportQuery,
-    body: InstrumentedBytes,
+    #[from_request(via(InstrumentedBytes))]
+    body: Bytes,
 }
 
 impl SecurityReportParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self {
-            meta,
-            query,
-            body: InstrumentedBytes(body),
-        } = self;
+        let Self { meta, query, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
