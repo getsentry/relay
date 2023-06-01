@@ -382,6 +382,7 @@ pub fn parse_sample_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_roundtrip() {
@@ -922,5 +923,47 @@ mod tests {
             output.metadata.transaction.unwrap().name,
             "some-random-transaction".to_string()
         );
+    }
+
+    #[test]
+    fn test_keep_profile_under_30_seconds() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: Duration::from_secs(29).as_nanos() as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(!profile.is_above_max_duration());
+    }
+
+    #[test]
+    fn test_reject_profile_over_30_seconds() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: Duration::from_secs(40).as_nanos() as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(profile.is_above_max_duration());
     }
 }
