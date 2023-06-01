@@ -533,6 +533,71 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
+        description: "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+        op: "db",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.operation": String(
+                "SELECT",
+            ),
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "description.scrubbed": String(
+                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "span.action": String(
+                "SELECT",
+            ),
+            "span.description": String(
+                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+            ),
+            "span.domain": String(
+                "table",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "MyDatabase",
+            ),
+            "transaction": String(
+                "mytransaction",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
         description: "SAVEPOINT save_this_one",
         op: "db",
         span_id: SpanId(
