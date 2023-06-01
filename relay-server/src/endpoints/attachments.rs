@@ -1,8 +1,9 @@
-use axum::extract::{DefaultBodyLimit, Multipart, Path};
+use axum::extract::{DefaultBodyLimit, Path};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
+use multer::Multipart;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
@@ -22,7 +23,7 @@ async fn extract_envelope(
     config: &Config,
     meta: RequestMeta,
     path: AttachmentPath,
-    multipart: Multipart,
+    multipart: Multipart<'_>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_size = config.max_attachment_size();
     let items = utils::multipart_items(multipart, max_size, |_| AttachmentType::default()).await?;

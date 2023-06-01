@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::io;
 
-use axum::extract::multipart::{Field, Multipart};
+use multer::{Field, Multipart};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -153,7 +153,7 @@ pub enum MultipartError {
     #[error("field exceeded the size limit")]
     FieldSizeExceeded,
     #[error(transparent)]
-    Raw(#[from] axum::extract::multipart::MultipartError),
+    Raw(#[from] multer::Error),
 }
 
 async fn field_data<'a>(field: &mut Field<'a>, limit: usize) -> Result<Vec<u8>, MultipartError> {
@@ -170,7 +170,7 @@ async fn field_data<'a>(field: &mut Field<'a>, limit: usize) -> Result<Vec<u8>, 
 }
 
 pub async fn multipart_items<F>(
-    mut multipart: Multipart,
+    mut multipart: Multipart<'_>,
     item_limit: usize,
     mut infer_type: F,
 ) -> Result<Items, MultipartError>
@@ -186,7 +186,7 @@ where
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
             let content_type = match field.content_type() {
-                Some(string) => string.into(),
+                Some(value) => value.to_string().into(),
                 None => ContentType::OctetStream,
             };
             // Extract the body after the immutable borrow on `file_name` is gone.
@@ -221,6 +221,8 @@ mod tests {
     use axum::extract::FromRequest;
     use axum::http::Request;
     use bytes::Bytes;
+
+    use crate::extractors::InstrumentedMultipart;
 
     use super::*;
 
@@ -287,7 +289,9 @@ mod tests {
             .body(Full::new(Bytes::from(data)))
             .unwrap();
 
-        let mut multipart = Multipart::from_request(request, &()).await?;
+        let InstrumentedMultipart(mut multipart) =
+            InstrumentedMultipart::from_request(request, &()).await?;
+
         assert!(multipart.next_field().await?.is_some());
         assert!(multipart.next_field().await?.is_none());
 
