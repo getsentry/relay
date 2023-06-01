@@ -12,8 +12,8 @@ impl ForwardedFor {
     const FORWARDED_HEADER: &str = "X-Forwarded-For";
     const VERCEL_FORWARDED_HEADER: &str = "X-Vercel-Forwarded-For";
 
-    // We prefer the vercel header because the normal one could get overwritten as explained here.
-    // `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
+    /// We prefer the Vercel header because the normal one could get overwritten as explained here.
+    /// `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
     fn get_forwarded_for_ip(header_map: &HeaderMap) -> &str {
         header_map
             .get(Self::VERCEL_FORWARDED_HEADER)
