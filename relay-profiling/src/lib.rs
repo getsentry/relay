@@ -115,7 +115,7 @@ use crate::extract_from_transaction::{extract_transaction_metadata, extract_tran
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
 
-const MAX_PROFILE_DURATION: Duration = Duration::new(30, 0);
+const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
