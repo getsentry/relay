@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `data` and `api_target` fields to `ResponseContext` and scrub `graphql` bodies. ([#2141](https://github.com/getsentry/relay/pull/2141))
+
 ## 23.5.2
 
 **Features**:
