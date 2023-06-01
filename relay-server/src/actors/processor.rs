@@ -1069,7 +1069,7 @@ impl EnvelopeProcessorService {
             .count();
 
         state.managed_envelope.retain_items(|item| match item.ty() {
-            // Drop profile without a transaction in the same envelope
+            // Drop profile without a transaction in the same envelope.
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             ItemType::Profile => match relay_profiling::parse_metadata(&item.payload()) {
                 Ok(_) => ItemAction::Keep,
