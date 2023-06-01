@@ -13,7 +13,7 @@ use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
-use crate::endpoints::common::{self, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
@@ -103,30 +103,12 @@ struct PostResponse {
     id: Option<EventId>,
 }
 
-#[derive(Debug)]
-struct MyBytes(Bytes);
-
-#[axum::async_trait]
-impl<S, B> axum::extract::FromRequest<S, B> for MyBytes
-where
-    Bytes: axum::extract::FromRequest<S, B>,
-    B: Send + 'static,
-    S: Send + Sync,
-{
-    type Rejection = <Bytes as axum::extract::FromRequest<S, B>>::Rejection;
-
-    #[tracing::instrument(name = "Bytes::from_request", skip_all)]
-    async fn from_request(req: axum::http::Request<B>, state: &S) -> Result<Self, Self::Rejection> {
-        Ok(Self(Bytes::from_request(req, state).await?))
-    }
-}
-
 /// Handler for the JSON event store endpoint.
 async fn handle_post(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
-    MyBytes(body): MyBytes,
+    BytesWrapper(body): BytesWrapper,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = match content_type.as_ref() {
         envelope::CONTENT_TYPE => Envelope::parse_request(body, meta)?,

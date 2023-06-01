@@ -1,13 +1,12 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
-use bytes::Bytes;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
 use crate::constants::UNREAL_USER_HEADER;
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper, TextResponse};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
@@ -24,21 +23,22 @@ struct UnrealParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: UnrealQuery,
-    data: Bytes,
+    data: BytesWrapper,
 }
 
 impl UnrealParams {
+    #[tracing::instrument(skip_all)]
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
-        if data.is_empty() {
+        if data.0.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
         let mut item = Item::new(ItemType::UnrealReport);
-        item.set_payload(ContentType::OctetStream, data);
+        item.set_payload(ContentType::OctetStream, data.0);
         envelope.add_item(item);
 
         if let Some(user_id) = query.user_id {

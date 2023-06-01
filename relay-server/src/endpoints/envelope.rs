@@ -79,6 +79,7 @@ where
 {
     type Rejection = BadEnvelopeParams;
 
+    #[tracing::instrument(skip_all)]
     async fn from_request(
         mut request: Request<B>,
         state: &ServiceState,

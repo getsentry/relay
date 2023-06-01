@@ -4,12 +4,11 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
-use bytes::Bytes;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
-use crate::endpoints::common::{self, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
@@ -26,19 +25,19 @@ struct SecurityReportParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: SecurityReportQuery,
-    body: Bytes,
+    body: BytesWrapper,
 }
 
 impl SecurityReportParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
-        if body.is_empty() {
+        if body.0.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
         let mut report_item = Item::new(ItemType::RawSecurity);
-        report_item.set_payload(ContentType::Json, body);
+        report_item.set_payload(ContentType::Json, body.0);
 
         if let Some(sentry_release) = query.sentry_release {
             report_item.set_header("sentry_release", sentry_release);

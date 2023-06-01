@@ -2,6 +2,7 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
+use bytes::Bytes;
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
@@ -142,6 +143,25 @@ impl IntoResponse for BadStoreRequest {
         }
 
         response
+    }
+}
+
+/// Adds the instrumentation layer on top of the [`bytes::Bytes`].
+#[derive(Debug)]
+pub(crate) struct BytesWrapper(pub(crate) Bytes);
+
+#[axum::async_trait]
+impl<S, B> axum::extract::FromRequest<S, B> for BytesWrapper
+where
+    Bytes: axum::extract::FromRequest<S, B>,
+    B: Send + 'static,
+    S: Send + Sync,
+{
+    type Rejection = <Bytes as axum::extract::FromRequest<S, B>>::Rejection;
+
+    #[tracing::instrument(name = "Bytes::from_request", skip_all)]
+    async fn from_request(req: axum::http::Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(Bytes::from_request(req, state).await?))
     }
 }
 

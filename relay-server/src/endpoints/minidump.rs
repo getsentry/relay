@@ -11,7 +11,7 @@ use relay_config::Config;
 use relay_general::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, BytesWrapper, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
@@ -82,6 +82,7 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
+#[tracing::instrument(skip_all)]
 async fn extract_multipart(
     config: &Config,
     multipart: Multipart,
@@ -112,11 +113,15 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
-    validate_minidump(&data)?;
+#[tracing::instrument(skip_all)]
+fn extract_raw_minidump(
+    data: BytesWrapper,
+    meta: RequestMeta,
+) -> Result<Box<Envelope>, BadStoreRequest> {
+    validate_minidump(&data.0)?;
 
     let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::Minidump, data);
+    item.set_payload(ContentType::Minidump, data.0);
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 

@@ -81,6 +81,7 @@ where
 {
     type Rejection = SignatureError;
 
+    #[tracing::instrument(skip_all)]
     async fn from_request(
         request: Request<B>,
         state: &ServiceState,
