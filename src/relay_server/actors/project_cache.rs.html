@@ -2160,7 +2160,7 @@
         <span class="comment">// All the messages should have been spooled to disk.
         </span><span class="macro">assert_eq!</span>(buffer_guard.available(), <span class="number">5</span>);
         <span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(broker.index.values().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
 
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>).unwrap();
         <span class="kw">let </span>key = QueueKey {
@@ -2193,7 +2193,7 @@
         <span class="comment">// Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
         </span><span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(broker.index.values().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
 
         <span class="comment">// Check if we can also dequeue from the buffer directly.
         </span>buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));
