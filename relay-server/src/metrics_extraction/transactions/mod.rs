@@ -607,7 +607,7 @@ fn extract_span_metrics(
                     span.description
                         .value()
                         .and_then(|url| domain_from_http_url(url))
-                } else if span_op == "db.sql.query" {
+                } else if span_op.starts_with("db") {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
@@ -689,8 +689,9 @@ fn extract_span_metrics(
     Ok(())
 }
 
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(from|into)(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
+});
 
 /// Returns the table in the SQL query, if any.
 ///
@@ -976,6 +977,34 @@ mod tests {
                 {
                     "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
                     "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+                    "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
@@ -1616,6 +1645,117 @@ mod tests {
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
+                    "span.status": "ok",
+                    "span.system": "MyDatabase",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.action": "SELECT",
+                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.domain": "table",
+                    "span.module": "db",
+                    "span.op": "db",
                     "span.status": "ok",
                     "span.system": "MyDatabase",
                     "transaction": "mytransaction",
