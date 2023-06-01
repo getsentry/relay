@@ -223,7 +223,7 @@ fn scrub_graphql(event: &mut Event) {
     if let Some(request) = event.request.value_mut() {
         if let Some(Value::Object(data)) = request.data.value_mut() {
             if let Some(api_target) = request.api_target.value() {
-                if api_target.to_lowercase().eq("graphql") {
+                if api_target.eq_ignore_ascii_case("graphql") {
                     is_graphql = true;
                 }
             }

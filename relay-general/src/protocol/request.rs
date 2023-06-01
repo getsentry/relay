@@ -503,7 +503,7 @@ pub struct Request {
     ///
     /// The data field should contain the request and response bodies based on its target specification.
     ///
-    /// This information can be used to better data scrubbing and normalization.
+    /// This information can be used for better data scrubbing and normalization.
     pub api_target: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
