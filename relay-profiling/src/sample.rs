@@ -926,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keep_profile_under_30_seconds() {
+    fn test_keep_profile_under_max_duration() {
         let mut profile = generate_profile();
         profile.profile.samples.extend(vec![
             Sample {
@@ -938,7 +938,8 @@ mod tests {
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: Duration::from_secs(29).as_nanos() as u64,
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION - Duration::from_secs(1)).as_nanos()
+                    as u64,
                 thread_id: 2,
             },
         ]);
@@ -947,7 +948,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reject_profile_over_30_seconds() {
+    fn test_reject_profile_over_max_duration() {
         let mut profile = generate_profile();
         profile.profile.samples.extend(vec![
             Sample {
@@ -959,7 +960,8 @@ mod tests {
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: Duration::from_secs(40).as_nanos() as u64,
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION + Duration::from_secs(1)).as_nanos()
+                    as u64,
                 thread_id: 2,
             },
         ]);
