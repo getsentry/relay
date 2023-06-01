@@ -1198,7 +1198,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": 11,
+            "category": 11,  # ProfileIndexed
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1278,7 +1278,7 @@ def test_profile_outcomes_invalid(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    # Expect ProfileIndexed, except when no metrics have been extracted.
+    # Expect ProfileIndexed if metrics have been extracted, else Profile
     expected_category = 11 if metrics_already_extracted else 6
 
     expected_outcomes = [
