@@ -42,11 +42,8 @@ Event {
         body_size: ~,
         env: ~,
         inferred_content_type: ~,
-        other: {
-            "graphql_error": Bool(
-                true,
-            ),
-        },
+        api_target: "graphql",
+        other: {},
     },
     contexts: Contexts(
         {
@@ -61,11 +58,7 @@ Event {
                             {},
                         ),
                         inferred_content_type: ~,
-                        other: {
-                            "graphql_error": Bool(
-                                true,
-                            ),
-                        },
+                        other: {},
                     },
                 ),
             ),

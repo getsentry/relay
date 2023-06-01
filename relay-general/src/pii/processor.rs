@@ -217,23 +217,27 @@ impl<'a> Processor for PiiProcessor<'a> {
 fn scrub_graphql(event: &mut Event) {
     let mut keys: Option<BTreeSet<String>> = None;
 
+    let mut is_graphql = false;
+
     // collect the variables keys and scrub them out.
     if let Some(request) = event.request.value_mut() {
         if let Some(Value::Object(data)) = request.data.value_mut() {
-            if let Some(Annotated(Some(Value::Bool(graphql_error)), _)) =
-                request.other.get("graphql_error")
-            {
-                if *graphql_error {
-                    if let Some(Annotated(Some(Value::Object(variables)), _)) =
-                        data.get_mut("variables")
-                    {
-                        let mut current_keys: BTreeSet<String> = BTreeSet::new();
-                        for (key, value) in variables.iter_mut() {
-                            current_keys.insert(key.to_string());
-                            value.set_value(Some(Value::String("[Filtered]".to_string())));
-                        }
-                        keys = Some(current_keys);
+            if let Some(api_target) = request.api_target.value() {
+                if api_target.to_lowercase().eq("graphql") {
+                    is_graphql = true;
+                }
+            }
+
+            if is_graphql {
+                if let Some(Annotated(Some(Value::Object(variables)), _)) =
+                    data.get_mut("variables")
+                {
+                    let mut current_keys: BTreeSet<String> = BTreeSet::new();
+                    for (key, value) in variables.iter_mut() {
+                        current_keys.insert(key.to_string());
+                        value.set_value(Some(Value::String("[Filtered]".to_string())));
                     }
+                    keys = Some(current_keys);
                 }
             }
         }
@@ -243,29 +247,25 @@ fn scrub_graphql(event: &mut Event) {
     if let Some(contexts) = event.contexts.value_mut() {
         if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
             if let Some(Value::Object(data)) = response.data.value_mut() {
-                if let Some(Annotated(Some(Value::Bool(graphql_error)), _)) =
-                    response.other.get("graphql_error")
-                {
-                    if *graphql_error {
-                        let mut delete_data = false;
-                        if let Some(Annotated(Some(Value::Object(graphql_data)), _)) =
-                            data.get_mut("data")
-                        {
-                            if let Some(keys) = keys {
-                                if !keys.is_empty() {
-                                    scrub_graphql_data(&keys, graphql_data);
-                                } else {
-                                    delete_data = true;
-                                }
+                if is_graphql {
+                    let mut delete_data = false;
+                    if let Some(Annotated(Some(Value::Object(graphql_data)), _)) =
+                        data.get_mut("data")
+                    {
+                        if let Some(keys) = keys {
+                            if !keys.is_empty() {
+                                scrub_graphql_data(&keys, graphql_data);
                             } else {
                                 delete_data = true;
                             }
+                        } else {
+                            delete_data = true;
                         }
-                        if delete_data {
-                            // if we don't have the variable keys, we scrub the whole data object
-                            // because the query or mutation weren't parameterized.
-                            data.remove("data");
-                        }
+                    }
+                    if delete_data {
+                        // if we don't have the variable keys, we scrub the whole data object
+                        // because the query or mutation weren't parameterized.
+                        data.remove("data");
                     }
                 }
             }
@@ -273,7 +273,7 @@ fn scrub_graphql(event: &mut Event) {
     }
 }
 
-/// Scrubs values from the data object to [Filtered]
+/// Scrubs values from the data object to `[Filtered]`.
 fn scrub_graphql_data(keys: &BTreeSet<String>, data: &mut BTreeMap<String, Annotated<Value>>) {
     for (key, value) in data.iter_mut() {
         match value.value_mut() {
@@ -1385,7 +1385,7 @@ mod tests {
                     "login": "foo"
                   }
                 },
-                "graphql_error": true
+                "api_target": "graphql"
               },
               "contexts": {
                 "response": {
@@ -1396,8 +1396,7 @@ mod tests {
                         "login": "foo"
                       }
                     }
-                  },
-                  "graphql_error": true,
+                  }
                 }
               }
             })
@@ -1427,7 +1426,7 @@ mod tests {
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}"
                 },
-                "graphql_error": true
+                "api_target": "graphql"
               },
               "contexts": {
                 "response": {
@@ -1438,8 +1437,7 @@ mod tests {
                         "login": "foo"
                       }
                     }
-                  },
-                  "graphql_error": true,
+                  }
                 }
               }
             })
@@ -1482,7 +1480,7 @@ mod tests {
                         "login": "foo"
                       }
                     }
-                  },
+                  }
                 }
               }
             })

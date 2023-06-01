@@ -49,6 +49,7 @@ Event {
         body_size: ~,
         env: ~,
         inferred_content_type: ~,
+        api_target: ~,
         other: {},
     },
     contexts: Contexts(

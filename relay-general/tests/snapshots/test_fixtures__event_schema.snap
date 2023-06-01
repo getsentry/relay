@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -2841,6 +2840,14 @@ expression: "relay_general::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "api_target": {
+              "description": " The API target/specification that made the request.\n\n Values can be `graphql`, `rest`, etc.\n\n The [data] field should contain the request and response bodies based on its target specification.\n\n This information can be used to better data scrubbing and normalization.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "body_size": {
               "description": " HTTP request body size.",
               "default": null,
