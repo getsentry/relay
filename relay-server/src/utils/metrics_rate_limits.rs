@@ -188,7 +188,7 @@ mod tests {
         metric_name: &str,
         data_category: DataCategory,
         limit: u64,
-    ) -> (usize, Vec<TrackOutcome>) {
+    ) -> (usize, Vec<DataCategory>) {
         let metrics = vec![Metric {
             timestamp: UnixTimestamp::now(),
             name: metric_name.to_string(),
@@ -221,18 +221,19 @@ mod tests {
         let outcomes = (0..)
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
-            .map(Option::unwrap);
+            .map(|o| o.unwrap().category);
         (limiter.into_metrics().len(), outcomes.collect())
     }
 
     #[test]
-    fn removes_transactions() {
-        let (num_metrics, outcomes) = run_limiter(
-            "d:transactions/duration@millisecond",
-            DataCategory::Transaction,
-            0,
+    fn test_rate_limits() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                DataCategory::Transaction,
+                0,
+            ),
+            (0, vec![DataCategory::Transaction])
         );
-        assert_eq!(num_metrics, 0);
-        insta::assert_debug_snapshot!(outcomes, @r#""#);
     }
 }
