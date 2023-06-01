@@ -1469,6 +1469,9 @@
 <a href="#1468" id="1468">1468</a>
 <a href="#1469" id="1469">1469</a>
 <a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -2184,7 +2187,10 @@
             <span class="comment">// In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             </span>.gzip(<span class="bool-val">true</span>)
-            .trust_dns(<span class="bool-val">true</span>)
+            <span class="comment">// Enables async resolver through the `trust-dns-resolver` crate, which uses an LRU cache for the resolved entries.
+            // This helps to limit the amount of requests made to upstream DNS server (important
+            // for K8s infrastructure).
+            </span>.trust_dns(<span class="bool-val">true</span>)
             .build()
             .unwrap();
 
