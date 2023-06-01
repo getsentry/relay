@@ -173,3 +173,66 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         self.metrics
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+    use relay_common::{ProjectId, ProjectKey};
+    use relay_metrics::{Bucket, BucketValue, DistributionValue, Metric, MetricValue};
+    use relay_quotas::QuotaScope;
+    use smallvec::smallvec;
+
+    use super::*;
+
+    fn run_limiter(
+        metric_name: &str,
+        data_category: DataCategory,
+        limit: u64,
+    ) -> (usize, Vec<TrackOutcome>) {
+        let metrics = vec![Metric {
+            timestamp: UnixTimestamp::now(),
+            name: metric_name.to_string(),
+            tags: [("has_profile".to_string(), "true".to_string())].into(),
+            value: MetricValue::Distribution(123.0),
+        }];
+        let quotas = vec![Quota {
+            id: None,
+            categories: smallvec![data_category],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(limit),
+            window: None,
+            reason_code: None,
+        }];
+        let mut limiter = MetricsLimiter::create(
+            metrics,
+            quotas,
+            Scoping {
+                organization_id: 1,
+                project_id: ProjectId::new(1),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: None,
+            },
+        )
+        .unwrap();
+
+        let (outcome_sink, mut rx) = Addr::custom();
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+        let outcomes = (0..)
+            .map(|_| rx.blocking_recv())
+            .take_while(|o| o.is_some())
+            .map(Option::unwrap);
+        (limiter.into_metrics().len(), outcomes.collect())
+    }
+
+    #[test]
+    fn removes_transactions() {
+        let (num_metrics, outcomes) = run_limiter(
+            "d:transactions/duration@millisecond",
+            DataCategory::Transaction,
+            0,
+        );
+        assert_eq!(num_metrics, 0);
+        insta::assert_debug_snapshot!(outcomes, @r#""#);
+    }
+}
