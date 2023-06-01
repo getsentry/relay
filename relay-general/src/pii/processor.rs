@@ -215,7 +215,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
 /// Scrubs GraphQL variables from the event.
 fn scrub_graphql(event: &mut Event) {
-    let mut keys: Option<BTreeSet<&str>> = None;
+    let mut keys: BTreeSet<&str> = BTreeSet::new();
 
     let mut is_graphql = false;
 
@@ -232,12 +232,10 @@ fn scrub_graphql(event: &mut Event) {
                 if let Some(Annotated(Some(Value::Object(variables)), _)) =
                     data.get_mut("variables")
                 {
-                    let mut current_keys: BTreeSet<&str> = BTreeSet::new();
                     for (key, value) in variables.iter_mut() {
-                        current_keys.insert(key);
+                        keys.insert(key);
                         value.set_value(Some(Value::String("[Filtered]".to_string())));
                     }
-                    keys = Some(current_keys);
                 }
             }
         }
@@ -248,24 +246,16 @@ fn scrub_graphql(event: &mut Event) {
         if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
             if let Some(Value::Object(data)) = response.data.value_mut() {
                 if is_graphql {
-                    let mut delete_data = false;
                     if let Some(Annotated(Some(Value::Object(graphql_data)), _)) =
                         data.get_mut("data")
                     {
-                        if let Some(keys) = keys {
-                            if !keys.is_empty() {
-                                scrub_graphql_data(&keys, graphql_data);
-                            } else {
-                                delete_data = true;
-                            }
+                        if !keys.is_empty() {
+                            scrub_graphql_data(&keys, graphql_data);
                         } else {
-                            delete_data = true;
+                            // if we don't have the variable keys, we scrub the whole data object
+                            // because the query or mutation weren't parameterized.
+                            data.remove("data");
                         }
-                    }
-                    if delete_data {
-                        // if we don't have the variable keys, we scrub the whole data object
-                        // because the query or mutation weren't parameterized.
-                        data.remove("data");
                     }
                 }
             }
