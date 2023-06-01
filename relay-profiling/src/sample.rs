@@ -216,9 +216,9 @@ impl SampleProfile {
         true
     }
 
-    fn is_below_max_duration(&self) -> bool {
+    fn is_above_max_duration(&self) -> bool {
         if let Some(sample) = &self.profile.samples.last() {
-            return sample.elapsed_since_start_ns <= MAX_PROFILE_DURATION_NS;
+            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
         }
         false
     }
@@ -337,7 +337,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
-    if !profile.is_below_max_duration() {
+    if profile.is_above_max_duration() {
         return Err(ProfileError::DurationIsTooLong);
     }
 
