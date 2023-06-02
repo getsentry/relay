@@ -696,6 +696,9 @@ fn extract_span_metrics(
     Ok(())
 }
 
+/// Regex with a capture group to extract the database action from a query.
+///
+/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
 
@@ -703,6 +706,8 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
 
+/// Regex with a capture group tot extract the table from a database query,
+/// based on `FROM` and `INTO` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
 });
