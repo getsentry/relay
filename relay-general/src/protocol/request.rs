@@ -445,7 +445,7 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     ///
-    /// SDKs should discard large and binary bodies by default. Can be given as string or
+    /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
     #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,

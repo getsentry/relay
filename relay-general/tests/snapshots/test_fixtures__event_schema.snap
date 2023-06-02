@@ -2871,7 +2871,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "data": {
-              "description": " Request data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as string or\n structural data of any format.",
+              "description": " Request data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as a string or\n structural data of any format.",
               "default": null
             },
             "env": {
@@ -3015,7 +3015,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "data": {
-              "description": " Response data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as string or\n structural data of any format.",
+              "description": " Response data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as a string or\n structural data of any format.",
               "default": null
             },
             "headers": {

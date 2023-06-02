@@ -219,7 +219,7 @@ fn scrub_graphql(event: &mut Event) {
 
     let mut is_graphql = false;
 
-    // collect the variables keys and scrub them out.
+    // Collect the variables keys and scrub them out.
     if let Some(request) = event.request.value_mut() {
         if let Some(Value::Object(data)) = request.data.value_mut() {
             if let Some(api_target) = request.api_target.value() {
@@ -241,21 +241,22 @@ fn scrub_graphql(event: &mut Event) {
         }
     }
 
-    // scrub PII from the data object if they match the variables keys.
+    if !is_graphql {
+        return;
+    }
+
+    // Scrub PII from the data object if they match the variables keys.
     if let Some(contexts) = event.contexts.value_mut() {
         if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
             if let Some(Value::Object(data)) = response.data.value_mut() {
-                if is_graphql {
-                    if let Some(Annotated(Some(Value::Object(graphql_data)), _)) =
-                        data.get_mut("data")
-                    {
-                        if !keys.is_empty() {
-                            scrub_graphql_data(&keys, graphql_data);
-                        } else {
-                            // if we don't have the variable keys, we scrub the whole data object
-                            // because the query or mutation weren't parameterized.
-                            data.remove("data");
-                        }
+                if let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
+                {
+                    if !keys.is_empty() {
+                        scrub_graphql_data(&keys, graphql_data);
+                    } else {
+                        // If we don't have the variable keys, we scrub the whole data object
+                        // because the query or mutation weren't parameterized.
+                        data.remove("data");
                     }
                 }
             }
