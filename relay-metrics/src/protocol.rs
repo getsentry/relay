@@ -593,7 +593,9 @@ pub trait MetricsContainer {
     fn tag(&self, name: &str) -> Option<&str>;
 
     /// Remove a tag if it exists.
-    fn remove_tag(&mut self, name: &str);
+    ///
+    /// Returns the removed value.
+    fn remove_tag(&mut self, name: &str) -> Option<String>;
 }
 
 impl MetricsContainer for Metric {
@@ -609,8 +611,8 @@ impl MetricsContainer for Metric {
         self.tags.get(name).map(|s| s.as_str())
     }
 
-    fn remove_tag(&mut self, name: &str) {
-        self.tags.remove(name);
+    fn remove_tag(&mut self, name: &str) -> Option<String> {
+        self.tags.remove(name)
     }
 }
 

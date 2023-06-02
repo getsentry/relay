@@ -23,7 +23,7 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
     transaction_buckets: Vec<bool>,
 
     /// Binary index of metrics/buckets in the transaction namespace that have profiles.
-    profile_buckets: Vec<bool>,
+    profile_buckets: Vec<bool>, // TODO: remove for simplicity?
 
     /// The number of transactions contributing to these metrics.
     transaction_count: usize,
@@ -148,19 +148,18 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         outcome: Outcome,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
-        let mut recount = 0;
+        let mut count = 0;
 
         for (bucket, is_profile_bucket) in self.metrics.iter_mut().zip(self.profile_buckets.iter())
         {
-            if *is_profile_bucket {
-                bucket.remove_tag("has_profile");
-                recount += bucket.len();
+            if *is_profile_bucket && bucket.remove_tag("has_profile").as_deref() == Some("true") {
+                count += bucket.len();
             }
         }
-        debug_assert_eq!(recount, self.profile_count);
+        debug_assert_eq!(count, self.profile_count);
 
         // Track outcome for the transaction metrics we dropped here:
-        if self.transaction_count > 0 {
+        if count > 0 {
             let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
@@ -169,7 +168,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 event_id: None,
                 remote_addr: None,
                 category: DataCategory::Profile,
-                quantity: self.profile_count as u32,
+                quantity: count as u32,
             });
         }
     }
@@ -189,10 +188,9 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let mut enforced_anything = false;
         match rate_limits {
             Ok(rate_limits) => {
-                // First, enforce profiling limits:
                 {
                     let item_scoping = ItemScoping {
-                        category: DataCategory::Profile,
+                        category: DataCategory::Transaction,
                         scoping: &self.scoping,
                     };
                     let active_rate_limits =
@@ -204,25 +202,27 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                             Outcome::RateLimited(limit.reason_code.clone()),
                             outcome_aggregator.clone(),
                         );
-                        enforced_anything = true;
-                    }
-                }
-
-                {
-                    let item_scoping = ItemScoping {
-                        category: DataCategory::Transaction,
-                        scoping: &self.scoping,
-                    };
-                    let active_rate_limits =
-                        rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
-
-                    // If a rate limit is active, discard transaction buckets.
-                    if let Some(limit) = active_rate_limits.longest() {
                         self.drop_transactions_with_outcome(
                             Outcome::RateLimited(limit.reason_code.clone()),
                             outcome_aggregator,
                         );
                         enforced_anything = true;
+                    } else {
+                        let item_scoping = ItemScoping {
+                            category: DataCategory::Profile,
+                            scoping: &self.scoping,
+                        };
+                        let active_rate_limits =
+                            rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+
+                        // If a rate limit is active, discard transaction buckets.
+                        if let Some(limit) = active_rate_limits.longest() {
+                            self.strip_profiles_with_outcome(
+                                Outcome::RateLimited(limit.reason_code.clone()),
+                                outcome_aggregator,
+                            );
+                            enforced_anything = true;
+                        }
                     }
                 }
             }
@@ -301,6 +301,8 @@ mod tests {
             Err(metrics) => metrics,
         };
 
+        rx.close();
+
         let outcomes = (0..)
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
@@ -317,7 +319,7 @@ mod tests {
                 smallvec!(DataCategory::Transaction),
                 0,
             ),
-            // generate outcomes for both categories:
+            // generate outcomes for one category:
             (0, vec![DataCategory::Transaction])
         );
     }
@@ -332,7 +334,7 @@ mod tests {
                 0,
             ),
             // generate outcomes for both categories:
-            (0, vec![DataCategory::Transaction, DataCategory::Profile])
+            (0, vec![DataCategory::Profile, DataCategory::Transaction])
         );
     }
 
