@@ -15,8 +15,8 @@ use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
+    TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -334,17 +334,21 @@ pub fn extract_transaction_metrics(
     event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
+    has_profile: bool,
     project_metrics: &mut Vec<Metric>,  // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
     extract_transaction_metrics_inner(
-        aggregator_config,
-        config,
-        event,
-        transaction_from_dsc,
-        sampling_result,
+        ExtractInput {
+            aggregator_config,
+            config,
+            event,
+            transaction_from_dsc,
+            sampling_result,
+            has_profile,
+        },
         project_metrics,
         sampling_metrics,
     )?;
@@ -358,15 +362,21 @@ pub fn extract_transaction_metrics(
     Ok(!added_slice.is_empty())
 }
 
+struct ExtractInput<'a> {
+    aggregator_config: &'a AggregatorConfig,
+    config: &'a TransactionMetricsConfig,
+    event: &'a Event,
+    transaction_from_dsc: Option<&'a str>,
+    sampling_result: &'a SamplingResult,
+    has_profile: bool,
+}
+
 fn extract_transaction_metrics_inner(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    event: &Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
+    input: ExtractInput<'_>,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
+    let event = input.event;
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -384,12 +394,16 @@ fn extract_transaction_metrics_inner(
     // Validate the transaction event against the metrics timestamp limits. If the metric is too
     // old or too new, we cannot extract the metric and also need to drop the transaction event
     // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
+    if !input
+        .aggregator_config
+        .timestamp_range()
+        .contains(&timestamp)
+    {
         relay_log::debug!("event timestamp is out of the valid range for metrics");
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    let tags = extract_universal_tags(event, config);
+    let tags = extract_universal_tags(event, input.config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -459,20 +473,23 @@ fn extract_transaction_metrics_inner(
         TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
-            tags: tags.clone(),
+            tags: TransactionDurationTags {
+                has_profile: input.has_profile,
+                universal_tags: tags.clone(),
+            },
         }
         .into_metric(timestamp),
     );
 
     let root_counter_tags = {
         let mut universal_tags = CommonTags(BTreeMap::default());
-        if let Some(transaction_from_dsc) = transaction_from_dsc {
+        if let Some(transaction_from_dsc) = input.transaction_from_dsc {
             universal_tags
                 .0
                 .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
         }
         TransactionCPRTags {
-            decision: match sampling_result {
+            decision: match input.sampling_result {
                 SamplingResult::Keep => "keep".to_owned(),
                 SamplingResult::Drop(_) => "drop".to_owned(),
             },
@@ -1079,6 +1096,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1813,6 +1831,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1906,6 +1925,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1986,6 +2006,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2062,6 +2083,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2173,6 +2195,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2261,6 +2284,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2311,6 +2335,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2351,6 +2376,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2400,6 +2426,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         );
@@ -2426,6 +2453,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2466,6 +2494,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2840,6 +2869,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
