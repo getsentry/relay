@@ -713,7 +713,7 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
 
-/// Regex with a capture group tot extract the table from a database query,
+/// Regex with a capture group to extract the table from a database query,
 /// based on `FROM` and `INTO` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
@@ -726,6 +726,7 @@ fn sql_table_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
 }
 
+/// Regex with a capture group to extract the HTTP method from a string.
 static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s"#)
         .unwrap()
