@@ -1,3 +1,4 @@
+use md5;
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
@@ -562,6 +563,12 @@ fn extract_span_metrics(
                     "span.description".to_owned(),
                     scrubbed_description.to_owned(),
                 );
+
+                let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
+                if span_group.len() > 16 {
+                    span_group = span_group[..16].to_owned();
+                }
+                span_tags.insert("span.group".to_owned(), span_group);
             }
 
             if let Some(span_op) = span.op.value() {
