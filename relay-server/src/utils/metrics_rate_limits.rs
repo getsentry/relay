@@ -22,6 +22,9 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
     /// Binary index of metrics/buckets in the transaction namespace (used to retain).
     transaction_buckets: Vec<bool>,
 
+    /// Binary index of metrics/buckets in the transaction namespace that have profiles.
+    profile_buckets: Vec<bool>,
+
     /// The number of transactions contributing to these metrics.
     transaction_count: usize,
 
@@ -76,11 +79,16 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         if let Some((transaction_count, profile_count)) = total_counts {
             let transaction_buckets = counts.iter().map(Option::is_some).collect();
+            let profile_buckets = counts
+                .iter()
+                .map(|b| b.map_or(false, |(_, has_profile)| has_profile))
+                .collect();
             Ok(Self {
                 metrics: buckets,
                 quotas,
                 scoping,
                 transaction_buckets,
+                profile_buckets,
                 transaction_count,
                 profile_count,
             })
@@ -104,7 +112,11 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         self.transaction_count
     }
 
-    fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
+    fn drop_transactions_with_outcome(
+        &mut self,
+        outcome: Outcome,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         // Drop transaction buckets:
         let metrics = std::mem::take(&mut self.metrics);
 
@@ -131,48 +143,103 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         }
     }
 
+    fn strip_profiles_with_outcome(
+        &mut self,
+        outcome: Outcome,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
+        let mut recount = 0;
+
+        for (bucket, is_profile_bucket) in self.metrics.iter_mut().zip(self.profile_buckets.iter())
+        {
+            if *is_profile_bucket {
+                bucket.remove_tag("has_profile");
+                recount += bucket.len();
+            }
+        }
+        debug_assert_eq!(recount, self.profile_count);
+
+        // Track outcome for the transaction metrics we dropped here:
+        if self.transaction_count > 0 {
+            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+            outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping: self.scoping,
+                outcome,
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: self.profile_count as u32,
+            });
+        }
+    }
+
     // Drop transaction-related metrics and create outcomes for any active rate limits.
     //
     // If rate limits could not be checked for some reason, pass an `Err` to this function.
     // In this case, transaction-related metrics will also be dropped, and an "internal"
     // outcome is generated.
     //
-    // Returns true if any metrics were dropped.
+    // Returns true if any rate limit was enforced.
     pub fn enforce_limits(
         &mut self,
         rate_limits: Result<&RateLimits, ()>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> bool {
-        let mut dropped_stuff = false;
+        let mut enforced_anything = false;
         match rate_limits {
             Ok(rate_limits) => {
-                let item_scoping = ItemScoping {
-                    category: DataCategory::Transaction,
-                    scoping: &self.scoping,
-                };
-                let active_rate_limits =
-                    rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+                // First, enforce profiling limits:
+                {
+                    let item_scoping = ItemScoping {
+                        category: DataCategory::Profile,
+                        scoping: &self.scoping,
+                    };
+                    let active_rate_limits =
+                        rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
 
-                // If a rate limit is active, discard transaction buckets.
-                if let Some(limit) = active_rate_limits.longest() {
-                    self.drop_with_outcome(
-                        Outcome::RateLimited(limit.reason_code.clone()),
-                        outcome_aggregator,
-                    );
-                    dropped_stuff = true;
+                    // If a rate limit is active, discard transaction buckets.
+                    if let Some(limit) = active_rate_limits.longest() {
+                        self.strip_profiles_with_outcome(
+                            Outcome::RateLimited(limit.reason_code.clone()),
+                            outcome_aggregator.clone(),
+                        );
+                        enforced_anything = true;
+                    }
+                }
+
+                {
+                    let item_scoping = ItemScoping {
+                        category: DataCategory::Transaction,
+                        scoping: &self.scoping,
+                    };
+                    let active_rate_limits =
+                        rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+
+                    // If a rate limit is active, discard transaction buckets.
+                    if let Some(limit) = active_rate_limits.longest() {
+                        self.drop_transactions_with_outcome(
+                            Outcome::RateLimited(limit.reason_code.clone()),
+                            outcome_aggregator,
+                        );
+                        enforced_anything = true;
+                    }
                 }
             }
             Err(_) => {
                 // Error from rate limiter, drop transaction buckets.
-                self.drop_with_outcome(
+                self.strip_profiles_with_outcome(
+                    Outcome::Invalid(DiscardReason::Internal),
+                    outcome_aggregator.clone(),
+                );
+                self.drop_transactions_with_outcome(
                     Outcome::Invalid(DiscardReason::Internal),
                     outcome_aggregator,
                 );
-                dropped_stuff = true;
             }
         };
 
-        dropped_stuff
+        enforced_anything
     }
 
     /// Consume this struct and return the contained metrics.
@@ -183,9 +250,8 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
     use relay_common::{ProjectId, ProjectKey};
-    use relay_metrics::{Bucket, BucketValue, DistributionValue, Metric, MetricValue};
+    use relay_metrics::{Metric, MetricValue};
     use relay_quotas::QuotaScope;
     use smallvec::{smallvec, SmallVec};
 
@@ -197,6 +263,8 @@ mod tests {
         categories: SmallVec<[DataCategory; 8]>,
         limit: u64,
     ) -> (usize, Vec<DataCategory>) {
+        let (outcome_sink, mut rx) = Addr::custom();
+
         let metrics = vec![Metric {
             timestamp: UnixTimestamp::now(),
             name: metric_name.to_string(),
@@ -216,7 +284,7 @@ mod tests {
             window: None,
             reason_code: None,
         }];
-        let mut limiter = MetricsLimiter::create(
+        let metrics = match MetricsLimiter::create(
             metrics,
             quotas,
             Scoping {
@@ -225,16 +293,19 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-        )
-        .unwrap();
+        ) {
+            Ok(mut limiter) => {
+                limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+                limiter.into_metrics()
+            }
+            Err(metrics) => metrics,
+        };
 
-        let (outcome_sink, mut rx) = Addr::custom();
-        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
         let outcomes = (0..)
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
             .map(|o| o.unwrap().category);
-        (limiter.into_metrics().len(), outcomes.collect())
+        (metrics.len(), outcomes.collect())
     }
 
     #[test]
