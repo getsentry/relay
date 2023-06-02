@@ -259,10 +259,11 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct TestResult {
         modifications_reported: bool,
         metrics_retained: usize,
-        profile_tag_retained: bool,
+        profiles_retained: bool,
         outcomes: Vec<(DataCategory, u32)>,
     }
 
@@ -323,7 +324,7 @@ mod tests {
         TestResult {
             modifications_reported,
             metrics_retained: metrics.len(),
-            profile_tag_retained: metrics.iter().any(|m| m.tag("has_profile").is_some()),
+            profiles_retained: metrics.iter().any(|m| m.tag("has_profile").is_some()),
             outcomes,
         }
     }
@@ -341,7 +342,7 @@ mod tests {
         TestResult {
             modifications_reported: true,
             metrics_retained: 0,
-            profile_tag_retained: false,
+            profiles_retained: false,
             outcomes: [
                 (
                     Transaction,
@@ -366,7 +367,7 @@ mod tests {
         TestResult {
             modifications_reported: true,
             metrics_retained: 0,
-            profile_tag_retained: false,
+            profiles_retained: false,
             outcomes: [
                 (
                     Profile,
@@ -395,7 +396,7 @@ mod tests {
         TestResult {
             modifications_reported: false,
             metrics_retained: 1,
-            profile_tag_retained: true,
+            profiles_retained: true,
             outcomes: [],
         }
         "###
@@ -410,7 +411,7 @@ mod tests {
         TestResult {
             modifications_reported: false,
             metrics_retained: 1,
-            profile_tag_retained: false,
+            profiles_retained: false,
             outcomes: [],
         }
         "###
@@ -430,7 +431,7 @@ mod tests {
         TestResult {
             modifications_reported: false,
             metrics_retained: 1,
-            profile_tag_retained: true,
+            profiles_retained: true,
             outcomes: [],
         }
         "###
@@ -450,7 +451,7 @@ mod tests {
         TestResult {
             modifications_reported: true,
             metrics_retained: 1,
-            profile_tag_retained: false,
+            profiles_retained: false,
             outcomes: [
                 (
                     Profile,
@@ -475,7 +476,7 @@ mod tests {
         TestResult {
             modifications_reported: true,
             metrics_retained: 0,
-            profile_tag_retained: false,
+            profiles_retained: false,
             outcomes: [
                 (
                     Profile,
