@@ -3040,10 +3040,6 @@
 <a href="#3040" id="3040">3040</a>
 <a href="#3041" id="3041">3041</a>
 <a href="#3042" id="3042">3042</a>
-<a href="#3043" id="3043">3043</a>
-<a href="#3044" id="3044">3044</a>
-<a href="#3045" id="3045">3045</a>
-<a href="#3046" id="3046">3046</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -4072,8 +4068,7 @@
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                     &quot;status&quot;: &quot;ok&quot;,
                     &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                        &quot;db.system&quot;: &quot;MyDatabase&quot;
                     }
                 },
                 {
@@ -4816,7 +4811,6 @@
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.description&quot;: &quot;SAVEPOINT %s&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
@@ -4834,7 +4828,6 @@
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.description&quot;: &quot;SAVEPOINT %s&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
@@ -4852,7 +4845,6 @@
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.description&quot;: &quot;SAVEPOINT %s&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
