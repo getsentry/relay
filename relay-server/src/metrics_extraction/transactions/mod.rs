@@ -1026,8 +1026,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "SELECT"
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
@@ -1770,7 +1769,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.action": "SELECT",
                     "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
@@ -1788,7 +1786,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.action": "SELECT",
                     "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
@@ -1806,7 +1803,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.action": "SELECT",
                     "span.description": "SAVEPOINT %s",
                     "span.module": "db",
                     "span.op": "db",
