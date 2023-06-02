@@ -250,6 +250,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use relay_common::{ProjectId, ProjectKey};
     use relay_metrics::{Metric, MetricValue};
     use relay_quotas::QuotaScope;
@@ -257,14 +258,23 @@ mod tests {
 
     use super::*;
 
+    #[derive(Debug)]
+    struct TestResult {
+        modifications_reported: bool,
+        metrics_retained: usize,
+        profile_tag_retained: bool,
+        outcomes: Vec<(DataCategory, u32)>,
+    }
+
     fn run_limiter(
         metric_name: &str,
         has_profile: bool,
         categories: SmallVec<[DataCategory; 8]>,
         limit: u64,
-    ) -> (usize, Vec<DataCategory>) {
+    ) -> TestResult {
         let (outcome_sink, mut rx) = Addr::custom();
 
+        let mut modifications_reported = false;
         let metrics = vec![Metric {
             timestamp: UnixTimestamp::now(),
             name: metric_name.to_string(),
@@ -295,7 +305,8 @@ mod tests {
             },
         ) {
             Ok(mut limiter) => {
-                limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+                modifications_reported =
+                    limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
                 limiter.into_metrics()
             }
             Err(metrics) => metrics,
@@ -306,95 +317,177 @@ mod tests {
         let outcomes = (0..)
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
-            .map(|o| o.unwrap().category);
-        (metrics.len(), outcomes.collect())
+            .flatten()
+            .map(|o| (o.category, o.quantity))
+            .collect();
+        TestResult {
+            modifications_reported,
+            metrics_retained: metrics.len(),
+            profile_tag_retained: metrics.iter().any(|m| m.tag("has_profile").is_some()),
+            outcomes,
+        }
     }
 
     #[test]
     fn test_rate_limits_applied() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 false,
                 smallvec!(DataCategory::Transaction),
                 0,
             ),
-            // generate outcomes for one category:
-            (0, vec![DataCategory::Transaction])
+            @r###"
+        TestResult {
+            modifications_reported: true,
+            metrics_retained: 0,
+            profile_tag_retained: false,
+            outcomes: [
+                (
+                    Transaction,
+                    1,
+                ),
+            ],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_applied_with_profile() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 true,
                 smallvec!(DataCategory::Transaction),
                 0,
             ),
-            // generate outcomes for both categories:
-            (0, vec![DataCategory::Profile, DataCategory::Transaction])
+            @r###"
+        TestResult {
+            modifications_reported: true,
+            metrics_retained: 0,
+            profile_tag_retained: false,
+            outcomes: [
+                (
+                    Profile,
+                    1,
+                ),
+                (
+                    Transaction,
+                    1,
+                ),
+            ],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_still_room() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 true,
                 smallvec!(DataCategory::Transaction),
                 1,
             ),
-            (1, vec![])
+            @r###"
+        TestResult {
+            modifications_reported: false,
+            metrics_retained: 1,
+            profile_tag_retained: true,
+            outcomes: [],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_other_metric() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter("foo", false, smallvec!(DataCategory::Transaction), 0,),
-            (1, vec![])
+            @r###"
+        TestResult {
+            modifications_reported: false,
+            metrics_retained: 1,
+            profile_tag_retained: false,
+            outcomes: [],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_profile_indexed() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 true,
                 smallvec!(DataCategory::ProfileIndexed),
                 0,
             ),
-            (1, vec![])
+            @r###"
+        TestResult {
+            modifications_reported: false,
+            metrics_retained: 1,
+            profile_tag_retained: true,
+            outcomes: [],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_profile() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 true,
                 smallvec!(DataCategory::Profile),
                 0,
             ),
-            (1, vec![DataCategory::Profile]) // TODO: test tag deleted
+            @r###"
+        TestResult {
+            modifications_reported: true,
+            metrics_retained: 1,
+            profile_tag_retained: false,
+            outcomes: [
+                (
+                    Profile,
+                    1,
+                ),
+            ],
+        }
+        "###
         );
     }
 
     #[test]
     fn test_rate_limits_both() {
-        assert_eq!(
+        assert_debug_snapshot!(
             run_limiter(
                 "d:transactions/duration@millisecond",
                 true,
                 smallvec![DataCategory::Profile, DataCategory::Transaction],
                 0,
             ),
-            (0, vec![DataCategory::Profile, DataCategory::Transaction]) // TODO: test tag deleted
+            @r###"
+        TestResult {
+            modifications_reported: true,
+            metrics_retained: 0,
+            profile_tag_retained: false,
+            outcomes: [
+                (
+                    Profile,
+                    1,
+                ),
+                (
+                    Transaction,
+                    1,
+                ),
+            ],
+        }
+        "###
         );
     }
 }
