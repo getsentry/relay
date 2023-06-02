@@ -591,11 +591,18 @@ fn extract_span_metrics(
                         // TODO(iker): some SDKs extract this as method
                         .and_then(|v| v.get("http.method"))
                         .and_then(|method| method.as_str()),
-                    Some("db") => span
-                        .data
-                        .value()
-                        .and_then(|v| v.get("db.operation"))
-                        .and_then(|db_op| db_op.as_str()),
+                    Some("db") => {
+                        let action_from_data = span
+                            .data
+                            .value()
+                            .and_then(|v| v.get("db.operation"))
+                            .and_then(|db_op| db_op.as_str());
+                        action_from_data.or_else(|| {
+                            span.description
+                                .value()
+                                .and_then(|d| sql_action_from_query(d))
+                        })
+                    }
                     _ => None,
                 };
 
@@ -689,6 +696,13 @@ fn extract_span_metrics(
     Ok(())
 }
 
+static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
+
+fn sql_action_from_query(query: &str) -> Option<&str> {
+    extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
+}
+
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
 });
@@ -697,15 +711,19 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 ///
 /// If multiple tables exist, only the first one is returned.
 fn sql_table_from_query(query: &str) -> Option<&str> {
-    let capture_names: Vec<_> = SQL_TABLE_EXTRACTOR_REGEX
-        .capture_names()
-        .flatten()
-        .collect();
+    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+}
 
-    for captures in SQL_TABLE_EXTRACTOR_REGEX.captures_iter(query) {
+/// Returns the captured substring in `string` with the capture group in `pattern`.
+///
+/// It assumes there's only one capture group in `pattern`, and only returns the first one.
+fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> Option<&'a str> {
+    let capture_names: Vec<_> = pattern.capture_names().flatten().collect();
+
+    for captures in pattern.captures_iter(string) {
         for name in &capture_names {
             if let Some(capture) = captures.name(name) {
-                return Some(&query[capture.start()..capture.end()]);
+                return Some(&string[capture.start()..capture.end()]);
             }
         }
     }
