@@ -15,14 +15,11 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     if let Some(dist) = event.dist.as_str() {
         tags.insert("dist".to_owned(), dist.to_owned());
     }
-    if let Some(dist) = event.dist.value() {
-        tags.insert("dist".to_owned(), dist.clone());
-    }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
 
-    if let Some(transaction) = event.transaction.value() {
+    if let Some(transaction) = event.transaction.as_str() {
         tags.insert("transaction".to_owned(), transaction.to_owned());
     }
 
@@ -120,4 +117,65 @@ fn get_app_context(event: &Event) -> Option<&AppContext> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_general::protocol::Event;
+    use relay_general::types::FromValue;
+
+    #[test]
+    fn test_extract_transaction_metadata() {
+        let event = Event::from_value(
+            serde_json::json!({
+                "release": "myrelease",
+                "dist": "mydist",
+                "environment": "myenvironment",
+                "transaction": "mytransaction",
+                "contexts": {
+                    "app": {
+                        "app_identifier": "io.sentry.myexample",
+                    },
+                    "trace": {
+                        "status": "ok",
+                        "op": "myop",
+                    },
+                },
+                "request": {
+                    "method": "GET",
+                },
+                "timestamp": "2011-05-02T17:41:36Z",
+                "start_timestamp": "2011-05-02T17:40:36Z",
+            })
+            .into(),
+        );
+
+        let metadata = extract_transaction_metadata(&event.0.unwrap());
+
+        assert_eq!(
+            metadata,
+            BTreeMap::from([
+                ("release".to_owned(), "myrelease".to_owned()),
+                ("dist".to_owned(), "mydist".to_owned()),
+                ("environment".to_owned(), "myenvironment".to_owned()),
+                ("transaction".to_owned(), "mytransaction".to_owned()),
+                ("transaction.status".to_owned(), "ok".to_owned()),
+                ("transaction.op".to_owned(), "myop".to_owned()),
+                ("http.method".to_owned(), "GET".to_owned()),
+                (
+                    "transaction.start".to_owned(),
+                    "2011-05-02T17:40:36.000000000+00:00".to_owned()
+                ),
+                (
+                    "transaction.end".to_owned(),
+                    "2011-05-02T17:41:36.000000000+00:00".to_owned()
+                ),
+                (
+                    "app.identifier".to_owned(),
+                    "io.sentry.myexample".to_owned()
+                ),
+            ])
+        );
+    }
 }
