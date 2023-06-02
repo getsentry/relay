@@ -51,7 +51,7 @@ pub struct Cli {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to the rust crate/workspace
+    /// Path to the rust crate/workspace.
     #[arg(short, long)]
     pub path: Option<PathBuf>,
 
@@ -169,6 +169,13 @@ mod tests {
         let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
         let rust_file_paths = find_rs_files(&rust_crate);
         AstItemCollector::collect(&rust_file_paths).unwrap()
+    }
+
+    #[test]
+    fn test_find_rs_files() {
+        let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
+        let rust_file_paths = find_rs_files(&rust_crate);
+        insta::assert_debug_snapshot!(rust_file_paths);
     }
 
     #[test]
