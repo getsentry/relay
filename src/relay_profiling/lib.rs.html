@@ -220,6 +220,9 @@
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -317,6 +320,7 @@
 
 </span><span class="kw">use </span>serde::Deserialize;
 <span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">mod </span>android;
 <span class="kw">mod </span>cocoa;
@@ -335,6 +339,8 @@
 
 <span class="kw">pub use </span><span class="kw">crate</span>::error::ProfileError;
 <span class="kw">pub use </span><span class="kw">crate</span>::outcomes::discard_reason;
+
+<span class="kw">const </span>MAX_PROFILE_DURATION: Duration = Duration::from_secs(<span class="number">30</span>);
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>MinimalProfile {

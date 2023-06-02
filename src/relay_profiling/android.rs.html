@@ -335,6 +335,10 @@
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
@@ -346,7 +350,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
 <span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
-<span class="kw">use </span><span class="kw">crate</span>::ProfileError;
+<span class="kw">use crate</span>::{ProfileError, MAX_PROFILE_DURATION};
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">pub struct </span>ProfileMetadata {
@@ -518,6 +522,10 @@
 
     <span class="kw">if </span>profile.profile.events.is_empty() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
+    }
+
+    <span class="kw">if </span>profile.profile.elapsed_time &gt; MAX_PROFILE_DURATION {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::DurationIsTooLong);
     }
 
     <span class="prelude-val">Ok</span>(profile)
