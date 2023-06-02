@@ -850,6 +850,10 @@ impl MetricsContainer for Bucket {
     fn len(&self) -> usize {
         self.value.len()
     }
+
+    fn tag(&self, name: &str) -> Option<&str> {
+        self.tags.get(name).map(|s| s.as_str())
+    }
 }
 
 /// Any error that may occur during aggregation.

@@ -24,6 +24,9 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
 
     /// The number of transactions contributing to these metrics.
     transaction_count: usize,
+
+    /// The number of profiles contributing to these metrics.
+    profile_count: usize,
 }
 
 impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
@@ -31,7 +34,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
     pub fn create(buckets: Vec<M>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<M>> {
-        let transaction_counts: Vec<_> = buckets
+        let counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
                 let mri = match MetricResourceIdentifier::parse(metric.name()) {
@@ -51,31 +54,35 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
                     let count = metric.len();
-                    Some(count)
+                    let has_profile = metric.tag("has_profile") == Some("true");
+                    Some((count, has_profile))
                 } else {
                     // For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
-                    Some(0)
+                    Some((0, false))
                 }
             })
             .collect();
 
-        // Accumulate the total transaction count:
-        let transaction_count = transaction_counts
-            .iter()
-            .fold(None, |acc, transaction_count| match transaction_count {
-                Some(count) => Some(acc.unwrap_or(0) + count),
-                None => acc,
-            });
+        // Accumulate the total counts
+        let mut total_counts: Option<(usize, usize)> = None;
+        for (tx_count, has_profile) in counts.iter().flatten() {
+            let (total_txs, total_profiles) = total_counts.get_or_insert((0, 0));
+            *total_txs += tx_count;
+            if *has_profile {
+                *total_profiles += tx_count;
+            }
+        }
 
-        if let Some(transaction_count) = transaction_count {
-            let transaction_buckets = transaction_counts.iter().map(Option::is_some).collect();
+        if let Some((transaction_count, profile_count)) = total_counts {
+            let transaction_buckets = counts.iter().map(Option::is_some).collect();
             Ok(Self {
                 metrics: buckets,
                 quotas,
                 scoping,
                 transaction_buckets,
                 transaction_count,
+                profile_count,
             })
         } else {
             Err(buckets)
