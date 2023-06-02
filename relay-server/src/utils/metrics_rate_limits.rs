@@ -188,9 +188,27 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         let mut enforced_anything = false;
         match rate_limits {
             Ok(rate_limits) => {
-                {
+                let item_scoping = ItemScoping {
+                    category: DataCategory::Transaction,
+                    scoping: &self.scoping,
+                };
+                let active_rate_limits =
+                    rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+
+                // If a rate limit is active, discard transaction buckets.
+                if let Some(limit) = active_rate_limits.longest() {
+                    self.strip_profiles_with_outcome(
+                        Outcome::RateLimited(limit.reason_code.clone()),
+                        outcome_aggregator.clone(),
+                    );
+                    self.drop_transactions_with_outcome(
+                        Outcome::RateLimited(limit.reason_code.clone()),
+                        outcome_aggregator,
+                    );
+                    enforced_anything = true;
+                } else {
                     let item_scoping = ItemScoping {
-                        category: DataCategory::Transaction,
+                        category: DataCategory::Profile,
                         scoping: &self.scoping,
                     };
                     let active_rate_limits =
@@ -200,29 +218,9 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     if let Some(limit) = active_rate_limits.longest() {
                         self.strip_profiles_with_outcome(
                             Outcome::RateLimited(limit.reason_code.clone()),
-                            outcome_aggregator.clone(),
-                        );
-                        self.drop_transactions_with_outcome(
-                            Outcome::RateLimited(limit.reason_code.clone()),
                             outcome_aggregator,
                         );
                         enforced_anything = true;
-                    } else {
-                        let item_scoping = ItemScoping {
-                            category: DataCategory::Profile,
-                            scoping: &self.scoping,
-                        };
-                        let active_rate_limits =
-                            rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
-
-                        // If a rate limit is active, discard transaction buckets.
-                        if let Some(limit) = active_rate_limits.longest() {
-                            self.strip_profiles_with_outcome(
-                                Outcome::RateLimited(limit.reason_code.clone()),
-                                outcome_aggregator,
-                            );
-                            enforced_anything = true;
-                        }
                     }
                 }
             }
