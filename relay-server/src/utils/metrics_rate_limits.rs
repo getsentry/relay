@@ -180,24 +180,29 @@ mod tests {
     use relay_common::{ProjectId, ProjectKey};
     use relay_metrics::{Bucket, BucketValue, DistributionValue, Metric, MetricValue};
     use relay_quotas::QuotaScope;
-    use smallvec::smallvec;
+    use smallvec::{smallvec, SmallVec};
 
     use super::*;
 
     fn run_limiter(
         metric_name: &str,
-        data_category: DataCategory,
+        has_profile: bool,
+        categories: SmallVec<[DataCategory; 8]>,
         limit: u64,
     ) -> (usize, Vec<DataCategory>) {
         let metrics = vec![Metric {
             timestamp: UnixTimestamp::now(),
             name: metric_name.to_string(),
-            tags: [("has_profile".to_string(), "true".to_string())].into(),
+            tags: if has_profile {
+                [("has_profile".to_string(), "true".to_string())].into()
+            } else {
+                Default::default()
+            },
             value: MetricValue::Distribution(123.0),
         }];
         let quotas = vec![Quota {
             id: None,
-            categories: smallvec![data_category],
+            categories,
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(limit),
@@ -226,14 +231,90 @@ mod tests {
     }
 
     #[test]
-    fn test_rate_limits() {
+    fn test_rate_limits_applied() {
         assert_eq!(
             run_limiter(
                 "d:transactions/duration@millisecond",
-                DataCategory::Transaction,
+                false,
+                smallvec!(DataCategory::Transaction),
                 0,
             ),
+            // generate outcomes for both categories:
             (0, vec![DataCategory::Transaction])
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_applied_with_profile() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                true,
+                smallvec!(DataCategory::Transaction),
+                0,
+            ),
+            // generate outcomes for both categories:
+            (0, vec![DataCategory::Transaction, DataCategory::Profile])
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_still_room() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                true,
+                smallvec!(DataCategory::Transaction),
+                1,
+            ),
+            (1, vec![])
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_other_metric() {
+        assert_eq!(
+            run_limiter("foo", false, smallvec!(DataCategory::Transaction), 0,),
+            (1, vec![])
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_profile_indexed() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                true,
+                smallvec!(DataCategory::ProfileIndexed),
+                0,
+            ),
+            (1, vec![])
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_profile() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                true,
+                smallvec!(DataCategory::Profile),
+                0,
+            ),
+            (1, vec![DataCategory::Profile]) // TODO: test tag deleted
+        );
+    }
+
+    #[test]
+    fn test_rate_limits_both() {
+        assert_eq!(
+            run_limiter(
+                "d:transactions/duration@millisecond",
+                true,
+                smallvec![DataCategory::Profile, DataCategory::Transaction],
+                0,
+            ),
+            (0, vec![DataCategory::Profile, DataCategory::Transaction]) // TODO: test tag deleted
         );
     }
 }
