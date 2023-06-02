@@ -1,13 +1,13 @@
-///! Abstractions for dealing with HTTP clients.
-///!
-///! All of it is implemented as enums because if they were traits, they'd have to be boxed to be
-///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
-///! generic methods or referencing the Self type in return values, all of which is very useful to
-///! do in builder types.
-///!
-///! Note: This literally does what the `http` crate is supposed to do. That crate has builder
-///! objects and common request objects, it's just that nobody bothers to implement the conversion
-///! logic.
+//! Abstractions for dealing with HTTP clients.
+//!
+//! All of it is implemented as enums because if they were traits, they'd have to be boxed to be
+//! transferrable between actors. Trait objects in turn do not allow for consuming self, using
+//! generic methods or referencing the Self type in return values, all of which is very useful to
+//! do in builder types.
+//!
+//! Note: This literally does what the `http` crate is supposed to do. That crate has builder
+//! objects and common request objects, it's just that nobody bothers to implement the conversion
+//! logic.
 use std::io;
 
 use relay_config::HttpEncoding;
