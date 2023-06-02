@@ -326,7 +326,11 @@ impl ManagedEnvelope {
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome,
-                DataCategory::Profile,
+                if self.use_index_category() {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
                 self.context.summary.profile_quantity,
             );
         }
