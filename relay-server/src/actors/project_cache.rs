@@ -1050,7 +1050,7 @@ mod tests {
         // All the messages should have been spooled to disk.
         assert_eq!(buffer_guard.available(), 5);
         assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+        assert_eq!(broker.index.values().count(), 1);
 
         let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let key = QueueKey {
@@ -1083,7 +1083,7 @@ mod tests {
         // Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
         assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+        assert_eq!(broker.index.values().count(), 1);
 
         // Check if we can also dequeue from the buffer directly.
         buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));

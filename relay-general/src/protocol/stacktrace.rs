@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Addr, NativeImagePath, RegVal};
+use crate::protocol::{Addr, LockReason, NativeImagePath, RegVal};
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -184,6 +184,10 @@ pub struct Frame {
     /// This field should only be specified when true.
     #[metastructure(skip_serialization = "null")]
     pub stack_start: Annotated<bool>,
+
+    /// A possible lock (java monitor object) held by this frame.
+    #[metastructure(skip_serialization = "null")]
+    pub lock: Annotated<LockReason>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -506,6 +510,7 @@ impl From<Stacktrace> for RawStacktrace {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocol::{LockReasonType, ThreadId};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -544,6 +549,13 @@ mod tests {
   "trust": "69",
   "lang": "rust",
   "stack_start": true,
+  "lock": {
+    "type": 2,
+    "address": "0x07d7437b",
+    "package_name": "io.sentry.samples",
+    "class_name": "MainActivity",
+    "thread_id": 7
+  },
   "other": "value"
 }"#;
         let frame = Annotated::new(Frame {
@@ -581,6 +593,14 @@ mod tests {
             trust: Annotated::new("69".into()),
             lang: Annotated::new("rust".into()),
             stack_start: Annotated::new(true),
+            lock: Annotated::new(LockReason {
+                ty: Annotated::new(LockReasonType::Waiting),
+                address: Annotated::new("0x07d7437b".to_string()),
+                package_name: Annotated::new("io.sentry.samples".to_string()),
+                class_name: Annotated::new("MainActivity".to_string()),
+                thread_id: Annotated::new(ThreadId::Int(7)),
+                other: Default::default(),
+            }),
             other: {
                 let mut vars = Object::new();
                 vars.insert(
