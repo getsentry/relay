@@ -1648,6 +1648,18 @@ expression: "relay_general::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "lock": {
+              "description": " A possible lock (java monitor object) held by this frame.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LockReason"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "module": {
               "description": " Name of the module the frame is contained in.\n\n Note that this might also include a class name if that is something the\n language natively considers to be part of the stack (for instance in Java).",
               "default": null,
