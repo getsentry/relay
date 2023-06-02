@@ -613,9 +613,6 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
-            "db.operation": String(
-                "SELECT",
-            ),
             "db.system": String(
                 "MyDatabase",
             ),
@@ -624,9 +621,6 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
-            ),
-            "span.action": String(
-                "SELECT",
             ),
             "span.description": String(
                 "SAVEPOINT %s",
