@@ -64,20 +64,8 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::EventType;
-<span class="kw">use </span>relay_general::protocol::{Event, TransactionSource};
+<span class="kw">use </span>relay_general::protocol::Event;
 <span class="kw">use </span>relay_general::types::{Annotated, RemarkType};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::extract_http_status_code;
@@ -105,13 +93,13 @@
     <span class="kw">let </span>res = f(event);
 
     <span class="comment">// Need to reborrow event so the reference&#39;s lifetime does not overlap with `f`:
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value() <span class="kw">else </span>{
+    </span><span class="kw">let </span><span class="prelude-val">Some</span>(inner) = event.value() <span class="kw">else </span>{
         <span class="kw">return </span>res;
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>pattern_based_changes = <span class="bool-val">false</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>rule_based_changes = <span class="bool-val">false</span>;
-    <span class="kw">let </span>remarks = event.transaction.meta().iter_remarks().skip(old_remarks);
+    <span class="kw">let </span>remarks = inner.transaction.meta().iter_remarks().skip(old_remarks);
     <span class="kw">for </span>remark <span class="kw">in </span>remarks {
         <span class="kw">if </span>remark.ty() == RemarkType::Substituted {
             <span class="kw">if </span>remark.range().is_some() {
@@ -129,20 +117,8 @@
         (<span class="bool-val">false</span>, <span class="bool-val">false</span>) =&gt; <span class="string">&quot;none&quot;</span>,
     };
 
-    <span class="kw">let </span>new_source = event.get_transaction_source();
-    <span class="kw">let </span>is_404 = extract_http_status_code(event).map_or(<span class="bool-val">false</span>, |s| s == <span class="string">&quot;404&quot;</span>);
-
-    <span class="comment">// Temporarily log a sentry error for every 100th transaction that goes out as URL.
-    // This block can be deleted once the investigation is done.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event_id) = event.id.value() {
-        <span class="kw">if </span>new_source == <span class="kw-2">&amp;</span>TransactionSource::Url &amp;&amp; (event_id.<span class="number">0</span>.as_u128() % <span class="number">100</span>) == <span class="number">0 </span>{
-            <span class="macro">relay_log::error!</span>(
-                tags.project_id = event.project.<span class="number">0</span>.unwrap_or_default(),
-                event_id = event_id.<span class="number">0</span>.to_string(),
-                <span class="string">&quot;Transaction marked as URL&quot;
-            </span>);
-        }
-    }
+    <span class="kw">let </span>new_source = inner.get_transaction_source();
+    <span class="kw">let </span>is_404 = extract_http_status_code(inner).map_or(<span class="bool-val">false</span>, |s| s == <span class="string">&quot;404&quot;</span>);
 
     <span class="macro">relay_statsd::metric!</span>(
         counter(RelayCounters::TransactionNameChanges) += <span class="number">1</span>,
