@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
+- Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+- Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
+
 **Internal**:
 
 - Extract app identifier from app context. ([#2172](https://github.com/getsentry/relay/pull/2172))
@@ -11,7 +17,6 @@
 **Features**:
 
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
-- Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
 
 ## 23.5.1
 
