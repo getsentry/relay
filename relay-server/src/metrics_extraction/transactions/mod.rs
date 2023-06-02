@@ -538,6 +538,13 @@ fn extract_span_metrics(
 
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+
+        if let Some(transaction_method) = http_method_from_transaction_name(transaction_name) {
+            shared_tags.insert(
+                "transaction.method".to_owned(),
+                transaction_method.to_owned(),
+            );
+        }
     }
 
     if let Some(trace_context) = get_trace_context(event) {
@@ -717,6 +724,15 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// If multiple tables exist, only the first one is returned.
 fn sql_table_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+}
+
+static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s"#)
+        .unwrap()
+});
+
+fn http_method_from_transaction_name(name: &str) -> Option<&str> {
+    extract_captured_substring(name, &HTTP_METHOD_EXTRACTOR_REGEX)
 }
 
 /// Returns the captured substring in `string` with the capture group in `pattern`.
