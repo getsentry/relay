@@ -6,6 +6,7 @@
 
 - Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+- Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
 
 ## 23.5.2
 
