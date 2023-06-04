@@ -211,7 +211,7 @@ def test_metrics_with_sharded_kafka(
         "processing": {
             "secondary_kafka_configs": {"foo": default_config, "baz": default_config},
             "topics": {
-                "metrics": {
+                "metrics_transactions": {
                     "shards": 3,
                     "mapping": {
                         0: {
