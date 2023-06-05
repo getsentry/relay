@@ -567,6 +567,10 @@ fn extract_span_metrics(
             if let Some(span_op) = span.op.value() {
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
+                if let Some(category) = span_op_to_category(span_op) {
+                    span_tags.insert("span.category".to_owned(), category.to_owned());
+                }
+
                 let span_module = if span_op.starts_with("http") {
                     Some("http")
                 } else if span_op.starts_with("db") {
@@ -734,6 +738,131 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
     }
 
     None
+}
+
+/// Returns the category of a span from its operation. The mapping is available in:
+/// https://develop.sentry.dev/sdk/performance/span-operations/
+fn span_op_to_category(op: &str) -> Option<&str> {
+    Some({
+        // General
+        if op.starts_with("mark") {
+            "mark"
+        } else if op.starts_with("function") {
+            "function"
+        }
+        //
+        // Browser
+        else if op.starts_with("pageload") {
+            "pageload"
+        } else if op.starts_with("navigation") {
+            "navigation"
+        } else if op.starts_with("resource") {
+            "resource"
+        } else if op.starts_with("browser") {
+            "browser"
+        } else if op.starts_with("measure") {
+            "measure"
+        } else if op.starts_with("ui") {
+            "ui"
+        } else if op.starts_with("http") {
+            "http"
+        } else if op.starts_with("serialize") {
+            "serialize"
+        }
+        //
+        // JS frameworks
+        else if op.starts_with("ui.react") {
+            "ui.react"
+        } else if op.starts_with("ui.vue") {
+            "ui.vue"
+        } else if op.starts_with("ui.svelte") {
+            "ui.svelte"
+        } else if op.starts_with("ui.angular") {
+            "ui.angular"
+        } else if op.starts_with("ui.ember") {
+            "ui.ember"
+        }
+        //
+        // Web server
+        // `http*` mapped in Browser
+        else if op.starts_with("websocket") {
+            "websocker"
+        } else if op.starts_with("rpc") {
+            "rpc"
+        } else if op.starts_with("grpc") {
+            "grpc"
+        } else if op.starts_with("graphql") {
+            "graphql"
+        } else if op.starts_with("subprocess") {
+            "subprocess"
+        } else if op.starts_with("middleware") {
+            "middleware"
+        } else if op.starts_with("view") {
+            "view"
+        } else if op.starts_with("template") {
+            "template"
+        } else if op.starts_with("event") {
+            "event"
+        } else if op.starts_with("function.nextjs") {
+            "function.nextjs"
+        } else if op.starts_with("function.remix") {
+            "function.remix"
+        } else if op.starts_with("function") {
+            "function"
+        } else if op.starts_with("serialize") {
+            "serialize"
+        } else if op.starts_with("console") {
+            "console"
+        } else if op.starts_with("file") {
+            "file"
+        } else if op.starts_with("app") {
+            "app"
+        }
+        //
+        // Database
+        else if op.starts_with("db") {
+            "db"
+        } else if op.starts_with("cache") {
+            "cache"
+        }
+        //
+        // Serverless
+        // `http*` marked in Browser
+        // `grpc*` marked in Web server
+        else if op.starts_with("function.gpc") {
+            "function.grpc"
+        } else if op.starts_with("function.aws") {
+            "function.aws"
+        } else if op.starts_with("function.azure") {
+            "function.azure"
+        }
+        //
+        // Mobile
+        // `app*` marked in Web server
+        // `ui*` marked in Browser
+        // `navigation*` marked in Browser
+        // `file*` marked in Web server
+        // `serialize*` marked in Web server
+        // `http*` marked in Browser
+
+        // Desktop
+        // `app*` marked in Web server
+        // `ui*` marked in Browser
+        // `serialize*` marked in Web server
+        // `http*` marked in Browser
+
+        // Messages / queues
+        else if op.starts_with("topic") {
+            "topic"
+        } else if op.starts_with("queue") {
+            "queue"
+        }
+        //
+        // Unknown
+        else {
+            return None;
+        }
+    })
 }
 
 fn domain_from_http_url(url: &str) -> Option<String> {
