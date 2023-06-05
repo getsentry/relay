@@ -175,6 +175,10 @@ mod tests {
     fn test_find_rs_files() {
         let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
         let rust_file_paths = find_rs_files(&rust_crate);
+        let rust_file_paths: Vec<PathBuf> = rust_file_paths
+            .iter()
+            .map(|path| PathBuf::from_slash(path.to_str().unwrap()))
+            .collect();
         insta::assert_debug_snapshot!(rust_file_paths);
     }
 
