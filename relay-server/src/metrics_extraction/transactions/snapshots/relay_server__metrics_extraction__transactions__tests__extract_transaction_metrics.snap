@@ -33,7 +33,10 @@ expression: event.value().unwrap().spans
                 "react.mount",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -136,7 +139,139 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: {
+            "http.status_code": JsonLenientString(
+                "200",
+            ),
+        },
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "POST",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.domain": String(
+                "*.domain.tld:targetport",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: {
+            "http.status_code": JsonLenientString(
+                "200",
+            ),
+        },
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "POST",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.domain": String(
+                "*.domain.tld:targetport",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -198,7 +333,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -250,6 +388,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "targetdomain:targetport",
             ),
+            "span.group": String(
+                "ca77233e5cdb864b",
+            ),
             "span.module": String(
                 "http",
             ),
@@ -266,7 +407,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -321,6 +465,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "table",
             ),
+            "span.group": String(
+                "a31d8fd4438bc382",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -334,7 +481,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -383,6 +533,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "table",
             ),
+            "span.group": String(
+                "a31d8fd4438bc382",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -393,7 +546,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -455,7 +611,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -517,7 +676,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -570,7 +732,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -632,7 +797,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -694,7 +862,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -749,6 +920,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "table",
             ),
+            "span.group": String(
+                "c55478a060a56db3",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -762,7 +936,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -808,6 +985,9 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "SAVEPOINT %s",
             ),
+            "span.group": String(
+                "3f955cbde39e04b9",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -821,7 +1001,10 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -867,6 +1050,9 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "GET cache:user:*",
             ),
+            "span.group": String(
+                "325fa5feb926f121",
+            ),
             "span.module": String(
                 "cache",
             ),
@@ -877,7 +1063,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -920,6 +1109,9 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "http://domain/static/myscript-*.js",
             ),
+            "span.group": String(
+                "022f81fdf31228bf",
+            ),
             "span.op": String(
                 "resource.script",
             ),
@@ -927,7 +1119,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
