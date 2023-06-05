@@ -3842,47 +3842,6 @@
 <a href="#3842" id="3842">3842</a>
 <a href="#3843" id="3843">3843</a>
 <a href="#3844" id="3844">3844</a>
-<a href="#3845" id="3845">3845</a>
-<a href="#3846" id="3846">3846</a>
-<a href="#3847" id="3847">3847</a>
-<a href="#3848" id="3848">3848</a>
-<a href="#3849" id="3849">3849</a>
-<a href="#3850" id="3850">3850</a>
-<a href="#3851" id="3851">3851</a>
-<a href="#3852" id="3852">3852</a>
-<a href="#3853" id="3853">3853</a>
-<a href="#3854" id="3854">3854</a>
-<a href="#3855" id="3855">3855</a>
-<a href="#3856" id="3856">3856</a>
-<a href="#3857" id="3857">3857</a>
-<a href="#3858" id="3858">3858</a>
-<a href="#3859" id="3859">3859</a>
-<a href="#3860" id="3860">3860</a>
-<a href="#3861" id="3861">3861</a>
-<a href="#3862" id="3862">3862</a>
-<a href="#3863" id="3863">3863</a>
-<a href="#3864" id="3864">3864</a>
-<a href="#3865" id="3865">3865</a>
-<a href="#3866" id="3866">3866</a>
-<a href="#3867" id="3867">3867</a>
-<a href="#3868" id="3868">3868</a>
-<a href="#3869" id="3869">3869</a>
-<a href="#3870" id="3870">3870</a>
-<a href="#3871" id="3871">3871</a>
-<a href="#3872" id="3872">3872</a>
-<a href="#3873" id="3873">3873</a>
-<a href="#3874" id="3874">3874</a>
-<a href="#3875" id="3875">3875</a>
-<a href="#3876" id="3876">3876</a>
-<a href="#3877" id="3877">3877</a>
-<a href="#3878" id="3878">3878</a>
-<a href="#3879" id="3879">3879</a>
-<a href="#3880" id="3880">3880</a>
-<a href="#3881" id="3881">3881</a>
-<a href="#3882" id="3882">3882</a>
-<a href="#3883" id="3883">3883</a>
-<a href="#3884" id="3884">3884</a>
-<a href="#3885" id="3885">3885</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3898,6 +3857,7 @@
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
 <span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>relay_profiling::ProfileError;
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
 <span class="kw">use </span>tokio::sync::Semaphore;
 
@@ -4192,6 +4152,9 @@
 
     <span class="doccomment">/// The managed envelope before processing.
     </span>managed_envelope: ManagedEnvelope,
+
+    <span class="doccomment">/// Whether there is a profiling item in the envelope.
+    </span>has_profile: bool,
 }
 
 <span class="kw">impl </span>ProcessEnvelopeState {
@@ -4946,15 +4909,29 @@
 
     <span class="doccomment">/// Remove profiles from the envelope if they can not be parsed
     </span><span class="kw">fn </span>filter_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="kw">let </span><span class="kw-2">mut </span>found_profile = <span class="bool-val">false</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
-            ItemType::Profile =&gt; <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload()) {
-                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; ItemAction::Keep,
-                <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
-            },
+            ItemType::Profile =&gt; {
+                <span class="kw">if </span>!found_profile {
+                    <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload()) {
+                        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                            found_profile = <span class="bool-val">true</span>;
+                            ItemAction::Keep
+                        }
+                        <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        ))),
+                    }
+                } <span class="kw">else </span>{
+                    <span class="comment">// We found a second profile, drop it.
+                    </span><span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+                    )));
+                }
+            }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
+        state.has_profile = found_profile;
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
@@ -4981,61 +4958,6 @@
             }
         })
     }
-
-    <span class="doccomment">/// Count the number of profiles that are in the envelope and emit accepted outcome.
-    ///
-    /// &quot;processed&quot; profiles are an abstract data category that does not represent actual data
-    /// going through our pipeline. Instead, the number of accepted &quot;processed&quot; profiles is counted as
-    ///
-    /// ```text
-    /// processed_profiles = indexed_profiles + sampled_profiles
-    /// ```
-    ///
-    /// The &quot;processed&quot; outcome for sampled profiles is generated by the Kafka producer
-    /// (see `transform_outcome` in [`crate::actors::store`]), but for &quot;indexed&quot; profiles, we count
-    /// the corresponding number of processed profiles here.
-    ///
-    /// NOTE: Instead of emitting a [processed](`DataCategory::Profile`) outcome here,
-    /// we could also do it in sentry, in the same place where the [indexed](`DataCategory::ProfileIndexed`)
-    /// outcome is logged. We do it here to be consistent with profiles that are dropped by dynamic sampling,
-    /// which also count as &quot;processed&quot; even though they did not pass through the `process_profiles` step yet.
-    ///
-    ///
-    /// In the future, we might actually extract metrics from profiles before dynamic sampling,
-    /// like we do for transactions. At that point, this code should be removed, and we should
-    /// enforce rate limits and emit outcomes based on the collect profile metric, as we do for
-    /// transactions.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>count_processed_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>profile_count: usize = state
-            .managed_envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile)
-            .map(|item| {
-                item.set_profile_counted_as_processed();
-                item.quantity()
-            })
-            .sum();
-
-        <span class="kw">if </span>profile_count == <span class="number">0 </span>{
-            <span class="kw">return</span>;
-        }
-
-        <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
-            timestamp: state.managed_envelope.received_at(),
-            scoping: state.managed_envelope.scoping(),
-            outcome: Outcome::Accepted,
-            event_id: <span class="prelude-val">None</span>,
-            remote_addr: <span class="prelude-val">None</span>,
-            category: DataCategory::Profile,
-            quantity: profile_count <span class="kw">as </span>u32, <span class="comment">// truncates to `u32::MAX`
-        </span>});
-
-        <span class="comment">// TODO: At this point, we should also ensure that the envelope summary gets recomputed.
-        // But recomputing the summary after extracting the event is currently problematic, because it
-        // sets the envelope type to `None`. This needs to be solved in a follow-up.
-    </span>}
 
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -5281,6 +5203,7 @@
             sampling_project_state,
             project_id,
             managed_envelope,
+            has_profile: <span class="bool-val">false</span>,
         })
     }
 
@@ -6014,6 +5937,7 @@
                         event,
                         transaction_from_dsc,
                         <span class="kw-2">&amp;</span>state.sampling_result,
+                        state.has_profile,
                         <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics,
                         <span class="kw-2">&amp;mut </span>state.extracted_metrics.sampling_metrics,
                     );
@@ -6314,9 +6238,6 @@
         <span class="self">self</span>.process_replays(state)<span class="question-mark">?</span>;
         <span class="self">self</span>.filter_profiles(state);
 
-        <span class="comment">// After filtering, we need to update the envelope summary:
-        </span>state.managed_envelope.update();
-
         <span class="kw">if </span>state.creates_event() {
             <span class="comment">// Some envelopes only create events in processing relays; for example, unreal events.
             // This makes it possible to get in this code block while not really having an event in
@@ -6348,11 +6269,6 @@
 
         <span class="macro">if_processing!</span>({
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            <span class="comment">// Any profile that reaches this point counts as &quot;processed&quot;, regardless of whether
-            // they survive the actual `process_profiles` step. This is to be consistent with
-            // profiles that are dropped by dynamic sampling, which also count as &quot;processed&quot;
-            // even though they did not pass through the `process_profiles` step yet.
-            </span><span class="self">self</span>.count_processed_profiles(state);
             <span class="comment">// We need the event parsed in order to set the profile context on it
             </span><span class="self">self</span>.process_profiles(state);
             <span class="self">self</span>.process_check_ins(state);
@@ -6655,6 +6571,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::env;
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
@@ -6877,6 +6794,7 @@
                     outcome_aggregator.clone(),
                     test_store.clone(),
                 ),
+                has_profile: <span class="bool-val">false</span>,
             };
 
             <span class="comment">// TODO: This does not test if the sampling decision is actually applied. This should be

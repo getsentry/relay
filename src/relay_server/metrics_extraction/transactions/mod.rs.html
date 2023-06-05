@@ -3431,6 +3431,36 @@
 <a href="#3431" id="3431">3431</a>
 <a href="#3432" id="3432">3432</a>
 <a href="#3433" id="3433">3433</a>
+<a href="#3434" id="3434">3434</a>
+<a href="#3435" id="3435">3435</a>
+<a href="#3436" id="3436">3436</a>
+<a href="#3437" id="3437">3437</a>
+<a href="#3438" id="3438">3438</a>
+<a href="#3439" id="3439">3439</a>
+<a href="#3440" id="3440">3440</a>
+<a href="#3441" id="3441">3441</a>
+<a href="#3442" id="3442">3442</a>
+<a href="#3443" id="3443">3443</a>
+<a href="#3444" id="3444">3444</a>
+<a href="#3445" id="3445">3445</a>
+<a href="#3446" id="3446">3446</a>
+<a href="#3447" id="3447">3447</a>
+<a href="#3448" id="3448">3448</a>
+<a href="#3449" id="3449">3449</a>
+<a href="#3450" id="3450">3450</a>
+<a href="#3451" id="3451">3451</a>
+<a href="#3452" id="3452">3452</a>
+<a href="#3453" id="3453">3453</a>
+<a href="#3454" id="3454">3454</a>
+<a href="#3455" id="3455">3455</a>
+<a href="#3456" id="3456">3456</a>
+<a href="#3457" id="3457">3457</a>
+<a href="#3458" id="3458">3458</a>
+<a href="#3459" id="3459">3459</a>
+<a href="#3460" id="3460">3460</a>
+<a href="#3461" id="3461">3461</a>
+<a href="#3462" id="3462">3462</a>
+<a href="#3463" id="3463">3463</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>md5;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3449,8 +3479,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
+    TransactionMeasurementTags, TransactionMetric,
 };
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -3776,17 +3806,21 @@
     event: <span class="kw-2">&amp;mut </span>Event,
     transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
+    has_profile: bool,
     project_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,  <span class="comment">// output parameter
     </span>sampling_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ExtractMetricsError&gt; {
     <span class="kw">let </span>before_len = project_metrics.len();
 
     extract_transaction_metrics_inner(
-        aggregator_config,
-        config,
-        event,
-        transaction_from_dsc,
-        sampling_result,
+        ExtractInput {
+            aggregator_config,
+            config,
+            event,
+            transaction_from_dsc,
+            sampling_result,
+            has_profile,
+        },
         project_metrics,
         sampling_metrics,
     )<span class="question-mark">?</span>;
@@ -3800,15 +3834,21 @@
     <span class="prelude-val">Ok</span>(!added_slice.is_empty())
 }
 
+<span class="kw">struct </span>ExtractInput&lt;<span class="lifetime">&#39;a</span>&gt; {
+    aggregator_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>AggregatorConfig,
+    config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>TransactionMetricsConfig,
+    event: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Event,
+    transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingResult,
+    has_profile: bool,
+}
+
 <span class="kw">fn </span>extract_transaction_metrics_inner(
-    aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
-    config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
-    event: <span class="kw-2">&amp;</span>Event,
-    transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-    sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
+    input: ExtractInput&lt;<span class="lifetime">&#39;_</span>&gt;,
     metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,          <span class="comment">// output parameter
     </span>sampling_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExtractMetricsError&gt; {
+    <span class="kw">let </span>event = input.event;
     <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
@@ -3826,12 +3866,16 @@
     <span class="comment">// Validate the transaction event against the metrics timestamp limits. If the metric is too
     // old or too new, we cannot extract the metric and also need to drop the transaction event
     // for consistency between metrics and events.
-    </span><span class="kw">if </span>!aggregator_config.timestamp_range().contains(<span class="kw-2">&amp;</span>timestamp) {
+    </span><span class="kw">if </span>!input
+        .aggregator_config
+        .timestamp_range()
+        .contains(<span class="kw-2">&amp;</span>timestamp)
+    {
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is out of the valid range for metrics&quot;</span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
     }
 
-    <span class="kw">let </span>tags = extract_universal_tags(event, config);
+    <span class="kw">let </span>tags = extract_universal_tags(event, input.config);
 
     <span class="comment">// Measurements
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = event.measurements.value() {
@@ -3901,20 +3945,23 @@
         TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
-            tags: tags.clone(),
+            tags: TransactionDurationTags {
+                has_profile: input.has_profile,
+                universal_tags: tags.clone(),
+            },
         }
         .into_metric(timestamp),
     );
 
     <span class="kw">let </span>root_counter_tags = {
         <span class="kw">let </span><span class="kw-2">mut </span>universal_tags = CommonTags(BTreeMap::default());
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_from_dsc) = transaction_from_dsc {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_from_dsc) = input.transaction_from_dsc {
             universal_tags
                 .<span class="number">0
                 </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
         }
         TransactionCPRTags {
-            decision: <span class="kw">match </span>sampling_result {
+            decision: <span class="kw">match </span>input.sampling_result {
                 SamplingResult::Keep =&gt; <span class="string">&quot;keep&quot;</span>.to_owned(),
                 SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="string">&quot;drop&quot;</span>.to_owned(),
             },
@@ -4646,6 +4693,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -5773,6 +5821,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -5866,6 +5915,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -5946,6 +5996,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6022,6 +6073,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6133,6 +6185,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6221,6 +6274,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6271,6 +6325,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6311,6 +6366,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6360,6 +6416,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         );
@@ -6386,6 +6443,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6426,6 +6484,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;root_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )
@@ -6800,6 +6859,7 @@
             event.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
             <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;mut </span>metrics,
             <span class="kw-2">&amp;mut </span>sampling_metrics,
         )

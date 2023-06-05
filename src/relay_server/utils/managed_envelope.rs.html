@@ -721,7 +721,7 @@
         <span class="kw">if </span><span class="self">self</span>.context.summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome,
-                <span class="kw">if </span><span class="self">self</span>.context.summary.profile_counted_as_processed {
+                <span class="kw">if </span><span class="self">self</span>.use_index_category() {
                     DataCategory::ProfileIndexed
                 } <span class="kw">else </span>{
                     DataCategory::Profile

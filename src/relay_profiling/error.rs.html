@@ -29,6 +29,8 @@
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>thiserror::Error;
 
 <span class="attr">#[derive(Debug, Error)]
@@ -57,6 +59,8 @@
     </span>MalformedSamples,
     <span class="attr">#[error(<span class="string">&quot;exceed size limit&quot;</span>)]
     </span>ExceedSizeLimit,
+    <span class="attr">#[error(<span class="string">&quot;too many profiles&quot;</span>)]
+    </span>TooManyProfiles,
     <span class="attr">#[error(<span class="string">&quot;duration is too long&quot;</span>)]
     </span>DurationIsTooLong,
 }
