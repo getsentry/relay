@@ -234,17 +234,8 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             .boxed(),
     };
 
-    #[allow(unused_mut)]
-    let mut sentry_tracing = sentry::integrations::tracing::layer();
-    #[cfg(not(debug_assertions))]
-    {
-        // Ignore all the spans.
-        sentry_tracing = sentry_tracing.span_filter(|_| false);
-    }
-
     tracing_subscriber::registry()
         .with(format.with_filter(LevelFilter::from(config.level)))
-        .with(sentry_tracing)
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
             Err(_) => get_default_filters(),
