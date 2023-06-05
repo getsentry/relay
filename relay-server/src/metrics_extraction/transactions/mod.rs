@@ -862,14 +862,10 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         //
         // Unknown
         else {
-            ""
+            return None;
         };
 
-    if category.is_empty() {
-        None
-    } else {
-        Some(category)
-    }
+    Some(category)
 }
 
 fn domain_from_http_url(url: &str) -> Option<String> {
