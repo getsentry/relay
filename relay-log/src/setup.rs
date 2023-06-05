@@ -239,7 +239,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     #[cfg(not(debug_assertions))]
     {
         // Ignore all the spans.
-        sentry_tracing.span_filter(|_| false)
+        sentry_tracing.span_filter(|_| false);
     }
 
     tracing_subscriber::registry()
