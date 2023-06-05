@@ -9,6 +9,9 @@ use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
+use crate::MAX_PROFILE_DURATION;
+
+const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
@@ -213,6 +216,13 @@ impl SampleProfile {
         true
     }
 
+    fn is_above_max_duration(&self) -> bool {
+        if let Some(sample) = &self.profile.samples.last() {
+            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
+        }
+        false
+    }
+
     /// Removes a sample when it's the only sample on its thread
     fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
@@ -327,6 +337,10 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
+    if profile.is_above_max_duration() {
+        return Err(ProfileError::DurationIsTooLong);
+    }
+
     profile.strip_pointer_authentication_code();
     profile.cleanup_thread_metadata();
     profile.cleanup_queue_metadata();
@@ -368,6 +382,7 @@ pub fn parse_sample_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_roundtrip() {
@@ -908,5 +923,49 @@ mod tests {
             output.metadata.transaction.unwrap().name,
             "some-random-transaction".to_string()
         );
+    }
+
+    #[test]
+    fn test_keep_profile_under_max_duration() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION - Duration::from_secs(1)).as_nanos()
+                    as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(!profile.is_above_max_duration());
+    }
+
+    #[test]
+    fn test_reject_profile_over_max_duration() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION + Duration::from_secs(1)).as_nanos()
+                    as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(profile.is_above_max_duration());
     }
 }
