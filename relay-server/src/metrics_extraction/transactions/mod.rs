@@ -1607,6 +1607,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
