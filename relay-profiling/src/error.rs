@@ -28,4 +28,6 @@ pub enum ProfileError {
     ExceedSizeLimit,
     #[error("too many profiles")]
     TooManyProfiles,
+    #[error("duration is too long")]
+    DurationIsTooLong,
 }
