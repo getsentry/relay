@@ -747,11 +747,10 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // General
         if op.starts_with("mark") {
             "mark"
-        } else if op.starts_with("function") {
-            "function"
         }
         //
         // Browser
+        // `ui*` mapped in JS frameworks
         else if op.starts_with("pageload") {
             "pageload"
         } else if op.starts_with("navigation") {
@@ -762,8 +761,6 @@ fn span_op_to_category(op: &str) -> Option<&str> {
             "browser"
         } else if op.starts_with("measure") {
             "measure"
-        } else if op.starts_with("ui") {
-            "ui"
         } else if op.starts_with("http") {
             "http"
         } else if op.starts_with("serialize") {
@@ -771,22 +768,27 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         }
         //
         // JS frameworks
-        else if op.starts_with("ui.react") {
-            "ui.react"
-        } else if op.starts_with("ui.vue") {
-            "ui.vue"
-        } else if op.starts_with("ui.svelte") {
-            "ui.svelte"
-        } else if op.starts_with("ui.angular") {
-            "ui.angular"
-        } else if op.starts_with("ui.ember") {
-            "ui.ember"
+        else if op.starts_with("ui") {
+            if op.starts_with("ui.react") {
+                "ui.react"
+            } else if op.starts_with("ui.vue") {
+                "ui.vue"
+            } else if op.starts_with("ui.svelte") {
+                "ui.svelte"
+            } else if op.starts_with("ui.angular") {
+                "ui.angular"
+            } else if op.starts_with("ui.ember") {
+                "ui.ember"
+            } else {
+                "ui"
+            }
         }
         //
         // Web server
         // `http*` mapped in Browser
+        // `serialize*` mapped in Browser
         else if op.starts_with("websocket") {
-            "websocker"
+            "websocket"
         } else if op.starts_with("rpc") {
             "rpc"
         } else if op.starts_with("grpc") {
@@ -803,14 +805,20 @@ fn span_op_to_category(op: &str) -> Option<&str> {
             "template"
         } else if op.starts_with("event") {
             "event"
-        } else if op.starts_with("function.nextjs") {
-            "function.nextjs"
-        } else if op.starts_with("function.remix") {
-            "function.remix"
         } else if op.starts_with("function") {
-            "function"
-        } else if op.starts_with("serialize") {
-            "serialize"
+            if op.starts_with("function.nextjs") {
+                "function.nextjs"
+            } else if op.starts_with("function.remix") {
+                "function.remix"
+            } else if op.starts_with("function.gpc") {
+                "function.grpc"
+            } else if op.starts_with("function.aws") {
+                "function.aws"
+            } else if op.starts_with("function.azure") {
+                "function.azure"
+            } else {
+                "function"
+            }
         } else if op.starts_with("console") {
             "console"
         } else if op.starts_with("file") {
@@ -829,13 +837,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // Serverless
         // `http*` marked in Browser
         // `grpc*` marked in Web server
-        else if op.starts_with("function.gpc") {
-            "function.grpc"
-        } else if op.starts_with("function.aws") {
-            "function.aws"
-        } else if op.starts_with("function.azure") {
-            "function.azure"
-        }
+        // `function*` marked in Web server
         //
         // Mobile
         // `app*` marked in Web server
