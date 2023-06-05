@@ -158,7 +158,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -221,7 +224,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -332,6 +338,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "targetdomain:targetport",
             ),
+            "span.group": String(
+                "ca77233e5cdb864b",
+            ),
             "span.module": String(
                 "http",
             ),
@@ -403,6 +412,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "table",
             ),
+            "span.group": String(
+                "a31d8fd4438bc382",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -464,6 +476,9 @@ expression: event.value().unwrap().spans
             ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "a31d8fd4438bc382",
             ),
             "span.module": String(
                 "db",
@@ -831,6 +846,9 @@ expression: event.value().unwrap().spans
             "span.domain": String(
                 "table",
             ),
+            "span.group": String(
+                "c55478a060a56db3",
+            ),
             "span.module": String(
                 "db",
             ),
@@ -889,6 +907,9 @@ expression: event.value().unwrap().spans
             ),
             "span.description": String(
                 "SAVEPOINT %s",
+            ),
+            "span.group": String(
+                "3f955cbde39e04b9",
             ),
             "span.module": String(
                 "db",
@@ -949,6 +970,9 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "GET cache:user:*",
             ),
+            "span.group": String(
+                "325fa5feb926f121",
+            ),
             "span.module": String(
                 "cache",
             ),
@@ -1001,6 +1025,9 @@ expression: event.value().unwrap().spans
             ),
             "span.description": String(
                 "http://domain/static/myscript-*.js",
+            ),
+            "span.group": String(
+                "022f81fdf31228bf",
             ),
             "span.op": String(
                 "resource.script",

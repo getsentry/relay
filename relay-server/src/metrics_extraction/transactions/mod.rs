@@ -1,3 +1,4 @@
+use md5;
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
@@ -577,6 +578,10 @@ fn extract_span_metrics(
                     "span.description".to_owned(),
                     scrubbed_description.to_owned(),
                 );
+
+                let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
+                span_group.truncate(16);
+                span_tags.insert("span.group".to_owned(), span_group);
             }
 
             if let Some(span_op) = span.op.value() {
@@ -1441,7 +1446,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1459,7 +1465,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1477,7 +1484,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1495,7 +1503,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1513,7 +1522,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1531,7 +1541,8 @@ mod tests {
                     "span.op": "http.client",
                     "span.status": "ok",
                     "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1603,6 +1614,7 @@ mod tests {
                     "span.action": "POST",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
@@ -1623,6 +1635,7 @@ mod tests {
                     "span.action": "POST",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
@@ -1643,6 +1656,7 @@ mod tests {
                     "span.action": "POST",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
@@ -1663,6 +1677,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
@@ -1683,6 +1698,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
@@ -1703,6 +1719,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
@@ -1723,6 +1740,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1742,6 +1760,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1761,6 +1780,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "a31d8fd4438bc382",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2062,6 +2082,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2082,6 +2103,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2102,6 +2124,7 @@ mod tests {
                     "span.action": "SELECT",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2120,6 +2143,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2138,6 +2162,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2156,6 +2181,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -2174,6 +2200,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
@@ -2191,6 +2218,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
@@ -2208,6 +2236,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
@@ -2225,6 +2254,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
                     "transaction": "GET /api/:version/users/",
@@ -2241,6 +2271,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
                     "transaction": "GET /api/:version/users/",
@@ -2257,6 +2288,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
                     "transaction": "GET /api/:version/users/",
