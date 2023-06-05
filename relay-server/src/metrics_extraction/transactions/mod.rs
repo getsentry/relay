@@ -743,7 +743,7 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
 /// Returns the category of a span from its operation. The mapping is available in:
 /// <https://develop.sentry.dev/sdk/performance/span-operations/>
 fn span_op_to_category(op: &str) -> Option<&str> {
-    Some({
+    let category =
         // General
         if op.starts_with("mark") {
             "mark"
@@ -860,9 +860,14 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         //
         // Unknown
         else {
-            return None;
-        }
-    })
+            ""
+        };
+
+    if category.is_empty() {
+        None
+    } else {
+        Some(category)
+    }
 }
 
 fn domain_from_http_url(url: &str) -> Option<String> {
