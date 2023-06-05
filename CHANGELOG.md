@@ -2,11 +2,16 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Make counting of total profiles consistent with total transactions. ([#2163](https://github.com/getsentry/relay/pull/2163))
+
 **Features**:
 
 - Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
 - Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
+- Change default topic for transaction metrics to `ingest-performance-metrics`. ([#2180](https://github.com/getsentry/relay/pull/2180))
 
 **Internal**:
 
@@ -17,6 +22,7 @@
 **Features**:
 
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+- Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
 ## 23.5.1
 
